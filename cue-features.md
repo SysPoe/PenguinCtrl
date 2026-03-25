@@ -4,13 +4,14 @@ Cue Types: Light, Sound
 Sound cue types: Play once, Vamp
 All have:
     Options:
-        - Clip (upload as well)
+        - Clip selection (upload as well, automatic transcoding to an efficient format that Tone.js can support w/ ffmpeg-static)
         - Play style (play alongside other clips, wait till all other clips finish -- show that it is automatically gonna start, fade out all clips then start, xfade with end of other clips -- show it will start, )
         - Clip start (default 0s)
         - Clip end (default {len}s)
         - Fade in (default 0s)
         - Fade out (default 0s)
         - Auto after (default do nothing, but can trigger another cue)
+        - Waveform visualisation with all of these features when adding/modifying it
         - Default manual f/o duration (default 2s)
         - Volume (+/- db)
         - Allow multiple instances of clip

@@ -11,6 +11,14 @@ let currentTargetId = null;
 let currentCueType = null;
 let currentCueId = null; // null = adding new, string = editing existing
 
+// Sound modal state
+let currentSoundSubtype = 'play_once';
+let currentClipPath = null;
+let waveformAudioBuffer = null;
+let waveformPeaks = null;
+let waveformRedrawTimer = null;
+let waveformDrag = null; // { handle, inputId, containerLeft, containerWidth, duration }
+
 // === UTILITIES ===
 
 function generateId() {
@@ -437,6 +445,30 @@ document.getElementById('scroll-container').addEventListener('wheel', (e) => {
   }
 }, { passive: false });
 
+document.addEventListener('pointermove', (e) => {
+  if (!waveformDrag) return;
+  const { handle, inputId, containerLeft, containerWidth, duration } = waveformDrag;
+  const x = Math.max(0, Math.min(containerWidth, e.clientX - containerLeft));
+  const t = (x / containerWidth) * duration;
+  document.getElementById(inputId).value = t.toFixed(3);
+  handle.style.left = ((t / duration) * 100).toFixed(3) + '%';
+  scheduleWaveformRedraw();
+});
+
+document.addEventListener('pointerup', () => {
+  if (!waveformDrag) return;
+  const { inputId } = waveformDrag;
+  waveformDrag = null;
+  // Snap clip-end / loop-end to null if dragged to the very end
+  if ((inputId === 'p-clip-end' || inputId === 'p-loop-end') && waveformAudioBuffer) {
+    const el = document.getElementById(inputId);
+    const val = parseFloat(el.value);
+    if (Math.abs(val - waveformAudioBuffer.duration) < 0.05) el.value = '';
+  }
+  drawWaveform();
+  updateWaveformHandles();
+});
+
 document.addEventListener('click', (e) => {
   const gotoContainer = document.querySelector('.goto-container');
   if (!gotoContainer.contains(e.target)) {
@@ -531,6 +563,9 @@ function openCueModal(targetId) {
 
   updateExistingCuesList(targetId);
 
+  document.getElementById('sound-section').style.display = 'none';
+  document.querySelector('.cue-modal').classList.remove('modal-wide');
+
   document.getElementById('cue-modal-overlay').classList.add('visible');
   setTimeout(() => document.getElementById('cue-title').focus(), 50);
 }
@@ -554,6 +589,17 @@ function openCueModalEdit(targetId, type, cueId) {
   document.querySelectorAll('.cue-type-btn').forEach(b => {
     b.classList.toggle('selected', b.dataset.type === type);
   });
+
+  const soundSection = document.getElementById('sound-section');
+  const modal = document.querySelector('.cue-modal');
+  if (type === 'sound') {
+    soundSection.style.display = 'block';
+    modal.classList.add('modal-wide');
+    initSoundForm(cueData);
+  } else {
+    soundSection.style.display = 'none';
+    modal.classList.remove('modal-wide');
+  }
 
   updateExistingCuesList(targetId);
 
@@ -617,6 +663,17 @@ function selectCueType(type) {
   document.querySelectorAll('.cue-type-btn').forEach(b => {
     b.classList.toggle('selected', b.dataset.type === type);
   });
+
+  const soundSection = document.getElementById('sound-section');
+  const modal = document.querySelector('.cue-modal');
+  if (type === 'sound') {
+    soundSection.style.display = 'block';
+    modal.classList.add('modal-wide');
+    if (!currentCueId) initSoundForm(null);
+  } else {
+    soundSection.style.display = 'none';
+    modal.classList.remove('modal-wide');
+  }
 }
 
 function handleCueModalKeydown(event) {
@@ -654,16 +711,18 @@ async function saveCue() {
 
   const cueList = normalizeCueList(cues[currentTargetId][currentCueType]);
 
+  const soundData = currentCueType === 'sound' ? getSoundData() : {};
+
   if (currentCueId) {
     // Update existing
     const idx = cueList.findIndex(c => c.id === currentCueId);
     if (idx !== -1) {
-      cueList[idx] = { ...cueList[idx], title, description };
+      cueList[idx] = { ...cueList[idx], title, description, ...soundData };
     } else {
-      cueList.push({ id: currentCueId, title, description });
+      cueList.push({ id: currentCueId, title, description, ...soundData });
     }
   } else {
-    cueList.push({ id: generateId(), title, description });
+    cueList.push({ id: generateId(), title, description, ...soundData });
   }
 
   cues[currentTargetId][currentCueType] = cueList;
@@ -689,6 +748,353 @@ async function deleteCue() {
   }
 
   await persistAndRefresh();
+}
+
+// === SOUND MODAL ===
+
+function selectSoundSubtype(subtype) {
+  currentSoundSubtype = subtype;
+  document.querySelectorAll('.sound-sub-btn').forEach(b => {
+    b.classList.toggle('selected', b.dataset.subtype === subtype);
+  });
+  document.getElementById('vamp-section').style.display = subtype === 'vamp' ? 'block' : 'none';
+  scheduleWaveformRedraw();
+}
+
+function selectPlayStyle(btn) {
+  document.querySelectorAll('#play-style-control .seg-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+}
+
+function getSoundData() {
+  const playStyleBtn = document.querySelector('#play-style-control .seg-btn.selected');
+  const clipEndVal = document.getElementById('p-clip-end').value;
+  const data = {
+    soundSubtype: currentSoundSubtype,
+    clip: currentClipPath,
+    playStyle: playStyleBtn ? playStyleBtn.dataset.value : 'alongside',
+    clipStart: parseFloat(document.getElementById('p-clip-start').value) || 0,
+    clipEnd: clipEndVal !== '' ? parseFloat(clipEndVal) : null,
+    fadeIn: parseFloat(document.getElementById('p-fade-in').value) || 0,
+    fadeOut: parseFloat(document.getElementById('p-fade-out').value) || 0,
+    volume: parseFloat(document.getElementById('p-volume').value) || 0,
+    manualFadeOutDuration: parseFloat(document.getElementById('p-manual-fo').value) || 2,
+    allowMultipleInstances: document.getElementById('p-allow-multi').checked,
+  };
+  if (currentSoundSubtype === 'vamp') {
+    const loopEndVal = document.getElementById('p-loop-end').value;
+    data.loopStart = parseFloat(document.getElementById('p-loop-start').value) || 0;
+    data.loopEnd = loopEndVal !== '' ? parseFloat(loopEndVal) : null;
+    data.loopXfade = parseFloat(document.getElementById('p-loop-xfade').value) || 0;
+    data.devampAction = document.getElementById('p-devamp-action').value || 'fade_out';
+  }
+  return data;
+}
+
+function initSoundForm(cueData) {
+  if (!cueData) {
+    selectSoundSubtype('play_once');
+    currentClipPath = null;
+    document.getElementById('clip-name-text').textContent = 'No clip selected';
+    document.getElementById('p-clip-start').value = '0';
+    document.getElementById('p-clip-end').value = '';
+    document.getElementById('p-fade-in').value = '0';
+    document.getElementById('p-fade-out').value = '0';
+    document.getElementById('p-volume').value = '0';
+    document.getElementById('p-manual-fo').value = '2';
+    document.getElementById('p-allow-multi').checked = true;
+    document.getElementById('p-loop-start').value = '0';
+    document.getElementById('p-loop-end').value = '';
+    document.getElementById('p-loop-xfade').value = '0';
+    document.getElementById('p-devamp-action').value = 'fade_out';
+    document.querySelectorAll('#play-style-control .seg-btn').forEach(b => {
+      b.classList.toggle('selected', b.dataset.value === 'alongside');
+    });
+    clearWaveformDisplay();
+    return;
+  }
+
+  selectSoundSubtype(cueData.soundSubtype || 'play_once');
+
+  document.querySelectorAll('#play-style-control .seg-btn').forEach(b => {
+    b.classList.toggle('selected', b.dataset.value === (cueData.playStyle || 'alongside'));
+  });
+
+  document.getElementById('p-clip-start').value = cueData.clipStart ?? 0;
+  document.getElementById('p-clip-end').value = cueData.clipEnd != null ? cueData.clipEnd : '';
+  document.getElementById('p-fade-in').value = cueData.fadeIn ?? 0;
+  document.getElementById('p-fade-out').value = cueData.fadeOut ?? 0;
+  document.getElementById('p-volume').value = cueData.volume ?? 0;
+  document.getElementById('p-manual-fo').value = cueData.manualFadeOutDuration ?? 2;
+  document.getElementById('p-allow-multi').checked = cueData.allowMultipleInstances !== false;
+  document.getElementById('p-loop-start').value = cueData.loopStart ?? 0;
+  document.getElementById('p-loop-end').value = cueData.loopEnd != null ? cueData.loopEnd : '';
+  document.getElementById('p-loop-xfade').value = cueData.loopXfade ?? 0;
+  document.getElementById('p-devamp-action').value = cueData.devampAction || 'fade_out';
+
+  if (cueData.clip) {
+    currentClipPath = cueData.clip;
+    document.getElementById('clip-name-text').textContent = cueData.clip.split('/').pop();
+    loadWaveform(cueData.clip);
+  } else {
+    currentClipPath = null;
+    document.getElementById('clip-name-text').textContent = 'No clip selected';
+    clearWaveformDisplay();
+  }
+}
+
+async function handleClipUpload(file) {
+  if (!file) return;
+
+  clearWaveformDisplay();
+  document.getElementById('waveform-empty').style.display = 'none';
+  document.getElementById('waveform-loading').style.display = 'flex';
+  document.getElementById('clip-name-text').textContent = 'Uploading…';
+
+  try {
+    const res = await fetch('/api/audio/upload', {
+      method: 'POST',
+      headers: {
+        'Content-Type': file.type || 'application/octet-stream',
+        'X-Filename': file.name,
+      },
+      body: file,
+    });
+    if (!res.ok) throw new Error((await res.json()).error || 'Upload failed');
+    const data = await res.json();
+
+    currentClipPath = data.path;
+    document.getElementById('clip-name-text').textContent = data.path.split('/').pop();
+    await loadWaveform(data.path);
+  } catch (err) {
+    console.error('Upload error:', err);
+    document.getElementById('clip-name-text').textContent = 'Upload failed';
+    document.getElementById('waveform-loading').style.display = 'none';
+    document.getElementById('waveform-empty').style.display = 'flex';
+  }
+
+  document.getElementById('clip-file-input').value = '';
+}
+
+async function loadWaveform(url) {
+  document.getElementById('waveform-empty').style.display = 'none';
+  document.getElementById('waveform-canvas').style.display = 'none';
+  document.getElementById('wf-handle-layer').style.display = 'none';
+  document.getElementById('waveform-loading').style.display = 'flex';
+
+  try {
+    const audioCtx = new AudioContext();
+    const arrayBuffer = await (await fetch(url)).arrayBuffer();
+    waveformAudioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    audioCtx.close();
+
+    const container = document.getElementById('waveform-container');
+    const W = container.clientWidth;
+    const dpr = window.devicePixelRatio || 1;
+    waveformPeaks = computeWaveformPeaks(waveformAudioBuffer, W);
+
+    const canvas = document.getElementById('waveform-canvas');
+    canvas.width = W * dpr;
+    canvas.height = 88 * dpr;
+    canvas.style.width = W + 'px';
+    canvas.style.height = '88px';
+    canvas.style.display = 'block';
+    document.getElementById('wf-handle-layer').style.display = 'block';
+    document.getElementById('waveform-loading').style.display = 'none';
+
+    drawWaveform();
+    updateWaveformHandles();
+  } catch (err) {
+    console.error('Waveform load error:', err);
+    document.getElementById('waveform-loading').style.display = 'none';
+    document.getElementById('waveform-empty').style.display = 'flex';
+  }
+}
+
+function computeWaveformPeaks(audioBuffer, numSamples) {
+  const data = audioBuffer.getChannelData(0);
+  const step = Math.ceil(data.length / numSamples);
+  const peaks = new Float32Array(numSamples);
+  for (let i = 0; i < numSamples; i++) {
+    const start = i * step;
+    const end = Math.min(start + step, data.length);
+    let max = 0;
+    for (let j = start; j < end; j++) {
+      const v = Math.abs(data[j]);
+      if (v > max) max = v;
+    }
+    peaks[i] = max;
+  }
+  return peaks;
+}
+
+function clearWaveformDisplay() {
+  waveformAudioBuffer = null;
+  waveformPeaks = null;
+  document.getElementById('waveform-empty').style.display = 'flex';
+  document.getElementById('waveform-canvas').style.display = 'none';
+  document.getElementById('wf-handle-layer').style.display = 'none';
+  document.getElementById('wf-handle-layer').innerHTML = '';
+  document.getElementById('waveform-loading').style.display = 'none';
+}
+
+function scheduleWaveformRedraw() {
+  clearTimeout(waveformRedrawTimer);
+  waveformRedrawTimer = setTimeout(() => {
+    drawWaveform();
+    updateWaveformHandles();
+  }, 40);
+}
+
+function drawWaveform() {
+  if (!waveformPeaks || !waveformAudioBuffer) return;
+  const canvas = document.getElementById('waveform-canvas');
+  if (!canvas || canvas.style.display === 'none') return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width;
+  const H = canvas.height;
+  const dur = waveformAudioBuffer.duration;
+  const dpr = window.devicePixelRatio || 1;
+  const numPeaks = waveformPeaks.length;
+
+  const tx = t => Math.round(Math.max(0, Math.min(1, t / dur)) * W);
+
+  const clipStart = parseFloat(document.getElementById('p-clip-start').value) || 0;
+  const clipEndRaw = document.getElementById('p-clip-end').value;
+  const clipEnd = clipEndRaw !== '' ? parseFloat(clipEndRaw) : dur;
+  const fadeIn = parseFloat(document.getElementById('p-fade-in').value) || 0;
+  const fadeOut = parseFloat(document.getElementById('p-fade-out').value) || 0;
+  const isVamp = currentSoundSubtype === 'vamp';
+  const loopStart = isVamp ? (parseFloat(document.getElementById('p-loop-start').value) || 0) : 0;
+  const loopEndRaw = isVamp ? document.getElementById('p-loop-end').value : '';
+  const loopEnd = isVamp && loopEndRaw !== '' ? parseFloat(loopEndRaw) : dur;
+  const loopXfade = isVamp ? (parseFloat(document.getElementById('p-loop-xfade').value) || 0) : 0;
+
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#111';
+  ctx.fillRect(0, 0, W, H);
+
+  // Draw peaks
+  const barW = Math.max(1, W / numPeaks);
+  for (let i = 0; i < numPeaks; i++) {
+    const t = (i / numPeaks) * dur;
+    const peak = waveformPeaks[i];
+    const inRange = t >= clipStart && t <= clipEnd;
+    const inLoop = isVamp && t >= loopStart && t <= loopEnd;
+
+    if (!inRange) ctx.fillStyle = '#222';
+    else if (inLoop) ctx.fillStyle = 'rgba(99,102,241,0.85)';
+    else ctx.fillStyle = '#10b981';
+
+    const x = Math.round((i / numPeaks) * W);
+    const barH = Math.max(2 * dpr, peak * H * 0.85);
+    ctx.fillRect(x, (H - barH) / 2, barW - 0.5, barH);
+  }
+
+  // Out-of-range overlay
+  if (clipStart > 0) {
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(0, 0, tx(clipStart), H);
+  }
+  if (clipEnd < dur) {
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(tx(clipEnd), 0, W - tx(clipEnd), H);
+  }
+
+  // Fade in gradient
+  if (fadeIn > 0 && clipStart + fadeIn <= clipEnd) {
+    const x0 = tx(clipStart), x1 = tx(clipStart + fadeIn);
+    const g = ctx.createLinearGradient(x0, 0, x1, 0);
+    g.addColorStop(0, 'rgba(0,0,0,0.65)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x0, 0, x1 - x0, H);
+  }
+
+  // Fade out gradient
+  if (fadeOut > 0 && clipEnd - fadeOut >= clipStart) {
+    const x0 = tx(clipEnd - fadeOut), x1 = tx(clipEnd);
+    const g = ctx.createLinearGradient(x0, 0, x1, 0);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(1, 'rgba(0,0,0,0.65)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x0, 0, x1 - x0, H);
+  }
+
+  // Loop xfade tint
+  if (isVamp && loopXfade > 0) {
+    ctx.fillStyle = 'rgba(99,102,241,0.25)';
+    ctx.fillRect(tx(loopEnd - loopXfade), 0, tx(loopEnd) - tx(loopEnd - loopXfade), H);
+    ctx.fillRect(tx(loopStart), 0, tx(loopStart + loopXfade) - tx(loopStart), H);
+  }
+
+  // Loop boundaries (dashed indigo)
+  if (isVamp) {
+    ctx.strokeStyle = 'rgba(99,102,241,0.9)';
+    ctx.lineWidth = 1.5 * dpr;
+    ctx.setLineDash([4 * dpr, 3 * dpr]);
+    [loopStart, loopEnd].forEach(t => {
+      const x = tx(t) + 0.5;
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+    });
+    ctx.setLineDash([]);
+  }
+
+  // Clip boundaries (solid white)
+  ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+  ctx.lineWidth = 1.5 * dpr;
+  [clipStart, clipEnd].forEach(t => {
+    const x = tx(t) + 0.5;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  });
+
+  // Duration label
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  ctx.font = `${9 * dpr}px monospace`;
+  ctx.textAlign = 'right';
+  ctx.fillText(dur.toFixed(2) + 's', W - 4 * dpr, H - 4 * dpr);
+}
+
+function updateWaveformHandles() {
+  if (!waveformAudioBuffer) return;
+  const layer = document.getElementById('wf-handle-layer');
+  const container = document.getElementById('waveform-container');
+  const dur = waveformAudioBuffer.duration;
+
+  const clipStart = parseFloat(document.getElementById('p-clip-start').value) || 0;
+  const clipEndRaw = document.getElementById('p-clip-end').value;
+  const clipEnd = clipEndRaw !== '' ? parseFloat(clipEndRaw) : dur;
+  const isVamp = currentSoundSubtype === 'vamp';
+  const loopStart = isVamp ? (parseFloat(document.getElementById('p-loop-start').value) || 0) : 0;
+  const loopEndRaw = isVamp ? document.getElementById('p-loop-end').value : '';
+  const loopEnd = isVamp && loopEndRaw !== '' ? parseFloat(loopEndRaw) : dur;
+
+  const handles = [
+    { inputId: 'p-clip-start', t: clipStart, cls: 'wfh-white' },
+    { inputId: 'p-clip-end',   t: clipEnd,   cls: 'wfh-white' },
+  ];
+  if (isVamp) {
+    handles.push(
+      { inputId: 'p-loop-start', t: loopStart, cls: 'wfh-loop' },
+      { inputId: 'p-loop-end',   t: loopEnd,   cls: 'wfh-loop' },
+    );
+  }
+
+  layer.innerHTML = '';
+  handles.forEach(({ inputId, t, cls }) => {
+    const div = document.createElement('div');
+    div.className = 'wf-handle ' + cls;
+    div.style.left = ((Math.max(0, Math.min(1, t / dur))) * 100).toFixed(3) + '%';
+    div.style.pointerEvents = 'auto';
+    div.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      div.setPointerCapture(e.pointerId);
+      const rect = container.getBoundingClientRect();
+      waveformDrag = { handle: div, inputId, containerLeft: rect.left, containerWidth: rect.width, duration: dur };
+    });
+    layer.appendChild(div);
+  });
 }
 
 async function persistAndRefresh() {

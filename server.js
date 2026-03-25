@@ -1,8 +1,10 @@
 import express from 'express';
-import { readFileSync, statSync, writeFileSync } from 'fs';
-import { join, dirname } from 'path';
+import { readFileSync, statSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
+import { join, dirname, extname, basename } from 'path';
+import { execFile } from 'child_process';
 import { parseString } from 'xml2js';
 import { fileURLToPath } from 'url';
+import ffmpegStatic from 'ffmpeg-static';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -11,6 +13,8 @@ const PORT = process.env.PORT || 3000;
 // Config
 const SCENES_FILE = join(__dirname, 'scenes.xml');
 const CUES_FILE = join(__dirname, 'public', 'cues.json');
+const AUDIO_DIR = join(__dirname, 'public', 'audio');
+if (!existsSync(AUDIO_DIR)) mkdirSync(AUDIO_DIR, { recursive: true });
 
 // Cache for parsed scenes
 let sceneCache = {
@@ -289,6 +293,38 @@ app.get('/api/page/:pageNum', async (req, res) => {
   const page = pagesWithCues.find(p => p.number === pageNum);
   if (!page) return res.status(404).json({ error: 'Page not found' });
   res.json(page);
+});
+
+// API: Upload and transcode audio file
+app.post('/api/audio/upload', express.raw({ type: () => true, limit: '300mb' }), async (req, res) => {
+  const rawName = (req.headers['x-filename'] || 'upload.bin').replace(/\.\./g, '');
+  const safe = basename(rawName).replace(/[^a-zA-Z0-9._\-]/g, '_');
+  const ts = Date.now();
+  const inputExt = extname(safe) || '.bin';
+  const inputPath = join(AUDIO_DIR, `tmp_${ts}${inputExt}`);
+  const outputName = safe.replace(/\.[^.]+$/, '') + `_${ts}.webm`;
+  const outputPath = join(AUDIO_DIR, outputName);
+
+  try {
+    writeFileSync(inputPath, req.body);
+
+    await new Promise((resolve, reject) => {
+      execFile(ffmpegStatic, [
+        '-y', '-i', inputPath,
+        '-c:a', 'libopus', '-b:a', '128k', '-vn',
+        outputPath,
+      ], (_err, _stdout, stderr) => {
+        if (_err) reject(new Error(stderr || _err.message));
+        else resolve();
+      });
+    });
+
+    try { unlinkSync(inputPath); } catch (_) {}
+    res.json({ path: '/audio/' + outputName, filename: outputName });
+  } catch (err) {
+    try { unlinkSync(inputPath); } catch (_) {}
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Start server

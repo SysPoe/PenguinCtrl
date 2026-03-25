@@ -72,6 +72,115 @@
           </button>
         </div>
 
+        <!-- Sound options (shown when type=sound) -->
+        <div id="sound-section" class="sound-section" style="display:none">
+          <div class="sound-subtype-bar">
+            <button class="sound-sub-btn selected" data-subtype="play_once" onclick="selectSoundSubtype('play_once')">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              Play Once
+            </button>
+            <button class="sound-sub-btn" data-subtype="vamp" onclick="selectSoundSubtype('vamp')">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+              Vamp
+            </button>
+          </div>
+
+          <div class="clip-row">
+            <div class="clip-name-area">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;opacity:.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+              <span id="clip-name-text">No clip selected</span>
+            </div>
+            <label class="btn btn-ghost btn-xs" for="clip-file-input">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Upload
+            </label>
+            <input type="file" id="clip-file-input" accept="audio/*" style="display:none" onchange="handleClipUpload(this.files[0])">
+          </div>
+
+          <div class="waveform-container" id="waveform-container">
+            <div class="waveform-empty" id="waveform-empty">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+              No audio loaded
+            </div>
+            <div class="waveform-loading" id="waveform-loading" style="display:none">
+              <div class="waveform-loading-bar"></div>
+            </div>
+            <canvas id="waveform-canvas" style="display:none; position:absolute; top:0; left:0"></canvas>
+            <div id="wf-handle-layer" style="display:none; position:absolute; inset:0; pointer-events:none"></div>
+          </div>
+
+          <div class="form-group" style="padding-top:2px">
+            <label>Play style</label>
+            <div class="seg-control" id="play-style-control">
+              <button class="seg-btn selected" data-value="alongside" onclick="selectPlayStyle(this)">Alongside</button>
+              <button class="seg-btn" data-value="wait" onclick="selectPlayStyle(this)">Wait</button>
+              <button class="seg-btn" data-value="fade_all" onclick="selectPlayStyle(this)">Fade all</button>
+              <button class="seg-btn" data-value="xfade" onclick="selectPlayStyle(this)">X-Fade</button>
+            </div>
+          </div>
+
+          <div class="params-grid">
+            <div class="param-item">
+              <label>Clip start</label>
+              <div class="pi-row"><input type="number" id="p-clip-start" min="0" step="0.01" value="0" oninput="scheduleWaveformRedraw()"><span class="pu">s</span></div>
+            </div>
+            <div class="param-item">
+              <label>Clip end</label>
+              <div class="pi-row"><input type="number" id="p-clip-end" min="0" step="0.01" placeholder="auto" oninput="scheduleWaveformRedraw()"><span class="pu">s</span></div>
+            </div>
+            <div class="param-item">
+              <label>Fade in</label>
+              <div class="pi-row"><input type="number" id="p-fade-in" min="0" step="0.01" value="0" oninput="scheduleWaveformRedraw()"><span class="pu">s</span></div>
+            </div>
+            <div class="param-item">
+              <label>Fade out</label>
+              <div class="pi-row"><input type="number" id="p-fade-out" min="0" step="0.01" value="0" oninput="scheduleWaveformRedraw()"><span class="pu">s</span></div>
+            </div>
+            <div class="param-item">
+              <label>Volume</label>
+              <div class="pi-row"><input type="number" id="p-volume" step="0.5" value="0"><span class="pu">dB</span></div>
+            </div>
+            <div class="param-item">
+              <label>Manual f/o</label>
+              <div class="pi-row"><input type="number" id="p-manual-fo" min="0" step="0.01" value="2"><span class="pu">s</span></div>
+            </div>
+          </div>
+
+          <div class="sound-extras">
+            <label class="toggle-row">
+              <input type="checkbox" id="p-allow-multi" checked>
+              <span>Allow multiple instances</span>
+            </label>
+          </div>
+
+          <div id="vamp-section" style="display:none">
+            <div class="vamp-divider">Loop</div>
+            <div class="params-grid">
+              <div class="param-item">
+                <label>Loop start</label>
+                <div class="pi-row"><input type="number" id="p-loop-start" min="0" step="0.01" value="0" oninput="scheduleWaveformRedraw()"><span class="pu">s</span></div>
+              </div>
+              <div class="param-item">
+                <label>Loop end</label>
+                <div class="pi-row"><input type="number" id="p-loop-end" min="0" step="0.01" placeholder="auto" oninput="scheduleWaveformRedraw()"><span class="pu">s</span></div>
+              </div>
+              <div class="param-item">
+                <label>Loop x-fade</label>
+                <div class="pi-row"><input type="number" id="p-loop-xfade" min="0" step="0.01" value="0" oninput="scheduleWaveformRedraw()"><span class="pu">s</span></div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Devamp action</label>
+              <select id="p-devamp-action" class="param-select">
+                <option value="fade_out">Fade out</option>
+                <option value="jump_to_end">Jump to end of loop</option>
+                <option value="fade_to_end">Fade to end of loop</option>
+                <option value="play_out">Play out (finish loop)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
         <div class="form-group">
           <label for="cue-title">Title</label>
           <input type="text" id="cue-title" placeholder="e.g., Blackout, Thunder roll" autocomplete="off"

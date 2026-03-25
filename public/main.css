@@ -793,3 +793,303 @@ body {
 ::-webkit-scrollbar-track { background: var(--bg-dark); }
 ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 5px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ── Sound modal expansion ── */
+
+.cue-modal.modal-wide {
+  width: 620px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.cue-modal.modal-wide .cue-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* ── Sound section ── */
+
+.sound-section {
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 4px;
+}
+
+.sound-subtype-bar {
+  display: flex;
+  gap: 6px;
+  padding: 0 20px 14px;
+}
+
+.sound-sub-btn {
+  flex: 1;
+  padding: 7px 10px;
+  background: #1c1c1c;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  color: #666;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.12s;
+}
+
+.sound-sub-btn:hover { border-color: #555; color: #aaa; }
+
+.sound-sub-btn.selected {
+  background: var(--sound-bg);
+  border-color: var(--sound-color);
+  color: var(--sound-color);
+}
+
+/* Clip row */
+.clip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 20px 10px;
+}
+
+.clip-name-area {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #777;
+  overflow: hidden;
+}
+
+#clip-name-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn-xs {
+  padding: 5px 10px;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Waveform */
+.waveform-container {
+  position: relative;
+  height: 88px;
+  margin: 0 20px 12px;
+  background: #111;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #2a2a2a;
+}
+
+.waveform-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 100%;
+  color: #444;
+  font-size: 11px;
+}
+
+.waveform-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.waveform-loading-bar {
+  width: 120px;
+  height: 3px;
+  background: #2a2a2a;
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+
+.waveform-loading-bar::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -40%;
+  width: 40%; height: 100%;
+  background: var(--sound-color);
+  animation: wf-load 1s ease-in-out infinite;
+}
+
+@keyframes wf-load {
+  0%   { left: -40%; }
+  100% { left: 100%; }
+}
+
+/* Waveform handles */
+.wf-handle {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 14px;
+  transform: translateX(-50%);
+  cursor: ew-resize;
+  display: flex;
+  align-items: stretch;
+}
+
+.wf-handle::after {
+  content: '';
+  width: 2px;
+  background: currentColor;
+  margin: 0 auto;
+  border-radius: 1px;
+}
+
+.wf-handle::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 7px; height: 7px;
+  background: currentColor;
+  border-radius: 2px;
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+
+.wfh-white { color: rgba(255,255,255,0.8); }
+.wfh-loop  { color: rgba(99,102,241,0.9); }
+
+/* Segmented control */
+.seg-control {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.seg-btn {
+  padding: 5px 10px;
+  background: #1c1c1c;
+  border: 1px solid #3a3a3a;
+  border-radius: 5px;
+  color: #666;
+  cursor: pointer;
+  font-size: 11px;
+  font-family: inherit;
+  transition: all 0.1s;
+}
+
+.seg-btn:hover { border-color: #555; color: #aaa; }
+
+.seg-btn.selected {
+  background: rgba(14,99,156,0.2);
+  border-color: var(--accent);
+  color: #9bcfef;
+}
+
+/* Params grid */
+.params-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  padding: 0 20px 12px;
+}
+
+.param-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.param-item > label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: #666;
+  margin: 0;
+}
+
+.pi-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pi-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 7px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 5px;
+  color: #ddd;
+  font-family: inherit;
+  font-size: 12px;
+  outline: none;
+  transition: border-color 0.12s;
+}
+
+.pi-row input:focus { border-color: var(--accent); }
+
+.pu {
+  font-size: 10px;
+  color: #555;
+  flex-shrink: 0;
+}
+
+/* param-select (full-width selects inside sound section) */
+.param-select {
+  width: 100%;
+  padding: 7px 10px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 5px;
+  color: #ddd;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+}
+
+.param-select:focus { border-color: var(--accent); }
+
+/* Sound extras (toggles) */
+.sound-extras {
+  padding: 0 20px 12px;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: #888;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-row input[type="checkbox"] {
+  width: 13px;
+  height: 13px;
+  accent-color: var(--sound-color);
+  cursor: pointer;
+}
+
+/* Vamp section */
+.vamp-divider {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: rgba(99,102,241,0.7);
+  padding: 6px 20px 8px;
+  border-top: 1px solid rgba(99,102,241,0.15);
+  margin-top: 4px;
+}
