@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
+
+  <xs:element name="Script">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="FrontMatter" type="FrontMatterType" minOccurs="0"/>
+        <xs:element name="CastList" type="CastListType" minOccurs="0"/>
+        <xs:element name="Scene" type="SceneType" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:complexType name="FrontMatterType">
+    <xs:sequence>
+      <xs:element name="Title" type="xs:string"/>
+      <xs:element name="Author" type="xs:string"/>
+      <xs:element name="Notes" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="CastListType">
+    <xs:sequence>
+      <xs:element name="CharacterGroup" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="GroupName" type="xs:string"/>
+            <xs:element name="Character" maxOccurs="unbounded">
+              <xs:complexType>
+                <xs:sequence>
+                  <xs:element name="Name" type="xs:string"/>
+                  <xs:element name="Age" type="xs:integer" minOccurs="0"/>
+                  <xs:element name="Description" type="xs:string"/>
+                </xs:sequence>
+                <xs:attribute name="id" type="xs:ID" use="required"/>
+              </xs:complexType>
+            </xs:element>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:complexType name="SceneType">
+    <xs:sequence>
+      <xs:element name="Page" maxOccurs="unbounded">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="SceneHeading" type="StruckStringType" minOccurs="0"/>
+            <xs:choice minOccurs="0" maxOccurs="unbounded">
+              <xs:element name="StageDirection" type="StruckStringType"/>
+              <xs:element name="DialogueBlock" type="DialogueBlockType"/>
+            </xs:choice>
+          </xs:sequence>
+          <xs:attribute name="number" type="xs:integer" use="required"/>
+          <xs:attribute name="struck" type="xs:boolean" use="optional"/>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+    <xs:attribute name="id" type="xs:ID" use="optional"/>
+    <xs:attribute name="pageStart" type="xs:integer" use="optional"/>
+    <xs:attribute name="pageEnd" type="xs:integer" use="optional"/>
+    <xs:attribute name="act" type="xs:string" use="optional"/>
+    <xs:attribute name="title" type="xs:string" use="optional"/>
+    <xs:attribute name="description" type="xs:string" use="optional"/>
+  </xs:complexType>
+
+  <xs:complexType name="DialogueBlockType">
+    <xs:sequence>
+      <xs:element name="Speaker" type="StruckStringType"/>
+      <xs:choice maxOccurs="unbounded">
+        <xs:element name="Line" type="StruckStringType"/>
+        <xs:element name="InlineDirection" type="StruckStringType"/>
+      </xs:choice>
+    </xs:sequence>
+    <xs:attribute name="characterRef" type="xs:string" use="optional"/>
+    <xs:attribute name="struck" type="xs:boolean" use="optional"/>
+  </xs:complexType>
+
+  <xs:complexType name="StruckStringType">
+    <xs:simpleContent>
+      <xs:extension base="xs:string">
+        <xs:attribute name="struck" type="xs:boolean" use="optional"/>
+      </xs:extension>
+    </xs:simpleContent>
+  </xs:complexType>
+
+</xs:schema>
