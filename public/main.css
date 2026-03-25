@@ -355,9 +355,13 @@ body {
   border-style: solid;
 }
 
-.dialogue-line-container:hover .cue-add-btn,
-.stage-row:hover .cue-add-btn,
-.inline-row:hover .cue-add-btn {
+/* Show + button when hovering the whole row (not just the cue column) */
+.dialogue-line-container:hover .cue-add-btn {
+  display: inline-block;
+}
+
+/* Keep + visible when cursor moves into the cue column to click it */
+.cue-column:hover .cue-add-btn {
   display: inline-block;
 }
 
@@ -367,19 +371,16 @@ body {
   position: relative;
   display: inline;
   border-radius: 2px;
-  transition: background 0.1s;
-}
-
-/* Show word interactivity hint on text-column hover */
-.text-column:hover .script-word {
   cursor: pointer;
+  transition: background 0.08s;
 }
 
-.text-column:hover .script-word:hover {
-  background: rgba(14, 99, 156, 0.12);
+.script-word:hover {
+  background: rgba(14, 99, 156, 0.13);
+  border-radius: 2px;
 }
 
-/* Words with existing cues */
+/* Words with existing cues — colored underline */
 .script-word.has-lighting {
   border-bottom: 2px solid var(--lighting-color);
 }
@@ -387,12 +388,15 @@ body {
   border-bottom: 2px solid var(--sound-color);
 }
 .script-word.has-lighting.has-sound {
-  /* Both: show a dual-color underline via text-decoration override */
   border-bottom: 2px solid var(--lighting-color);
   text-decoration: underline;
   text-decoration-color: var(--sound-color);
   text-decoration-thickness: 2px;
   text-underline-offset: 3px;
+}
+
+.script-word.has-word-cue:hover {
+  background: rgba(245, 158, 11, 0.1);
 }
 
 /* Word cue pill indicators (shown above the word) */
@@ -422,34 +426,7 @@ body {
 .word-cue-pill.lighting { background: var(--lighting-color); color: #000; }
 .word-cue-pill.sound { background: var(--sound-color); color: #000; }
 
-/* Word add button (appears on word hover) */
-.word-add-btn {
-  position: absolute;
-  bottom: calc(100% + 2px);
-  left: 50%;
-  transform: translateX(-50%);
-  display: none;
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 2px;
-  padding: 1px 4px;
-  font-size: 8px;
-  font-weight: 700;
-  cursor: pointer;
-  z-index: 20;
-  white-space: nowrap;
-  line-height: 1.4;
-}
-
-.script-word:not(.has-word-cue):hover .word-add-btn {
-  display: block;
-}
-
-/* When word has cues: clicking the word opens edit for first cue (pills handle individual) */
-.script-word.has-word-cue {
-  cursor: pointer;
-}
+/* Clicking any word opens the cue modal (add or edit) */
 
 /* ── Modal ── */
 

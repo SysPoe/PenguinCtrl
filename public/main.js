@@ -23,29 +23,15 @@ function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, m => map[m]);
 }
 
-// Normalize cue list: handles legacy single-object format and array format
+// Normalize cue list: handles legacy single-object format and array format.
+// Uses a deterministic hash for legacy entries so IDs are stable across calls.
 function normalizeCueList(val) {
   if (!val) return [];
   if (Array.isArray(val)) return val;
-  // Legacy: { title, description } — convert to single-element array
-  return [{ id: 'legacy_' + generateId(), title: val.title || '', description: val.description || '' }];
-}
-
-// Migrate legacy cue format (single objects) to arrays with stable IDs
-function migrateLegacyCues(rawCues) {
-  const result = {};
-  for (const [key, val] of Object.entries(rawCues)) {
-    if (!val || typeof val !== 'object') continue;
-    const entry = {};
-    for (const type of ['lighting', 'sound']) {
-      if (!val[type]) continue;
-      entry[type] = Array.isArray(val[type])
-        ? val[type]
-        : [{ id: generateId(), title: val[type].title || '', description: val[type].description || '' }];
-    }
-    if (Object.keys(entry).length > 0) result[key] = entry;
-  }
-  return result;
+  let h = 5381;
+  const s = (val.title || '') + '\0' + (val.description || '');
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return [{ id: 'l' + Math.abs(h).toString(36), title: val.title || '', description: val.description || '' }];
 }
 
 // === STATE ===
@@ -173,15 +159,19 @@ function renderWordSpans(text, targetId) {
       if (wLighting.length) cls += ' has-lighting';
       if (wSound.length) cls += ' has-sound';
 
-      let wordClick = '';
+      // Every word is clickable: cue words open edit, bare words open add
+      let clickFn;
       if (hasCues) {
         const ft = wLighting.length ? 'lighting' : 'sound';
         const fc = wLighting.length ? wLighting[0] : wSound[0];
-        wordClick = `onclick="event.stopPropagation();openCueModalEdit('${escapeHtml(wId)}','${ft}','${fc.id}')"`;
+        clickFn = `event.stopPropagation();openCueModalEdit('${escapeHtml(wId)}','${ft}','${fc.id}')`;
+      } else {
+        clickFn = `event.stopPropagation();openCueModal('${escapeHtml(wId)}')`;
       }
 
-      html += `<span class="${cls}" data-wid="${escapeHtml(wId)}" ${wordClick}>`;
+      html += `<span class="${cls}" data-wid="${escapeHtml(wId)}" onclick="${clickFn}">`;
 
+      // Pills shown above words that already have cues
       if (hasCues) {
         html += '<span class="word-cue-pills">';
         wLighting.forEach((c, i) => {
@@ -196,7 +186,6 @@ function renderWordSpans(text, targetId) {
       }
 
       html += escapeHtml(part);
-      html += `<button class="word-add-btn" onclick="event.stopPropagation();openCueModal('${escapeHtml(wId)}')">+</button>`;
       html += '</span>';
 
       wordIdx++;
@@ -255,7 +244,7 @@ function renderPageElement(index) {
       html += `<div class="dialogue-line-container stage-row${el.struck ? ' struck-text' : ''}" data-line-id="${escapeHtml(sid)}">`;
       html += '<div class="speaker-column"></div>';
       html += '<div class="cue-column" data-cue-column="true"></div>';
-      html += `<div class="text-column stage-direction">${escapeHtml(el.text)}</div>`;
+      html += `<div class="text-column stage-direction">${sid ? renderWordSpans(el.text, sid) : escapeHtml(el.text)}</div>`;
       html += '</div>';
     } else if (el.type === 'dialogue') {
       const speaker = el.speaker || '';
@@ -285,7 +274,7 @@ function renderPageElement(index) {
           html += `<div class="dialogue-line-container inline-row${line.struck ? ' struck-text' : ''}" data-line-id="${escapeHtml(iid)}">`;
           html += '<div class="speaker-column"></div>';
           html += '<div class="cue-column" data-cue-column="true"></div>';
-          html += `<div class="text-column inline-direction">${escapeHtml(line.text)}</div>`;
+          html += `<div class="text-column inline-direction">${iid ? renderWordSpans(line.text, iid) : escapeHtml(line.text)}</div>`;
           html += '</div>';
         }
       });
@@ -408,29 +397,28 @@ function scrollToPage(index) {
   }
 }
 
-function getScrollFraction() {
+// Zoom while keeping the visual center of the viewport fixed.
+// With transform: scale(s) from top, scrollTop T shows content positions T/s..(T+H)/s.
+// To preserve the center content position when changing from s1 to s2:
+//   T_new = (T_old + H/2) * (s2/s1) - H/2
+function zoomTo(newZoom) {
   const container = document.getElementById('scroll-container');
-  return container.scrollTop / (container.scrollHeight - container.clientHeight);
-}
+  const s1 = currentZoom / 100;
+  const s2 = newZoom / 100;
+  const T = container.scrollTop;
+  const H = container.clientHeight;
 
-function setScrollFraction(fraction) {
-  const container = document.getElementById('scroll-container');
-  container.scrollTop = fraction * (container.scrollHeight - container.clientHeight);
-}
-
-function zoomIn() {
-  const frac = getScrollFraction();
-  currentZoom = Math.min(200, currentZoom + 10);
+  currentZoom = newZoom;
   applyZoom();
-  requestAnimationFrame(() => { setScrollFraction(frac); saveState(); });
+
+  requestAnimationFrame(() => {
+    container.scrollTop = Math.max(0, (T + H / 2) * (s2 / s1) - H / 2);
+    saveState();
+  });
 }
 
-function zoomOut() {
-  const frac = getScrollFraction();
-  currentZoom = Math.max(50, currentZoom - 10);
-  applyZoom();
-  requestAnimationFrame(() => { setScrollFraction(frac); saveState(); });
-}
+function zoomIn() { zoomTo(Math.min(200, currentZoom + 10)); }
+function zoomOut() { zoomTo(Math.max(50, currentZoom - 10)); }
 
 function applyZoom() {
   document.getElementById('script-content').style.transform = `scale(${currentZoom / 100})`;
@@ -442,12 +430,10 @@ function applyZoom() {
 document.getElementById('scroll-container').addEventListener('wheel', (e) => {
   if (e.ctrlKey) {
     e.preventDefault();
-    const frac = getScrollFraction();
-    currentZoom = e.deltaY < 0
+    const newZoom = e.deltaY < 0
       ? Math.min(200, currentZoom + 5)
       : Math.max(50, currentZoom - 5);
-    applyZoom();
-    requestAnimationFrame(() => { setScrollFraction(frac); saveState(); });
+    zoomTo(newZoom);
   }
 }, { passive: false });
 
@@ -498,7 +484,7 @@ async function loadPages() {
 
     const cuesRes = await fetch('/api/cues');
     const cuesData = await cuesRes.json();
-    cues = migrateLegacyCues(cuesData.cues || {});
+    cues = cuesData.cues || {};
 
     const res = await fetch('/api/pages');
     const data = await res.json();
