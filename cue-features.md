@@ -12,7 +12,7 @@ All have:
         - Fade out (default 0s)
         - Auto after (default do nothing, but can trigger another cue)
         - Default manual f/o duration (default 2s)
-        - Volume
+        - Volume (+/- db)
         - Allow multiple instances of clip
     Cue actions (shown when clip is during playback):
         - Fade out (w/ manual f/o duration option, defautls to selected)
