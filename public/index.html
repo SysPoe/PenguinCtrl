@@ -45,37 +45,56 @@
   <!-- Cue Modal -->
   <div class="cue-modal-overlay" id="cue-modal-overlay" onclick="closeCueModal(event)">
     <div class="cue-modal">
-      <h2 id="cue-modal-title">Add Cue</h2>
-
-      <div class="cue-exists-indicator" id="cue-exists-indicator" style="display: none;">
-        <span>Existing cues on this line:</span>
-        <span class="existing-cue lighting" id="existing-lighting-cue"></span>
-        <span class="existing-cue sound" id="existing-sound-cue"></span>
-      </div>
-
-      <div class="cue-type-selector">
-        <div class="cue-type-option" data-type="lighting" onclick="selectCueType('lighting')">
-          <strong>Lighting</strong>
+      <div class="cue-modal-header">
+        <div class="cue-modal-header-left">
+          <h2 class="cue-modal-title" id="cue-modal-title">Add Cue</h2>
+          <span class="cue-modal-context" id="cue-modal-context"></span>
         </div>
-        <div class="cue-type-option" data-type="sound" onclick="selectCueType('sound')">
-          <strong>Sound</strong>
+        <button class="cue-modal-close" onclick="closeCueModal()">✕</button>
+      </div>
+
+      <!-- Existing cues list (always visible when cues exist) -->
+      <div class="cue-modal-existing" id="cue-modal-existing" style="display:none">
+        <div class="cue-modal-existing-label">Cues on this line</div>
+        <div class="cue-modal-existing-list" id="cue-modal-existing-list"></div>
+      </div>
+
+      <div class="cue-modal-body">
+        <!-- Type selector -->
+        <div class="cue-type-selector" id="cue-type-selector">
+          <button class="cue-type-btn" data-type="lighting" onclick="selectCueType('lighting')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6M12 2v1M12 21v1M4.22 4.22l.7.7M19.08 19.08l.7.7M2 12h1M21 12h1M4.22 19.78l.7-.7M19.08 4.92l.7-.7M12 6a6 6 0 0 0 0 12"/></svg>
+            Lighting
+          </button>
+          <button class="cue-type-btn" data-type="sound" onclick="selectCueType('sound')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+            Sound
+          </button>
         </div>
-      </div>
 
-      <div class="form-group">
-        <label>Cue Title</label>
-        <input type="text" id="cue-title" placeholder="e.g., Blackout, BGM">
-      </div>
+        <div class="form-group">
+          <label for="cue-title">Title</label>
+          <input type="text" id="cue-title" placeholder="e.g., Blackout, Thunder roll" autocomplete="off"
+                 onkeydown="handleCueModalKeydown(event)">
+        </div>
 
-      <div class="form-group">
-        <label>Description</label>
-        <textarea id="cue-description" placeholder="e.g., Fade to black, Background music fades in"></textarea>
+        <div class="form-group">
+          <label for="cue-description">
+            Notes
+            <span class="label-hint">optional</span>
+          </label>
+          <textarea id="cue-description" rows="2" placeholder="Additional notes..."
+                    onkeydown="handleCueModalKeydown(event)"></textarea>
+        </div>
       </div>
 
       <div class="modal-actions">
-        <button class="btn btn-cancel" onclick="closeCueModal()">Cancel</button>
-        <button class="btn btn-delete" id="btn-delete-cue" onclick="deleteCue()" style="display: none;">Delete</button>
-        <button class="btn btn-save" onclick="saveCue()">Save Cue</button>
+        <button class="btn btn-ghost" onclick="closeCueModal()">Cancel</button>
+        <button class="btn btn-danger" id="btn-delete-cue" onclick="deleteCue()" style="display:none">Delete</button>
+        <button class="btn btn-primary" onclick="saveCue()">
+          Save
+          <span class="btn-hint">↵</span>
+        </button>
       </div>
     </div>
   </div>

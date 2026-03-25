@@ -22,9 +22,6 @@ let sceneCache = {
 // Cache for cues
 let cuesCache = {};
 
-/**
- * Get file fingerprint for cache invalidation
- */
 function getFileFingerprint(filePath) {
   try {
     const stat = statSync(filePath);
@@ -34,9 +31,6 @@ function getFileFingerprint(filePath) {
   }
 }
 
-/**
- * Parse XML synchronously
- */
 function parseXmlSync(xmlContent) {
   return new Promise((resolve, reject) => {
     parseString(xmlContent, (err, result) => {
@@ -46,9 +40,6 @@ function parseXmlSync(xmlContent) {
   });
 }
 
-/**
- * Build scene cache from parsed XML - mirrors Flask server's load_scene_index()
- */
 function buildSceneCache(result, fingerprint) {
   const script = result.Script;
   const scenes = script.Scene || [];
@@ -77,13 +68,14 @@ function buildSceneCache(result, fingerprint) {
         elements.push({ type: 'scene_meta', meta: sceneMeta });
       }
 
-      // Process StageDirection elements
+      // Process StageDirection elements — assign stable IDs
       if (page.StageDirection) {
-        page.StageDirection.forEach(sd => {
+        page.StageDirection.forEach((sd, sdIdx) => {
           if (typeof sd === 'string') {
             elements.push({
               type: 'stage',
               text: sd,
+              id: `${sceneId}_p${pageNum}_sd${sdIdx}`,
               scene_id: sceneId,
               page_num: pageNum,
               struck: pageStruck
@@ -94,10 +86,11 @@ function buildSceneCache(result, fingerprint) {
 
       // Process DialogueBlock elements
       if (page.DialogueBlock) {
-        page.DialogueBlock.forEach(block => {
+        page.DialogueBlock.forEach((block, blockIdx) => {
           const blockAttrs = block.$ || {};
           const speaker = block.Speaker ? (typeof block.Speaker[0] === 'string' ? block.Speaker[0] : '') : '';
           const lines = [];
+          let inlineIdx = 0;
 
           if (block.Line) {
             block.Line.forEach(line => {
@@ -118,6 +111,7 @@ function buildSceneCache(result, fingerprint) {
                 lines.push({
                   type: 'inline',
                   text: id,
+                  id: `${sceneId}_p${pageNum}_b${blockIdx}_il${inlineIdx++}`,
                   struck: blockAttrs.struck === 'true'
                 });
               }
@@ -198,9 +192,6 @@ function buildSceneCache(result, fingerprint) {
   console.log(`Loaded ${scenes.length} scenes, ${sortedPages.length} pages`);
 }
 
-/**
- * Load and cache scene index
- */
 async function loadSceneIndex() {
   const fingerprint = getFileFingerprint(SCENES_FILE);
 
@@ -217,9 +208,6 @@ async function loadSceneIndex() {
   return { pages: [...sceneCache.pages], tocActs: [...sceneCache.tocActs] };
 }
 
-/**
- * Load cues and merge with pages
- */
 function loadCues() {
   try {
     const cuesContent = readFileSync(CUES_FILE, 'utf-8');
@@ -230,29 +218,25 @@ function loadCues() {
   return cuesCache;
 }
 
-/**
- * Merge cues into page elements
- */
 function mergeCuesWithPages(pages, cues) {
-  const pagesWithCues = pages.map(page => ({
+  return pages.map(page => ({
     ...page,
     elements: page.elements.map(el => {
+      if (el.type === 'stage' && el.id) {
+        return { ...el, cues: cues[el.id] || null };
+      }
       if (el.type === 'dialogue') {
         return {
           ...el,
-          lines: el.lines.map(line => {
-            const lineCues = line.id && cues[line.id] ? cues[line.id] : null;
-            return {
-              ...line,
-              cues: lineCues
-            };
-          })
+          lines: el.lines.map(line => ({
+            ...line,
+            cues: line.id ? (cues[line.id] || null) : null
+          }))
         };
       }
       return el;
     })
   }));
-  return pagesWithCues;
 }
 
 // Serve static files from public directory

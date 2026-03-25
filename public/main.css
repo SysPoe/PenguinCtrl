@@ -7,13 +7,21 @@
 :root {
   --bg-dark: #1e1e1e;
   --bg-header: #2d2d30;
+  --bg-panel: #252526;
   --border-color: #3e3e42;
+  --border-subtle: #2d2d2d;
   --text-primary: #cccccc;
   --text-secondary: #858585;
   --text-muted: #6e6e6e;
   --accent: #0e639c;
   --accent-hover: #1177bb;
-  --page-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  --lighting-color: #f59e0b;
+  --lighting-bg: rgba(245, 158, 11, 0.15);
+  --sound-color: #10b981;
+  --sound-bg: rgba(16, 185, 129, 0.15);
+  --danger: #e06c75;
+  --danger-bg: rgba(224, 108, 117, 0.12);
+  --page-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
   --strike-color: rgba(180, 50, 50, 0.3);
 }
 
@@ -33,6 +41,8 @@ body {
   flex-direction: column;
   overflow: hidden;
 }
+
+/* ── Top Bar ── */
 
 .top-bar {
   padding: 12px 24px;
@@ -126,9 +136,7 @@ body {
   z-index: 100;
 }
 
-.goto-input.visible {
-  display: flex;
-}
+.goto-input.visible { display: flex; }
 
 .goto-input input {
   width: 80px;
@@ -144,6 +152,8 @@ body {
 .goto-input input:focus {
   outline: 1px solid var(--accent);
 }
+
+/* ── Script Content ── */
 
 .script-scroll-container {
   flex: 1;
@@ -168,17 +178,11 @@ body {
   position: relative;
 }
 
-.script-page.struck {
-  opacity: 0.7;
-}
-
+.script-page.struck { opacity: 0.7; }
 .script-page.struck::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   background: repeating-linear-gradient(-45deg, transparent, transparent 10px,
       var(--strike-color) 10px, var(--strike-color) 11px);
   pointer-events: none;
@@ -213,39 +217,43 @@ body {
   margin: 0 0 20px 0;
 }
 
-.stage-direction {
-  font-family: 'Courier Prime', monospace;
-  font-style: italic;
-  font-size: 14px;
-  line-height: 1.6;
-  margin: 16px 0;
-}
+/* ── Dialogue Layout ── */
 
-.dialogue-block {
-  margin: 0;
-}
+.dialogue-block { margin: 0; }
 
 .dialogue-line-container {
   display: table;
   width: 100%;
   margin-bottom: 12px;
   position: relative;
+  overflow: visible;
 }
 
 .speaker-column {
   display: table-cell;
   width: 100px;
-  vertical-align: middle;
+  vertical-align: top;
   padding-right: 12px;
+  padding-top: 16px;
 }
 
 .cue-column {
   display: table-cell;
-  width: 140px;
-  vertical-align: middle;
+  width: 150px;
+  vertical-align: top;
   padding-right: 8px;
   text-align: right;
-  position: relative;
+  padding-top: 18px;
+}
+
+.text-column {
+  display: table-cell;
+  vertical-align: top;
+  font-size: 14px;
+  line-height: 1.6;
+  text-align: justify;
+  /* Top padding so word-cue pills (positioned above words) are visible */
+  padding-top: 16px;
 }
 
 .speaker-line {
@@ -262,25 +270,527 @@ body {
   white-space: nowrap;
 }
 
-.text-column {
-  display: table-cell;
-  vertical-align: top;
+/* Stage direction row (uses same table layout as dialogue) */
+.stage-row .stage-direction {
+  font-family: 'Courier Prime', monospace;
+  font-style: italic;
   font-size: 14px;
-  line-height: 1.5;
-  text-align: justify;
+  line-height: 1.6;
+  color: #333;
+  padding-top: 2px;
 }
 
-.inline-direction {
+.stage-row {
+  margin: 8px 0;
+}
+
+/* Inline direction row */
+.inline-row .inline-direction {
   font-style: italic;
-  color: #444;
+  color: #555;
   font-size: 13px;
-  margin: 10px 0 10px 112px;
+  padding-top: 2px;
 }
 
 .struck-text {
   text-decoration: line-through;
   color: #888;
 }
+
+/* ── Cue Markers ── */
+
+.cue-marker {
+  display: inline-flex;
+  gap: 3px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.cue-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.12s;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.cue-badge.lighting {
+  background: var(--lighting-color);
+  color: #000;
+}
+
+.cue-badge.sound {
+  background: var(--sound-color);
+  color: #000;
+}
+
+.cue-badge:hover {
+  opacity: 0.85;
+  transform: scale(1.06);
+}
+
+.cue-add-btn {
+  display: none;
+  background: none;
+  color: #aaa;
+  border: 1px dashed #bbb;
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.12s;
+  line-height: 1.4;
+}
+
+.cue-add-btn:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  border-style: solid;
+}
+
+.dialogue-line-container:hover .cue-add-btn,
+.stage-row:hover .cue-add-btn,
+.inline-row:hover .cue-add-btn {
+  display: inline-block;
+}
+
+/* ── Word-level Cues ── */
+
+.script-word {
+  position: relative;
+  display: inline;
+  border-radius: 2px;
+  transition: background 0.1s;
+}
+
+/* Show word interactivity hint on text-column hover */
+.text-column:hover .script-word {
+  cursor: pointer;
+}
+
+.text-column:hover .script-word:hover {
+  background: rgba(14, 99, 156, 0.12);
+}
+
+/* Words with existing cues */
+.script-word.has-lighting {
+  border-bottom: 2px solid var(--lighting-color);
+}
+.script-word.has-sound {
+  border-bottom: 2px solid var(--sound-color);
+}
+.script-word.has-lighting.has-sound {
+  /* Both: show a dual-color underline via text-decoration override */
+  border-bottom: 2px solid var(--lighting-color);
+  text-decoration: underline;
+  text-decoration-color: var(--sound-color);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+/* Word cue pill indicators (shown above the word) */
+.word-cue-pills {
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 2px;
+  z-index: 20;
+  pointer-events: auto;
+  white-space: nowrap;
+}
+
+.word-cue-pill {
+  font-size: 8px;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 2px;
+  cursor: pointer;
+  line-height: 1.4;
+  transition: opacity 0.1s;
+}
+
+.word-cue-pill:hover { opacity: 0.75; }
+.word-cue-pill.lighting { background: var(--lighting-color); color: #000; }
+.word-cue-pill.sound { background: var(--sound-color); color: #000; }
+
+/* Word add button (appears on word hover) */
+.word-add-btn {
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: none;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 2px;
+  padding: 1px 4px;
+  font-size: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  z-index: 20;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.script-word:not(.has-word-cue):hover .word-add-btn {
+  display: block;
+}
+
+/* When word has cues: clicking the word opens edit for first cue (pills handle individual) */
+.script-word.has-word-cue {
+  cursor: pointer;
+}
+
+/* ── Modal ── */
+
+.cue-modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(3px);
+}
+
+.cue-modal-overlay.visible {
+  display: flex;
+}
+
+.cue-modal {
+  background: var(--bg-panel);
+  border: 1px solid #404040;
+  border-radius: 10px;
+  width: 440px;
+  max-width: 92vw;
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.7),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+  animation: modal-appear 0.16s cubic-bezier(0.2, 0, 0, 1);
+}
+
+@keyframes modal-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.cue-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.cue-modal-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.cue-modal-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #e0e0e0;
+  margin: 0;
+  font-family: inherit;
+}
+
+.cue-modal-context {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 340px;
+  font-style: italic;
+}
+
+.cue-modal-close {
+  background: none;
+  border: none;
+  color: #555;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: all 0.12s;
+  flex-shrink: 0;
+  margin-left: 8px;
+  margin-top: -2px;
+}
+
+.cue-modal-close:hover {
+  background: #3a3a3a;
+  color: #bbb;
+}
+
+/* Existing cues section */
+.cue-modal-existing {
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 12px 20px;
+}
+
+.cue-modal-existing-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.cue-modal-existing-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.existing-cue-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.1s;
+  border: 1px solid transparent;
+}
+
+.existing-cue-item:hover {
+  background: #2a2a2a;
+}
+
+.existing-cue-item.active {
+  background: rgba(14, 99, 156, 0.15);
+  border-color: rgba(14, 99, 156, 0.4);
+}
+
+.existing-cue-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.existing-cue-badge.lighting { background: var(--lighting-color); color: #000; }
+.existing-cue-badge.sound { background: var(--sound-color); color: #000; }
+
+.existing-cue-title {
+  font-size: 13px;
+  color: #ccc;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.existing-cue-desc {
+  font-size: 11px;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
+
+/* Modal body */
+.cue-modal-body {
+  padding: 16px 0 4px;
+}
+
+/* Type selector */
+.cue-type-selector {
+  display: flex;
+  gap: 8px;
+  padding: 0 20px 16px;
+}
+
+.cue-type-btn {
+  flex: 1;
+  padding: 9px 12px;
+  background: #1c1c1c;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  color: #777;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  font-weight: 500;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.cue-type-btn:hover {
+  border-color: #555;
+  color: #aaa;
+}
+
+.cue-type-btn[data-type="lighting"].selected {
+  background: var(--lighting-bg);
+  border-color: var(--lighting-color);
+  color: var(--lighting-color);
+}
+
+.cue-type-btn[data-type="sound"].selected {
+  background: var(--sound-bg);
+  border-color: var(--sound-color);
+  color: var(--sound-color);
+}
+
+/* Form groups */
+.form-group {
+  padding: 0 20px;
+  margin-bottom: 14px;
+}
+
+.form-group label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  color: #777;
+  margin-bottom: 6px;
+}
+
+.label-hint {
+  font-size: 10px;
+  color: #4a4a4a;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.cue-modal input[type="text"],
+.cue-modal textarea {
+  width: 100%;
+  padding: 9px 12px;
+  background: #1a1a1a;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  color: #e0e0e0;
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.cue-modal input[type="text"]:focus,
+.cue-modal textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(14, 99, 156, 0.2);
+}
+
+.cue-modal input.input-error {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px rgba(224, 108, 117, 0.2);
+}
+
+.cue-modal textarea {
+  min-height: 64px;
+  resize: vertical;
+}
+
+/* Modal actions */
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border-subtle);
+  background: #1e1e1e;
+}
+
+.btn {
+  padding: 7px 16px;
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 500;
+  transition: all 0.12s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: #777;
+  border: 1px solid #3a3a3a;
+}
+
+.btn-ghost:hover {
+  background: #2a2a2a;
+  color: #aaa;
+  border-color: #555;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+.btn-hint {
+  font-size: 10px;
+  opacity: 0.6;
+  font-weight: 400;
+}
+
+.btn-danger {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid rgba(224, 108, 117, 0.3);
+}
+
+.btn-danger:hover {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+}
+
+/* Animations */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-5px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(3px); }
+}
+
+.shake {
+  animation: shake 0.35s ease;
+}
+
+/* ── Misc ── */
 
 .welcome-panel {
   text-align: center;
@@ -301,243 +811,8 @@ body {
   margin: 0 auto;
 }
 
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--bg-dark);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-  border-radius: 5px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
-}
-
-/* Cue styles */
-.cue-column {
-  display: table-cell;
-  width: 140px;
-  vertical-align: middle;
-  padding-right: 8px;
-  text-align: right;
-}
-
-.cue-marker {
-  display: inline-flex;
-  gap: 4px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.cue-badge {
-  display: inline-block;
-  padding: 2px 6px;
-  border-radius: 3px;
-  font-size: 10px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.cue-badge.lighting {
-  background: #f59e0b;
-  color: #000;
-}
-
-.cue-badge.sound {
-  background: #10b981;
-  color: #000;
-}
-
-.cue-badge:hover {
-  opacity: 0.8;
-  transform: scale(1.05);
-}
-
-.cue-add-btn {
-  display: none;
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 3px;
-  padding: 2px 6px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.cue-add-btn:hover {
-  background: var(--accent-hover);
-}
-
-.dialogue-line-container:hover .cue-add-btn {
-  display: inline-block;
-}
-
-/* Cue modal styles */
-.cue-modal-overlay {
-  display: none;
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  z-index: 1000;
-  align-items: center;
-  justify-content: center;
-}
-
-.cue-modal-overlay.visible {
-  display: flex;
-}
-
-.cue-modal {
-  background: var(--bg-header);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 24px;
-  min-width: 400px;
-  max-width: 500px;
-}
-
-.cue-modal h2 {
-  color: var(--text-primary);
-  font-size: 18px;
-  margin-bottom: 16px;
-}
-
-.cue-modal .form-group {
-  margin-bottom: 16px;
-}
-
-.cue-modal label {
-  display: block;
-  color: var(--text-secondary);
-  font-size: 12px;
-  margin-bottom: 6px;
-  text-transform: uppercase;
-}
-
-.cue-modal input[type="text"],
-.cue-modal textarea,
-.cue-modal select {
-  width: 100%;
-  padding: 8px 12px;
-  background: var(--bg-dark);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  color: var(--text-primary);
-  font-family: inherit;
-  font-size: 14px;
-}
-
-.cue-modal textarea {
-  min-height: 80px;
-  resize: vertical;
-}
-
-.cue-modal input:focus,
-.cue-modal textarea:focus,
-.cue-modal select:focus {
-  outline: 1px solid var(--accent);
-}
-
-.cue-modal .cue-type-selector {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.cue-modal .cue-type-option {
-  flex: 1;
-  padding: 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.cue-modal .cue-type-option.selected {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #fff;
-}
-
-.cue-modal .modal-actions {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-  margin-top: 20px;
-}
-
-.cue-modal .btn {
-  padding: 8px 16px;
-  border-radius: 4px;
-  border: none;
-  cursor: pointer;
-  font-size: 13px;
-  transition: all 0.15s;
-}
-
-.cue-modal .btn-cancel {
-  background: var(--bg-dark);
-  color: var(--text-primary);
-  border: 1px solid var(--border-color);
-}
-
-.cue-modal .btn-cancel:hover {
-  background: var(--border-color);
-}
-
-.cue-modal .btn-save {
-  background: var(--accent);
-  color: #fff;
-}
-
-.cue-modal .btn-save:hover {
-  background: var(--accent-hover);
-}
-
-.cue-modal .btn-delete {
-  background: #dc3545;
-  color: #fff;
-}
-
-.cue-modal .btn-delete:hover {
-  background: #c82333;
-}
-
-.cue-exists-indicator {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  padding: 12px;
-  background: var(--bg-dark);
-  border-radius: 4px;
-  margin-bottom: 16px;
-}
-
-.cue-exists-indicator .existing-cue {
-  padding: 4px 8px;
-  border-radius: 3px;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.cue-exists-indicator .existing-cue.lighting {
-  background: #f59e0b;
-  color: #000;
-}
-
-.cue-exists-indicator .existing-cue.sound {
-  background: #10b981;
-  color: #000;
-}
+/* Scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--bg-dark); }
+::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }

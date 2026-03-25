@@ -4,598 +4,734 @@ let currentZoom = 100;
 let lastSpeaker = null;
 let savedScrollPosition = null;
 let cues = {};
-let currentCueLineId = null;
+let cueNumberingCache = null;
+
+// Modal state
+let currentTargetId = null;
 let currentCueType = null;
-let globalCueOrder = [];
+let currentCueId = null; // null = adding new, string = editing existing
 
-// Load saved zoom and scroll position from localStorage
-function loadSavedState() {
-    const savedZoom = localStorage.getItem('scriptZoom');
-    const savedScroll = localStorage.getItem('scriptScroll');
-    if (savedZoom) {
-        currentZoom = parseInt(savedZoom, 10);
-        if (currentZoom) applyZoom();
-    }
-    if (savedScroll) {
-        savedScrollPosition = parseInt(savedScroll, 10);
-    }
-}
+// === UTILITIES ===
 
-// Save current state to localStorage
-function saveState() {
-    const container = document.getElementById('scroll-container');
-    localStorage.setItem('scriptZoom', currentZoom.toString());
-    localStorage.setItem('scriptScroll', container.scrollTop.toString());
-}
-
-/**
- * Calculate global cue order based on page/line position
- */
-function calculateCueOrder() {
-    const lightingCues = [];
-    const soundCues = [];
-
-    pages.forEach((page, pageIndex) => {
-        page.elements.forEach(el => {
-            if (el.type === 'dialogue' && el.lines) {
-                el.lines.forEach(line => {
-                    if (line.id && line.cues) {
-                        if (line.cues.lighting) {
-                            lightingCues.push({ lineId: line.id, pageIndex });
-                        }
-                        if (line.cues.sound) {
-                            soundCues.push({ lineId: line.id, pageIndex });
-                        }
-                    }
-                });
-            }
-        });
-    });
-
-    // Sort by page index and assign numbers
-    const cueNumbering = {};
-    lightingCues.sort((a, b) => a.pageIndex - b.pageIndex).forEach((cue, idx) => {
-        cueNumbering[cue.lineId] = { lighting: idx + 1 };
-    });
-    soundCues.sort((a, b) => a.pageIndex - b.pageIndex).forEach((cue, idx) => {
-        if (!cueNumbering[cue.lineId]) cueNumbering[cue.lineId] = {};
-        cueNumbering[cue.lineId].sound = idx + 1;
-    });
-
-    return cueNumbering;
-}
-
-/**
- * Render cue markers for a line
- */
-function renderCueMarkers(line, cueNumbering) {
-    if (!line.cues || (!line.cues.lighting && !line.cues.sound)) {
-        return '<button class="cue-add-btn" onclick="openCueModal(\'' + line.id + '\')">+</button>';
-    }
-
-    let html = '<div class="cue-marker">';
-
-    if (line.cues.lighting) {
-        const num = cueNumbering[line.id]?.lighting || '?';
-        const title = line.cues.lighting.title || 'Untitled';
-        html += '<span class="cue-badge lighting" onclick="openCueModal(\'' + line.id + '\', \'lighting\')">L' + num + ' ' + escapeHtml(title) + '</span>';
-    }
-
-    if (line.cues.sound) {
-        const num = cueNumbering[line.id]?.sound || '?';
-        const title = line.cues.sound.title || 'Untitled';
-        html += '<span class="cue-badge sound" onclick="openCueModal(\'' + line.id + '\', \'sound\')">S' + num + ' ' + escapeHtml(title) + '</span>';
-    }
-
-    html += '<button class="cue-add-btn" onclick="openCueModal(\'' + line.id + '\')">+</button>';
-    html += '</div>';
-
-    return html;
+function generateId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
 function escapeHtml(text) {
-    if (!text) return '';
-    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
-    return String(text).replace(/[&<>"']/g, m => map[m]);
+  if (!text) return '';
+  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+  return String(text).replace(/[&<>"']/g, m => map[m]);
+}
+
+// Normalize cue list: handles legacy single-object format and array format
+function normalizeCueList(val) {
+  if (!val) return [];
+  if (Array.isArray(val)) return val;
+  // Legacy: { title, description } — convert to single-element array
+  return [{ id: 'legacy_' + generateId(), title: val.title || '', description: val.description || '' }];
+}
+
+// Migrate legacy cue format (single objects) to arrays with stable IDs
+function migrateLegacyCues(rawCues) {
+  const result = {};
+  for (const [key, val] of Object.entries(rawCues)) {
+    if (!val || typeof val !== 'object') continue;
+    const entry = {};
+    for (const type of ['lighting', 'sound']) {
+      if (!val[type]) continue;
+      entry[type] = Array.isArray(val[type])
+        ? val[type]
+        : [{ id: generateId(), title: val[type].title || '', description: val[type].description || '' }];
+    }
+    if (Object.keys(entry).length > 0) result[key] = entry;
+  }
+  return result;
+}
+
+// === STATE ===
+
+function loadSavedState() {
+  const savedZoom = localStorage.getItem('scriptZoom');
+  const savedScroll = localStorage.getItem('scriptScroll');
+  if (savedZoom) {
+    currentZoom = parseInt(savedZoom, 10);
+    if (currentZoom) applyZoom();
+  }
+  if (savedScroll) {
+    savedScrollPosition = parseInt(savedScroll, 10);
+  }
+}
+
+function saveState() {
+  const container = document.getElementById('scroll-container');
+  localStorage.setItem('scriptZoom', currentZoom.toString());
+  localStorage.setItem('scriptScroll', container.scrollTop.toString());
+}
+
+// === CUE NUMBERING ===
+
+function calculateCueOrder() {
+  const result = {};
+  let lightingCount = 0;
+  let soundCount = 0;
+
+  function processTarget(targetId, text) {
+    // Word-level cues first (in word order within the text)
+    if (text) {
+      const words = text.trim().split(/\s+/).filter(Boolean);
+      words.forEach((_, wordIdx) => {
+        const wId = targetId + '_w' + wordIdx;
+        const wc = cues[wId];
+        if (wc) {
+          const lArr = normalizeCueList(wc.lighting);
+          const sArr = normalizeCueList(wc.sound);
+          if (lArr.length || sArr.length) {
+            result[wId] = {};
+            if (lArr.length) result[wId].lighting = lArr.map(() => ++lightingCount);
+            if (sArr.length) result[wId].sound = sArr.map(() => ++soundCount);
+          }
+        }
+      });
+    }
+    // Then target-level cues
+    const tc = cues[targetId];
+    if (tc) {
+      const lArr = normalizeCueList(tc.lighting);
+      const sArr = normalizeCueList(tc.sound);
+      if (lArr.length || sArr.length) {
+        if (!result[targetId]) result[targetId] = {};
+        if (lArr.length) result[targetId].lighting = lArr.map(() => ++lightingCount);
+        if (sArr.length) result[targetId].sound = sArr.map(() => ++soundCount);
+      }
+    }
+  }
+
+  pages.forEach(page => {
+    page.elements.forEach(el => {
+      if (el.type === 'stage' && el.id) {
+        processTarget(el.id, el.text);
+      } else if (el.type === 'dialogue') {
+        el.lines.forEach(line => {
+          if (line.id) {
+            processTarget(line.id, line.text);
+          }
+        });
+      }
+    });
+  });
+
+  cueNumberingCache = result;
+  return result;
+}
+
+// === RENDERING ===
+
+function renderCueMarkers(targetId, cueNumbering) {
+  const tc = cues[targetId] || {};
+  const lighting = normalizeCueList(tc.lighting);
+  const sound = normalizeCueList(tc.sound);
+  const nums = cueNumbering[targetId] || {};
+  const hasCues = lighting.length > 0 || sound.length > 0;
+
+  let html = '<div class="cue-marker">';
+
+  lighting.forEach((cue, i) => {
+    const num = nums.lighting ? nums.lighting[i] : '?';
+    html += `<span class="cue-badge lighting" onclick="openCueModalEdit('${targetId}','lighting','${cue.id}')">L${num} ${escapeHtml(cue.title)}</span>`;
+  });
+
+  sound.forEach((cue, i) => {
+    const num = nums.sound ? nums.sound[i] : '?';
+    html += `<span class="cue-badge sound" onclick="openCueModalEdit('${targetId}','sound','${cue.id}')">S${num} ${escapeHtml(cue.title)}</span>`;
+  });
+
+  html += `<button class="cue-add-btn" onclick="openCueModal('${targetId}')">+</button>`;
+  html += '</div>';
+
+  return html;
+}
+
+function renderWordSpans(text, targetId) {
+  if (!text) return '';
+  const parts = text.split(/(\s+)/);
+  let wordIdx = 0;
+  let html = '';
+
+  parts.forEach(part => {
+    if (/^\s+$/.test(part)) {
+      html += escapeHtml(part);
+    } else {
+      const wId = targetId + '_w' + wordIdx;
+      const wc = cues[wId] || {};
+      const wLighting = normalizeCueList(wc.lighting);
+      const wSound = normalizeCueList(wc.sound);
+      const hasCues = wLighting.length > 0 || wSound.length > 0;
+      const nums = (cueNumberingCache || {})[wId] || {};
+
+      let cls = 'script-word';
+      if (hasCues) cls += ' has-word-cue';
+      if (wLighting.length) cls += ' has-lighting';
+      if (wSound.length) cls += ' has-sound';
+
+      let wordClick = '';
+      if (hasCues) {
+        const ft = wLighting.length ? 'lighting' : 'sound';
+        const fc = wLighting.length ? wLighting[0] : wSound[0];
+        wordClick = `onclick="event.stopPropagation();openCueModalEdit('${escapeHtml(wId)}','${ft}','${fc.id}')"`;
+      }
+
+      html += `<span class="${cls}" data-wid="${escapeHtml(wId)}" ${wordClick}>`;
+
+      if (hasCues) {
+        html += '<span class="word-cue-pills">';
+        wLighting.forEach((c, i) => {
+          const num = nums.lighting ? nums.lighting[i] : '?';
+          html += `<span class="word-cue-pill lighting" onclick="event.stopPropagation();openCueModalEdit('${escapeHtml(wId)}','lighting','${c.id}')">L${num}</span>`;
+        });
+        wSound.forEach((c, i) => {
+          const num = nums.sound ? nums.sound[i] : '?';
+          html += `<span class="word-cue-pill sound" onclick="event.stopPropagation();openCueModalEdit('${escapeHtml(wId)}','sound','${c.id}')">S${num}</span>`;
+        });
+        html += '</span>';
+      }
+
+      html += escapeHtml(part);
+      html += `<button class="word-add-btn" onclick="event.stopPropagation();openCueModal('${escapeHtml(wId)}')">+</button>`;
+      html += '</span>';
+
+      wordIdx++;
+    }
+  });
+
+  return html;
+}
+
+function getTargetContext(targetId) {
+  for (const page of pages) {
+    for (const el of page.elements) {
+      if (el.type === 'stage' && el.id === targetId) {
+        const t = el.text || '';
+        return t.length > 55 ? '"' + t.slice(0, 55) + '…"' : '"' + t + '"';
+      }
+      if (el.type === 'dialogue') {
+        for (const line of el.lines) {
+          if (!line.id) continue;
+          if (line.id === targetId) {
+            const t = line.text || '';
+            return t.length > 55 ? '"' + t.slice(0, 55) + '…"' : '"' + t + '"';
+          }
+          // Word target?
+          if (targetId.startsWith(line.id + '_w')) {
+            const widx = parseInt(targetId.slice(line.id.length + 2));
+            const words = (line.text || '').trim().split(/\s+/);
+            const word = words[widx] || '';
+            return `"${word}" — word ${widx + 1}`;
+          }
+        }
+      }
+    }
+  }
+  return '';
 }
 
 function renderPageElement(index) {
-    if (index < 0 || index >= pages.length || renderedPages.has(index)) return null;
+  if (index < 0 || index >= pages.length || renderedPages.has(index)) return null;
+  renderedPages.add(index);
+  const page = pages[index];
 
-    renderedPages.add(index);
-    const page = pages[index];
+  let html = `<div class="script-page${page.struck ? ' struck' : ''}" id="page-${index}" data-page-num="${page.number}">`;
+  html += `<span class="page-number-badge">PAGE ${page.number}</span>`;
 
-    let html = '<div class="script-page' + (page.struck ? ' struck' : '') + '" id="page-' + index + '" data-page-num="' + page.number + '">';
-    html += '<span class="page-number-badge">PAGE ' + page.number + '</span>';
+  page.elements.forEach(el => {
+    if (el.type === 'scene_meta') {
+      lastSpeaker = null;
+      html += `<h2 class="scene-heading">${escapeHtml(el.meta.title || 'Untitled Scene')}</h2>`;
+      if (el.meta.description) {
+        html += `<p class="scene-description">${escapeHtml(el.meta.description)}</p>`;
+      }
+    } else if (el.type === 'stage') {
+      lastSpeaker = null;
+      const sid = el.id || '';
+      html += `<div class="dialogue-line-container stage-row${el.struck ? ' struck-text' : ''}" data-line-id="${escapeHtml(sid)}">`;
+      html += '<div class="speaker-column"></div>';
+      html += '<div class="cue-column" data-cue-column="true"></div>';
+      html += `<div class="text-column stage-direction">${escapeHtml(el.text)}</div>`;
+      html += '</div>';
+    } else if (el.type === 'dialogue') {
+      const speaker = el.speaker || '';
+      const isContinuation = speaker && speaker === lastSpeaker;
+      if (speaker && !isContinuation) lastSpeaker = speaker;
 
-    page.elements.forEach(el => {
-        if (el.type === 'scene_meta') {
-            lastSpeaker = null;
-            html += '<h2 class="scene-heading">' + escapeHtml(el.meta.title || 'Untitled Scene') + '</h2>';
-            if (el.meta.description) {
-                html += '<p class="scene-description">' + escapeHtml(el.meta.description) + '</p>';
-            }
-        } else if (el.type === 'stage') {
-            lastSpeaker = null;
-            html += '<div class="stage-direction' + (el.struck ? ' struck-text' : '') + '">' + escapeHtml(el.text) + '</div>';
-        } else if (el.type === 'dialogue') {
-            const speaker = el.speaker || '';
-            const isContinuation = speaker && speaker === lastSpeaker;
+      html += '<div class="dialogue-block">';
+      el.lines.forEach((line, lineIdx) => {
+        if (line.type === 'line') {
+          const showSpeaker = lineIdx === 0 && speaker && !isContinuation;
+          const showLine = lineIdx === 0 && !speaker;
+          const lid = line.id || '';
 
-            if (speaker && !isContinuation) {
-                lastSpeaker = speaker;
-            }
-
-            html += '<div class="dialogue-block">';
-            el.lines.forEach((line, lineIdx) => {
-                if (line.type === 'line') {
-                    const showSpeaker = lineIdx === 0 && speaker && !isContinuation;
-                    const showLine = lineIdx === 0 && !speaker;
-
-                    html += '<div class="dialogue-line-container' + (line.struck ? ' struck-text' : '') + '" data-line-id="' + line.id + '">';
-                    html += '<div class="speaker-column">';
-                    if (showSpeaker) {
-                        html += '<span class="speaker-name">' + escapeHtml(speaker) + '</span>';
-                    } else if (showLine) {
-                        html += '<div class="speaker-line"></div>';
-                    }
-                    html += '</div>';
-                    html += '<div class="cue-column" data-cue-column="true"></div>';
-                    html += '<div class="text-column">' + escapeHtml(line.text) + '</div>';
-                    html += '</div>';
-                } else if (line.type === 'inline') {
-                    html += '<div class="inline-direction' + (line.struck ? ' struck-text' : '') + '">' + escapeHtml(line.text) + '</div>';
-                }
-            });
-            html += '</div>';
+          html += `<div class="dialogue-line-container${line.struck ? ' struck-text' : ''}" data-line-id="${escapeHtml(lid)}">`;
+          html += '<div class="speaker-column">';
+          if (showSpeaker) {
+            html += `<span class="speaker-name">${escapeHtml(speaker)}</span>`;
+          } else if (showLine) {
+            html += '<div class="speaker-line"></div>';
+          }
+          html += '</div>';
+          html += '<div class="cue-column" data-cue-column="true"></div>';
+          html += `<div class="text-column">${lid ? renderWordSpans(line.text, lid) : escapeHtml(line.text)}</div>`;
+          html += '</div>';
+        } else if (line.type === 'inline') {
+          const iid = line.id || '';
+          html += `<div class="dialogue-line-container inline-row${line.struck ? ' struck-text' : ''}" data-line-id="${escapeHtml(iid)}">`;
+          html += '<div class="speaker-column"></div>';
+          html += '<div class="cue-column" data-cue-column="true"></div>';
+          html += `<div class="text-column inline-direction">${escapeHtml(line.text)}</div>`;
+          html += '</div>';
         }
-    });
+      });
+      html += '</div>';
+    }
+  });
 
-    html += '</div>';
-    return html;
+  html += '</div>';
+  return html;
 }
 
 function renderAllPages() {
-    renderedPages.clear();
-    const content = document.getElementById('script-content');
-    let html = '';
-    for (let i = 0; i < pages.length; i++) {
-        const pageHtml = renderPageElement(i);
-        if (pageHtml) html += pageHtml;
+  renderedPages.clear();
+
+  // Calculate numbering before rendering so word spans have correct numbers
+  const cueNumbering = calculateCueOrder();
+
+  const content = document.getElementById('script-content');
+  let html = '';
+  for (let i = 0; i < pages.length; i++) {
+    const pageHtml = renderPageElement(i);
+    if (pageHtml) html += pageHtml;
+  }
+  content.innerHTML = html;
+
+  // Wire up cue columns for all elements that have a non-empty data-line-id
+  document.querySelectorAll('[data-line-id]').forEach(lineEl => {
+    const targetId = lineEl.dataset.lineId;
+    if (!targetId) return;
+    const cueColumn = lineEl.querySelector('[data-cue-column="true"]');
+    if (cueColumn) {
+      cueColumn.innerHTML = renderCueMarkers(targetId, cueNumbering);
     }
-    content.innerHTML = html;
+  });
 
-    // Now add cue markers to each line
-    const cueNumbering = calculateCueOrder();
-
-    pages.forEach((page, pageIndex) => {
-        page.elements.forEach(el => {
-            if (el.type === 'dialogue' && el.lines) {
-                el.lines.forEach((line, lineIdx) => {
-                    if (line.id && line.type === 'line') {
-                        const lineEl = document.querySelector(`[data-line-id="${line.id}"]`);
-                        if (lineEl) {
-                            const cueColumn = lineEl.querySelector('[data-cue-column="true"]');
-                            if (cueColumn) {
-                                cueColumn.innerHTML = renderCueMarkers(line, cueNumbering);
-                            }
-                        }
-                    }
-                });
-            }
-        });
-    });
-
-    updateActiveSceneHighlight();
+  updateActiveSceneHighlight();
 }
 
+// === NAVIGATION ===
+
 function getCurrentPageFromScroll() {
-    const container = document.getElementById('scroll-container');
-    const pagesInView = Array.from(document.querySelectorAll('.script-page'));
-    const containerRect = container.getBoundingClientRect();
-    const viewportMid = containerRect.top + containerRect.height / 3;
+  const container = document.getElementById('scroll-container');
+  const pagesInView = Array.from(document.querySelectorAll('.script-page'));
+  const containerRect = container.getBoundingClientRect();
+  const viewportMid = containerRect.top + containerRect.height / 3;
 
-    let closestPage = null;
-    let closestDist = Infinity;
+  let closestPage = null;
+  let closestDist = Infinity;
 
-    pagesInView.forEach((pageEl, idx) => {
-        const rect = pageEl.getBoundingClientRect();
-        const pageTop = rect.top;
-        if (pageTop <= viewportMid) {
-            const dist = viewportMid - pageTop;
-            if (dist < closestDist) {
-                closestDist = dist;
-                closestPage = { index: idx, pageNum: pageEl.dataset.pageNum };
-            }
-        }
-    });
+  pagesInView.forEach((pageEl, idx) => {
+    const rect = pageEl.getBoundingClientRect();
+    const pageTop = rect.top;
+    if (pageTop <= viewportMid) {
+      const dist = viewportMid - pageTop;
+      if (dist < closestDist) {
+        closestDist = dist;
+        closestPage = { index: idx, pageNum: pageEl.dataset.pageNum };
+      }
+    }
+  });
 
-    return closestPage;
+  return closestPage;
 }
 
 function updateActiveSceneHighlight() {
-    const pageInfo = getCurrentPageFromScroll();
-
-    if (pageInfo) {
-        updateBreadcrumb(pageInfo.index);
-        document.getElementById('page-display').textContent = 'Page ' + pageInfo.pageNum;
-    }
+  const pageInfo = getCurrentPageFromScroll();
+  if (pageInfo) {
+    updateBreadcrumb(pageInfo.index);
+    document.getElementById('page-display').textContent = 'Page ' + pageInfo.pageNum;
+  }
 }
 
 function updateBreadcrumb(index) {
-    const page = pages[index];
-    const breadcrumbAct = document.getElementById('breadcrumb-act');
-    const breadcrumbTitle = document.getElementById('breadcrumb-title');
+  const page = pages[index];
+  const breadcrumbAct = document.getElementById('breadcrumb-act');
+  const breadcrumbTitle = document.getElementById('breadcrumb-title');
 
-    let sceneMeta = null;
-    for (let i = index; i >= 0; i--) {
-        sceneMeta = pages[i].elements.find(e => e.type === 'scene_meta');
-        if (sceneMeta) break;
-    }
+  let sceneMeta = null;
+  for (let i = index; i >= 0; i--) {
+    sceneMeta = pages[i].elements.find(e => e.type === 'scene_meta');
+    if (sceneMeta) break;
+  }
 
-    if (sceneMeta) {
-        breadcrumbAct.textContent = sceneMeta.meta.act || '';
-        breadcrumbTitle.textContent = sceneMeta.meta.title || 'Untitled';
-    } else {
-        breadcrumbAct.textContent = 'Page ' + page?.number;
-        breadcrumbTitle.textContent = page?.number ? 'Page ' + page.number : '';
-    }
+  if (sceneMeta) {
+    breadcrumbAct.textContent = sceneMeta.meta.act || '';
+    breadcrumbTitle.textContent = sceneMeta.meta.title || 'Untitled';
+  } else {
+    breadcrumbAct.textContent = 'Page ' + page?.number;
+    breadcrumbTitle.textContent = page?.number ? 'Page ' + page.number : '';
+  }
 }
 
 function toggleGoto() {
-    const input = document.getElementById('goto-input');
-    input.classList.toggle('visible');
-    if (input.classList.contains('visible')) {
-        document.getElementById('page-number').focus();
-    }
+  const input = document.getElementById('goto-input');
+  input.classList.toggle('visible');
+  if (input.classList.contains('visible')) {
+    document.getElementById('page-number').focus();
+  }
 }
 
 function goToPageNumber() {
-    const input = document.getElementById('page-number');
-    const pageNum = parseInt(input.value, 10);
-    const pageIndex = pages.findIndex(p => p.number === pageNum);
-    if (pageIndex !== -1) {
-        scrollToPage(pageIndex);
-        input.value = '';
-    }
-    document.getElementById('goto-input').classList.remove('visible');
+  const input = document.getElementById('page-number');
+  const pageNum = parseInt(input.value, 10);
+  const pageIndex = pages.findIndex(p => p.number === pageNum);
+  if (pageIndex !== -1) {
+    scrollToPage(pageIndex);
+    input.value = '';
+  }
+  document.getElementById('goto-input').classList.remove('visible');
 }
 
 function scrollToPage(index) {
-    const pageEl = document.getElementById('page-' + index);
-    const container = document.getElementById('scroll-container');
-    if (pageEl && container) {
-        const containerRect = container.getBoundingClientRect();
-        const pageRect = pageEl.getBoundingClientRect();
-        const scrollTop = container.scrollTop + pageRect.top - containerRect.top - 60;
-        container.scrollTo({ top: scrollTop, behavior: 'smooth' });
-    }
+  const pageEl = document.getElementById('page-' + index);
+  const container = document.getElementById('scroll-container');
+  if (pageEl && container) {
+    const containerRect = container.getBoundingClientRect();
+    const pageRect = pageEl.getBoundingClientRect();
+    const scrollTop = container.scrollTop + pageRect.top - containerRect.top - 60;
+    container.scrollTo({ top: scrollTop, behavior: 'smooth' });
+  }
 }
 
 function getScrollFraction() {
-    const container = document.getElementById('scroll-container');
-    return container.scrollTop / (container.scrollHeight - container.clientHeight);
+  const container = document.getElementById('scroll-container');
+  return container.scrollTop / (container.scrollHeight - container.clientHeight);
 }
 
 function setScrollFraction(fraction) {
-    const container = document.getElementById('scroll-container');
-    const newScrollTop = fraction * (container.scrollHeight - container.clientHeight);
-    container.scrollTop = newScrollTop;
+  const container = document.getElementById('scroll-container');
+  container.scrollTop = fraction * (container.scrollHeight - container.clientHeight);
 }
 
 function zoomIn() {
-    const scrollFraction = getScrollFraction();
-    currentZoom = Math.min(200, currentZoom + 10);
-    applyZoom();
-    requestAnimationFrame(() => {
-        setScrollFraction(scrollFraction);
-        saveState();
-    });
+  const frac = getScrollFraction();
+  currentZoom = Math.min(200, currentZoom + 10);
+  applyZoom();
+  requestAnimationFrame(() => { setScrollFraction(frac); saveState(); });
 }
 
 function zoomOut() {
-    const scrollFraction = getScrollFraction();
-    currentZoom = Math.max(50, currentZoom - 10);
-    applyZoom();
-    requestAnimationFrame(() => {
-        setScrollFraction(scrollFraction);
-        saveState();
-    });
+  const frac = getScrollFraction();
+  currentZoom = Math.max(50, currentZoom - 10);
+  applyZoom();
+  requestAnimationFrame(() => { setScrollFraction(frac); saveState(); });
 }
 
 function applyZoom() {
-    const content = document.getElementById('script-content');
-    content.style.transform = `scale(${currentZoom / 100})`;
-    document.getElementById('zoom-level').textContent = currentZoom + '%';
+  document.getElementById('script-content').style.transform = `scale(${currentZoom / 100})`;
+  document.getElementById('zoom-level').textContent = currentZoom + '%';
 }
 
+// === EVENT LISTENERS ===
+
 document.getElementById('scroll-container').addEventListener('wheel', (e) => {
-    if (e.ctrlKey) {
-        e.preventDefault();
-        const scrollFraction = getScrollFraction();
-        if (e.deltaY < 0) {
-            currentZoom = Math.min(200, currentZoom + 5);
-        } else {
-            currentZoom = Math.max(50, currentZoom - 5);
-        }
-        applyZoom();
-        requestAnimationFrame(() => {
-            setScrollFraction(scrollFraction);
-            saveState();
-        });
-    }
+  if (e.ctrlKey) {
+    e.preventDefault();
+    const frac = getScrollFraction();
+    currentZoom = e.deltaY < 0
+      ? Math.min(200, currentZoom + 5)
+      : Math.max(50, currentZoom - 5);
+    applyZoom();
+    requestAnimationFrame(() => { setScrollFraction(frac); saveState(); });
+  }
 }, { passive: false });
 
 document.addEventListener('click', (e) => {
-    const gotoContainer = document.querySelector('.goto-container');
-    if (!gotoContainer.contains(e.target)) {
-        document.getElementById('goto-input').classList.remove('visible');
-    }
+  const gotoContainer = document.querySelector('.goto-container');
+  if (!gotoContainer.contains(e.target)) {
+    document.getElementById('goto-input').classList.remove('visible');
+  }
 });
 
 document.addEventListener('keydown', (e) => {
-    if (e.target.tagName === 'INPUT') return;
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
-    const container = document.getElementById('scroll-container');
-    const pageHeight = container.clientHeight * 0.8;
+  const container = document.getElementById('scroll-container');
+  const pageHeight = container.clientHeight * 0.8;
 
-    if (e.key === 'g' || e.key === 'G') {
-        e.preventDefault();
-        toggleGoto();
-    } else if (e.key === 'ArrowDown' || e.key === 'PageDown') {
-        e.preventDefault();
-        container.scrollBy({ top: e.key === 'ArrowDown' ? 100 : pageHeight, behavior: 'smooth' });
-    } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
-        e.preventDefault();
-        container.scrollBy({ top: e.key === 'ArrowUp' ? -100 : -pageHeight, behavior: 'smooth' });
-    } else if (e.key === 'Home') {
-        e.preventDefault();
-        container.scrollTo({ top: 0, behavior: 'smooth' });
-    } else if (e.key === 'End') {
-        e.preventDefault();
-        container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
-    } else if (e.key === '+' || e.key === '=') {
-        e.preventDefault();
-        zoomIn();
-    } else if (e.key === '-' || e.key === '_') {
-        e.preventDefault();
-        zoomOut();
-    }
+  if (e.key === 'Escape') {
+    closeCueModal();
+  } else if (e.key === 'g' || e.key === 'G') {
+    e.preventDefault();
+    toggleGoto();
+  } else if (e.key === 'ArrowDown' || e.key === 'PageDown') {
+    e.preventDefault();
+    container.scrollBy({ top: e.key === 'ArrowDown' ? 100 : pageHeight, behavior: 'smooth' });
+  } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
+    e.preventDefault();
+    container.scrollBy({ top: e.key === 'ArrowUp' ? -100 : -pageHeight, behavior: 'smooth' });
+  } else if (e.key === 'Home') {
+    e.preventDefault();
+    container.scrollTo({ top: 0, behavior: 'smooth' });
+  } else if (e.key === 'End') {
+    e.preventDefault();
+    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+  } else if (e.key === '+' || e.key === '=') {
+    e.preventDefault();
+    zoomIn();
+  } else if (e.key === '-' || e.key === '_') {
+    e.preventDefault();
+    zoomOut();
+  }
 });
 
+// === DATA LOADING ===
+
 async function loadPages() {
-    try {
-        loadSavedState();
+  try {
+    loadSavedState();
 
-        // Fetch cues first
-        const cuesRes = await fetch('/api/cues');
-        const cuesData = await cuesRes.json();
-        cues = cuesData.cues || {};
+    const cuesRes = await fetch('/api/cues');
+    const cuesData = await cuesRes.json();
+    cues = migrateLegacyCues(cuesData.cues || {});
 
-        // Then fetch pages
-        const res = await fetch('/api/pages');
-        const data = await res.json();
-        pages = data.pages;
-        renderAllPages();
+    const res = await fetch('/api/pages');
+    const data = await res.json();
+    pages = data.pages;
+    renderAllPages();
 
-        const container = document.getElementById('scroll-container');
-
-        // Restore saved scroll position after pages are rendered
-        if (savedScrollPosition !== null) {
-            container.scrollTop = savedScrollPosition;
-        }
-
-        container.addEventListener('scroll', () => {
-            requestAnimationFrame(updateActiveSceneHighlight);
-        });
-
-        // Save scroll position on scroll
-        container.addEventListener('scrollend', () => {
-            saveState();
-        });
-    } catch (err) {
-        document.getElementById('script-content').innerHTML = `
-          <div class="welcome-panel">
-            <h2>Error loading script</h2>
-            <p>${err.message}</p>
-          </div>
-        `;
+    const container = document.getElementById('scroll-container');
+    if (savedScrollPosition !== null) {
+      container.scrollTop = savedScrollPosition;
     }
+
+    container.addEventListener('scroll', () => {
+      requestAnimationFrame(updateActiveSceneHighlight);
+    });
+
+    container.addEventListener('scrollend', () => {
+      saveState();
+    });
+  } catch (err) {
+    document.getElementById('script-content').innerHTML = `
+      <div class="welcome-panel">
+        <h2>Error loading script</h2>
+        <p>${escapeHtml(err.message)}</p>
+      </div>
+    `;
+  }
 }
 
 loadPages();
 
-/**
- * Cue Modal Functions
- */
+// === CUE MODAL ===
 
-function openCueModal(lineId, type = null) {
-    currentCueLineId = lineId;
-    currentCueType = type;
+function openCueModal(targetId) {
+  currentTargetId = targetId;
+  currentCueType = null;
+  currentCueId = null;
 
-    const modal = document.getElementById('cue-modal-overlay');
-    const indicator = document.getElementById('cue-exists-indicator');
-    const lightingBadge = document.getElementById('existing-lighting-cue');
-    const soundBadge = document.getElementById('existing-sound-cue');
+  document.getElementById('cue-modal-title').textContent = 'Add Cue';
+  document.getElementById('cue-modal-context').textContent = getTargetContext(targetId);
+  document.getElementById('cue-title').value = '';
+  document.getElementById('cue-description').value = '';
+  document.getElementById('btn-delete-cue').style.display = 'none';
+  document.querySelectorAll('.cue-type-btn').forEach(b => b.classList.remove('selected'));
 
-    // Get existing cues for this line
-    const existingCues = cues[lineId] || {};
+  updateExistingCuesList(targetId);
 
-    // Find cue number for display
-    const cueNumbering = calculateCueOrder();
-    const lineNums = cueNumbering[lineId] || {};
+  document.getElementById('cue-modal-overlay').classList.add('visible');
+  setTimeout(() => document.getElementById('cue-title').focus(), 50);
+}
 
-    // Update existing cues indicator
-    let hasCues = false;
-    if (existingCues.lighting) {
-        lightingBadge.textContent = 'L' + (lineNums.lighting || '?') + ' ' + existingCues.lighting.title;
-        lightingBadge.style.display = 'inline-block';
-        hasCues = true;
-    } else {
-        lightingBadge.style.display = 'none';
-    }
+function openCueModalEdit(targetId, type, cueId) {
+  currentTargetId = targetId;
+  currentCueType = type;
+  currentCueId = cueId;
 
-    if (existingCues.sound) {
-        soundBadge.textContent = 'S' + (lineNums.sound || '?') + ' ' + existingCues.sound.title;
-        soundBadge.style.display = 'inline-block';
-        hasCues = true;
-    } else {
-        soundBadge.style.display = 'none';
-    }
+  document.getElementById('cue-modal-title').textContent = 'Edit Cue';
+  document.getElementById('cue-modal-context').textContent = getTargetContext(targetId);
 
-    indicator.style.display = hasCues ? 'flex' : 'none';
+  const tc = cues[targetId] || {};
+  const arr = normalizeCueList(tc[type]);
+  const cueData = arr.find(c => c.id === cueId);
 
-    // Reset form
-    document.getElementById('cue-title').value = '';
-    document.getElementById('cue-description').value = '';
+  document.getElementById('cue-title').value = cueData?.title || '';
+  document.getElementById('cue-description').value = cueData?.description || '';
+  document.getElementById('btn-delete-cue').style.display = 'inline-flex';
 
-    // Select type if specified, otherwise clear selection
-    document.querySelectorAll('.cue-type-option').forEach(opt => {
-        opt.classList.remove('selected');
-        if (type && opt.dataset.type === type) {
-            opt.classList.add('selected');
-        }
-    });
+  document.querySelectorAll('.cue-type-btn').forEach(b => {
+    b.classList.toggle('selected', b.dataset.type === type);
+  });
 
-    // Show delete button if editing existing cue
-    const deleteBtn = document.getElementById('btn-delete-cue');
-    if (type && existingCues[type]) {
-        deleteBtn.style.display = 'inline-block';
-    } else {
-        deleteBtn.style.display = 'none';
-    }
+  updateExistingCuesList(targetId);
 
-    modal.classList.add('visible');
+  document.getElementById('cue-modal-overlay').classList.add('visible');
+  setTimeout(() => document.getElementById('cue-title').focus(), 50);
+}
+
+function updateExistingCuesList(targetId) {
+  const container = document.getElementById('cue-modal-existing');
+  const list = document.getElementById('cue-modal-existing-list');
+
+  const tc = cues[targetId] || {};
+  const lighting = normalizeCueList(tc.lighting);
+  const sound = normalizeCueList(tc.sound);
+  const nums = (cueNumberingCache || {})[targetId] || {};
+
+  if (lighting.length === 0 && sound.length === 0) {
+    container.style.display = 'none';
+    return;
+  }
+
+  container.style.display = 'block';
+  let html = '';
+
+  lighting.forEach((c, i) => {
+    const num = nums.lighting ? nums.lighting[i] : '?';
+    const isActive = currentCueId === c.id;
+    html += `<div class="existing-cue-item${isActive ? ' active' : ''}"
+      onclick="openCueModalEdit('${escapeHtml(targetId)}','lighting','${c.id}')">
+      <span class="existing-cue-badge lighting">L${num}</span>
+      <span class="existing-cue-title">${escapeHtml(c.title)}</span>
+      ${c.description ? `<span class="existing-cue-desc">${escapeHtml(c.description)}</span>` : ''}
+    </div>`;
+  });
+
+  sound.forEach((c, i) => {
+    const num = nums.sound ? nums.sound[i] : '?';
+    const isActive = currentCueId === c.id;
+    html += `<div class="existing-cue-item${isActive ? ' active' : ''}"
+      onclick="openCueModalEdit('${escapeHtml(targetId)}','sound','${c.id}')">
+      <span class="existing-cue-badge sound">S${num}</span>
+      <span class="existing-cue-title">${escapeHtml(c.title)}</span>
+      ${c.description ? `<span class="existing-cue-desc">${escapeHtml(c.description)}</span>` : ''}
+    </div>`;
+  });
+
+  list.innerHTML = html;
 }
 
 function closeCueModal(event) {
-    if (!event || event.target === document.getElementById('cue-modal-overlay')) {
-        document.getElementById('cue-modal-overlay').classList.remove('visible');
-        currentCueLineId = null;
-        currentCueType = null;
-    }
+  if (!event || event.target === document.getElementById('cue-modal-overlay')) {
+    document.getElementById('cue-modal-overlay').classList.remove('visible');
+    currentTargetId = null;
+    currentCueType = null;
+    currentCueId = null;
+  }
 }
 
 function selectCueType(type) {
-    currentCueType = type;
-    document.querySelectorAll('.cue-type-option').forEach(opt => {
-        opt.classList.toggle('selected', opt.dataset.type === type);
-    });
+  currentCueType = type;
+  document.querySelectorAll('.cue-type-btn').forEach(b => {
+    b.classList.toggle('selected', b.dataset.type === type);
+  });
+}
 
-    // Pre-fill form if cue already exists
-    const existingCues = cues[currentCueLineId] || {};
-    if (existingCues[type]) {
-        document.getElementById('cue-title').value = existingCues[type].title || '';
-        document.getElementById('cue-description').value = existingCues[type].description || '';
-        document.getElementById('btn-delete-cue').style.display = 'inline-block';
-    } else {
-        document.getElementById('cue-title').value = '';
-        document.getElementById('cue-description').value = '';
-        document.getElementById('btn-delete-cue').style.display = 'none';
-    }
+function handleCueModalKeydown(event) {
+  if (event.key === 'Escape') {
+    closeCueModal();
+  } else if (event.key === 'Enter' && event.target.tagName === 'INPUT') {
+    event.preventDefault();
+    saveCue();
+  } else if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+    event.preventDefault();
+    saveCue();
+  }
 }
 
 async function saveCue() {
-    if (!currentCueLineId || !currentCueType) {
-        alert('Please select a cue type (Lighting or Sound)');
-        return;
-    }
+  if (!currentTargetId || !currentCueType) {
+    const sel = document.getElementById('cue-type-selector');
+    sel.classList.add('shake');
+    setTimeout(() => sel.classList.remove('shake'), 400);
+    return;
+  }
 
-    const title = document.getElementById('cue-title').value.trim();
-    const description = document.getElementById('cue-description').value.trim();
+  const title = document.getElementById('cue-title').value.trim();
+  if (!title) {
+    const input = document.getElementById('cue-title');
+    input.classList.add('input-error');
+    input.focus();
+    setTimeout(() => input.classList.remove('input-error'), 800);
+    return;
+  }
 
-    if (!title) {
-        alert('Please enter a cue title');
-        return;
-    }
+  const description = document.getElementById('cue-description').value.trim();
 
-    // Initialize cues for this line if needed
-    if (!cues[currentCueLineId]) {
-        cues[currentCueLineId] = {};
-    }
+  if (!cues[currentTargetId]) cues[currentTargetId] = {};
 
-    // Check if this line already has a cue of this type
-    if (cues[currentCueLineId][currentCueType]) {
-        // Update existing cue
-        cues[currentCueLineId][currentCueType] = { title, description };
+  const cueList = normalizeCueList(cues[currentTargetId][currentCueType]);
+
+  if (currentCueId) {
+    // Update existing
+    const idx = cueList.findIndex(c => c.id === currentCueId);
+    if (idx !== -1) {
+      cueList[idx] = { ...cueList[idx], title, description };
     } else {
-        // Check max 1 cue per type per line
-        if (cues[currentCueLineId][currentCueType]) {
-            alert('This line already has a ' + currentCueType + ' cue');
-            return;
-        }
-        cues[currentCueLineId][currentCueType] = { title, description };
+      cueList.push({ id: currentCueId, title, description });
     }
+  } else {
+    cueList.push({ id: generateId(), title, description });
+  }
 
-    // Save to server
-    try {
-        const res = await fetch('/api/cues', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(cues)
-        });
+  cues[currentTargetId][currentCueType] = cueList;
 
-        if (res.ok) {
-            // Save scroll position and zoom before re-rendering
-            const container = document.getElementById('scroll-container');
-            const savedScrollTop = container.scrollTop;
-            const savedZoom = currentZoom;
-
-            // Re-render pages with updated cues
-            renderAllPages();
-
-            // Restore scroll position and zoom
-            currentZoom = savedZoom;
-            applyZoom();
-            container.scrollTop = savedScrollTop;
-
-            closeCueModal();
-        } else {
-            const error = await res.json();
-            alert('Error saving cue: ' + error.error);
-        }
-    } catch (err) {
-        alert('Error saving cue: ' + err.message);
-    }
+  await persistAndRefresh();
 }
 
 async function deleteCue() {
-    if (!currentCueLineId || !currentCueType) return;
+  if (!currentTargetId || !currentCueType || !currentCueId) return;
+  if (!confirm('Delete this cue?')) return;
 
-    if (!confirm('Delete this ' + currentCueType + ' cue?')) return;
-
-    if (cues[currentCueLineId] && cues[currentCueLineId][currentCueType]) {
-        delete cues[currentCueLineId][currentCueType];
-
-        // Clean up empty line entries
-        if (Object.keys(cues[currentCueLineId]).length === 0) {
-            delete cues[currentCueLineId];
-        }
-
-        try {
-            const res = await fetch('/api/cues', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(cues)
-            });
-
-            if (res.ok) {
-                // Save scroll position and zoom before re-rendering
-                const container = document.getElementById('scroll-container');
-                const savedScrollTop = container.scrollTop;
-                const savedZoom = currentZoom;
-
-                renderAllPages();
-
-                // Restore scroll position and zoom
-                currentZoom = savedZoom;
-                applyZoom();
-                container.scrollTop = savedScrollTop;
-
-                closeCueModal();
-            }
-        } catch (err) {
-            alert('Error deleting cue: ' + err.message);
-        }
+  const tc = cues[currentTargetId];
+  if (tc && tc[currentCueType]) {
+    const filtered = normalizeCueList(tc[currentCueType]).filter(c => c.id !== currentCueId);
+    if (filtered.length === 0) {
+      delete tc[currentCueType];
+    } else {
+      tc[currentCueType] = filtered;
     }
+    if (Object.keys(tc).length === 0) {
+      delete cues[currentTargetId];
+    }
+  }
+
+  await persistAndRefresh();
+}
+
+async function persistAndRefresh() {
+  try {
+    const res = await fetch('/api/cues', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cues)
+    });
+
+    if (res.ok) {
+      const container = document.getElementById('scroll-container');
+      const savedScrollTop = container.scrollTop;
+      const savedZoom = currentZoom;
+
+      document.getElementById('cue-modal-overlay').classList.remove('visible');
+      currentTargetId = null;
+      currentCueType = null;
+      currentCueId = null;
+
+      renderAllPages();
+      currentZoom = savedZoom;
+      applyZoom();
+      container.scrollTop = savedScrollTop;
+    } else {
+      const error = await res.json();
+      console.error('Error saving:', error.error);
+    }
+  } catch (err) {
+    console.error('Error saving:', err.message);
+  }
 }
