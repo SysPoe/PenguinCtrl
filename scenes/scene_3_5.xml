@@ -1,0 +1,168 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<Script>
+  <Scene id="scene_3_5" pageStart="50" pageEnd="52" act="Act 3: Desperate Measures" title="The Quad"
+    description="Greg threatens Tony; Francine rescues Tony on a BMX">
+    <Page number="50">
+      <StageDirection>SQUISH slowly makes his way to TONY, flanked by some of the boys.</StageDirection>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>Oh no.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>PRIYA</Speaker>
+        <Line>He knows. We're screwed.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>TONY</Speaker>
+        <Line>Go. Go. Get out of here. Quickly.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>Just wait a second.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>PRIYA</Speaker>
+        <Line>Read the room, Stella. Be careful, Tony.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>TONY</Speaker>
+        <Line>Gol.</Line>
+      </DialogueBlock>
+      <StageDirection>of his</StageDirection>
+      <StageDirection>STELLA and PRIYA leave. TONY pulls a Redskin out pocket and nervously eats it.
+        GREG appears.</StageDirection>
+      <DialogueBlock>
+        <Speaker>TONY</Speaker>
+        <Line>Oh, hey Greg. How's it hanging?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>GREG</Speaker>
+        <Line>What?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>TONY</Speaker>
+        <Line>How's it hanging? You know, how are your feelings hanging today? It's a thing I've
+          heard. Pretty cool, hey? I'm kind of the trendsetter around here.</Line>
+        <Line>
+          Do you want some of my Redskin? You don't have to have the bit I licked.
+        </Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>----</Speaker>
+        <Line>Dog act, Tonksie.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>TONY</Speaker>
+        <Line>What?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>----</Speaker>
+        <Line>You dog, Tonksie.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>TONY</Speaker>
+        <Line>What did I do?</Line>
+      </DialogueBlock>
+    </Page>
+    <Page number="51">
+      <DialogueBlock>
+        <Speaker>GREG</Speaker>
+        <Line>I should thank you. I haven't had a fight like that in this body yet. It's good to get
+          a feel for it.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>TONY</Speaker>
+        <Line>Your body?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>GREG</Speaker>
+        <Line>You think the children can protect you?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>TONY</Speaker>
+        <Line>What do you mean, your body? Guys, what're you doing siding with him?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Line>He's the loosest unit in Grade 10.</Line>
+        <Line>I mean he smashed ail the Grade 7s, Tonksie.</Line>
+        <Line>That's hectic.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>GREG</Speaker>
+        <Line>Where does the girl live?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>TONY</Speaker>
+        <Line>Who?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>GREG</Speaker>
+        <Line>You know who.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>TONY</Speaker>
+        <Line>I'm not telling.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Line>He licks toilets, you know Greg.</Line>
+        <Line>Maybe he'll drink from one. Let's find out.</Line>
+      </DialogueBlock>
+      <StageDirection>GREG goes to hit TONY.</StageDirection>
+      <DialogueBlock>
+        <Speaker>TONY</Speaker>
+        <Line>Around the corner from the pet shop! That's all 'm saying.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>GREG</Speaker>
+        <Line>Give me your clothes.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>TONY</Speaker>
+        <Line>I'm sorry?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>GREG</Speaker>
+        <Line>Your clothes. I want them.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>TONY</Speaker>
+        <Line>Um, no thank you.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>GREG</Speaker>
+        <Line>Give them now or I'll break your teeth.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Line>You better do it Tonksie.</Line>
+      </DialogueBlock>
+    </Page>
+    <Page number="52">
+      <DialogueBlock>
+        <Speaker>GREG</Speaker>
+        <Line>I'm getting them either way, bruh.</Line>
+      </DialogueBlock>
+      <StageDirection>TONY is close to tears.</StageDirection>
+      <DialogueBlock>
+        <Speaker>GREG</Speaker>
+        <Line>Guess were doing it the fun way</Line>
+      </DialogueBlock>
+      <StageDirection>As GREG prepares to hit TONY, the lights go wild. There's smoke. A figure
+        flies out from the shadows, jumping on a BMX bike. She is disguised similarly to GREG,
+        although more put together. She skids to a stop between GREG and TONY and throws down a
+        small string of fireworks that explode, blinding GREG.</StageDirection>
+      <DialogueBlock>
+        <Speaker>FRANCINE</Speaker>
+        <Line>Get on!</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>TONY</Speaker>
+        <Line>Who are you?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>FRANCINE</Speaker>
+        <Line>No time! I'll explain later!</Line>
+      </DialogueBlock>
+      <StageDirection>He stands on the back pegs as she pedals away.</StageDirection>
+    </Page>
+  </Scene>
+</Script>

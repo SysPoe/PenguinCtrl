@@ -1,0 +1,196 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<Script>
+  <Scene id="scene_4_4" pageStart="57" pageEnd="59" act="Act 4: The Darkest Night" title="FaceTime"
+    description="Priya tells Stella she can't help">
+    <Page number="57">
+      <StageDirection>Back in STELLA' room. STELLA is now hiding in her sleeping bag. She FaceTimes
+        PRIYA, who is up playing video games.</StageDirection>
+    </Page>
+    <Page number="58">
+      <DialogueBlock >
+        <Speaker>PRIYA</Speaker>
+        <Line>I didn't find Tony. I hope he's okay. My parents took ages to pick me up from the
+          dance.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>STELLA</Speaker>
+        <Line>Priya! You have to help me!</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>PRIYA</Speaker>
+        <Line>I can't hear you.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>STELLA</Speaker>
+        <Line>I can't speak up. He's here.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>PRIYA</Speaker>
+        <Line>Who's there?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>STELLA</Speaker>
+        <Line>Greg. He's here.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>PRIYA</Speaker>
+        <Line>Oh my God.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>STELLA</Speaker>
+        <Line>I know. You have to come over.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>PRIYA</Speaker>
+        <Line>I can't.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>STELLA</Speaker>
+        <Line>What?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>PRIYA</Speaker>
+        <Line>I can't, Stella. ''m sorry. I have too much to lose. If they find out about the Grade
+          7s and Tony, I won't be able to keep going to uni. I'll be grounded. If Greg finds out I
+          was a part of it, it's just ... I don't know. Nothing has worked. Maybe just ignore him.
+          Maybe that's all we can do.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>STELLA</Speaker>
+        <Line>I can't ignore this.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>PRIYA</Speaker>
+        <Line>I know it's not ideal, but I was thinking about it. My Dad says it's the best thing to
+          do. I mean he still gets trouble from people at work because of his accent and all of that
+          but he ignores them and he's mostly a happy guy. Bad people just exist, Stella. Maybe we
+          just have to let them be bad and try to ignore it.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>STELLA</Speaker>
+        <Line>I thought you were my friend.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>PRIYA</Speaker>
+        <Line>I'm just being practical. Be safe, okay?</Line>
+      </DialogueBlock>
+    </Page>
+    <Page number="59">
+      <StageDirection>She hangs up.</StageDirection>
+      <StageDirection>TONY is still popping and locking. FRANCINE is sitting on the bed watching.</StageDirection>
+      <DialogueBlock >
+        <Speaker>FRANCINE</Speaker>
+        <Line>Tony, we don't have time.</Line>
+      </DialogueBlock>
+      <StageDirection>TONY keeps dancing. FRANCINE turns off the music.</StageDirection>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>My tunes!</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>FRANCINE</Speaker>
+        <Line>Tony, we have to focus. How long has he been here?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>Since Monday.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>FRANCINE</Speaker>
+        <Line>And his speech has improved?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>A little.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>FRANCINE</Speaker>
+        <Line>He'll keep learning, Tony. All octopuses learn from their surroundings. If he sees it,
+          he'll copy it. If he hears it, he'll use it. We adapt. That’s how we survive. Have you
+          told him anything?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>Ummmm... he asked about Stella.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>FRANCINE</Speaker>
+        <Line>And what did you tell him?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>Where she lived.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>FRANCINE</Speaker>
+        <Line>What?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>I'm sorry.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>FRANCINE</Speaker>
+        <Line>He'll learn everything about her now! She was in danger before, but now he could be
+          too strong!</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>I'm sorry!</Line>
+      </DialogueBlock>
+      <StageDirection>TONY flinches as if he expects to be hit.</StageDirection>
+      <DialogueBlock >
+        <Speaker>FRANCINE</Speaker>
+        <Line>I'm not going to hurt you.</Line>
+      </DialogueBlock>
+    </Page>
+    <Page number="60">
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>I'm sorry! I messed it up! I'm sorry! I know I screw everything up!</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>FRANCINE</Speaker>
+        <Line>Tony, we have to work on a plan.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>Everyone always says I’m just an idiot.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>FRANCINE</Speaker>
+        <Line>Who says that?</Line>
+        <Line>Tony?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>I don't think I can help you. I'll just stay here. I like it here. It's pretty nice, and I get to do whatever I want. I make my own dinner, and I can eat whatever I want, and I can play my music as loud as I want as long as Dad isn't home, and if he is, I can just stay in here and I write stories. I can feel pretty important here. But I know I'm not. It's fine.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>FRANCINE</Speaker>
+        <Line>Where I come from, the weak are left to fend for themselves. When I was born, my mother and father found it difficult to find food for themselves, let alone all of us. My mother wanted to eat me because I was one of the weakest of all of us. She thought it was what was best for the whole clutch. But my father decided not too. They decided that I was better off on my own. So, they left me. And I struggled, and struggled, and endured, and survived. I hid, and concealed myself, and survived. And you will too. You are too important not to.</Line>
+        <Line> It's a painful life, being an outsider. You will see things differently. You will be ridiculed for it. You'll be shunned for it. People will think you are not worth their time. But above all you will see beautiful things, because you are different. I've never travelled in my clutch, so nobody ever noticed me. I saw the most glorious corners of the ocean because of it. I've been to places and learned things that only dream of. And I am here now. And I did that all on my own. But you won't have to. You have your own tribe.</Line>
+      </DialogueBlock>
+    </Page>
+    <Page number="61">
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>How did you know about them?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>FRANCINE</Speaker>
+        <Line>I've been watching you at school.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>Then why haven't you come sooner?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>FRANCINE</Speaker>
+        <Line>I'm in Grade 12. Grade 12's never talk to Grade 10's.</Line>
+        <Line>There is a fight coming, Tony Tonks. You have an important part to play in it. You will be there for your friend, and I will teach you all that you need to know. About your enemy. About your gift. And you will rise above all of this. I promise you.</Line>
+        <Line>Let's begin.</Line>
+      </DialogueBlock>
+    </Page>
+  </Scene>
+</Script>

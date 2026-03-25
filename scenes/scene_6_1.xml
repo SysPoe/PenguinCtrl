@@ -1,0 +1,35 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<Script>
+  <Scene id="scene_6_1" pageStart="82" pageEnd="83" act="Act 6: Resolution" title="Epilogue" description="The Storytellers recount the aftermath and Stella's victory">
+    <Page number="82">
+      <StageDirection>The STORYTELLERS from the prologue enter once more.</StageDirection>
+      <DialogueBlock >
+        <Speaker>STORYTELLERS</Speaker>
+        <Line>The victory at the flagpole marked the turning point in the Grade Ten resistance.</Line>
+        <Line>The children shared what they had learned with Grade Tens all over the world and slowly, news came in of fights being won everywhere.</Line>
+        <Line>Things had changed. Kids weren't afraid of stepping out into the playground anymore.</Line>
+        <Line>They felt better about themselves, they had hope. They felt safe.</Line>
+        <Line>Priya went back to her one class a week at uni, changing classes from STEM to marine biology.</Line>
+        <Line>You can't ever be too careful.</Line>
+      </DialogueBlock>
+    </Page>
+    <Page number="83">
+      <DialogueBlock >
+        <Speaker>STORYTELLERS</Speaker>
+        <Line>Tony will tell you all about his supposed time warp and tried to reach that peak again, but had to abandon his quest after temporary sugar blindness.</Line>
+        <Line>He had to take two weeks off sick after getting chickenpox from Gary Gleeson.</Line>
+        <Line>He licked Gary's face.</Line>
+        <Line>He made six dollars for doing it.</Line>
+        <Line>And Stella?</Line>
+        <Line>She changed after that day. She stood a little taller, walked around with bigger steps.</Line>
+        <Line>She helps other kids who felt like she did. She was right all along.</Line>
+        <Line>It was a special year for not just her, but for everyone she gave hope to.</Line>
+        <Line>Things may still be tough in the outside world, but she made the playground safer again.</Line>
+        <Line>She taught us all the best lesson.</Line>
+        <Line>That people — or octopuses — can only make you feel small if you let them.</Line>
+        <Line>And after that day, none of us ever did.</Line>
+      </DialogueBlock>
+      <StageDirection>STELLA gets up, puts on her backpack, and strides home. The End.</StageDirection>
+    </Page>
+  </Scene>
+</Script>

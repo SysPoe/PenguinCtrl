@@ -1,0 +1,185 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<Script>
+  <Scene id="scene_5_4" pageStart="70" pageEnd="74" act="Act 5: The Showdown" title="Resistance" description="Priya and Tony return to help Stella research octopus weaknesses">
+    <Page number="70">
+      <SceneHeading>Resistance</SceneHeading>
+      <DialogueBlock >
+        <Speaker>STELLA</Speaker>
+        <Line>What are you doing here? Tony! You're okay!</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>My stomach hurts but I think that's the sugar. I'm starting to think it's not the best for you.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>PRIYA</Speaker>
+        <Line>Tony came and got me. He told me everything.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>STELLA</Speaker>
+        <Line>You found out?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>PRIYA</Speaker>
+        <Line>You were right.</Line>
+      </DialogueBlock>
+    </Page>
+    <Page number="71">
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>He's an octopus.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>PRIYA</Speaker>
+        <Line>And a dick. I'm sorry I was a chode. I was wrong.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>STELLA</Speaker>
+        <Line>I know that was hard for you Priya.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>PRIYA</Speaker>
+        <Line>Thanks. Seriously though. I was a chode. We're running out of time. I think Greg made a shank in art class today.</Line>
+      </DialogueBlock>
+      <StageDirection>SQUISH is making a paper mache knife in Art. MISS DUANE is walking past, on her phone.</StageDirection>
+      <DialogueBlock >
+        <Speaker>DUANE</Speaker>
+        <Line>Greg, that doesn't look like a dreamcatcher to me. What have you got there?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>GREG</Speaker>
+        <Line>Christmas tree.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>DUANE</Speaker>
+        <Line>Well, look, it's not what I asked you to make, so I can't give you a gold star. This will have to do.</Line>
+      </DialogueBlock>
+      <StageDirection>She puts a happy rainbow sticker on his fake head.</StageDirection>
+      <DialogueBlock >
+        <Speaker>DUANE</Speaker>
+        <Line>Now put it away or it'll be mine. [off] Jordan. Head out of the kiln now buddy. I won't say it again.</Line>
+      </DialogueBlock>
+      <StageDirection>Back to the kids.</StageDirection>
+      <DialogueBlock >
+        <Speaker>STELLA</Speaker>
+        <Line>Thanks you guys. I just wish it wasn't me.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>PRIYA</Speaker>
+        <Line>So do we. But you know what? It is. And there's nothing you can do about it but fight back. You're in control here. Look at me.</Line>
+      </DialogueBlock>
+      <StageDirection>Their eyes meet.</StageDirection>
+      <DialogueBlock >
+        <Speaker>PRIYA</Speaker>
+        <Line>You're going to fight that butthole tomorrow. And we're going to help you.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>We're not going to let our bud get smacked around by an octopus.</Line>
+      </DialogueBlock>
+    </Page>
+    <Page number="72">
+      <StageDirection>PRIYA sets up her easel and drawing pad. She flips through her research as she continues. Old oil paintings of whaling ships being attacked by giant squids. A photo of an octopus eating a bird. Giant Krakens, squids, Cthulhu, the octopus that predicted the World Cup.</StageDirection>
+      <DialogueBlock >
+        <Speaker>PRIYA</Speaker>
+        <Line>I've gone to the library and did some research —</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>Nerd.</Line>
+        <Line>Sorry. Habit.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>PRIYA</Speaker>
+        <Line>— And everything that has been happening actually makes sense. This isn't the first time that somebody's been victimised by octopuses. There's a really long history of it. Ships being overturned by sea monsters. Whales disappearing. Entire cults devoted to them. They can fit through cracks. They camouflage. They use tools. What do you think that means?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>STELLA</Speaker>
+        <Line>I don't know.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>PRIYA</Speaker>
+        <Line>I think it's been building up to something. Something big. Tony?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>We did some research —</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>STELLA</Speaker>
+        <Line>We?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>Me and a friend.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>PRIYA</Speaker>
+        <Line>We're your friends.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>I have a life outside of you guys.</Line>
+      </DialogueBlock>
+      <StageDirection>We found this on YouTube. Some Grade Five kid in Russia took it, it was a fight at his school. The bigger kid kind of looks like Greg.</StageDirection>
+      <StageDirection>He shows STELLA the video. We hear kids yelling in Russian, scuffling.</StageDirection>
+      <StageDirection>We thought it was just another fight, but then ...</StageDirection>
+    </Page>
+    <Page number="73">
+      <DialogueBlock >
+        <Speaker>STELLA</Speaker>
+        <Line>He ate him!</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>PRIYA</Speaker>
+        <Line>They're getting bolder. There's more videos just like that one from all over the world. It's not just you, Stella. It's kids like you and it's happening everywhere and nobody's standing up to them. You have to stop him.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>STELLA</Speaker>
+        <Line>But why me?!</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>PRIYA</Speaker>
+        <Line>You're still on this? It doesn't matter why. It is you, yeah, but if it wasn't you, it would be somebody else.</Line>
+      </DialogueBlock>
+      <StageDirection>As PRIYA continues, a horrifying vision of multiple GREGS appear all around them in the darkness.</StageDirection>
+      <DialogueBlock >
+        <Speaker>PRIYA</Speaker>
+        <Line>And if you were in his position, you'd bully other kids too. Think about it. If you were bigger and stronger, of course you'd pick on somebody who wouldn't fight back. People have been doing that ever since there have been people. And he won't stop with you. He'll keep doing it until every octopus in the world isn't scared anymore, and then our mums and dads and brothers and sisters will all be in trouble. We're not going to let that happen.</Line>
+      </DialogueBlock>
+      <StageDirection>TONY puts his hand to his ear and makes a 'ring ring' sound.</StageDirection>
+      <DialogueBlock >
+        <Speaker>STELLA</Speaker>
+        <Line>Tony, what are you doing?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>Just a second. Hello? [answering his fake phone] it's Destiny calling. [listens and then hands her his imaginary phone] It's for you.</Line>
+      </DialogueBlock>
+      <StageDirection>STELLA sighs.</StageDirection>
+      <DialogueBlock >
+        <Speaker>STELLA</Speaker>
+        <Line>I don't know how I can win on my own.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>Have you even been listening? You're not on your own.</Line>
+      </DialogueBlock>
+    </Page>
+    <Page number="74">
+      <StageDirection>PRIYA</StageDirection>
+      <DialogueBlock >
+        <Speaker>PRIYA</Speaker>
+        <Line>I've got an idea to help you, it'll take a lot of luck and every bit of my STEM skills but I think it's the best plan we have.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>And I brought Sour Patch Kids.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>PRIYA</Speaker>
+        <Line>We'll need them. It's going to be a long night.</Line>
+      </DialogueBlock>
+    </Page>
+  </Scene>
+</Script>

@@ -1,0 +1,64 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<Script>
+  <Scene id="scene_3_4" pageStart="49" pageEnd="49" act="Act 3: Desperate Measures" title="Assembly"
+    description="Mr. Fowler discusses the &quot;scooter-related&quot; hospitalizations">
+    <Page number="49">
+      <SceneHeading>Assembly</SceneHeading>
+      <StageDirection>The bells marks the next day at assembly. The students are all gathered,</StageDirection>
+      <DialogueBlock>
+        <Speaker>FOWLER</Speaker>
+        <Line>I have a good mind to cancel the Pre-Formal entirely! At this school, we have
+          standards of respect and kindness. Of listening to each other. And not resolving our
+          problems with violence! We have half of the Grade 7 cohort in hospital right now! One has
+          a scooter inserted into their bottom!</Line>
+      </DialogueBlock>
+      <StageDirection>Laughter from the students.</StageDirection>
+      <DialogueBlock>
+        <Speaker>PRIYA</Speaker>
+        <Line>We're so dead.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>TONY</Speaker>
+        <Line>Shhhhh!</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>How did he get them all? That's like 30 kids.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>FOWLER</Speaker>
+        <Line>Oh you think that's funny? That a student had a scooter placed inside their bottom?
+          You think that's funny that I have to explain that to you? They can't sit down! They're in
+          the hospital being suspended from the ceiling with their bare rear end in the air! Where
+          everyone can see it? That's funny to you?</Line>
+      </DialogueBlock>
+      <StageDirection>More laughter.</StageDirection>
+      <DialogueBlock>
+        <Speaker>FOWLER</Speaker>
+        <Line>I'll wait.</Line>
+      </DialogueBlock>
+      <StageDirection>He does.</StageDirection>
+      <DialogueBlock>
+        <Speaker>FOWLER</Speaker>
+        <Line>The dance will go ahead tonight, and only because the deposits are non-refundable. But mark my words. If there is any trouble, any at all. I will come down on you. Hard. And fast.</Line>
+      </DialogueBlock>
+      <StageDirection>More laughter.</StageDirection>
+      <DialogueBlock>
+        <Speaker>FOWLER</Speaker>
+        <Line>Your time, guys, not mine.</Line>
+      </DialogueBlock>
+    </Page>
+    <Page number="50">
+      <StageDirection>MR RIDGE whispers.</StageDirection>
+      <DialogueBlock >
+        <Speaker>RIDGE</Speaker>
+        <Line>Pick up the pace Terry. This is our lunch too.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>FOWLER</Speaker>
+        <Line>Good point. On your way now. Dismissed.</Line>
+      </DialogueBlock>
+      <StageDirection>The bells sounds again as the students scatter.</StageDirection>
+      </Page>
+  </Scene>
+</Script>

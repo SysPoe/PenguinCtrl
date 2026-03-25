@@ -1,0 +1,105 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<Script>
+  <Scene id="scene_4_3" pageStart="56" pageEnd="57" act="Act 4: The Darkest Night" title="Tony's Bedroom" description="Francine explains Greg is an octopus and they must fight">
+    <Page number="56">
+      <StageDirection>TONY's room. FRANCINE and TONY enter.</StageDirection>
+      <DialogueBlock >
+        <Speaker>FRANCINE</Speaker>
+        <Line>Close the door. Has he been to your house? Does he know where you live?</Line>
+      </DialogueBlock>
+      <StageDirection>TONY is frozen.</StageDirection>
+      <DialogueBlock >
+        <Speaker>FRANCINE</Speaker>
+        <Line>Tony?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>There's a girl in my room.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>FRANCINE</Speaker>
+        <Line>Has he been to your house?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>No. Nobody comes to this side of town. And it's just me and my Dad here.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>FRANCINE</Speaker>
+        <Line>Where is he?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>Um ... probably out. He works pretty late.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>FRANCINE</Speaker>
+        <Line>He can't know that I'm here. Nobody can know I've been here. Do you understand?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>Gotcha.</Line>
+      </DialogueBlock>
+    </Page>
+    <Page number="57">
+      <DialogueBlock >
+        <Speaker>FRANCINE</Speaker>
+        <Line>Good. I've been looking for you, Tony Tonks. Your friend is in danger.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>Woah. I have goosebumps.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>FRANCINE</Speaker>
+        <Line>The one who took your bike. He's not what he seems. You may have felt it. His odd speech patterns. His size. Do you understand?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>I know what you mean.</Line>
+        <InlineDirection>He got held back a grade.</InlineDirection>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>FRANCINE</Speaker>
+        <Line>He's an octopus.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>gasps.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>Stella was right. Oh man. I feel really awful.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>FRANCINE</Speaker>
+        <Line>You can help her, Tony. I'm going to help you. The one who has chosen her has chosen her for a reason, and he won't stop tormenting her until it's too late. He thinks she's weak, and he'll get in her head. He's smart, smarter than a lot of our kind.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>_ FRANCINE</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>FRANCINE</Speaker>
+        <Line>Our?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>FRANCINE</Speaker>
+        <Line>We're not all here to conquer, Tony. Some of us just want to live here in peace. But we have to stand up for those who can't. Both of us. There's a special power in you. ''m going to show you.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>I [already know.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>FRANCINE</Speaker>
+        <Line>What?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>Check this out.</Line>
+      </DialogueBlock>
+      <StageDirection>He turns on music and he starts dancing.</StageDirection>
+    </Page>
+  </Scene>
+</Script>

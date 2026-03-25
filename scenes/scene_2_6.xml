@@ -1,0 +1,279 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<Script>
+  <Scene id="scene_2_6" pageStart="42" pageEnd="45" act="Act 2: The Rising Threat"
+    title="Playground"
+    description="Miss Duane uses &quot;crush logic&quot; to dismiss Greg's bullying">
+    <Page number="42">
+      <SceneHeading>Playground</SceneHeading>
+      <StageDirection>MISS DUANE is on playground duty.</StageDirection>
+      <DialogueBlock>
+        <Speaker>DUANE</Speaker>
+        <Line>Stella, where are your shoes?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>...I can't tell you.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>DUANE</Speaker>
+        <Line>You will tell me. You're not in full uniform. Tell me what's going on or you'll be on
+          detention for a whole other week.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>But I can't tell you.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>DUANE</Speaker>
+        <Line>Stella, look, I get it. You don't want to tell on anybody because students think that
+          kids that do that are the weaker, stupider children. And that's kind of true. But if
+          somebody asks you, it's not ratting somebody out. Does that make sense?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>Not really —</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>DUANE</Speaker>
+        <Line>So where are your shoes?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>I went to talk to Greg and he asked to borrow them.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>DUANE</Speaker>
+        <Line>Borrow them? You sure about that?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>Yes. I promise. I don't want there to be any trouble or anything.</Line>
+      </DialogueBlock>
+    </Page>
+    <Page number="43">
+      <DialogueBlock>
+        <Speaker>DUANE</Speaker>
+        <Line>Do you think I was born yesterday? I've been a teacher for almost four months, Stella.
+          This isn't my first time at the rodeo. I know exactly what's going on.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>Really? So you can help?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>DUANE</Speaker>
+        <Line>I sure can. Greg has a crush on you.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>What?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>DUANE</Speaker>
+        <Line>I'm surprised your mother hasr't had this conversation with you already, you're like
+          what, fifteen? I guess it's up to me then. Have a seat. Have you ever heard of the saying
+          "Treat 'em mean, keep em keen?"</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>No.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>DUANE</Speaker>
+        <Line>What it means is if a boy is ever mean to you, that's just his way of expressing that
+          he likes you.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>That doesn't seem right.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>DUANE</Speaker>
+        <Line>It is right. People can't just tell each other they like them. Its a game.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>Do you think that this is appropriate?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>DUANE</Speaker>
+        <Line>To guide the next generation of young people? It's why I got into this job. Treat em
+          mean, Stella. Meeeeeaaaan.</Line>
+      </DialogueBlock>
+      <StageDirection>She leaves.</StageDirection>
+      <DialogueBlock>
+        <Speaker>PRIYA</Speaker>
+        <Line>Are you okay?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>TONY</Speaker>
+        <Line>Where are your shoes? Are we not wearing shoes anymore? Is that not cool? Are other
+          kids doing it?</Line>
+      </DialogueBlock>
+      <StageDirection>TONY rips off his shoes.</StageDirection>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>Greg took them.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>PRIYA</Speaker>
+        <Line>Right, that's it, I'm going to Mr Fowler.</Line>
+      </DialogueBlock>
+    </Page>
+    <Page number="44">
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>No, it's okay.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>PRIYA</Speaker>
+        <Line>It's so not okay!</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>I need to tell you guys something. Something that's going to be a little weird.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>TONY</Speaker>
+        <Line>What is it?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>I think that Squish might be disguising himself as Greg.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>PRIYA</Speaker>
+        <Line>What?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>He smells strange, he only shows up the day after we lose Squish, and just before, I
+          saw him without his shirt he didn't look like a boy should.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>PRIYA</Speaker>
+        <Line>That's crazy though. How did he learn English, or how walk? And how could he have
+          grown that fast?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>TONY</Speaker>
+        <Line>Why would he disguise himself as a kid?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>I don't know. But I saw what I saw. He said he was going hurt me and then he made me
+          give him his shoes.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>PRIYA</Speaker>
+        <Line>I'm sorry.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>On the bright side, at least I wont get tinea. They're airing out.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>TONY</Speaker>
+        <Line>Neither will I. You can't get it twice.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>PRIYA</Speaker>
+        <Line>Stella, I don't know what you think you saw, but octopuses can't do what you're
+          saying. I agree he's a douche canoe.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>TONY</Speaker>
+        <Line>Yeah. Maybe he just seems like a monster because of stuff he's saying. Not an actual
+          monster.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>You guys have to believe me.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>PRIYA</Speaker>
+        <Line>Would you believe me if it was the other way around?</Line>
+      </DialogueBlock>
+    </Page>
+    <Page number="45">
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>I'd give you the benefit of the doubt. I've gone to the teachers, and the SRC. I don't
+          know what to do.</Line>
+      </DialogueBlock>
+      <StageDirection>TONY and PRIYA look at each other.</StageDirection>
+      <DialogueBlock>
+        <Speaker>PRIYA</Speaker>
+        <Line>Look, Stella, there is another way.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>TONY</Speaker>
+        <Line>But you have to be ready to give up a bit of the high road.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>I just want it to stop.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>TONY</Speaker>
+        <Line>Be careful what you wish for.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>Just tell me how, okay?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>PRIYA</Speaker>
+        <Line>The Grade 7s.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>What about them?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>TONY</Speaker>
+        <Line>Have you ever seen them?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>Not really.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>PRIYA</Speaker>
+        <Line>Be grateful you haven't.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>TONY</Speaker>
+        <Line>One time I saw them throw a dog onto the roof of the library.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>PRIYA</Speaker>
+        <Line>Nobody crosses the Grade 7s, Stella. They're dangerous enough on their own.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>TONY</Speaker>
+        <Line>But they're never on their own. They travel in packs. One minute you're fine, and the next their tiny little hands are tearing you apart.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>Why are you telling me all this?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>PRIYA</Speaker>
+        <Line>They'll take care of anyone for a price. You want to beat a monster? You bring a monster.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>Okay. Let's do it.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>PRIYA</Speaker>
+        <Line>Tony, get the word to the Grade 7s and we'll arrange a meeting.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>TONY</Speaker>
+        <Line>Oh boy.</Line>
+      </DialogueBlock>
+    </Page>
+  </Scene>
+</Script>

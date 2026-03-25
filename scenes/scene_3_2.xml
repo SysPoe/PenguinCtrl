@@ -1,0 +1,37 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<Script>
+  <Scene id="scene_3_2" pageStart="47" pageEnd="48" act="Act 3: Desperate Measures" title="Principal's Office" description="Mr. Fowler checks in on Greg">
+    <Page number="47">
+      <SceneHeading>Principal's Office</SceneHeading>
+      <StageDirection>MR FOWLER is sitting with GREG.</StageDirection>
+    </Page>
+    <Page number="48">
+      <DialogueBlock >
+        <Speaker>FOWLER</Speaker>
+        <Line>Greg, firstly, we don't want you to worry, you're not in trouble. I know some of the students freak out a bit when they get called into my office. Freak out. Do kids still say that? Am I saying that right?</Line>
+      </DialogueBlock>
+      <StageDirection>Silence.</StageDirection>
+      <DialogueBlock >
+        <Speaker>FOWLER</Speaker>
+        <Line>Matey, this is just a check in to see how youre fitting in with everyone. I know the first week at a new school can be tough. But Miss Duane here is really happy with your performance for in class, and even Mr Ridge says you have a hell of an arm for dodgeball. I haven't seen anyone fit in so well before.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>GREG</Speaker>
+        <Line>This school pleases my boy tastes.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>FOWLER</Speaker>
+        <Line>That's great to hear, buddy. Any questions for me?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>GREG</Speaker>
+        <Line>NO.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>FOWLER</Speaker>
+        <Line>Alright then, on your way buddy. My door is always open.</Line>
+      </DialogueBlock>
+      <StageDirection>GREG leaves, and is alone. He sniffs the air. The sound of rattling chains. Something is near.</StageDirection>
+    </Page>
+  </Scene>
+</Script>

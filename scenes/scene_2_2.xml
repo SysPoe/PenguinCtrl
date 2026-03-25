@@ -1,0 +1,150 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<Script>
+  <Scene id="scene_2_2" pageStart="34" pageEnd="36" act="Act 2: The Rising Threat" title="The Hall"
+    description="Stella tries to report Greg's threats to the SRC">
+    <Page number="34">
+      <SceneHeading>The Hall</SceneHeading>
+      <DialogueBlock>
+        <Speaker>MADISON</Speaker>
+        <Line>No, Madyson, the streamers are supposed to be festive!</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>MADYSON</Speaker>
+        <Line>They are festive.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>MADISON</Speaker>
+        <Line>They are clearly ebuliant! I can see that from across the hall, why can't you? Get
+          others!</Line>
+      </DialogueBlock>
+      <StageDirection>STELLA enters.</StageDirection>
+    </Page>
+    <Page number="35">
+      <DialogueBlock>
+        <Speaker>MADISON</Speaker>
+        <Line>Stella, this better be important. The food truck is screwing me on slushie machines
+          and the DJ is double booked. Miss Duane is now running music. She's 23. That's five years
+          too old to be a DJ. What's wrong?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>Um, I need to report something to you.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>MADISON</Speaker>
+        <Line>I'm flattered you felt comfortable enough to trust me. This is a safe space, okay? No
+          judgement.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>So the new guy.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>MADISON</Speaker>
+        <Line>Greg? Cheekbones Greg? I saw him near the science blocks.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>Yeah. He's been giving me some trouble.</Line>
+      </DialogueBlock>
+      <StageDirection>MADYSON and MADDISON drop everything and swarm in.</StageDirection>
+      <DialogueBlock>
+        <Speaker>MADYSON</Speaker>
+        <Line>Shut the front door.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>MADDISON</Speaker>
+        <Line>You have to tell us everything.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>There's not much to tell. He just said he was going to kill me.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>MADDISON</Speaker>
+        <Line>Wow. You must have done a number on him.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>MADYSON</Speaker>
+        <Line>He's only been here like an hour.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>MADISON</Speaker>
+        <Line>What are you two talking about? Stop assuming that just because he's a boy that
+          they're in a relationship. Don't place your lived experiences on someone else, okay?
+          Actually listen. Be the leaders that the school expects us to be.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>Thank you Maddie.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>MADISON</Speaker>
+        <Line>Madison.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>I really didn't think you were going to help me.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>MADISON</Speaker>
+        <Line>Oh babes, I car't help you.</Line>
+      </DialogueBlock>
+    </Page>
+    <Page number="36">
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>You're the President of the SRC.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>MADISON</Speaker>
+        <Line>Exactly. I look after the whole student body. If word gets out about this, the whole
+          grade could be punished and then there's no dance. My reputation's at stake.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>But what about me? You believe me right?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>MADISON</Speaker>
+        <Line>That's not really the point. Honestly, I feel like you're not listening to me.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>MADYSON</Speaker>
+        <Line>She isn't.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>MADDISON</Speaker>
+        <Line>Seriously, it's disappointing.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>MADISON</Speaker>
+        <Line>I've just told you that this is a bigger problem than any one of us and you can't see
+          past yourself. I thought you were better than this.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>What am I supposed to do?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>MADISON</Speaker>
+        <Line>You're smart and independent. You'll figure it out. Make sure you make self-care a
+          priority. Check your nails, all that. We have to look out for each other.</Line>
+        <Line>
+          Just, you know, quietly. I have to do what's right for everyone. And what's right for
+          everyone is making
+          sure the most important night of their lives goes off.
+        </Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>The Year 10 Pre-Formal is the most important night.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>MADISON</Speaker>
+        <Line>Now youre getting it. We don't talk enough by the way. Let's do this again soon.</Line>
+      </DialogueBlock>
+      <StageDirection>She hugs STELLA.</StageDirection>
+    </Page>
+  </Scene>
+</Script>

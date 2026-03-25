@@ -1,0 +1,81 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<Script>
+  <Scene id="scene_5_5" pageStart="74" pageEnd="75" act="Act 5: The Showdown" title="Training Montage" description="The trio builds armor and prepares for battle">
+    <Page number="74">
+      <SceneHeading>Training Montage</SceneHeading>
+      <StageDirection>Power Montage Music. PRIYA' plan is displayed. There's mechanical drawings and blueprints. Treadmills. TONY has a stack of books on marine life, and is reading The Old Man and the Sea.</StageDirection>
+      <DialogueBlock >
+        <Speaker>PRIYA</Speaker>
+        <Line>Anything we learn about them helps, Tony. What have you got?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>The fish is a metaphor.</Line>
+      </DialogueBlock>
+      <StageDirection>More training/ building. Some spot welding. The music stops and TYSON enters.</StageDirection>
+      <DialogueBlock >
+        <Speaker>TYSON</Speaker>
+        <Line>We didn't make a decision earlier. Do you want tacos?</Line>
+        <Line>What's going on in here?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY/PRIYA</Speaker>
+        <Line>Oh hey Tyson what's up</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TYSON</Speaker>
+        <Line>You guys are weird.</Line>
+      </DialogueBlock>
+      <StageDirection>He closes the door and training continues.</StageDirection>
+      <StageDirection>Elsewhere, SQUISH is bench pressing a terrified preschooler. He drops them, drinks more energy drink and roars.</StageDirection>
+      <StageDirection>PRIYA is working on the armour and attaching the pieces to STELLA. TONY is eating Killer Pythons and quizzing her.</StageDirection>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>Which breeds of octopus are poisonous?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>STELLA</Speaker>
+        <Line>All of them!</Line>
+      </DialogueBlock>
+    </Page>
+    <Page number="75">
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>Primary movement mechanism?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>STELLA</Speaker>
+        <Line>Jet propulsion and tentacle manipulation!</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>How many hearts do they have?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>STELLA</Speaker>
+        <Line>Three!</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>How many bones?</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>STELLA</Speaker>
+        <Line>None!</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>How many souls?</Line>
+      </DialogueBlock>
+      <StageDirection>STELLA slams down her helmet.</StageDirection>
+      <DialogueBlock >
+        <Speaker>STELLA</Speaker>
+        <Line>NONE.</Line>
+      </DialogueBlock>
+      <DialogueBlock >
+        <Speaker>TONY</Speaker>
+        <Line>Ooch. I just got tinglies.</Line>
+      </DialogueBlock>
+    </Page>
+  </Scene>
+</Script>

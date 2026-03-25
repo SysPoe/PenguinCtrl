@@ -1,0 +1,64 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<Script>
+  <Scene id="scene_1_2" pageStart="12" pageEnd="14" act="Act 1: The Inciting Incident" title="The Shipyard" description="Dockworkers drink recalled energy drinks; Squish rises">
+    <Page number="12">
+      <StageDirection>They disappear into the middle of the night at a shipyard. A DOCKWORKER is alone, in high vis and unloading crates from a forklift. There's a sound from the void. He stops, looks around and keeps on working. A shadow approaches, and grabs him from behind, screaming.</StageDirection>
+      <DialogueBlock >
+        <Line>BAH, Scared ya bruh!</Line>
+        <Line>How do you come up with this stuff man? So good.</Line>
+        <Line>Dunno hey, it just comes to me. Like that. Just comes to me. I'm doing your handover. What have we got?</Line>
+        <Line>Energy drink recall. Gotta send them back. We got the order this afternoon.</Line>
+        <Line>Where's it from? The writing's all weird.</Line>
+        <Line>I dunno. Forms don't say much, I think they're from Russia. I can't tell. It all just looks like A's to me, Oi. You wanna try one?</Line>
+      </DialogueBlock>
+      <StageDirection>He pries open a corner of the lid and pulls out two cans of energy drink.</StageDirection>
+      <DialogueBlock >
+        <Line>I dunno bruh. If they're being recalled wouldn't they be not good to drink?</Line>
+        <Line>It won't kill you.</Line>
+        <Line>Man, you know I'm down for doing things that don't make sense. I wear tank tops and beanies at the same time. But what if it does kill us? Then we'd be dead. Plus, it's like foggier than it usually is. Like it's more foreboding and swirly. I'm getting bad vibes hey.</Line>
+        <Line>Ooh. I don't want bad vibes only.</Line>
+        <Line>Yeah, it's about good vibes only.</Line>
+        <Line>I want good vibes only.</Line>
+        <Line>Yeah. Good vibes. Yew yew.</Line>
+      </DialogueBlock>
+      <StageDirection>All DOCKWORKERS throw shakas.</StageDirection>
+      <DialogueBlock >
+        <Line>But man, we have to bust ourselves full-time for 72 thousand a year with comprehensive benefits. We should at least get something out of the deal. Sack up and get a drink up you.</Line>
+      </DialogueBlock>
+      <StageDirection>He tosses a can of the stuff.</StageDirection>
+      <DialogueBlock >
+        <Line>Fair point.</Line>
+        <Line>See?</Line>
+      </DialogueBlock>
+      <StageDirection>They take a long sip out of the cans. Suddenly, he starts choking. His friend starts panicking.</StageDirection>
+      <DialogueBlock >
+        <Line>Mate? You okay? Do I need to call someone? Oh no bruh. We're done. We are so done.</Line>
+      </DialogueBlock>
+      <StageDirection>He continues to choke, but the choking eventually turns to laughter.</StageDirection>
+    </Page>
+    <Page number="13">
+      <DialogueBlock >
+        <Line>You massive lad. I knew this was a G up.</Line>
+        <Line>I know right? So good hey. Best G up.</Line>
+        <Line>I thought you were done.</Line>
+        <Line>Nah, my left arm feels a bit numb is all.</Line>
+        <Line>Oh.</Line>
+        <Line>All good that comes and goes all the time. Come on, let's get this done, I'll be in the doghouse if I'm late again tonight. Know what I mean? Hey? Hey?</Line>
+        <Line>Too right.</Line>
+        <Line>Not wrong.</Line>
+        <Line>Too right.</Line>
+        <Line>Not wrong.</Line>
+        <Line>Too right.</Line>
+        <Line>Not wrong.</Line>
+      </DialogueBlock>
+      <StageDirection>They all laugh. And sigh.</StageDirection>
+      <DialogueBlock >
+        <Line>I'm actually pretty unhappy hey.</Line>
+      </DialogueBlock>
+      <StageDirection>They both take another long sip and throw the cans over the edge of the dock. The cans sink to the bottom of the ocean, leaking energy drink as they go. The shadow of a small octopus swims into the light. He continues to swim up, rising, until he reaches the cans, He begins to shake violently, then comes to a stop. He swims now with much more purpose, towards the surface, and breaks the surface of the water. He bobs in the water, searching. In the distance, a sign glows, reading PET STORE. The octopus makes a small sound, eerily close to laughter.</StageDirection>
+    </Page>
+    <Page number="14">
+      <StageDirection>A TITLE SEQUENCE of some sort.</StageDirection>
+    </Page>
+  </Scene>
+</Script>

@@ -1,0 +1,76 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<Script>
+  <Scene id="scene_2_4" pageStart="38" pageEnd="39" act="Act 2: The Rising Threat" title="PE Class"
+    description="A vicious game of Dodgeball highlighting Greg's aggression">
+    <Page number="38">
+      <SceneHeading>PE Class</SceneHeading>
+      <StageDirection>DODGEBALL</StageDirection>
+      <StageDirection>The sound of a whistle. MR RIDGE, the PE Teacher has gathered the kids into
+        teams. They're lined up to play. STELLA and GREG are on the same team.</StageDirection>
+      <DialogueBlock>
+        <Speaker>RIDGE</Speaker>
+        <Line>Alright, now. There are some of you that still believe that Phys Ed is a cop out. That
+          it doesn't prepare you for the real world out there. Well, let me just be the one to tell
+          you that there is nothing'that prepares you more for the cruelty and indifference of the
+          world than dodging balls in a game we like to call ... Dodgeball. The game is simple,
+          everyone. Dodge the balls. You're hit, you're out. Work as a team. You ready?</Line>
+      </DialogueBlock>
+      <StageDirection>He blows the whistle. Music pumps, it's extreme. The team quickly gets
+        whittled down until STELLA and GREG are the only two left on their team. GREG suddenly
+        throws a ball at STELLA, hard.</StageDirection>
+      <DialogueBlock>
+        <Speaker>RIDGE</Speaker>
+        <Line>38</Line>
+      </DialogueBlock>
+    </Page>
+    <Page number="39">
+      <DialogueBlock>
+        <Speaker>RIDGE</Speaker>
+        <Line>Stella. You're out. Let's go mate. Quickly now!</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>But he's on my team!</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>RIDGE</Speaker>
+        <Line>Don't argue with me madam. You know the rules. You get hit, you're out.</Line>
+        <Line>Wouldn't be the first time balls hit her in the face.</Line>
+      </DialogueBlock>
+      <StageDirection>Snickers from some of the boys.</StageDirection>
+      <DialogueBlock>
+        <Speaker>PRIYA</Speaker>
+        <Line>Hey! Six, you have to do something.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>RIDGE</Speaker>
+        <Line>Well I'm trying to, Priya, but first we have to make sure this game is fair. Sit down,
+          Stella. You're out.</Line>
+      </DialogueBlock>
+      <StageDirection>STELLA sighs and leaves the court. GREG beats the other team effortlessly. We
+        should see a bit more of his vicious streak here.</StageDirection>
+      <DialogueBlock>
+        <Speaker>RIDGE</Speaker>
+        <Line>Oof. You've got an arm, son. Good job. Alright everyone, showers and changed before
+          next period. Stella. A word please.</Line>
+      </DialogueBlock>
+      <StageDirection>The other kids leave.</StageDirection>
+      <DialogueBlock>
+        <Speaker>RIDGE</Speaker>
+        <Line>I hope you realise that I don't find it fun to have to stick to the rules all the
+          time. It's nothing personal, but if I've learned one thing in my time as a PE teacher it's
+          that the rules are there for a reason. Do you know why?</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>STELLA</Speaker>
+        <Line>No.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>RIDGE</Speaker>
+        <Line>To protect us all. Dodgeball might seem like a silly thing to be strict about, but
+          take this lightly and the rest becomes a joke too, okay? Alright. Good talk. Off you go,
+          love.</Line>
+      </DialogueBlock>
+    </Page>
+  </Scene>
+</Script>

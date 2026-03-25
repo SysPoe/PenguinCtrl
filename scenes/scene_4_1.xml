@@ -1,0 +1,141 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<Script>
+	<Scene id="scene_4_1" pageStart="52" pageEnd="54" act="Act 4: The Darkest Night" title="The Dance"
+ description="Greg stalks and threatens Stella during the Cha Cha Slide">
+		<Page number="52">
+			<StageDirection>It’s going off in the hall as the Formal is in full swing. MISS DUANE is
+  playing the music from her phone. Everyone is dancing is formation. PRIYA is sitting on the
+  side.</StageDirection>
+			<DialogueBlock>
+				<Speaker>Madison</Speaker>
+				<Line>Hiiii everyone, just a reminder that the photobooth only holds eight people, so just
+   take turns or have less friends! Have a good night everyone! You'll remember this night
+   for the rest of your lives.</Line>
+			</DialogueBlock>
+			<DialogueBlock>
+				<Speaker>PRIYA</Speaker>
+				<Line>I hope not.</Line>
+			</DialogueBlock>
+			<StageDirection>STELLA enters.</StageDirection>
+			<DialogueBlock>
+				<Speaker>PRIYA</Speaker>
+				<Line>Have you seen TOny?</Line>
+			</DialogueBlock>
+		</Page>
+		<Page number="53">
+			<DialogueBlock>
+				<Speaker>STELLA</Speaker>
+				<Line>No, I thought he was with you?</Line>
+			</DialogueBlock>
+			<DialogueBlock>
+				<Speaker>PRIYA</Speaker>
+				<Line>You don't think...</Line>
+			</DialogueBlock>
+			<DialogueBlock>
+				<Speaker>STELLA</Speaker>
+				<Line>I don't want to.</Line>
+			</DialogueBlock>
+			<DialogueBlock>
+				<Speaker>PRIYA</Speaker>
+				<Line>I'll go and look for him. Stay here in case he turns up, okay? Text me if you need me.</Line>
+			</DialogueBlock>
+			<StageDirection>She leaves.</StageDirection>
+			<DialogueBlock>
+				<Speaker>STELLA</Speaker>
+				<Line>No wait! I'll come with you!</Line>
+			</DialogueBlock>
+			<StageDirection>She is stopped by MADYSON.</StageDirection>
+			<DialogueBlock>
+				<Speaker>MADYSON</Speaker>
+				<Line>Everybody on the D floor now! That means you!</Line>
+			</DialogueBlock>
+			<DialogueBlock>
+				<Speaker>STELLA</Speaker>
+				<Line>No, I have to go!</Line>
+			</DialogueBlock>
+			<StageDirection>MISS DUANE takes the mic</StageDirection>
+			<DialogueBlock>
+				<Speaker>DUANE</Speaker>
+				<Line>Make the most of tonight, everyone, it’s all uphill from here. One day you might DJ a school dance. But for now, here's a song you might remember. </Line>
+			</DialogueBlock>
+			<StageDirection>The Cha Cha Slide. STELLA tries to escape, but has no choice but to dance with
+  everybody else. As the song continues, it gets more sinister as GREG appears in the
+  darkness, With each strobe flash, each criss cross, he inches closer and closer to STELLA as
+  she senses with horror that he is near. He ends the song right behind her. Everybody cheers
+  as the song ends, and moves into a slow dance. Everybody pairs up as STELLA pleads for
+  someone, anyone else to dance with. GREG grabs her and pulls her in. For everyone else, this
+  is romantic. For her, it's bone chilling.</StageDirection>
+			<DialogueBlock>
+				<Speaker>STELLA</Speaker>
+				<Line>Why me?</Line>
+			</DialogueBlock>
+			<DialogueBlock>
+				<Speaker>GREG</Speaker>
+				<Line>I don't know what you mean.</Line>
+			</DialogueBlock>
+		</Page>
+		<Page number="54">
+			<DialogueBlock>
+				<Speaker>STELLA</Speaker>
+				<Line>Why did you pick me? Why are you doing this to me?</Line>
+			</DialogueBlock>
+			<DialogueBlock>
+				<Speaker>GREG</Speaker>
+				<Line>It's simple.</Line>
+			</DialogueBlock>
+			<DialogueBlock>
+				<Speaker>STELLA</Speaker>
+				<Line>Why?</Line>
+			</DialogueBlock>
+			<DialogueBlock>
+				<Speaker>GREG</Speaker>
+				<Line>Because I can. I'm going to take your house and your family and destroy them all. And
+   I'm going to make you watch, Because you're just a nothing human kid and you can do
+   nothing to stop me. You're weak. You told me yourself. You're not special. You have such a
+   long life of misery ahead of you. I'm doing you a favour by tearing it down. And I will.
+   Piece by piece. You asked me if I can do anything special, do you remember? I have many
+   abilities, Stella. There are so many things that I can do. And I will do them all to you.
+   And nobody will help you. Nobody will care, The entire world will let me win.</Line>
+			</DialogueBlock>
+			<DialogueBlock>
+				<Speaker>STELLA</Speaker>
+				<Line>You're a monster.</Line>
+			</DialogueBlock>
+			<DialogueBlock>
+				<Speaker>GREG</Speaker>
+				<Line>I know you are, but what am I?</Line>
+			</DialogueBlock>
+			<DialogueBlock>
+				<Speaker>STELLA</Speaker>
+				<Line>I won't do it.</Line>
+			</DialogueBlock>
+			<DialogueBlock>
+				<Speaker>GREG</Speaker>
+				<Line>I know you are, but what am I?</Line>
+			</DialogueBlock>
+			<DialogueBlock>
+				<Speaker>STELLA</Speaker>
+				<Line>You're not funny.</Line>
+			</DialogueBlock>
+			<DialogueBlock>
+				<Speaker>GREG</Speaker>
+				<Line>I know you are, but what am I?</Line>
+			</DialogueBlock>
+			<DialogueBlock>
+				<Speaker>STELLA</Speaker>
+				<Line>You're horrible.</Line>
+			</DialogueBlock>
+			<DialogueBlock>
+				<Speaker>GREG</Speaker>
+				<Line>I know you are, but what am I?</Line>
+			</DialogueBlock>
+			<DialogueBlock>
+				<Speaker>STELLA</Speaker>
+				<Line>Leave me alone!</Line>
+			</DialogueBlock>
+			<StageDirection>She shoves him as the music cuts. Everyone stares as GREG calculates his next
+  move... and runs away. Everyone at the dance looks at STELLA with disgust as the dance melts
+  away.</StageDirection>
+		</Page>
+	</Scene>
+</Script>

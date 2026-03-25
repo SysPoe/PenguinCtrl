@@ -1,0 +1,59 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<Script>
+  <Scene id="scene_2_3" pageStart="37" pageEnd="38" act="Act 2: The Rising Threat" title="New Kid"
+    description="A group chat reveals rumors and hype about Greg">
+    <Page number="37">
+      <StageDirection>Inside a group chat.</StageDirection>
+      <DialogueBlock>
+        <Speaker>ALL</Speaker>
+        <Line>There's a new kid at the school.</Line>
+        <Line>I saw him at the science block with Tonksie and Priya and that.</Line>
+        <Line>He looks pretty shredded hey.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>MADISON</Speaker>
+        <Line>I think it's important we foster a welcoming environment for them.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>MADYSON</Speaker>
+        <Line>I liked that.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>MADDISON</Speaker>
+        <Line>Yaaaass.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>ALL</Speaker>
+        <Line>I heard that he got expelled from his last school for fighting the PE teacher.</Line>
+        <Line>Did you guys know that if it gets over 40 degrees they have to legally send us home?
+          It feels like 40 degrees hey?</Line>
+        <Line>I sent a gif via Giphy.</Line>
+        <Line>He looks like a loose unit hey.</Line>
+        <Line>But seriously. Did Tonksie actually lick the toilet or was he faking?</Line>
+        <Line>Don't be immature, Trent. Of course he did.</Line>
+        <Line>It's a gif from Rupaul's Drag Race.</Line>
+        <Line>I heard he hooked up with a teacher and then the teacher changed their name and now
+          they work at a Kmart or something. Dude's a legend.</Line>
+      </DialogueBlock>
+      <DialogueBlock>
+        <Speaker>MADISON</Speaker>
+        <Line>He's got a mysterious thing going on.</Line>
+        <Line>I'm not good at using my words.</Line>
+      </DialogueBlock>
+    </Page>
+    <Page number="38">
+      <DialogueBlock>
+        <Line>I heard his dad's in prison for breaking his mum out of prison</Line>.
+        <Line>I heard he burned a pet store down.</Line>
+        <Line>I heard he used to be Tumblr famous.</Line>
+        <Line>I heard he applied for Australia's Got Talent and got through to the filmed bit.</Line>
+      </DialogueBlock>
+      <StageDirection>Rumours continue to swirl as the voices get louder and each of the kids log
+        off until the last one remains ...</StageDirection>
+      <DialogueBlock>
+        <Line>I posted a Baby Yoda meme.</Line>
+      </DialogueBlock>
+      <StageDirection>Dramatic music.</StageDirection>
+    </Page>
+  </Scene>
+</Script>
