@@ -1,5 +1,5 @@
 import express from 'express';
-import { readFileSync, statSync } from 'fs';
+import { readFileSync, statSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { parseString } from 'xml2js';
 import { fileURLToPath } from 'url';
@@ -10,6 +10,7 @@ const PORT = process.env.PORT || 3000;
 
 // Config
 const SCENES_FILE = join(__dirname, 'scenes.xml');
+const CUES_FILE = join(__dirname, 'public', 'cues.json');
 
 // Cache for parsed scenes
 let sceneCache = {
@@ -17,6 +18,9 @@ let sceneCache = {
   pages: [],
   tocActs: []
 };
+
+// Cache for cues
+let cuesCache = {};
 
 /**
  * Get file fingerprint for cache invalidation
@@ -98,10 +102,12 @@ function buildSceneCache(result, fingerprint) {
           if (block.Line) {
             block.Line.forEach(line => {
               let lineText = typeof line === 'string' ? line : (line._ || '');
+              const lineAttrs = line.$ || {};
               lines.push({
                 type: 'line',
                 text: lineText,
-                struck: line.$?.struck === 'true'
+                struck: lineAttrs.struck === 'true',
+                id: lineAttrs.id || null
               });
             });
           }
@@ -211,13 +217,77 @@ async function loadSceneIndex() {
   return { pages: [...sceneCache.pages], tocActs: [...sceneCache.tocActs] };
 }
 
+/**
+ * Load cues and merge with pages
+ */
+function loadCues() {
+  try {
+    const cuesContent = readFileSync(CUES_FILE, 'utf-8');
+    cuesCache = JSON.parse(cuesContent);
+  } catch (e) {
+    cuesCache = {};
+  }
+  return cuesCache;
+}
+
+/**
+ * Merge cues into page elements
+ */
+function mergeCuesWithPages(pages, cues) {
+  const pagesWithCues = pages.map(page => ({
+    ...page,
+    elements: page.elements.map(el => {
+      if (el.type === 'dialogue') {
+        return {
+          ...el,
+          lines: el.lines.map(line => {
+            const lineCues = line.id && cues[line.id] ? cues[line.id] : null;
+            return {
+              ...line,
+              cues: lineCues
+            };
+          })
+        };
+      }
+      return el;
+    })
+  }));
+  return pagesWithCues;
+}
+
 // Serve static files from public directory
 app.use(express.static(join(__dirname, 'public')));
+app.use(express.json());
+
+// API: Get all cues
+app.get('/api/cues', async (req, res) => {
+  try {
+    const cuesContent = readFileSync(CUES_FILE, 'utf-8');
+    cuesCache = JSON.parse(cuesContent);
+    res.json({ cues: cuesCache });
+  } catch (e) {
+    res.json({ cues: {} });
+  }
+});
+
+// API: Save cues
+app.post('/api/cues', async (req, res) => {
+  try {
+    const newCues = req.body;
+    writeFileSync(CUES_FILE, JSON.stringify(newCues, null, 2));
+    cuesCache = newCues;
+    res.json({ success: true, cues: newCues });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
 
 // API: Get all pages
 app.get('/api/pages', async (req, res) => {
   const { pages, tocActs } = await loadSceneIndex();
-  res.json({ pages, tocActs });
+  const cues = loadCues();
+  const pagesWithCues = mergeCuesWithPages(pages, cues);
+  res.json({ pages: pagesWithCues, tocActs });
 });
 
 // API: Get TOC
@@ -229,8 +299,10 @@ app.get('/api/toc', async (req, res) => {
 // API: Get specific page by number
 app.get('/api/page/:pageNum', async (req, res) => {
   const { pages } = await loadSceneIndex();
+  const cues = loadCues();
+  const pagesWithCues = mergeCuesWithPages(pages, cues);
   const pageNum = parseInt(req.params.pageNum, 10);
-  const page = pages.find(p => p.number === pageNum);
+  const page = pagesWithCues.find(p => p.number === pageNum);
   if (!page) return res.status(404).json({ error: 'Page not found' });
   res.json(page);
 });

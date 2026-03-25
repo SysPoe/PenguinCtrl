@@ -1,7 +1,10 @@
-Cue Types: Play once, Vamp, OSC
+Cue Types: Light, Sound
 
+# Sound
+Sound cue types: Play once, Vamp
 All have:
     Options:
+        - Clip (upload as well)
         - Play style (play alongside other clips, wait till all other clips finish -- show that it is automatically gonna start, fade out all clips then start, xfade with end of other clips -- show it will start, )
         - Clip start (default 0s)
         - Clip end (default {len}s)
@@ -23,3 +26,5 @@ Vamp:
         - Loop end (default {len}s)
     Cue actions:
         - Devamp
+
+# Lights

@@ -42,6 +42,44 @@
     </div>
   </main>
 
+  <!-- Cue Modal -->
+  <div class="cue-modal-overlay" id="cue-modal-overlay" onclick="closeCueModal(event)">
+    <div class="cue-modal">
+      <h2 id="cue-modal-title">Add Cue</h2>
+
+      <div class="cue-exists-indicator" id="cue-exists-indicator" style="display: none;">
+        <span>Existing cues on this line:</span>
+        <span class="existing-cue lighting" id="existing-lighting-cue"></span>
+        <span class="existing-cue sound" id="existing-sound-cue"></span>
+      </div>
+
+      <div class="cue-type-selector">
+        <div class="cue-type-option" data-type="lighting" onclick="selectCueType('lighting')">
+          <strong>Lighting</strong>
+        </div>
+        <div class="cue-type-option" data-type="sound" onclick="selectCueType('sound')">
+          <strong>Sound</strong>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Cue Title</label>
+        <input type="text" id="cue-title" placeholder="e.g., Blackout, BGM">
+      </div>
+
+      <div class="form-group">
+        <label>Description</label>
+        <textarea id="cue-description" placeholder="e.g., Fade to black, Background music fades in"></textarea>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-cancel" onclick="closeCueModal()">Cancel</button>
+        <button class="btn btn-delete" id="btn-delete-cue" onclick="deleteCue()" style="display: none;">Delete</button>
+        <button class="btn btn-save" onclick="saveCue()">Save Cue</button>
+      </div>
+    </div>
+  </div>
+
   <script src="main.js"></script>
 </body>
 </html>
