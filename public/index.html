@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Script Viewer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg-dark: #1e1e1e;
+      --bg-header: #2d2d30;
+      --border-color: #3e3e42;
+      --text-primary: #cccccc;
+      --text-secondary: #858585;
+      --text-muted: #6e6e6e;
+      --accent: #0e639c;
+      --accent-hover: #1177bb;
+      --page-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+      --strike-color: rgba(180, 50, 50, 0.3);
+      --zoom-level: 100%;
+    }
+
+    body {
+      font-family: 'Courier Prime', 'Courier New', monospace;
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    .top-bar {
+      padding: 12px 24px;
+      background: var(--bg-header);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .scene-breadcrumb { display: flex; flex-direction: column; gap: 2px; }
+    .scene-breadcrumb .act-name {
+      font-size: 11px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .scene-breadcrumb .scene-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .controls { display: flex; gap: 8px; align-items: center; }
+
+    .nav-btn {
+      padding: 8px 14px;
+      background: var(--bg-dark);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+
+    .nav-btn:hover { background: var(--accent); border-color: var(--accent); }
+
+    .zoom-controls { display: flex; align-items: center; gap: 6px; padding: 0 16px; }
+    .zoom-level { font-size: 12px; color: var(--text-secondary); min-width: 45px; text-align: center; }
+
+    .goto-container { position: relative; }
+    .goto-input {
+      display: none;
+      position: absolute;
+      right: 0;
+      top: 100%;
+      margin-top: 8px;
+      background: var(--bg-dark);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 8px;
+      gap: 6px;
+      z-index: 100;
+    }
+    .goto-input.visible { display: flex; }
+    .goto-input input {
+      width: 80px;
+      padding: 6px 8px;
+      background: var(--bg-header);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 12px;
+    }
+    .goto-input input:focus { outline: 1px solid var(--accent); }
+
+    .script-scroll-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 30px;
+      background: #1a1a1a;
+    }
+
+    .script-content { max-width: 900px; margin: 0 auto; transform-origin: top center; }
+
+    .script-page {
+      background: #ffffff;
+      color: #000000;
+      padding: 80px 96px;
+      margin-bottom: 40px;
+      box-shadow: var(--page-shadow);
+      position: relative;
+      min-height: 1056px;
+    }
+
+    .script-page.struck { opacity: 0.7; }
+    .script-page.struck::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: repeating-linear-gradient(
+        -45deg, transparent, transparent 10px,
+        var(--strike-color) 10px, var(--strike-color) 11px
+      );
+      pointer-events: none;
+    }
+
+    .page-number-badge {
+      position: absolute;
+      top: 20px;
+      right: 32px;
+      background: #f0f0f0;
+      color: #333;
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .scene-heading {
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin: 0 0 24px 0;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #000;
+    }
+
+    .stage-direction {
+      font-size: 13px;
+      line-height: 1.6;
+      margin: 16px 0;
+      text-align: justify;
+    }
+
+    .dialogue-block {
+      margin: 24px 0;
+      max-width: 70%;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .speaker-name {
+      text-align: center;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+
+    .dialogue-line {
+      text-align: center;
+      font-size: 13px;
+      line-height: 1.5;
+      margin: 4px 0;
+    }
+
+    .inline-direction {
+      text-align: center;
+      font-style: italic;
+      color: #444;
+      font-size: 12px;
+      margin: 6px 0;
+    }
+
+    .struck-text { text-decoration: line-through; color: #888; }
+
+    .welcome-panel { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+    .welcome-panel h2 { font-size: 18px; margin-bottom: 12px; color: var(--text-primary); }
+    .welcome-panel p { font-size: 13px; line-height: 1.6; max-width: 500px; margin: 0 auto; }
+
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: var(--bg-dark); }
+    ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 5px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+  </style>
+</head>
+<body>
+  <main class="main-content">
+    <div class="top-bar">
+      <div class="scene-breadcrumb">
+        <span class="act-name" id="breadcrumb-act">Loading...</span>
+        <span class="scene-title" id="breadcrumb-title">Please wait</span>
+      </div>
+      <div class="controls">
+        <div class="goto-container">
+          <button class="nav-btn" onclick="toggleGoto()">Go to Page</button>
+          <div class="goto-input" id="goto-input">
+            <input type="number" id="page-number" placeholder="Page #" min="1" onkeydown="if(event.key==='Enter') goToPageNumber()">
+            <button class="nav-btn" onclick="goToPageNumber()">Go</button>
+          </div>
+        </div>
+        <div class="zoom-controls">
+          <button class="nav-btn" onclick="zoomOut()">−</button>
+          <span class="zoom-level" id="zoom-level">100%</span>
+          <button class="nav-btn" onclick="zoomIn()">+</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="script-scroll-container">
+      <div class="script-content" id="script-content">
+        <div class="welcome-panel">
+          <h2>Loading script...</h2>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    let pages = [];
+    let currentSceneId = null;
+    let renderedPages = new Set();
+    let currentZoom = 100;
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+      return String(text).replace(/[&<>"']/g, m => map[m]);
+    }
+
+    function renderPageElement(index) {
+      if (index < 0 || index >= pages.length || renderedPages.has(index)) return null;
+
+      renderedPages.add(index);
+      const page = pages[index];
+      const firstSceneMeta = page.elements.find(e => e.type === 'scene_meta');
+
+      if (firstSceneMeta) {
+        currentSceneId = firstSceneMeta.meta.id;
+      }
+
+      let html = '<div class="script-page' + (page.struck ? ' struck' : '') + '" id="page-' + index + '">';
+      html += '<span class="page-number-badge">' + page.number + '</span>';
+
+      page.elements.forEach(el => {
+        if (el.type === 'scene_meta') {
+          html += '<h2 class="scene-heading">' + escapeHtml(el.meta.title || 'Untitled Scene') + '</h2>';
+          if (el.meta.description) {
+            html += '<p class="stage-direction" style="font-style:italic;color:#666;">' + escapeHtml(el.meta.description) + '</p>';
+          }
+        } else if (el.type === 'stage') {
+          html += '<div class="stage-direction' + (el.struck ? ' struck-text' : '') + '">' + escapeHtml(el.text) + '</div>';
+        } else if (el.type === 'dialogue') {
+          html += '<div class="dialogue-block">';
+          if (el.speaker) {
+            html += '<div class="speaker-name">' + escapeHtml(el.speaker) + '</div>';
+          }
+          el.lines.forEach(line => {
+            if (line.type === 'line') {
+              html += '<div class="dialogue-line' + (line.struck ? ' struck-text' : '') + '">' + escapeHtml(line.text) + '</div>';
+            } else if (line.type === 'inline') {
+              html += '<div class="inline-direction' + (line.struck ? ' struck-text' : '') + '">' + escapeHtml(line.text) + '</div>';
+            }
+          });
+          html += '</div>';
+        }
+      });
+
+      html += '</div>';
+      return html;
+    }
+
+    function renderAllPages() {
+      const content = document.getElementById('script-content');
+      let html = '';
+      for (let i = 0; i < pages.length; i++) {
+        const pageHtml = renderPageElement(i);
+        if (pageHtml) html += pageHtml;
+      }
+      content.innerHTML = html;
+      updateActiveSceneHighlight();
+    }
+
+    function updateActiveSceneHighlight() {
+      const container = document.querySelector('.script-scroll-container');
+      const pagesInView = Array.from(document.querySelectorAll('.script-page'));
+      const containerRect = container.getBoundingClientRect();
+      const viewportMid = containerRect.top + containerRect.height / 3;
+
+      let closestPage = null;
+      let closestDist = Infinity;
+
+      pagesInView.forEach((pageEl, idx) => {
+        const rect = pageEl.getBoundingClientRect();
+        const pageTop = rect.top;
+        if (pageTop <= viewportMid) {
+          const dist = viewportMid - pageTop;
+          if (dist < closestDist) {
+            closestDist = dist;
+            closestPage = idx;
+          }
+        }
+      });
+
+      if (closestPage !== null) {
+        updateBreadcrumb(closestPage);
+      }
+    }
+
+    function updateBreadcrumb(index) {
+      const page = pages[index];
+      const breadcrumbAct = document.getElementById('breadcrumb-act');
+      const breadcrumbTitle = document.getElementById('breadcrumb-title');
+
+      // Find the current scene by looking back through pages
+      let sceneMeta = null;
+      for (let i = index; i >= 0; i--) {
+        sceneMeta = pages[i].elements.find(e => e.type === 'scene_meta');
+        if (sceneMeta) break;
+      }
+
+      if (sceneMeta) {
+        breadcrumbAct.textContent = sceneMeta.meta.act || '';
+        breadcrumbTitle.textContent = sceneMeta.meta.title || 'Untitled';
+      } else {
+        breadcrumbAct.textContent = 'Page ' + page?.number;
+        breadcrumbTitle.textContent = page?.number ? 'Page ' + page.number : '';
+      }
+    }
+
+    function toggleGoto() {
+      const input = document.getElementById('goto-input');
+      input.classList.toggle('visible');
+      if (input.classList.contains('visible')) {
+        document.getElementById('page-number').focus();
+      }
+    }
+
+    function goToPageNumber() {
+      const input = document.getElementById('page-number');
+      const pageNum = parseInt(input.value, 10);
+      const pageIndex = pages.findIndex(p => p.number === pageNum);
+      if (pageIndex !== -1) {
+        scrollToPage(pageIndex);
+        input.value = '';
+      }
+      document.getElementById('goto-input').classList.remove('visible');
+    }
+
+    function scrollToPage(index) {
+      const pageEl = document.getElementById('page-' + index);
+      if (pageEl) {
+        pageEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+
+    function zoomIn() {
+      currentZoom = Math.min(200, currentZoom + 10);
+      applyZoom();
+    }
+
+    function zoomOut() {
+      currentZoom = Math.max(50, currentZoom - 10);
+      applyZoom();
+    }
+
+    function applyZoom() {
+      const content = document.getElementById('script-content');
+      content.style.transform = `scale(${currentZoom / 100})`;
+      document.getElementById('zoom-level').textContent = currentZoom + '%';
+    }
+
+    // Close goto on outside click
+    document.addEventListener('click', (e) => {
+      const gotoContainer = document.querySelector('.goto-container');
+      if (!gotoContainer.contains(e.target)) {
+        document.getElementById('goto-input').classList.remove('visible');
+      }
+    });
+
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT') return;
+
+      const container = document.querySelector('.script-scroll-container');
+      const pageHeight = container.clientHeight * 0.8;
+
+      if (e.key === 'g' || e.key === 'G') {
+        e.preventDefault();
+        toggleGoto();
+      } else if (e.key === 'ArrowDown' || e.key === 'PageDown') {
+        e.preventDefault();
+        container.scrollBy({ top: e.key === 'ArrowDown' ? 100 : pageHeight, behavior: 'smooth' });
+      } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
+        e.preventDefault();
+        container.scrollBy({ top: e.key === 'ArrowUp' ? -100 : -pageHeight, behavior: 'smooth' });
+      } else if (e.key === 'Home') {
+        e.preventDefault();
+        container.scrollTo({ top: 0, behavior: 'smooth' });
+      } else if (e.key === 'End') {
+        e.preventDefault();
+        container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+      } else if (e.key === '+' || e.key === '=') {
+        e.preventDefault();
+        zoomIn();
+      } else if (e.key === '-' || e.key === '_') {
+        e.preventDefault();
+        zoomOut();
+      }
+    });
+
+    async function loadPages() {
+      try {
+        const res = await fetch('/api/pages');
+        const data = await res.json();
+        pages = data.pages;
+        renderAllPages();
+
+        const container = document.querySelector('.script-scroll-container');
+        container.addEventListener('scroll', () => {
+          requestAnimationFrame(updateActiveSceneHighlight);
+        });
+      } catch (err) {
+        document.getElementById('script-content').innerHTML = `
+          <div class="welcome-panel">
+            <h2>Error loading script</h2>
+            <p>${err.message}</p>
+          </div>
+        `;
+      }
+    }
+
+    // Initialize
+    loadPages();
+  </script>
+</body>
+</html>
