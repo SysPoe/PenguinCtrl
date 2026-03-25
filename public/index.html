@@ -6,7 +6,7 @@
   <title>Script Viewer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;1,600&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -115,12 +115,12 @@
     .script-scroll-container {
       flex: 1;
       overflow: auto;
-      padding: 30px;
+      padding: 40px;
       background: #1a1a1a;
     }
 
     .script-content {
-      max-width: 900px;
+      max-width: 850px;
       margin: 0 auto;
       transform-origin: top center;
       transition: transform 0.1s ease-out;
@@ -129,8 +129,8 @@
     .script-page {
       background: #ffffff;
       color: #000000;
-      padding: 48px 64px;
-      margin-bottom: 24px;
+      padding: 56px 64px 48px;
+      margin-bottom: 30px;
       box-shadow: var(--page-shadow);
       position: relative;
     }
@@ -149,60 +149,85 @@
 
     .page-number-badge {
       position: absolute;
-      top: 16px;
-      right: 24px;
-      background: #f0f0f0;
+      top: 12px;
+      right: 16px;
+      background: #e8e8e8;
       color: #333;
-      padding: 4px 10px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 3px;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
     }
 
     .scene-heading {
-      font-size: 16px;
-      font-weight: 700;
-      text-transform: uppercase;
+      font-family: 'Cormorant Garamond', Georgia, serif;
+      font-size: 28px;
+      font-weight: 600;
+      margin: 0 0 16px 0;
+      line-height: 1.2;
+    }
+
+    .scene-description {
+      font-family: 'Courier Prime', monospace;
+      font-style: italic;
+      font-size: 13px;
+      color: #666;
       margin: 0 0 20px 0;
-      padding-bottom: 8px;
-      border-bottom: 2px solid #000;
     }
 
     .stage-direction {
-      font-size: 15px;
-      line-height: 1.5;
-      margin: 14px 0;
-      text-align: justify;
+      font-family: 'Courier Prime', monospace;
+      font-style: italic;
+      font-size: 14px;
+      line-height: 1.6;
+      margin: 16px 0;
     }
 
     .dialogue-block {
-      margin: 18px 0;
-      max-width: 75%;
-      margin-left: auto;
-      margin-right: auto;
+      margin: 0;
+    }
+
+    .dialogue-line-container {
+      display: table;
+      width: 100%;
+      margin-bottom: 12px;
+    }
+
+    .speaker-column {
+      display: table-cell;
+      width: 100px;
+      vertical-align: middle;
+      padding-right: 12px;
+    }
+
+    .speaker-line {
+      width: 100%;
+      height: 1px;
+      background: #000;
     }
 
     .speaker-name {
-      text-align: center;
       font-weight: 700;
       text-transform: uppercase;
-      margin-bottom: 6px;
-      font-size: 14px;
+      font-size: 12px;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
     }
 
-    .dialogue-line {
-      text-align: center;
-      font-size: 15px;
-      line-height: 1.4;
-      margin: 3px 0;
+    .text-column {
+      display: table-cell;
+      vertical-align: top;
+      font-size: 14px;
+      line-height: 1.5;
+      text-align: justify;
     }
 
     .inline-direction {
-      text-align: center;
       font-style: italic;
       color: #444;
       font-size: 13px;
-      margin: 5px 0;
+      margin: 10px 0 10px 112px;
     }
 
     .struck-text { text-decoration: line-through; color: #888; }
@@ -254,7 +279,28 @@
     let pages = [];
     let renderedPages = new Set();
     let currentZoom = 100;
-    let isZooming = false;
+    let lastSpeaker = null;
+    let savedScrollPosition = null;
+
+    // Load saved zoom and scroll position from localStorage
+    function loadSavedState() {
+      const savedZoom = localStorage.getItem('scriptZoom');
+      const savedScroll = localStorage.getItem('scriptScroll');
+      if (savedZoom) {
+        currentZoom = parseInt(savedZoom, 10);
+        if (currentZoom) applyZoom();
+      }
+      if (savedScroll) {
+        savedScrollPosition = parseInt(savedScroll, 10);
+      }
+    }
+
+    // Save current state to localStorage
+    function saveState() {
+      const container = document.getElementById('scroll-container');
+      localStorage.setItem('scriptZoom', currentZoom.toString());
+      localStorage.setItem('scriptScroll', container.scrollTop.toString());
+    }
 
     function escapeHtml(text) {
       if (!text) return '';
@@ -273,20 +319,38 @@
 
       page.elements.forEach(el => {
         if (el.type === 'scene_meta') {
+          lastSpeaker = null;
           html += '<h2 class="scene-heading">' + escapeHtml(el.meta.title || 'Untitled Scene') + '</h2>';
           if (el.meta.description) {
-            html += '<p class="stage-direction" style="font-style:italic;color:#666;">' + escapeHtml(el.meta.description) + '</p>';
+            html += '<p class="scene-description">' + escapeHtml(el.meta.description) + '</p>';
           }
         } else if (el.type === 'stage') {
+          lastSpeaker = null;
           html += '<div class="stage-direction' + (el.struck ? ' struck-text' : '') + '">' + escapeHtml(el.text) + '</div>';
         } else if (el.type === 'dialogue') {
-          html += '<div class="dialogue-block">';
-          if (el.speaker) {
-            html += '<div class="speaker-name">' + escapeHtml(el.speaker) + '</div>';
+          const speaker = el.speaker || '';
+          const isContinuation = speaker && speaker === lastSpeaker;
+
+          if (speaker && !isContinuation) {
+            lastSpeaker = speaker;
           }
-          el.lines.forEach(line => {
+
+          html += '<div class="dialogue-block">';
+          el.lines.forEach((line, lineIdx) => {
             if (line.type === 'line') {
-              html += '<div class="dialogue-line' + (line.struck ? ' struck-text' : '') + '">' + escapeHtml(line.text) + '</div>';
+              const showSpeaker = lineIdx === 0 && speaker && !isContinuation;
+              const showLine = lineIdx === 0 && !speaker;
+
+              html += '<div class="dialogue-line-container' + (line.struck ? ' struck-text' : '') + '">';
+              html += '<div class="speaker-column">';
+              if (showSpeaker) {
+                html += '<span class="speaker-name">' + escapeHtml(speaker) + '</span>';
+              } else if (showLine) {
+                html += '<div class="speaker-line"></div>';
+              }
+              html += '</div>';
+              html += '<div class="text-column">' + escapeHtml(line.text) + '</div>';
+              html += '</div>';
             } else if (line.type === 'inline') {
               html += '<div class="inline-direction' + (line.struck ? ' struck-text' : '') + '">' + escapeHtml(line.text) + '</div>';
             }
@@ -408,14 +472,20 @@
       const scrollFraction = getScrollFraction();
       currentZoom = Math.min(200, currentZoom + 10);
       applyZoom();
-      setTimeout(() => setScrollFraction(scrollFraction), 10);
+      requestAnimationFrame(() => {
+        setScrollFraction(scrollFraction);
+        saveState();
+      });
     }
 
     function zoomOut() {
       const scrollFraction = getScrollFraction();
       currentZoom = Math.max(50, currentZoom - 10);
       applyZoom();
-      setTimeout(() => setScrollFraction(scrollFraction), 10);
+      requestAnimationFrame(() => {
+        setScrollFraction(scrollFraction);
+        saveState();
+      });
     }
 
     function applyZoom() {
@@ -424,7 +494,6 @@
       document.getElementById('zoom-level').textContent = currentZoom + '%';
     }
 
-    // Handle ctrl+scroll for zoom
     document.getElementById('scroll-container').addEventListener('wheel', (e) => {
       if (e.ctrlKey) {
         e.preventDefault();
@@ -435,11 +504,13 @@
           currentZoom = Math.max(50, currentZoom - 5);
         }
         applyZoom();
-        setTimeout(() => setScrollFraction(scrollFraction), 10);
+        requestAnimationFrame(() => {
+          setScrollFraction(scrollFraction);
+          saveState();
+        });
       }
     }, { passive: false });
 
-    // Close goto on outside click
     document.addEventListener('click', (e) => {
       const gotoContainer = document.querySelector('.goto-container');
       if (!gotoContainer.contains(e.target)) {
@@ -447,7 +518,6 @@
       }
     });
 
-    // Keyboard navigation
     document.addEventListener('keydown', (e) => {
       if (e.target.tagName === 'INPUT') return;
 
@@ -480,16 +550,26 @@
 
     async function loadPages() {
       try {
+        loadSavedState();
         const res = await fetch('/api/pages');
         const data = await res.json();
         pages = data.pages;
         renderAllPages();
 
         const container = document.getElementById('scroll-container');
+
+        // Restore saved scroll position after pages are rendered
+        if (savedScrollPosition !== null) {
+          container.scrollTop = savedScrollPosition;
+        }
+
         container.addEventListener('scroll', () => {
-          if (!isZooming) {
-            requestAnimationFrame(updateActiveSceneHighlight);
-          }
+          requestAnimationFrame(updateActiveSceneHighlight);
+        });
+
+        // Save scroll position on scroll
+        container.addEventListener('scrollend', () => {
+          saveState();
         });
       } catch (err) {
         document.getElementById('script-content').innerHTML = `
@@ -501,7 +581,6 @@
       }
     }
 
-    // Initialize
     loadPages();
   </script>
 </body>
