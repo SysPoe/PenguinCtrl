@@ -229,6 +229,7 @@ body {
   display: table;
   width: 100%;
   margin-bottom: 12px;
+  position: relative;
 }
 
 .speaker-column {
@@ -236,6 +237,15 @@ body {
   width: 100px;
   vertical-align: middle;
   padding-right: 12px;
+}
+
+.cue-column {
+  display: table-cell;
+  width: 140px;
+  vertical-align: middle;
+  padding-right: 8px;
+  text-align: right;
+  position: relative;
 }
 
 .speaker-line {
@@ -307,4 +317,227 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
+}
+
+/* Cue styles */
+.cue-column {
+  display: table-cell;
+  width: 140px;
+  vertical-align: middle;
+  padding-right: 8px;
+  text-align: right;
+}
+
+.cue-marker {
+  display: inline-flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.cue-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.cue-badge.lighting {
+  background: #f59e0b;
+  color: #000;
+}
+
+.cue-badge.sound {
+  background: #10b981;
+  color: #000;
+}
+
+.cue-badge:hover {
+  opacity: 0.8;
+  transform: scale(1.05);
+}
+
+.cue-add-btn {
+  display: none;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.cue-add-btn:hover {
+  background: var(--accent-hover);
+}
+
+.dialogue-line-container:hover .cue-add-btn {
+  display: inline-block;
+}
+
+/* Cue modal styles */
+.cue-modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+}
+
+.cue-modal-overlay.visible {
+  display: flex;
+}
+
+.cue-modal {
+  background: var(--bg-header);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 24px;
+  min-width: 400px;
+  max-width: 500px;
+}
+
+.cue-modal h2 {
+  color: var(--text-primary);
+  font-size: 18px;
+  margin-bottom: 16px;
+}
+
+.cue-modal .form-group {
+  margin-bottom: 16px;
+}
+
+.cue-modal label {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.cue-modal input[type="text"],
+.cue-modal textarea,
+.cue-modal select {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg-dark);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.cue-modal textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.cue-modal input:focus,
+.cue-modal textarea:focus,
+.cue-modal select:focus {
+  outline: 1px solid var(--accent);
+}
+
+.cue-modal .cue-type-selector {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.cue-modal .cue-type-option {
+  flex: 1;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.cue-modal .cue-type-option.selected {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.cue-modal .modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+.cue-modal .btn {
+  padding: 8px 16px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.15s;
+}
+
+.cue-modal .btn-cancel {
+  background: var(--bg-dark);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.cue-modal .btn-cancel:hover {
+  background: var(--border-color);
+}
+
+.cue-modal .btn-save {
+  background: var(--accent);
+  color: #fff;
+}
+
+.cue-modal .btn-save:hover {
+  background: var(--accent-hover);
+}
+
+.cue-modal .btn-delete {
+  background: #dc3545;
+  color: #fff;
+}
+
+.cue-modal .btn-delete:hover {
+  background: #c82333;
+}
+
+.cue-exists-indicator {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 12px;
+  background: var(--bg-dark);
+  border-radius: 4px;
+  margin-bottom: 16px;
+}
+
+.cue-exists-indicator .existing-cue {
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.cue-exists-indicator .existing-cue.lighting {
+  background: #f59e0b;
+  color: #000;
+}
+
+.cue-exists-indicator .existing-cue.sound {
+  background: #10b981;
+  color: #000;
 }
