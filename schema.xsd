@@ -48,7 +48,16 @@
           <xs:sequence>
             <xs:element name="SceneHeading" type="StruckStringType" minOccurs="0"/>
             <xs:choice minOccurs="0" maxOccurs="unbounded">
-              <xs:element name="StageDirection" type="StruckStringType"/>
+              <xs:element name="StageDirection">
+                <xs:complexType>
+                  <xs:simpleContent>
+                    <xs:extension base="xs:string">
+                      <xs:attribute name="struck" type="xs:boolean" use="optional"/>
+                      <xs:attribute name="id" type="xs:ID" use="optional"/>
+                    </xs:extension>
+                  </xs:simpleContent>
+                </xs:complexType>
+              </xs:element>
               <xs:element name="DialogueBlock" type="DialogueBlockType"/>
             </xs:choice>
           </xs:sequence>
@@ -67,14 +76,70 @@
 
   <xs:complexType name="DialogueBlockType">
     <xs:sequence>
-      <xs:element name="Speaker" type="StruckStringType"/>
+      <xs:element name="Speaker" minOccurs="0">
+        <xs:complexType>
+          <xs:simpleContent>
+            <xs:extension base="xs:string">
+              <xs:attribute name="struck" type="xs:boolean" use="optional"/>
+              <xs:attribute name="id" type="xs:ID" use="optional"/>
+            </xs:extension>
+          </xs:simpleContent>
+        </xs:complexType>
+      </xs:element>
       <xs:choice maxOccurs="unbounded">
-        <xs:element name="Line" type="StruckStringType"/>
-        <xs:element name="InlineDirection" type="StruckStringType"/>
+        <xs:element name="Line">
+          <xs:complexType>
+            <xs:simpleContent>
+              <xs:extension base="xs:string">
+                <xs:attribute name="struck" type="xs:boolean" use="optional"/>
+                <xs:attribute name="id" type="xs:ID" use="optional"/>
+              </xs:extension>
+            </xs:simpleContent>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="InlineDirection">
+          <xs:complexType>
+            <xs:simpleContent>
+              <xs:extension base="xs:string">
+                <xs:attribute name="struck" type="xs:boolean" use="optional"/>
+                <xs:attribute name="id" type="xs:ID" use="optional"/>
+              </xs:extension>
+            </xs:simpleContent>
+          </xs:complexType>
+        </xs:element>
       </xs:choice>
     </xs:sequence>
     <xs:attribute name="characterRef" type="xs:string" use="optional"/>
     <xs:attribute name="struck" type="xs:boolean" use="optional"/>
+    <xs:attribute name="id" type="xs:ID" use="optional"/>
+  </xs:complexType>
+      </xs:element>
+      <xs:choice maxOccurs="unbounded">
+        <xs:element name="Line">
+          <xs:complexType>
+            <xs:simpleContent>
+              <xs:extension base="xs:string">
+                <xs:attribute name="struck" type="xs:boolean" use="optional"/>
+                <xs:attribute name="id" type="xs:ID" use="optional"/>
+              </xs:extension>
+            </xs:simpleContent>
+          </xs:complexType>
+        </xs:element>
+        <xs:element name="InlineDirection">
+          <xs:complexType>
+            <xs:simpleContent>
+              <xs:extension base="xs:string">
+                <xs:attribute name="struck" type="xs:boolean" use="optional"/>
+                <xs:attribute name="id" type="xs:ID" use="optional"/>
+              </xs:extension>
+            </xs:simpleContent>
+          </xs:complexType>
+        </xs:element>
+      </xs:choice>
+    </xs:sequence>
+    <xs:attribute name="characterRef" type="xs:string" use="optional"/>
+    <xs:attribute name="struck" type="xs:boolean" use="optional"/>
+    <xs:attribute name="id" type="xs:ID" use="optional"/>
   </xs:complexType>
 
   <xs:complexType name="StruckStringType">
