@@ -21,7 +21,6 @@
       --accent-hover: #1177bb;
       --page-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
       --strike-color: rgba(180, 50, 50, 0.3);
-      --zoom-level: 100%;
     }
 
     body {
@@ -43,6 +42,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-shrink: 0;
     }
 
     .scene-breadcrumb { display: flex; flex-direction: column; gap: 2px; }
@@ -77,6 +77,14 @@
     .zoom-controls { display: flex; align-items: center; gap: 6px; padding: 0 16px; }
     .zoom-level { font-size: 12px; color: var(--text-secondary); min-width: 45px; text-align: center; }
 
+    .page-display {
+      font-size: 12px;
+      color: var(--text-secondary);
+      padding: 6px 12px;
+      background: var(--bg-dark);
+      border-radius: 4px;
+    }
+
     .goto-container { position: relative; }
     .goto-input {
       display: none;
@@ -106,21 +114,25 @@
 
     .script-scroll-container {
       flex: 1;
-      overflow-y: auto;
+      overflow: auto;
       padding: 30px;
       background: #1a1a1a;
     }
 
-    .script-content { max-width: 900px; margin: 0 auto; transform-origin: top center; }
+    .script-content {
+      max-width: 900px;
+      margin: 0 auto;
+      transform-origin: top center;
+      transition: transform 0.1s ease-out;
+    }
 
     .script-page {
       background: #ffffff;
       color: #000000;
-      padding: 80px 96px;
-      margin-bottom: 40px;
+      padding: 48px 64px;
+      margin-bottom: 24px;
       box-shadow: var(--page-shadow);
       position: relative;
-      min-height: 1056px;
     }
 
     .script-page.struck { opacity: 0.7; }
@@ -137,35 +149,35 @@
 
     .page-number-badge {
       position: absolute;
-      top: 20px;
-      right: 32px;
+      top: 16px;
+      right: 24px;
       background: #f0f0f0;
       color: #333;
-      padding: 4px 12px;
+      padding: 4px 10px;
       border-radius: 4px;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 600;
     }
 
     .scene-heading {
-      font-size: 14px;
+      font-size: 16px;
       font-weight: 700;
       text-transform: uppercase;
-      margin: 0 0 24px 0;
+      margin: 0 0 20px 0;
       padding-bottom: 8px;
       border-bottom: 2px solid #000;
     }
 
     .stage-direction {
-      font-size: 13px;
-      line-height: 1.6;
-      margin: 16px 0;
+      font-size: 15px;
+      line-height: 1.5;
+      margin: 14px 0;
       text-align: justify;
     }
 
     .dialogue-block {
-      margin: 24px 0;
-      max-width: 70%;
+      margin: 18px 0;
+      max-width: 75%;
       margin-left: auto;
       margin-right: auto;
     }
@@ -174,23 +186,23 @@
       text-align: center;
       font-weight: 700;
       text-transform: uppercase;
-      margin-bottom: 8px;
-      font-size: 13px;
+      margin-bottom: 6px;
+      font-size: 14px;
     }
 
     .dialogue-line {
       text-align: center;
-      font-size: 13px;
-      line-height: 1.5;
-      margin: 4px 0;
+      font-size: 15px;
+      line-height: 1.4;
+      margin: 3px 0;
     }
 
     .inline-direction {
       text-align: center;
       font-style: italic;
       color: #444;
-      font-size: 12px;
-      margin: 6px 0;
+      font-size: 13px;
+      margin: 5px 0;
     }
 
     .struck-text { text-decoration: line-through; color: #888; }
@@ -213,6 +225,7 @@
         <span class="scene-title" id="breadcrumb-title">Please wait</span>
       </div>
       <div class="controls">
+        <span class="page-display" id="page-display">Page --</span>
         <div class="goto-container">
           <button class="nav-btn" onclick="toggleGoto()">Go to Page</button>
           <div class="goto-input" id="goto-input">
@@ -228,7 +241,7 @@
       </div>
     </div>
 
-    <div class="script-scroll-container">
+    <div class="script-scroll-container" id="scroll-container">
       <div class="script-content" id="script-content">
         <div class="welcome-panel">
           <h2>Loading script...</h2>
@@ -239,9 +252,9 @@
 
   <script>
     let pages = [];
-    let currentSceneId = null;
     let renderedPages = new Set();
     let currentZoom = 100;
+    let isZooming = false;
 
     function escapeHtml(text) {
       if (!text) return '';
@@ -254,14 +267,9 @@
 
       renderedPages.add(index);
       const page = pages[index];
-      const firstSceneMeta = page.elements.find(e => e.type === 'scene_meta');
 
-      if (firstSceneMeta) {
-        currentSceneId = firstSceneMeta.meta.id;
-      }
-
-      let html = '<div class="script-page' + (page.struck ? ' struck' : '') + '" id="page-' + index + '">';
-      html += '<span class="page-number-badge">' + page.number + '</span>';
+      let html = '<div class="script-page' + (page.struck ? ' struck' : '') + '" id="page-' + index + '" data-page-num="' + page.number + '">';
+      html += '<span class="page-number-badge">PAGE ' + page.number + '</span>';
 
       page.elements.forEach(el => {
         if (el.type === 'scene_meta') {
@@ -302,8 +310,8 @@
       updateActiveSceneHighlight();
     }
 
-    function updateActiveSceneHighlight() {
-      const container = document.querySelector('.script-scroll-container');
+    function getCurrentPageFromScroll() {
+      const container = document.getElementById('scroll-container');
       const pagesInView = Array.from(document.querySelectorAll('.script-page'));
       const containerRect = container.getBoundingClientRect();
       const viewportMid = containerRect.top + containerRect.height / 3;
@@ -318,13 +326,20 @@
           const dist = viewportMid - pageTop;
           if (dist < closestDist) {
             closestDist = dist;
-            closestPage = idx;
+            closestPage = { index: idx, pageNum: pageEl.dataset.pageNum };
           }
         }
       });
 
-      if (closestPage !== null) {
-        updateBreadcrumb(closestPage);
+      return closestPage;
+    }
+
+    function updateActiveSceneHighlight() {
+      const pageInfo = getCurrentPageFromScroll();
+
+      if (pageInfo) {
+        updateBreadcrumb(pageInfo.index);
+        document.getElementById('page-display').textContent = 'Page ' + pageInfo.pageNum;
       }
     }
 
@@ -333,7 +348,6 @@
       const breadcrumbAct = document.getElementById('breadcrumb-act');
       const breadcrumbTitle = document.getElementById('breadcrumb-title');
 
-      // Find the current scene by looking back through pages
       let sceneMeta = null;
       for (let i = index; i >= 0; i--) {
         sceneMeta = pages[i].elements.find(e => e.type === 'scene_meta');
@@ -370,19 +384,38 @@
 
     function scrollToPage(index) {
       const pageEl = document.getElementById('page-' + index);
-      if (pageEl) {
-        pageEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const container = document.getElementById('scroll-container');
+      if (pageEl && container) {
+        const containerRect = container.getBoundingClientRect();
+        const pageRect = pageEl.getBoundingClientRect();
+        const scrollTop = container.scrollTop + pageRect.top - containerRect.top - 60;
+        container.scrollTo({ top: scrollTop, behavior: 'smooth' });
       }
     }
 
+    function getScrollFraction() {
+      const container = document.getElementById('scroll-container');
+      return container.scrollTop / (container.scrollHeight - container.clientHeight);
+    }
+
+    function setScrollFraction(fraction) {
+      const container = document.getElementById('scroll-container');
+      const newScrollTop = fraction * (container.scrollHeight - container.clientHeight);
+      container.scrollTop = newScrollTop;
+    }
+
     function zoomIn() {
+      const scrollFraction = getScrollFraction();
       currentZoom = Math.min(200, currentZoom + 10);
       applyZoom();
+      setTimeout(() => setScrollFraction(scrollFraction), 10);
     }
 
     function zoomOut() {
+      const scrollFraction = getScrollFraction();
       currentZoom = Math.max(50, currentZoom - 10);
       applyZoom();
+      setTimeout(() => setScrollFraction(scrollFraction), 10);
     }
 
     function applyZoom() {
@@ -390,6 +423,21 @@
       content.style.transform = `scale(${currentZoom / 100})`;
       document.getElementById('zoom-level').textContent = currentZoom + '%';
     }
+
+    // Handle ctrl+scroll for zoom
+    document.getElementById('scroll-container').addEventListener('wheel', (e) => {
+      if (e.ctrlKey) {
+        e.preventDefault();
+        const scrollFraction = getScrollFraction();
+        if (e.deltaY < 0) {
+          currentZoom = Math.min(200, currentZoom + 5);
+        } else {
+          currentZoom = Math.max(50, currentZoom - 5);
+        }
+        applyZoom();
+        setTimeout(() => setScrollFraction(scrollFraction), 10);
+      }
+    }, { passive: false });
 
     // Close goto on outside click
     document.addEventListener('click', (e) => {
@@ -403,7 +451,7 @@
     document.addEventListener('keydown', (e) => {
       if (e.target.tagName === 'INPUT') return;
 
-      const container = document.querySelector('.script-scroll-container');
+      const container = document.getElementById('scroll-container');
       const pageHeight = container.clientHeight * 0.8;
 
       if (e.key === 'g' || e.key === 'G') {
@@ -437,9 +485,11 @@
         pages = data.pages;
         renderAllPages();
 
-        const container = document.querySelector('.script-scroll-container');
+        const container = document.getElementById('scroll-container');
         container.addEventListener('scroll', () => {
-          requestAnimationFrame(updateActiveSceneHighlight);
+          if (!isZooming) {
+            requestAnimationFrame(updateActiveSceneHighlight);
+          }
         });
       } catch (err) {
         document.getElementById('script-content').innerHTML = `
