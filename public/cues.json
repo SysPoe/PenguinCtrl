@@ -1,1 +1,26 @@
-{}
+{
+  "scene_1_2_p12_sd0_w1": {
+    "sound": [
+      {
+        "id": "mn71dfa04443g",
+        "title": "test",
+        "description": "",
+        "soundSubtype": "vamp",
+        "clip": "/audio/among-us-role-reveal-sound_1774476508953.webm",
+        "playStyle": "alongside",
+        "clipStart": 0,
+        "clipEnd": 4.572,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": true,
+        "loopStart": 1.167,
+        "loopEnd": 2.107,
+        "loopXfade": 0.08,
+        "devampAction": "play_out",
+        "devampFadeDuration": 2
+      }
+    ]
+  }
+}
