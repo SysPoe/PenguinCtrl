@@ -178,13 +178,14 @@ body {
   position: relative;
 }
 
-.script-page.struck { opacity: 0.7; }
+.script-page.struck { opacity: 0.75; }
 .script-page.struck::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: repeating-linear-gradient(-45deg, transparent, transparent 10px,
-      var(--strike-color) 10px, var(--strike-color) 11px);
+  background:
+    repeating-linear-gradient(-45deg, transparent, transparent 9px, var(--strike-color) 9px, var(--strike-color) 10px),
+    repeating-linear-gradient(45deg, transparent, transparent 9px, var(--strike-color) 9px, var(--strike-color) 10px);
   pointer-events: none;
 }
 
@@ -1054,7 +1055,7 @@ body {
   font-size: 9px;
   text-transform: uppercase;
   letter-spacing: 0.7px;
-  color: #555;
+  color: #888;
   margin-bottom: 7px;
 }
 
@@ -1073,7 +1074,7 @@ body {
 
 .plabel {
   font-size: 11px;
-  color: #666;
+  color: #999;
   width: 68px;
   flex-shrink: 0;
   white-space: nowrap;
@@ -1138,22 +1139,29 @@ body {
   width: 56px;
   padding: 4px 6px;
   background: #1a1a1a;
-  border: 1px solid #2e2e2e;
+  border: 1px solid #3a3a3a;
   border-radius: 4px;
-  color: #ccc;
+  color: #ddd;
   font-family: inherit;
   font-size: 11px;
   text-align: right;
   outline: none;
   flex-shrink: 0;
   transition: border-color 0.12s;
+  -moz-appearance: textfield;
+}
+
+.pnum::-webkit-inner-spin-button,
+.pnum::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .pnum:focus { border-color: var(--accent); }
 
 .punit {
   font-size: 10px;
-  color: #444;
+  color: #666;
   width: 18px;
   flex-shrink: 0;
 }
@@ -1194,6 +1202,67 @@ body {
   height: 13px;
   accent-color: var(--sound-color);
   cursor: pointer;
+}
+
+/* Preview bar */
+.preview-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 20px 10px;
+}
+
+.preview-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  background: #1c1c1c;
+  border: 1px solid #3a3a3a;
+  border-radius: 5px;
+  color: #aaa;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.preview-btn:hover {
+  border-color: var(--sound-color);
+  color: var(--sound-color);
+}
+
+.preview-btn.playing {
+  background: var(--sound-bg);
+  border-color: var(--sound-color);
+  color: var(--sound-color);
+}
+
+.preview-devamp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  background: #1c1c1c;
+  border: 1px solid rgba(99,102,241,0.4);
+  border-radius: 5px;
+  color: rgba(99,102,241,0.9);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.preview-devamp-btn:hover {
+  background: rgba(99,102,241,0.12);
+  border-color: rgba(99,102,241,0.8);
+}
+
+.preview-status {
+  font-size: 10px;
+  color: #555;
+  font-style: italic;
+  margin-left: 2px;
 }
 
 /* Vamp section */
