@@ -236,7 +236,7 @@ function renderPageElement(index) {
   renderedPages.add(index);
   const page = pages[index];
 
-  let html = `<div class="script-page${page.struck ? ' struck' : ''}" id="page-${index}" data-page-num="${page.number}">`;
+  let html = `<div class="script-page" id="page-${index}" data-page-num="${page.number}">`;
   html += `<span class="page-number-badge">PAGE ${page.number}</span>`;
 
   page.elements.forEach(el => {
@@ -259,14 +259,15 @@ function renderPageElement(index) {
       const isContinuation = speaker && speaker === lastSpeaker;
       if (speaker && !isContinuation) lastSpeaker = speaker;
 
-      html += '<div class="dialogue-block">';
+      html += `<div class="dialogue-block${el.block_struck ? ' struck-text' : ''}">`;
       el.lines.forEach((line, lineIdx) => {
         if (line.type === 'line') {
           const showSpeaker = lineIdx === 0 && speaker && !isContinuation;
           const showLine = lineIdx === 0 && !speaker;
           const lid = line.id || '';
+          const lineStruck = el.block_struck || line.struck;
 
-          html += `<div class="dialogue-line-container${line.struck ? ' struck-text' : ''}" data-line-id="${escapeHtml(lid)}">`;
+          html += `<div class="dialogue-line-container${lineStruck ? ' struck-text' : ''}" data-line-id="${escapeHtml(lid)}">`;
           html += '<div class="speaker-column">';
           if (showSpeaker) {
             html += `<span class="speaker-name">${escapeHtml(speaker)}</span>`;
@@ -279,7 +280,8 @@ function renderPageElement(index) {
           html += '</div>';
         } else if (line.type === 'inline') {
           const iid = line.id || '';
-          html += `<div class="dialogue-line-container inline-row${line.struck ? ' struck-text' : ''}" data-line-id="${escapeHtml(iid)}">`;
+          const inlineStruck = el.block_struck || line.struck;
+          html += `<div class="dialogue-line-container inline-row${inlineStruck ? ' struck-text' : ''}" data-line-id="${escapeHtml(iid)}">`;
           html += '<div class="speaker-column"></div>';
           html += '<div class="cue-column" data-cue-column="true"></div>';
           html += `<div class="text-column inline-direction">${iid ? renderWordSpans(line.text, iid) : escapeHtml(line.text)}</div>`;
@@ -449,22 +451,26 @@ document.addEventListener('pointermove', (e) => {
   if (!waveformDrag) return;
   const { handle, inputId, containerLeft, containerWidth, duration } = waveformDrag;
   const x = Math.max(0, Math.min(containerWidth, e.clientX - containerLeft));
-  const t = (x / containerWidth) * duration;
-  document.getElementById(inputId).value = t.toFixed(3);
+  let t = (x / containerWidth) * duration;
+
+  const bounds = getParamBounds();
+  if (bounds[inputId]) {
+    t = Math.max(bounds[inputId].min, Math.min(bounds[inputId].max, t));
+  }
+
+  document.getElementById(inputId).value = +t.toFixed(3);
+  syncSliderToNumber(inputId);
+  applyConstraints();
+  updateAllSliderRanges();
   handle.style.left = ((t / duration) * 100).toFixed(3) + '%';
   scheduleWaveformRedraw();
 });
 
 document.addEventListener('pointerup', () => {
   if (!waveformDrag) return;
-  const { inputId } = waveformDrag;
   waveformDrag = null;
-  // Snap clip-end / loop-end to null if dragged to the very end
-  if ((inputId === 'p-clip-end' || inputId === 'p-loop-end') && waveformAudioBuffer) {
-    const el = document.getElementById(inputId);
-    const val = parseFloat(el.value);
-    if (Math.abs(val - waveformAudioBuffer.duration) < 0.05) el.value = '';
-  }
+  applyConstraints();
+  updateAllSliderRanges();
   drawWaveform();
   updateWaveformHandles();
 });
@@ -752,12 +758,118 @@ async function deleteCue() {
 
 // === SOUND MODAL ===
 
+const SLIDER_IDS = ['p-clip-start','p-clip-end','p-fade-in','p-fade-out','p-manual-fo','p-volume','p-loop-start','p-loop-end','p-loop-xfade'];
+
+function numVal(id) {
+  const v = document.getElementById(id)?.value;
+  return (v == null || v === '') ? null : parseFloat(v);
+}
+function sliderId(id) { return 'ps-' + id.slice(2); }
+function fillId(id)   { return 'pf-' + id.slice(2); }
+
+function getParamBounds() {
+  const dur      = waveformAudioBuffer ? waveformAudioBuffer.duration : 60;
+  const clipStart = numVal('p-clip-start') ?? 0;
+  const clipEnd   = numVal('p-clip-end')   ?? dur;
+  const fadeIn    = numVal('p-fade-in')    ?? 0;
+  const fadeOut   = numVal('p-fade-out')   ?? 0;
+  const playLen   = Math.max(0, clipEnd - clipStart);
+  const loopStart = numVal('p-loop-start') ?? clipStart;
+  const loopEnd   = numVal('p-loop-end')   ?? clipEnd;
+  const loopLen   = Math.max(0, loopEnd - loopStart);
+
+  return {
+    'p-clip-start': { min: 0,                              max: Math.max(0, clipEnd - 0.001) },
+    'p-clip-end':   { min: Math.max(0.001, clipStart + 0.001), max: dur },
+    'p-fade-in':    { min: 0,                              max: Math.max(0, playLen - fadeOut) },
+    'p-fade-out':   { min: 0,                              max: Math.max(0, playLen - fadeIn) },
+    'p-manual-fo':  { min: 0.1,                            max: 60 },
+    'p-volume':     { min: -40,                            max: 20 },
+    'p-loop-start': { min: clipStart,                      max: Math.max(clipStart, loopEnd - 0.001) },
+    'p-loop-end':   { min: Math.max(clipStart, loopStart + 0.001), max: clipEnd },
+    'p-loop-xfade': { min: 0,                              max: Math.max(0, loopLen / 2) },
+  };
+}
+
+function updateSliderFill(id) {
+  const slider = document.getElementById(sliderId(id));
+  const fill   = document.getElementById(fillId(id));
+  if (!slider || !fill) return;
+  const min = parseFloat(slider.min);
+  const max = parseFloat(slider.max);
+  const val = parseFloat(slider.value);
+  const pct = (max > min) ? ((val - min) / (max - min)) * 100 : 0;
+  fill.style.width = pct.toFixed(2) + '%';
+}
+
+function syncSliderToNumber(id) {
+  const num    = document.getElementById(id);
+  const slider = document.getElementById(sliderId(id));
+  if (!slider || !num) return;
+  const v = (num.value !== '') ? parseFloat(num.value) : parseFloat(slider.max);
+  if (!isNaN(v)) slider.value = v;
+  updateSliderFill(id);
+}
+
+function syncNumberToSlider(id) {
+  const num    = document.getElementById(id);
+  const slider = document.getElementById(sliderId(id));
+  if (!slider || !num) return;
+  const raw = parseFloat(slider.value);
+  num.value = isNaN(raw) ? '' : +raw.toFixed(3);
+  updateSliderFill(id);
+}
+
+function updateAllSliderRanges() {
+  const bounds = getParamBounds();
+  for (const [id, { min, max }] of Object.entries(bounds)) {
+    const slider = document.getElementById(sliderId(id));
+    if (!slider) continue;
+    slider.min = min;
+    slider.max = max;
+    const cur = parseFloat(slider.value);
+    if (cur < min) slider.value = min;
+    else if (cur > max) slider.value = max;
+    updateSliderFill(id);
+  }
+}
+
+function applyConstraints() {
+  const bounds = getParamBounds();
+  for (const [id, { min, max }] of Object.entries(bounds)) {
+    const num = document.getElementById(id);
+    if (!num || num.value === '') continue;
+    let v = parseFloat(num.value);
+    if (isNaN(v)) continue;
+    v = Math.max(min, Math.min(max, v));
+    num.value = +v.toFixed(3);
+    syncSliderToNumber(id);
+  }
+}
+
+function onParamChange(id, source) {
+  if (source === 'slider') {
+    syncNumberToSlider(id);
+  } else {
+    syncSliderToNumber(id);
+  }
+  applyConstraints();
+  updateAllSliderRanges();
+  scheduleWaveformRedraw();
+}
+
+function syncAllSlidersFromInputs() {
+  for (const id of SLIDER_IDS) syncSliderToNumber(id);
+  updateAllSliderRanges();
+}
+
 function selectSoundSubtype(subtype) {
   currentSoundSubtype = subtype;
   document.querySelectorAll('.sound-sub-btn').forEach(b => {
     b.classList.toggle('selected', b.dataset.subtype === subtype);
   });
   document.getElementById('vamp-section').style.display = subtype === 'vamp' ? 'block' : 'none';
+  updateAllSliderRanges();
   scheduleWaveformRedraw();
 }
 
@@ -768,25 +880,25 @@ function selectPlayStyle(btn) {
 
 function getSoundData() {
   const playStyleBtn = document.querySelector('#play-style-control .seg-btn.selected');
-  const clipEndVal = document.getElementById('p-clip-end').value;
+  const clipEndVal   = document.getElementById('p-clip-end').value;
   const data = {
-    soundSubtype: currentSoundSubtype,
-    clip: currentClipPath,
-    playStyle: playStyleBtn ? playStyleBtn.dataset.value : 'alongside',
-    clipStart: parseFloat(document.getElementById('p-clip-start').value) || 0,
-    clipEnd: clipEndVal !== '' ? parseFloat(clipEndVal) : null,
-    fadeIn: parseFloat(document.getElementById('p-fade-in').value) || 0,
-    fadeOut: parseFloat(document.getElementById('p-fade-out').value) || 0,
-    volume: parseFloat(document.getElementById('p-volume').value) || 0,
-    manualFadeOutDuration: parseFloat(document.getElementById('p-manual-fo').value) || 2,
+    soundSubtype:           currentSoundSubtype,
+    clip:                   currentClipPath,
+    playStyle:              playStyleBtn ? playStyleBtn.dataset.value : 'alongside',
+    clipStart:              numVal('p-clip-start') ?? 0,
+    clipEnd:                clipEndVal !== '' ? parseFloat(clipEndVal) : null,
+    fadeIn:                 numVal('p-fade-in')    ?? 0,
+    fadeOut:                numVal('p-fade-out')   ?? 0,
+    volume:                 numVal('p-volume')     ?? 0,
+    manualFadeOutDuration:  numVal('p-manual-fo')  ?? 2,
     allowMultipleInstances: document.getElementById('p-allow-multi').checked,
   };
   if (currentSoundSubtype === 'vamp') {
     const loopEndVal = document.getElementById('p-loop-end').value;
-    data.loopStart = parseFloat(document.getElementById('p-loop-start').value) || 0;
-    data.loopEnd = loopEndVal !== '' ? parseFloat(loopEndVal) : null;
-    data.loopXfade = parseFloat(document.getElementById('p-loop-xfade').value) || 0;
-    data.devampAction = document.getElementById('p-devamp-action').value || 'fade_out';
+    data.loopStart    = numVal('p-loop-start') ?? 0;
+    data.loopEnd      = loopEndVal !== '' ? parseFloat(loopEndVal) : null;
+    data.loopXfade    = numVal('p-loop-xfade') ?? 0;
+    data.devampAction = document.getElementById('p-devamp-action').value || 'play_out';
   }
   return data;
 }
@@ -796,21 +908,22 @@ function initSoundForm(cueData) {
     selectSoundSubtype('play_once');
     currentClipPath = null;
     document.getElementById('clip-name-text').textContent = 'No clip selected';
-    document.getElementById('p-clip-start').value = '0';
-    document.getElementById('p-clip-end').value = '';
-    document.getElementById('p-fade-in').value = '0';
-    document.getElementById('p-fade-out').value = '0';
-    document.getElementById('p-volume').value = '0';
-    document.getElementById('p-manual-fo').value = '2';
+    document.getElementById('p-clip-start').value  = '0';
+    document.getElementById('p-clip-end').value    = '';
+    document.getElementById('p-fade-in').value     = '0';
+    document.getElementById('p-fade-out').value    = '0';
+    document.getElementById('p-volume').value      = '0';
+    document.getElementById('p-manual-fo').value   = '2';
     document.getElementById('p-allow-multi').checked = true;
-    document.getElementById('p-loop-start').value = '0';
-    document.getElementById('p-loop-end').value = '';
-    document.getElementById('p-loop-xfade').value = '0';
-    document.getElementById('p-devamp-action').value = 'fade_out';
+    document.getElementById('p-loop-start').value  = '0';
+    document.getElementById('p-loop-end').value    = '';
+    document.getElementById('p-loop-xfade').value  = '0';
+    document.getElementById('p-devamp-action').value = 'play_out';
     document.querySelectorAll('#play-style-control .seg-btn').forEach(b => {
       b.classList.toggle('selected', b.dataset.value === 'alongside');
     });
     clearWaveformDisplay();
+    syncAllSlidersFromInputs();
     return;
   }
 
@@ -820,17 +933,17 @@ function initSoundForm(cueData) {
     b.classList.toggle('selected', b.dataset.value === (cueData.playStyle || 'alongside'));
   });
 
-  document.getElementById('p-clip-start').value = cueData.clipStart ?? 0;
-  document.getElementById('p-clip-end').value = cueData.clipEnd != null ? cueData.clipEnd : '';
-  document.getElementById('p-fade-in').value = cueData.fadeIn ?? 0;
-  document.getElementById('p-fade-out').value = cueData.fadeOut ?? 0;
-  document.getElementById('p-volume').value = cueData.volume ?? 0;
-  document.getElementById('p-manual-fo').value = cueData.manualFadeOutDuration ?? 2;
+  document.getElementById('p-clip-start').value  = cueData.clipStart ?? 0;
+  document.getElementById('p-clip-end').value    = cueData.clipEnd != null ? cueData.clipEnd : '';
+  document.getElementById('p-fade-in').value     = cueData.fadeIn ?? 0;
+  document.getElementById('p-fade-out').value    = cueData.fadeOut ?? 0;
+  document.getElementById('p-volume').value      = cueData.volume ?? 0;
+  document.getElementById('p-manual-fo').value   = cueData.manualFadeOutDuration ?? 2;
   document.getElementById('p-allow-multi').checked = cueData.allowMultipleInstances !== false;
-  document.getElementById('p-loop-start').value = cueData.loopStart ?? 0;
-  document.getElementById('p-loop-end').value = cueData.loopEnd != null ? cueData.loopEnd : '';
-  document.getElementById('p-loop-xfade').value = cueData.loopXfade ?? 0;
-  document.getElementById('p-devamp-action').value = cueData.devampAction || 'fade_out';
+  document.getElementById('p-loop-start').value  = cueData.loopStart ?? 0;
+  document.getElementById('p-loop-end').value    = cueData.loopEnd != null ? cueData.loopEnd : '';
+  document.getElementById('p-loop-xfade').value  = cueData.loopXfade ?? 0;
+  document.getElementById('p-devamp-action').value = cueData.devampAction || 'play_out';
 
   if (cueData.clip) {
     currentClipPath = cueData.clip;
@@ -840,7 +953,47 @@ function initSoundForm(cueData) {
     currentClipPath = null;
     document.getElementById('clip-name-text').textContent = 'No clip selected';
     clearWaveformDisplay();
+    syncAllSlidersFromInputs();
   }
+}
+
+function toggleClipBrowser() {
+  const browser = document.getElementById('clip-browser');
+  const isOpen  = browser.classList.contains('open');
+  if (isOpen) {
+    browser.classList.remove('open');
+  } else {
+    browser.classList.add('open');
+    loadClipBrowser();
+  }
+}
+
+async function loadClipBrowser() {
+  const inner = document.getElementById('clip-browser-inner');
+  inner.innerHTML = '<div class="clip-browser-msg">Loading…</div>';
+  try {
+    const res = await fetch('/api/audio/list');
+    const { clips } = await res.json();
+    if (clips.length === 0) {
+      inner.innerHTML = '<div class="clip-browser-msg">No clips uploaded yet</div>';
+      return;
+    }
+    inner.innerHTML = clips.map(c => `
+      <button class="clip-pill${currentClipPath === c.path ? ' selected' : ''}"
+              onclick="selectClip('${c.path}','${escapeHtml(c.filename)}')">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        ${escapeHtml(c.filename.replace(/_\d+\.webm$/, '').replace(/_/g, ' '))}
+      </button>`).join('');
+  } catch {
+    inner.innerHTML = '<div class="clip-browser-msg">Failed to load clips</div>';
+  }
+}
+
+function selectClip(path, filename) {
+  currentClipPath = path;
+  document.getElementById('clip-name-text').textContent = filename;
+  document.getElementById('clip-browser').classList.remove('open');
+  loadWaveform(path);
 }
 
 async function handleClipUpload(file) {
@@ -883,25 +1036,35 @@ async function loadWaveform(url) {
   document.getElementById('waveform-loading').style.display = 'flex';
 
   try {
-    const audioCtx = new AudioContext();
+    const audioCtx   = new AudioContext();
     const arrayBuffer = await (await fetch(url)).arrayBuffer();
     waveformAudioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
     audioCtx.close();
 
     const container = document.getElementById('waveform-container');
-    const W = container.clientWidth;
+    const W   = container.clientWidth;
     const dpr = window.devicePixelRatio || 1;
     waveformPeaks = computeWaveformPeaks(waveformAudioBuffer, W);
 
     const canvas = document.getElementById('waveform-canvas');
-    canvas.width = W * dpr;
-    canvas.height = 88 * dpr;
-    canvas.style.width = W + 'px';
-    canvas.style.height = '88px';
+    canvas.width  = W * dpr;
+    canvas.height = 110 * dpr;
+    canvas.style.width  = W + 'px';
+    canvas.style.height = '110px';
     canvas.style.display = 'block';
     document.getElementById('wf-handle-layer').style.display = 'block';
     document.getElementById('waveform-loading').style.display = 'none';
 
+    // Set clip-end / loop-end defaults to clip duration
+    const dur = waveformAudioBuffer.duration;
+    if (document.getElementById('p-clip-end').value === '') {
+      document.getElementById('p-clip-end').value = +dur.toFixed(3);
+    }
+    if (document.getElementById('p-loop-end').value === '') {
+      document.getElementById('p-loop-end').value = +dur.toFixed(3);
+    }
+
+    syncAllSlidersFromInputs();
     drawWaveform();
     updateWaveformHandles();
   } catch (err) {
@@ -917,7 +1080,7 @@ function computeWaveformPeaks(audioBuffer, numSamples) {
   const peaks = new Float32Array(numSamples);
   for (let i = 0; i < numSamples; i++) {
     const start = i * step;
-    const end = Math.min(start + step, data.length);
+    const end   = Math.min(start + step, data.length);
     let max = 0;
     for (let j = start; j < end; j++) {
       const v = Math.abs(data[j]);
@@ -946,86 +1109,108 @@ function scheduleWaveformRedraw() {
   }, 40);
 }
 
+function getEnvelopeGain(t, clipStart, clipEnd, fadeIn, fadeOut, loopStart, loopEnd, loopXfade, isVamp) {
+  if (t < clipStart || t > clipEnd) return 0;
+  let g = 1;
+  const fi = fadeIn  > 0 && t < clipStart + fadeIn  ? (t - clipStart) / fadeIn      : 1;
+  const fo = fadeOut > 0 && t > clipEnd   - fadeOut  ? (clipEnd - t)   / fadeOut     : 1;
+  g *= Math.min(fi, fo);
+  if (isVamp && loopXfade > 0 && (loopEnd - loopStart) > 0) {
+    if      (t >= loopStart && t < loopStart + loopXfade) g *= (t - loopStart) / loopXfade;
+    else if (t > loopEnd - loopXfade && t <= loopEnd)     g *= (loopEnd - t)   / loopXfade;
+  }
+  return Math.max(0, Math.min(1, g));
+}
+
 function drawWaveform() {
   if (!waveformPeaks || !waveformAudioBuffer) return;
   const canvas = document.getElementById('waveform-canvas');
   if (!canvas || canvas.style.display === 'none') return;
-  const ctx = canvas.getContext('2d');
-  const W = canvas.width;
-  const H = canvas.height;
-  const dur = waveformAudioBuffer.duration;
-  const dpr = window.devicePixelRatio || 1;
+  const ctx      = canvas.getContext('2d');
+  const W        = canvas.width;
+  const H        = canvas.height;
+  const dur      = waveformAudioBuffer.duration;
+  const dpr      = window.devicePixelRatio || 1;
   const numPeaks = waveformPeaks.length;
+  const tx = t  => Math.round(Math.max(0, Math.min(1, t / dur)) * W);
 
-  const tx = t => Math.round(Math.max(0, Math.min(1, t / dur)) * W);
-
-  const clipStart = parseFloat(document.getElementById('p-clip-start').value) || 0;
-  const clipEndRaw = document.getElementById('p-clip-end').value;
-  const clipEnd = clipEndRaw !== '' ? parseFloat(clipEndRaw) : dur;
-  const fadeIn = parseFloat(document.getElementById('p-fade-in').value) || 0;
-  const fadeOut = parseFloat(document.getElementById('p-fade-out').value) || 0;
-  const isVamp = currentSoundSubtype === 'vamp';
-  const loopStart = isVamp ? (parseFloat(document.getElementById('p-loop-start').value) || 0) : 0;
-  const loopEndRaw = isVamp ? document.getElementById('p-loop-end').value : '';
-  const loopEnd = isVamp && loopEndRaw !== '' ? parseFloat(loopEndRaw) : dur;
-  const loopXfade = isVamp ? (parseFloat(document.getElementById('p-loop-xfade').value) || 0) : 0;
+  const clipStart = numVal('p-clip-start') ?? 0;
+  const clipEnd   = numVal('p-clip-end')   ?? dur;
+  const fadeIn    = numVal('p-fade-in')    ?? 0;
+  const fadeOut   = numVal('p-fade-out')   ?? 0;
+  const isVamp    = currentSoundSubtype === 'vamp';
+  const loopStart = isVamp ? (numVal('p-loop-start') ?? 0)   : 0;
+  const loopEnd   = isVamp ? (numVal('p-loop-end')   ?? dur) : dur;
+  const loopXfade = isVamp ? (numVal('p-loop-xfade') ?? 0)   : 0;
 
   ctx.clearRect(0, 0, W, H);
-  ctx.fillStyle = '#111';
+  ctx.fillStyle = '#0e0e0e';
   ctx.fillRect(0, 0, W, H);
 
-  // Draw peaks
+  // Peaks with envelope-based heights
   const barW = Math.max(1, W / numPeaks);
   for (let i = 0; i < numPeaks; i++) {
-    const t = (i / numPeaks) * dur;
+    const t    = (i / numPeaks) * dur;
     const peak = waveformPeaks[i];
     const inRange = t >= clipStart && t <= clipEnd;
-    const inLoop = isVamp && t >= loopStart && t <= loopEnd;
+    const inLoop  = isVamp && t >= loopStart && t <= loopEnd;
+    const gain    = getEnvelopeGain(t, clipStart, clipEnd, fadeIn, fadeOut, loopStart, loopEnd, loopXfade, isVamp);
+    const barH    = Math.max(2 * dpr, peak * H * 0.85 * Math.max(0.08, gain));
 
-    if (!inRange) ctx.fillStyle = '#222';
-    else if (inLoop) ctx.fillStyle = 'rgba(99,102,241,0.85)';
-    else ctx.fillStyle = '#10b981';
+    if (!inRange)     ctx.fillStyle = '#1e1e1e';
+    else if (inLoop)  ctx.fillStyle = `rgba(99,102,241,${(0.5 + gain * 0.45).toFixed(2)})`;
+    else              ctx.fillStyle = `rgba(16,185,129,${(0.5 + gain * 0.45).toFixed(2)})`;
 
     const x = Math.round((i / numPeaks) * W);
-    const barH = Math.max(2 * dpr, peak * H * 0.85);
     ctx.fillRect(x, (H - barH) / 2, barW - 0.5, barH);
   }
 
   // Out-of-range overlay
-  if (clipStart > 0) {
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.fillRect(0, 0, tx(clipStart), H);
-  }
-  if (clipEnd < dur) {
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
-    ctx.fillRect(tx(clipEnd), 0, W - tx(clipEnd), H);
-  }
+  if (clipStart > 0)   { ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, tx(clipStart), H); }
+  if (clipEnd < dur)   { ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(tx(clipEnd), 0, W - tx(clipEnd), H); }
 
-  // Fade in gradient
+  // Fade-in — amber diagonal hatching
   if (fadeIn > 0 && clipStart + fadeIn <= clipEnd) {
-    const x0 = tx(clipStart), x1 = tx(clipStart + fadeIn);
-    const g = ctx.createLinearGradient(x0, 0, x1, 0);
-    g.addColorStop(0, 'rgba(0,0,0,0.65)');
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(x0, 0, x1 - x0, H);
+    const x0 = tx(clipStart), x1 = tx(clipStart + fadeIn), w = x1 - x0;
+    if (w > 0) {
+      ctx.save();
+      ctx.beginPath(); ctx.rect(x0, 0, w, H); ctx.clip();
+      ctx.strokeStyle = 'rgba(251,191,36,0.3)';
+      ctx.lineWidth = 1.5 * dpr;
+      for (let s = -H; s < w + H; s += 10 * dpr) {
+        ctx.beginPath(); ctx.moveTo(x0 + s, H); ctx.lineTo(x0 + s + H, 0); ctx.stroke();
+      }
+      const g = ctx.createLinearGradient(x0, 0, x1, 0);
+      g.addColorStop(0, 'rgba(0,0,0,0.5)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g; ctx.fillRect(x0, 0, w, H);
+      ctx.restore();
+    }
   }
 
-  // Fade out gradient
+  // Fade-out — amber diagonal hatching
   if (fadeOut > 0 && clipEnd - fadeOut >= clipStart) {
-    const x0 = tx(clipEnd - fadeOut), x1 = tx(clipEnd);
-    const g = ctx.createLinearGradient(x0, 0, x1, 0);
-    g.addColorStop(0, 'rgba(0,0,0,0)');
-    g.addColorStop(1, 'rgba(0,0,0,0.65)');
-    ctx.fillStyle = g;
-    ctx.fillRect(x0, 0, x1 - x0, H);
+    const x0 = tx(clipEnd - fadeOut), x1 = tx(clipEnd), w = x1 - x0;
+    if (w > 0) {
+      ctx.save();
+      ctx.beginPath(); ctx.rect(x0, 0, w, H); ctx.clip();
+      ctx.strokeStyle = 'rgba(251,191,36,0.3)';
+      ctx.lineWidth = 1.5 * dpr;
+      for (let s = -H; s < w + H; s += 10 * dpr) {
+        ctx.beginPath(); ctx.moveTo(x0 + s, H); ctx.lineTo(x0 + s + H, 0); ctx.stroke();
+      }
+      const g = ctx.createLinearGradient(x0, 0, x1, 0);
+      g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.5)');
+      ctx.fillStyle = g; ctx.fillRect(x0, 0, w, H);
+      ctx.restore();
+    }
   }
 
   // Loop xfade tint
   if (isVamp && loopXfade > 0) {
-    ctx.fillStyle = 'rgba(99,102,241,0.25)';
-    ctx.fillRect(tx(loopEnd - loopXfade), 0, tx(loopEnd) - tx(loopEnd - loopXfade), H);
-    ctx.fillRect(tx(loopStart), 0, tx(loopStart + loopXfade) - tx(loopStart), H);
+    const lxS = tx(loopEnd - loopXfade), lxE = tx(loopEnd);
+    if (lxE > lxS) { ctx.fillStyle = 'rgba(99,102,241,0.18)'; ctx.fillRect(lxS, 0, lxE - lxS, H); }
+    const rxS = tx(loopStart), rxE = tx(loopStart + loopXfade);
+    if (rxE > rxS) { ctx.fillStyle = 'rgba(99,102,241,0.18)'; ctx.fillRect(rxS, 0, rxE - rxS, H); }
   }
 
   // Loop boundaries (dashed indigo)
@@ -1041,7 +1226,7 @@ function drawWaveform() {
   }
 
   // Clip boundaries (solid white)
-  ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.65)';
   ctx.lineWidth = 1.5 * dpr;
   [clipStart, clipEnd].forEach(t => {
     const x = tx(t) + 0.5;
@@ -1049,7 +1234,7 @@ function drawWaveform() {
   });
 
   // Duration label
-  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  ctx.fillStyle = 'rgba(255,255,255,0.2)';
   ctx.font = `${9 * dpr}px monospace`;
   ctx.textAlign = 'right';
   ctx.fillText(dur.toFixed(2) + 's', W - 4 * dpr, H - 4 * dpr);
@@ -1057,17 +1242,15 @@ function drawWaveform() {
 
 function updateWaveformHandles() {
   if (!waveformAudioBuffer) return;
-  const layer = document.getElementById('wf-handle-layer');
+  const layer     = document.getElementById('wf-handle-layer');
   const container = document.getElementById('waveform-container');
-  const dur = waveformAudioBuffer.duration;
+  const dur       = waveformAudioBuffer.duration;
 
-  const clipStart = parseFloat(document.getElementById('p-clip-start').value) || 0;
-  const clipEndRaw = document.getElementById('p-clip-end').value;
-  const clipEnd = clipEndRaw !== '' ? parseFloat(clipEndRaw) : dur;
-  const isVamp = currentSoundSubtype === 'vamp';
-  const loopStart = isVamp ? (parseFloat(document.getElementById('p-loop-start').value) || 0) : 0;
-  const loopEndRaw = isVamp ? document.getElementById('p-loop-end').value : '';
-  const loopEnd = isVamp && loopEndRaw !== '' ? parseFloat(loopEndRaw) : dur;
+  const clipStart = numVal('p-clip-start') ?? 0;
+  const clipEnd   = numVal('p-clip-end')   ?? dur;
+  const isVamp    = currentSoundSubtype === 'vamp';
+  const loopStart = isVamp ? (numVal('p-loop-start') ?? 0)   : 0;
+  const loopEnd   = isVamp ? (numVal('p-loop-end')   ?? dur) : dur;
 
   const handles = [
     { inputId: 'p-clip-start', t: clipStart, cls: 'wfh-white' },
