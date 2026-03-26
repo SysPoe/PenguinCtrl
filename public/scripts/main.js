@@ -5,6 +5,7 @@ let lastSpeaker = null;
 let savedScrollPosition = null;
 let cues = {};
 let cueNumberingCache = null;
+let previewSeekPosition = null;
 
 // Modal state
 let currentTargetId = null;
@@ -880,6 +881,7 @@ function onParamChange(id, source) {
   }
   applyConstraints();
   updateAllSliderRanges();
+  syncPreviewScrubberBounds();
   scheduleWaveformRedraw();
 }
 
@@ -897,6 +899,7 @@ function selectSoundSubtype(subtype) {
   // Stop any running preview when subtype changes
   previewStop();
   updateAllSliderRanges();
+  syncPreviewScrubberBounds();
   scheduleWaveformRedraw();
 }
 
@@ -1092,6 +1095,7 @@ async function loadWaveform(url) {
     document.getElementById('wf-handle-layer').style.display = 'block';
     document.getElementById('waveform-loading').style.display = 'none';
     document.getElementById('preview-bar').style.display = 'flex';
+    document.getElementById('preview-scrub').style.display = 'flex';
 
     // Set clip-end / loop-end defaults to clip duration
     const dur = waveformAudioBuffer.duration;
@@ -1103,6 +1107,7 @@ async function loadWaveform(url) {
     }
 
     syncAllSlidersFromInputs();
+    syncPreviewScrubberBounds();
     drawWaveform();
     updateWaveformHandles();
   } catch (err) {
@@ -1133,10 +1138,13 @@ function clearWaveformDisplay() {
   previewStop();
   waveformAudioBuffer = null;
   waveformPeaks = null;
+  previewSeekPosition = null;
   document.getElementById('waveform-empty').style.display = 'flex';
   document.getElementById('waveform-canvas').style.display = 'none';
   document.getElementById('wf-handle-layer').style.display = 'none';
   document.getElementById('preview-bar').style.display = 'none';
+  const scrub = document.getElementById('preview-scrub');
+  if (scrub) scrub.style.display = 'none';
   document.getElementById('wf-handle-layer').innerHTML = '';
   document.getElementById('waveform-loading').style.display = 'none';
 }
@@ -1342,6 +1350,82 @@ let previewPollTimer = null;
 let previewPlayheadT = null;
 let playheadRafId = null;
 
+function getPreviewRange() {
+  const dur = waveformAudioBuffer ? waveformAudioBuffer.duration : 0;
+  const clipStart = numVal('p-clip-start') ?? 0;
+  const clipEnd = numVal('p-clip-end');
+  return {
+    min: Math.max(0, clipStart),
+    max: Math.max(Math.max(0, clipStart), clipEnd != null ? clipEnd : dur),
+  };
+}
+
+function syncPreviewScrubberBounds() {
+  const slider = document.getElementById('preview-position');
+  if (!slider || !waveformAudioBuffer) return;
+
+  const { min, max } = getPreviewRange();
+  slider.min = min;
+  slider.max = max;
+
+  if (previewSeekPosition == null || previewSeekPosition < min || previewSeekPosition > max) {
+    previewSeekPosition = min;
+  }
+
+  slider.value = previewSeekPosition;
+
+  const startLabel = document.getElementById('preview-position-start');
+  const endLabel = document.getElementById('preview-position-end');
+  if (startLabel) startLabel.textContent = `${min.toFixed(2)}s`;
+  if (endLabel) endLabel.textContent = `${max.toFixed(2)}s`;
+}
+
+function updatePreviewScrubberValue(value) {
+  const slider = document.getElementById('preview-position');
+  if (!slider) return;
+
+  const { min, max } = getPreviewRange();
+  const clamped = Math.max(min, Math.min(max, value));
+  previewSeekPosition = clamped;
+  slider.min = min;
+  slider.max = max;
+  slider.value = clamped;
+
+  const startLabel = document.getElementById('preview-position-start');
+  const endLabel = document.getElementById('preview-position-end');
+  if (startLabel) startLabel.textContent = `${min.toFixed(2)}s`;
+  if (endLabel) endLabel.textContent = `${max.toFixed(2)}s`;
+}
+
+async function restartPreviewAt(position) {
+  if (previewInstanceId === null || !currentClipPath) return;
+
+  const cueData = getSoundData();
+  cueData.playStyle = 'alongside';
+  cueData.clipStart = position;
+
+  const oldId = previewInstanceId;
+  previewInstanceId = null;
+  stopPlayheadAnimation();
+  PreviewEngine.stop(oldId);
+
+  const status = document.getElementById('preview-status');
+  if (status) status.textContent = 'seeking…';
+
+  try {
+    previewInstanceId = await PreviewEngine.playCue(cueData);
+    if (status) status.textContent = cueData.soundSubtype === 'vamp' ? 'vamping…' : 'playing…';
+    startPlayheadAnimation();
+    if (cueData.soundSubtype === 'vamp') {
+      document.getElementById('preview-devamp-btn').style.display = 'inline-flex';
+    }
+  } catch (e) {
+    console.error('Preview seek error:', e);
+    previewInstanceId = null;
+    resetPreviewUI();
+  }
+}
+
 function startPlayheadAnimation() {
   if (playheadRafId) cancelAnimationFrame(playheadRafId);
   function tick() {
@@ -1354,6 +1438,7 @@ function startPlayheadAnimation() {
     const pos = PreviewEngine.getPosition(previewInstanceId);
     if (pos !== null && pos !== previewPlayheadT) {
       previewPlayheadT = pos;
+      updatePreviewScrubberValue(pos);
       drawWaveform();
     }
     playheadRafId = requestAnimationFrame(tick);
@@ -1368,6 +1453,17 @@ function stopPlayheadAnimation() {
   drawWaveform();
 }
 
+function onPreviewScrubberInput() {
+  const slider = document.getElementById('preview-position');
+  if (!slider) return;
+  const pos = parseFloat(slider.value);
+  if (isNaN(pos)) return;
+  updatePreviewScrubberValue(pos);
+  if (previewInstanceId !== null) {
+    restartPreviewAt(pos);
+  }
+}
+
 PreviewEngine.onDone(id => {
   if (id === previewInstanceId) {
     previewInstanceId = null;
@@ -1377,8 +1473,9 @@ PreviewEngine.onDone(id => {
 
 async function previewToggle() {
   if (previewInstanceId !== null) {
-    PreviewEngine.stop(previewInstanceId);
+    const oldId = previewInstanceId;
     previewInstanceId = null;
+    PreviewEngine.stop(oldId);
     resetPreviewUI();
     return;
   }
@@ -1388,6 +1485,9 @@ async function previewToggle() {
   const cueData = getSoundData();
   // Always preview in 'alongside' mode regardless of saved play style
   cueData.playStyle = 'alongside';
+  cueData.clipStart = previewSeekPosition ?? cueData.clipStart ?? 0;
+
+  syncPreviewScrubberBounds();
 
   const btn = document.getElementById('preview-play-btn');
   btn.classList.add('playing');
@@ -1398,6 +1498,7 @@ async function previewToggle() {
     previewInstanceId = await PreviewEngine.playCue(cueData);
     document.getElementById('preview-status').textContent = cueData.soundSubtype === 'vamp' ? 'vamping…' : 'playing…';
     startPlayheadAnimation();
+    updatePreviewScrubberValue(cueData.clipStart ?? 0);
 
     if (cueData.soundSubtype === 'vamp') {
       document.getElementById('preview-devamp-btn').style.display = 'inline-flex';
@@ -1418,8 +1519,9 @@ function previewDevamp() {
 
 function previewStop() {
   if (previewInstanceId !== null) {
-    PreviewEngine.stop(previewInstanceId);
+    const oldId = previewInstanceId;
     previewInstanceId = null;
+    PreviewEngine.stop(oldId);
   }
   resetPreviewUI();
 }

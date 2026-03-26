@@ -124,6 +124,21 @@
             <span class="preview-status" id="preview-status"></span>
           </div>
 
+          <div class="preview-scrub" id="preview-scrub" style="display:none">
+            <span class="preview-time" id="preview-position-start">0.00s</span>
+            <input
+              type="range"
+              class="preview-position"
+              id="preview-position"
+              min="0"
+              max="0"
+              step="0.001"
+              value="0"
+              oninput="onPreviewScrubberInput()"
+            >
+            <span class="preview-time" id="preview-position-end">0.00s</span>
+          </div>
+
           <!-- Waveform -->
           <div class="waveform-container" id="waveform-container">
             <div class="waveform-empty" id="waveform-empty">

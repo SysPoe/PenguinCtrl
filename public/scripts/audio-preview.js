@@ -110,6 +110,8 @@ const PreviewEngine = (() => {
       nextSrc.start(ctx.currentTime, lStart);
       const nextPlayer = { source: nextSrc, gain: nextGain, startCtxTime: ctx.currentTime, startOffset: lStart };
       inst.players.push(nextPlayer);
+      inst.playheadAnchorTime = ctx.currentTime;
+      inst.playheadAnchorOffset = lStart;
 
       // Fade out the outgoing player
       currentPlayer.gain.gain.setValueAtTime(targetVol, ctx.currentTime);
@@ -199,6 +201,8 @@ const PreviewEngine = (() => {
           type: 'xfade_vamp', clip, cue, buffer,
           players: [firstPlayer], timers, isDeramping: false,
           lStart, lEnd, loopDuration, loopXfade, targetVol: vol,
+          playheadAnchorTime: ctx.currentTime,
+          playheadAnchorOffset: clipStart,
           audioContextStartTime: ctx.currentTime,
           clipStartOffset: clipStart,
         };
@@ -259,14 +263,13 @@ const PreviewEngine = (() => {
     const inst = activeInstances.get(instanceId);
     if (!inst) return null;
     const ctx = getCtx();
-    const elapsed = ctx.currentTime - inst.audioContextStartTime;
 
     if (inst.type === 'xfade_vamp') {
-      const { clipStartOffset, lStart, lEnd, loopDuration } = inst;
-      const initialLen = lStart - clipStartOffset;
-      if (elapsed <= initialLen) return clipStartOffset + elapsed;
-      return lStart + ((elapsed - initialLen) % loopDuration);
+      const elapsed = ctx.currentTime - inst.playheadAnchorTime;
+      return inst.playheadAnchorOffset + elapsed;
     }
+
+    const elapsed = ctx.currentTime - inst.audioContextStartTime;
 
     if (inst.type === 'vamp') {
       const { clipStartOffset, lStart, lEnd, loopDuration } = inst;
@@ -345,8 +348,9 @@ const PreviewEngine = (() => {
           inst.players.slice(0, -1).forEach(disposePlayer);
           inst.players = primary ? [primary] : [];
           if (!primary) { activeInstances.delete(instanceId); notifyDone(instanceId); return; }
-          // primary is already playing from lStart; let it run to buffer end
-          const remaining = inst.buffer.duration - (inst.lStart);
+          const elapsed = ctx.currentTime - primary.startCtxTime;
+          const currentPos = primary.startOffset + elapsed;
+          const remaining = Math.max(0, inst.lEnd - currentPos);
           const t = setTimeout(() => { clearInstance(instanceId); notifyDone(instanceId); }, remaining * 1000 + 300);
           inst.timers.add(t);
         } else if (inst.nodes) {

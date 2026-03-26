@@ -1271,6 +1271,29 @@ body {
   margin-left: 2px;
 }
 
+.preview-scrub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 20px 12px;
+}
+
+.preview-time {
+  width: 54px;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 10px;
+  color: #666;
+}
+
+.preview-position {
+  flex: 1;
+  min-width: 0;
+  height: 18px;
+  accent-color: var(--sound-color);
+  cursor: pointer;
+}
+
 /* Vamp section */
 .vamp-divider {
   font-size: 9px;
