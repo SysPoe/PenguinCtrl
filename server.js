@@ -1,5 +1,5 @@
 import express from 'express';
-import { readFileSync, statSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'fs';
+import { readFileSync, statSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync } from 'fs';
 import { join, dirname, extname, basename } from 'path';
 import { execFile } from 'child_process';
 import { parseString } from 'xml2js';
@@ -96,6 +96,8 @@ function buildSceneCache(result, fingerprint) {
           const lines = [];
           let inlineIdx = 0;
 
+          const blockStruck = blockAttrs.struck === 'true' || pageStruck;
+
           if (block.Line) {
             block.Line.forEach(line => {
               let lineText = typeof line === 'string' ? line : (line._ || '');
@@ -103,7 +105,7 @@ function buildSceneCache(result, fingerprint) {
               lines.push({
                 type: 'line',
                 text: lineText,
-                struck: lineAttrs.struck === 'true',
+                struck: lineAttrs.struck === 'true' || blockStruck,
                 id: lineAttrs.id || null
               });
             });
@@ -116,7 +118,7 @@ function buildSceneCache(result, fingerprint) {
                   type: 'inline',
                   text: id,
                   id: `${sceneId}_p${pageNum}_b${blockIdx}_il${inlineIdx++}`,
-                  struck: blockAttrs.struck === 'true'
+                  struck: blockStruck
                 });
               }
             });
@@ -128,7 +130,7 @@ function buildSceneCache(result, fingerprint) {
             lines: lines,
             scene_id: sceneId,
             page_num: pageNum,
-            block_struck: blockAttrs.struck === 'true'
+            block_struck: blockStruck
           });
         });
       }
@@ -293,6 +295,20 @@ app.get('/api/page/:pageNum', async (req, res) => {
   const page = pagesWithCues.find(p => p.number === pageNum);
   if (!page) return res.status(404).json({ error: 'Page not found' });
   res.json(page);
+});
+
+// API: List uploaded audio clips
+app.get('/api/audio/list', (_req, res) => {
+  try {
+    const exts = /\.(webm|mp3|ogg|wav|flac|aac|m4a)$/i;
+    const clips = readdirSync(AUDIO_DIR)
+      .filter(f => exts.test(f) && !f.startsWith('tmp_'))
+      .sort()
+      .map(f => ({ filename: f, path: '/audio/' + f }));
+    res.json({ clips });
+  } catch {
+    res.json({ clips: [] });
+  }
 });
 
 // API: Upload and transcode audio file
