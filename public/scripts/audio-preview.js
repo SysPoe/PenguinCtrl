@@ -185,8 +185,9 @@ const PreviewEngine = (() => {
       const lEnd = loopEnd ?? dur;
       const lStart = loopStart;
       const loopDuration = lEnd - lStart;
+      const shouldLoop = clipStart < lEnd && loopDuration > 0;
 
-      if (loopXfade > 0) {
+      if (shouldLoop && loopXfade > 0) {
         // ── Crossfade vamp ────────────────────────────────────────────────
         const firstLoopDuration = lEnd - clipStart;
 
@@ -209,7 +210,7 @@ const PreviewEngine = (() => {
         activeInstances.set(instanceId, inst);
         scheduleCrossfade(instanceId, firstPlayer, firstLoopDuration - loopXfade);
 
-      } else {
+      } else if (shouldLoop) {
         // ── Simple loop vamp ──────────────────────────────────────────────
         const gain = makeGain(ctx, vol, fadeIn);
         const src = startSrc(ctx, buffer, gain, clipStart, null, true, lStart, lEnd);
@@ -219,6 +220,24 @@ const PreviewEngine = (() => {
           lStart, lEnd, loopDuration,
           audioContextStartTime: ctx.currentTime,
           clipStartOffset: clipStart,
+        });
+      } else {
+        // ── Play through the remainder when starting after the loop ───────
+        const gain = makeGain(ctx, vol, fadeIn);
+        const src = startSrc(ctx, buffer, gain, clipStart, playDuration, false);
+        const cleanupT = setTimeout(() => {
+          disposePlayer({ source: src, gain });
+          activeInstances.delete(instanceId);
+          notifyDone(instanceId);
+        }, playDuration * 1000 + 300);
+        timers.add(cleanupT);
+
+        activeInstances.set(instanceId, {
+          type: 'play_once', clip, cue, buffer,
+          nodes: { source: src, gain }, timers, isDeramping: false,
+          audioContextStartTime: ctx.currentTime,
+          clipStartOffset: clipStart,
+          bufferDuration: dur,
         });
       }
 
@@ -341,21 +360,25 @@ const PreviewEngine = (() => {
 
     switch (act) {
       case 'play_out': {
-        // Stop looping; let the current position play to end
+        // Stop looping; let the active iteration play to the cue end.
         if (inst.type === 'xfade_vamp') {
-          // Keep only the newest player, stop others
+          // Keep the newest player, which is the one currently leading the vamp.
           const primary = inst.players[inst.players.length - 1];
           inst.players.slice(0, -1).forEach(disposePlayer);
           inst.players = primary ? [primary] : [];
           if (!primary) { activeInstances.delete(instanceId); notifyDone(instanceId); return; }
           const elapsed = ctx.currentTime - primary.startCtxTime;
           const currentPos = primary.startOffset + elapsed;
-          const remaining = Math.max(0, inst.lEnd - currentPos);
+          inst.playheadAnchorTime = ctx.currentTime;
+          inst.playheadAnchorOffset = currentPos;
+          const remaining = Math.max(0, inst.buffer.duration - currentPos);
           const t = setTimeout(() => { clearInstance(instanceId); notifyDone(instanceId); }, remaining * 1000 + 300);
           inst.timers.add(t);
         } else if (inst.nodes) {
           inst.nodes.source.loop = false;
-          const remaining = (inst.lEnd ?? inst.buffer.duration) - (inst.lStart ?? 0);
+          const elapsed = ctx.currentTime - inst.audioContextStartTime;
+          const currentPos = (inst.clipStartOffset ?? 0) + elapsed;
+          const remaining = Math.max(0, inst.buffer.duration - currentPos);
           const t = setTimeout(() => { clearInstance(instanceId); notifyDone(instanceId); }, remaining * 1000 + 300);
           inst.timers.add(t);
         }
@@ -380,23 +403,33 @@ const PreviewEngine = (() => {
       }
 
       case 'fade_wo_loop': {
-        // Stop looping, fade while playing tail
+        // Stop looping, fade while the active iteration plays to the cue end.
         const vol = dbToLinear(inst.cue?.volume ?? 0);
         if (inst.type === 'xfade_vamp') {
           const primary = inst.players[inst.players.length - 1];
           inst.players.slice(0, -1).forEach(disposePlayer);
           inst.players = primary ? [primary] : [];
           if (primary) {
+            const elapsed = ctx.currentTime - primary.startCtxTime;
+            const currentPos = primary.startOffset + elapsed;
+            inst.playheadAnchorTime = ctx.currentTime;
+            inst.playheadAnchorOffset = currentPos;
             primary.gain.gain.setValueAtTime(inst.targetVol, ctx.currentTime);
             primary.gain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + fd);
+            const remaining = Math.max(0, inst.buffer.duration - currentPos);
+            const t = setTimeout(() => { clearInstance(instanceId); notifyDone(instanceId); }, Math.max(fd, remaining) * 1000 + 150);
+            inst.timers.add(t);
           }
         } else if (inst.nodes) {
           inst.nodes.source.loop = false;
           inst.nodes.gain.gain.setValueAtTime(vol, ctx.currentTime);
           inst.nodes.gain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + fd);
+          const elapsed = ctx.currentTime - inst.audioContextStartTime;
+          const currentPos = (inst.clipStartOffset ?? 0) + elapsed;
+          const remaining = Math.max(0, inst.buffer.duration - currentPos);
+          const t = setTimeout(() => { clearInstance(instanceId); notifyDone(instanceId); }, Math.max(fd, remaining) * 1000 + 150);
+          inst.timers.add(t);
         }
-        const t = setTimeout(() => { clearInstance(instanceId); notifyDone(instanceId); }, fd * 1000 + 150);
-        inst.timers.add(t);
         break;
       }
 

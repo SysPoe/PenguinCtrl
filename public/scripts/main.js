@@ -1139,6 +1139,7 @@ function clearWaveformDisplay() {
   waveformAudioBuffer = null;
   waveformPeaks = null;
   previewSeekPosition = null;
+  previewPlayheadT = null;
   document.getElementById('waveform-empty').style.display = 'flex';
   document.getElementById('waveform-canvas').style.display = 'none';
   document.getElementById('wf-handle-layer').style.display = 'none';
@@ -1288,8 +1289,12 @@ function drawWaveform() {
   ctx.fillText(dur.toFixed(2) + 's', W - 4 * dpr, H - 4 * dpr);
 
   // Playhead
-  if (previewPlayheadT !== null) {
-    const px = tx(previewPlayheadT) + 0.5;
+  const visiblePlayheadT = previewInstanceId !== null
+    ? previewPlayheadT
+    : (previewPlayheadT ?? previewSeekPosition);
+
+  if (visiblePlayheadT !== null) {
+    const px = tx(visiblePlayheadT) + 0.5;
     ctx.strokeStyle = 'rgba(255,255,255,0.95)';
     ctx.lineWidth = 2 * dpr;
     ctx.setLineDash([]);
@@ -1299,7 +1304,7 @@ function drawWaveform() {
     ctx.font = `bold ${9 * dpr}px monospace`;
     const onRight = px < W / 2;
     ctx.textAlign = onRight ? 'left' : 'right';
-    ctx.fillText(previewPlayheadT.toFixed(2) + 's', onRight ? px + 4 * dpr : px - 4 * dpr, 12 * dpr);
+    ctx.fillText(visiblePlayheadT.toFixed(2) + 's', onRight ? px + 4 * dpr : px - 4 * dpr, 12 * dpr);
   }
 }
 
@@ -1430,7 +1435,6 @@ function startPlayheadAnimation() {
   if (playheadRafId) cancelAnimationFrame(playheadRafId);
   function tick() {
     if (previewInstanceId === null) {
-      previewPlayheadT = null;
       drawWaveform();
       playheadRafId = null;
       return;
@@ -1449,7 +1453,9 @@ function startPlayheadAnimation() {
 function stopPlayheadAnimation() {
   if (playheadRafId) cancelAnimationFrame(playheadRafId);
   playheadRafId = null;
-  previewPlayheadT = null;
+  if (previewPlayheadT == null) {
+    previewPlayheadT = previewSeekPosition ?? (numVal('p-clip-start') ?? 0);
+  }
   drawWaveform();
 }
 
@@ -1461,6 +1467,9 @@ function onPreviewScrubberInput() {
   updatePreviewScrubberValue(pos);
   if (previewInstanceId !== null) {
     restartPreviewAt(pos);
+  } else {
+    previewPlayheadT = pos;
+    drawWaveform();
   }
 }
 
@@ -1486,6 +1495,8 @@ async function previewToggle() {
   // Always preview in 'alongside' mode regardless of saved play style
   cueData.playStyle = 'alongside';
   cueData.clipStart = previewSeekPosition ?? cueData.clipStart ?? 0;
+  const previewLoops = cueData.soundSubtype === 'vamp'
+    && cueData.clipStart < (cueData.loopEnd ?? (waveformAudioBuffer?.duration ?? Infinity));
 
   syncPreviewScrubberBounds();
 
@@ -1496,11 +1507,11 @@ async function previewToggle() {
 
   try {
     previewInstanceId = await PreviewEngine.playCue(cueData);
-    document.getElementById('preview-status').textContent = cueData.soundSubtype === 'vamp' ? 'vamping…' : 'playing…';
+    document.getElementById('preview-status').textContent = previewLoops ? 'vamping…' : 'playing…';
     startPlayheadAnimation();
     updatePreviewScrubberValue(cueData.clipStart ?? 0);
 
-    if (cueData.soundSubtype === 'vamp') {
+    if (previewLoops) {
       document.getElementById('preview-devamp-btn').style.display = 'inline-flex';
     }
   } catch (e) {
