@@ -111,6 +111,19 @@
             </div>
           </div>
 
+          <!-- Preview bar -->
+          <div class="preview-bar" id="preview-bar" style="display:none">
+            <button class="preview-btn" id="preview-play-btn" onclick="previewToggle()">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              Preview
+            </button>
+            <button class="preview-devamp-btn" id="preview-devamp-btn" onclick="previewDevamp()" style="display:none">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+              Vamp Out
+            </button>
+            <span class="preview-status" id="preview-status"></span>
+          </div>
+
           <!-- Waveform -->
           <div class="waveform-container" id="waveform-container">
             <div class="waveform-empty" id="waveform-empty">
@@ -267,6 +280,7 @@
   </div>
 
   <script src="scripts/tone.js"></script>
+  <script src="scripts/audio-preview.js"></script>
   <script src="scripts/main.js"></script>
 </body>
 </html>

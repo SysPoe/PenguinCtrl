@@ -18,6 +18,7 @@ let waveformAudioBuffer = null;
 let waveformPeaks = null;
 let waveformRedrawTimer = null;
 let waveformDrag = null; // { handle, inputId, containerLeft, containerWidth, duration }
+let waveformRafId = null;
 
 // === UTILITIES ===
 
@@ -236,7 +237,7 @@ function renderPageElement(index) {
   renderedPages.add(index);
   const page = pages[index];
 
-  let html = `<div class="script-page" id="page-${index}" data-page-num="${page.number}">`;
+  let html = `<div class="script-page${page.struck ? ' struck' : ''}" id="page-${index}" data-page-num="${page.number}">`;
   html += `<span class="page-number-badge">PAGE ${page.number}</span>`;
 
   page.elements.forEach(el => {
@@ -463,7 +464,8 @@ document.addEventListener('pointermove', (e) => {
   applyConstraints();
   updateAllSliderRanges();
   handle.style.left = ((t / duration) * 100).toFixed(3) + '%';
-  scheduleWaveformRedraw();
+  if (waveformRafId) cancelAnimationFrame(waveformRafId);
+  waveformRafId = requestAnimationFrame(drawWaveform);
 });
 
 document.addEventListener('pointerup', () => {
@@ -657,6 +659,7 @@ function updateExistingCuesList(targetId) {
 
 function closeCueModal(event) {
   if (!event || event.target === document.getElementById('cue-modal-overlay')) {
+    previewStop();
     document.getElementById('cue-modal-overlay').classList.remove('visible');
     currentTargetId = null;
     currentCueType = null;
@@ -869,6 +872,8 @@ function selectSoundSubtype(subtype) {
     b.classList.toggle('selected', b.dataset.subtype === subtype);
   });
   document.getElementById('vamp-section').style.display = subtype === 'vamp' ? 'block' : 'none';
+  // Stop any running preview when subtype changes
+  previewStop();
   updateAllSliderRanges();
   scheduleWaveformRedraw();
 }
@@ -1054,6 +1059,7 @@ async function loadWaveform(url) {
     canvas.style.display = 'block';
     document.getElementById('wf-handle-layer').style.display = 'block';
     document.getElementById('waveform-loading').style.display = 'none';
+    document.getElementById('preview-bar').style.display = 'flex';
 
     // Set clip-end / loop-end defaults to clip duration
     const dur = waveformAudioBuffer.duration;
@@ -1092,11 +1098,13 @@ function computeWaveformPeaks(audioBuffer, numSamples) {
 }
 
 function clearWaveformDisplay() {
+  previewStop();
   waveformAudioBuffer = null;
   waveformPeaks = null;
   document.getElementById('waveform-empty').style.display = 'flex';
   document.getElementById('waveform-canvas').style.display = 'none';
   document.getElementById('wf-handle-layer').style.display = 'none';
+  document.getElementById('preview-bar').style.display = 'none';
   document.getElementById('wf-handle-layer').innerHTML = '';
   document.getElementById('waveform-loading').style.display = 'none';
 }
@@ -1278,6 +1286,78 @@ function updateWaveformHandles() {
     });
     layer.appendChild(div);
   });
+}
+
+// === AUDIO PREVIEW ===
+
+let previewInstanceId = null;
+let previewPollTimer = null;
+
+PreviewEngine.onDone(id => {
+  if (id === previewInstanceId) {
+    previewInstanceId = null;
+    resetPreviewUI();
+  }
+});
+
+async function previewToggle() {
+  if (previewInstanceId !== null) {
+    PreviewEngine.stop(previewInstanceId);
+    previewInstanceId = null;
+    resetPreviewUI();
+    return;
+  }
+
+  if (!currentClipPath) return;
+
+  const cueData = getSoundData();
+  // Always preview in 'alongside' mode regardless of saved play style
+  cueData.playStyle = 'alongside';
+
+  const btn = document.getElementById('preview-play-btn');
+  btn.classList.add('playing');
+  btn.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Stop`;
+  document.getElementById('preview-status').textContent = 'loading…';
+
+  try {
+    previewInstanceId = await PreviewEngine.playCue(cueData);
+    document.getElementById('preview-status').textContent = cueData.soundSubtype === 'vamp' ? 'vamping…' : 'playing…';
+
+    if (cueData.soundSubtype === 'vamp') {
+      document.getElementById('preview-devamp-btn').style.display = 'inline-flex';
+    }
+  } catch (e) {
+    console.error('Preview error:', e);
+    previewInstanceId = null;
+    resetPreviewUI();
+  }
+}
+
+function previewDevamp() {
+  if (previewInstanceId === null) return;
+  PreviewEngine.devamp(previewInstanceId);
+  document.getElementById('preview-devamp-btn').style.display = 'none';
+  document.getElementById('preview-status').textContent = 'devamping…';
+}
+
+function previewStop() {
+  if (previewInstanceId !== null) {
+    PreviewEngine.stop(previewInstanceId);
+    previewInstanceId = null;
+  }
+  resetPreviewUI();
+}
+
+function resetPreviewUI() {
+  const btn = document.getElementById('preview-play-btn');
+  if (btn) {
+    btn.classList.remove('playing');
+    btn.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5 3 19 12 5 21 5 3"/></svg> Preview`;
+  }
+  const devampBtn = document.getElementById('preview-devamp-btn');
+  if (devampBtn) devampBtn.style.display = 'none';
+  const status = document.getElementById('preview-status');
+  if (status) status.textContent = '';
 }
 
 async function persistAndRefresh() {

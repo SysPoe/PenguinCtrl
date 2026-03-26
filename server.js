@@ -52,11 +52,13 @@ function buildSceneCache(result, fingerprint) {
 
   scenes.forEach(scene => {
     const sceneId = scene.$.id;
+    const sceneStruck = scene.$.struck === 'true';
     const sceneMeta = {
       id: sceneId,
       act: scene.$.act,
       title: scene.$.title,
-      description: scene.$.description
+      description: scene.$.description,
+      struck: sceneStruck
     };
 
     const scenePages = scene.Page || [];
@@ -65,7 +67,7 @@ function buildSceneCache(result, fingerprint) {
     scenePages.forEach(page => {
       const pageNum = parseInt(page.$.number, 10);
       const pageAttrs = page.$ || {};
-      const pageStruck = pageAttrs.struck === 'true';
+      const pageStruck = pageAttrs.struck === 'true' || sceneStruck;
       const elements = [];
 
       if (isFirstPage) {
