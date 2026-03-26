@@ -237,10 +237,29 @@ function renderPageElement(index) {
   renderedPages.add(index);
   const page = pages[index];
 
-  let html = `<div class="script-page${page.struck ? ' struck' : ''}" id="page-${index}" data-page-num="${page.number}">`;
+  let html = `<div class="script-page" id="page-${index}" data-page-num="${page.number}">`;
   html += `<span class="page-number-badge">PAGE ${page.number}</span>`;
 
+  // Track whether we're inside a struck-section wrapper
+  let inStruckSection = false;
+
+  function elIsStruck(el) {
+    if (el.type === 'scene_meta') return el.meta.struck === true;
+    if (el.type === 'stage') return el.struck === true;
+    if (el.type === 'dialogue') return el.block_struck === true;
+    return false;
+  }
+
   page.elements.forEach(el => {
+    const struck = elIsStruck(el);
+    if (struck && !inStruckSection) {
+      html += '<div class="struck-section">';
+      inStruckSection = true;
+    } else if (!struck && inStruckSection) {
+      html += '</div>';
+      inStruckSection = false;
+    }
+
     if (el.type === 'scene_meta') {
       lastSpeaker = null;
       html += `<h2 class="scene-heading">${escapeHtml(el.meta.title || 'Untitled Scene')}</h2>`;
@@ -292,6 +311,8 @@ function renderPageElement(index) {
       html += '</div>';
     }
   });
+
+  if (inStruckSection) html += '</div>';
 
   html += '</div>';
   return html;
@@ -761,7 +782,7 @@ async function deleteCue() {
 
 // === SOUND MODAL ===
 
-const SLIDER_IDS = ['p-clip-start','p-clip-end','p-fade-in','p-fade-out','p-manual-fo','p-volume','p-loop-start','p-loop-end','p-loop-xfade'];
+const SLIDER_IDS = ['p-clip-start','p-clip-end','p-fade-in','p-fade-out','p-manual-fo','p-volume','p-loop-start','p-loop-end','p-loop-xfade','p-devamp-fade'];
 
 function numVal(id) {
   const v = document.getElementById(id)?.value;
@@ -791,6 +812,7 @@ function getParamBounds() {
     'p-loop-start': { min: clipStart,                      max: Math.max(clipStart, loopEnd - 0.001) },
     'p-loop-end':   { min: Math.max(clipStart, loopStart + 0.001), max: clipEnd },
     'p-loop-xfade': { min: 0,                              max: Math.max(0, loopLen / 2) },
+    'p-devamp-fade':{ min: 0.1,                            max: 30 },
   };
 }
 
@@ -883,6 +905,13 @@ function selectPlayStyle(btn) {
   btn.classList.add('selected');
 }
 
+function onDevampActionChange() {
+  const action = document.getElementById('p-devamp-action')?.value;
+  const showFade = action === 'fade_w_loop' || action === 'fade_wo_loop';
+  const row = document.getElementById('devamp-fade-row');
+  if (row) row.style.display = showFade ? 'block' : 'none';
+}
+
 function getSoundData() {
   const playStyleBtn = document.querySelector('#play-style-control .seg-btn.selected');
   const clipEndVal   = document.getElementById('p-clip-end').value;
@@ -900,10 +929,11 @@ function getSoundData() {
   };
   if (currentSoundSubtype === 'vamp') {
     const loopEndVal = document.getElementById('p-loop-end').value;
-    data.loopStart    = numVal('p-loop-start') ?? 0;
-    data.loopEnd      = loopEndVal !== '' ? parseFloat(loopEndVal) : null;
-    data.loopXfade    = numVal('p-loop-xfade') ?? 0;
-    data.devampAction = document.getElementById('p-devamp-action').value || 'play_out';
+    data.loopStart         = numVal('p-loop-start') ?? 0;
+    data.loopEnd           = loopEndVal !== '' ? parseFloat(loopEndVal) : null;
+    data.loopXfade         = numVal('p-loop-xfade') ?? 0;
+    data.devampAction      = document.getElementById('p-devamp-action').value || 'play_out';
+    data.devampFadeDuration = numVal('p-devamp-fade') ?? 2;
   }
   return data;
 }
@@ -949,6 +979,8 @@ function initSoundForm(cueData) {
   document.getElementById('p-loop-end').value    = cueData.loopEnd != null ? cueData.loopEnd : '';
   document.getElementById('p-loop-xfade').value  = cueData.loopXfade ?? 0;
   document.getElementById('p-devamp-action').value = cueData.devampAction || 'play_out';
+  document.getElementById('p-devamp-fade').value = cueData.devampFadeDuration ?? 2;
+  onDevampActionChange();
 
   if (cueData.clip) {
     currentClipPath = cueData.clip;
@@ -1246,6 +1278,21 @@ function drawWaveform() {
   ctx.font = `${9 * dpr}px monospace`;
   ctx.textAlign = 'right';
   ctx.fillText(dur.toFixed(2) + 's', W - 4 * dpr, H - 4 * dpr);
+
+  // Playhead
+  if (previewPlayheadT !== null) {
+    const px = tx(previewPlayheadT) + 0.5;
+    ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+    ctx.lineWidth = 2 * dpr;
+    ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, H); ctx.stroke();
+    // Time label (flip side at midpoint)
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.font = `bold ${9 * dpr}px monospace`;
+    const onRight = px < W / 2;
+    ctx.textAlign = onRight ? 'left' : 'right';
+    ctx.fillText(previewPlayheadT.toFixed(2) + 's', onRight ? px + 4 * dpr : px - 4 * dpr, 12 * dpr);
+  }
 }
 
 function updateWaveformHandles() {
@@ -1292,6 +1339,34 @@ function updateWaveformHandles() {
 
 let previewInstanceId = null;
 let previewPollTimer = null;
+let previewPlayheadT = null;
+let playheadRafId = null;
+
+function startPlayheadAnimation() {
+  if (playheadRafId) cancelAnimationFrame(playheadRafId);
+  function tick() {
+    if (previewInstanceId === null) {
+      previewPlayheadT = null;
+      drawWaveform();
+      playheadRafId = null;
+      return;
+    }
+    const pos = PreviewEngine.getPosition(previewInstanceId);
+    if (pos !== null && pos !== previewPlayheadT) {
+      previewPlayheadT = pos;
+      drawWaveform();
+    }
+    playheadRafId = requestAnimationFrame(tick);
+  }
+  playheadRafId = requestAnimationFrame(tick);
+}
+
+function stopPlayheadAnimation() {
+  if (playheadRafId) cancelAnimationFrame(playheadRafId);
+  playheadRafId = null;
+  previewPlayheadT = null;
+  drawWaveform();
+}
 
 PreviewEngine.onDone(id => {
   if (id === previewInstanceId) {
@@ -1322,6 +1397,7 @@ async function previewToggle() {
   try {
     previewInstanceId = await PreviewEngine.playCue(cueData);
     document.getElementById('preview-status').textContent = cueData.soundSubtype === 'vamp' ? 'vamping…' : 'playing…';
+    startPlayheadAnimation();
 
     if (cueData.soundSubtype === 'vamp') {
       document.getElementById('preview-devamp-btn').style.display = 'inline-flex';
@@ -1349,6 +1425,7 @@ function previewStop() {
 }
 
 function resetPreviewUI() {
+  stopPlayheadAnimation();
   const btn = document.getElementById('preview-play-btn');
   if (btn) {
     btn.classList.remove('playing');

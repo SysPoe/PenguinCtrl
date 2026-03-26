@@ -178,8 +178,13 @@ body {
   position: relative;
 }
 
-.script-page.struck { opacity: 0.75; }
-.script-page.struck::before {
+.struck-section {
+  position: relative;
+  z-index: 0;
+  opacity: 0.8;
+}
+
+.struck-section::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -187,6 +192,7 @@ body {
     repeating-linear-gradient(-45deg, transparent, transparent 9px, var(--strike-color) 9px, var(--strike-color) 10px),
     repeating-linear-gradient(45deg, transparent, transparent 9px, var(--strike-color) 9px, var(--strike-color) 10px);
   pointer-events: none;
+  z-index: 1;
 }
 
 .page-number-badge {

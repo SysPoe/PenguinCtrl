@@ -6,6 +6,8 @@ import { parseString } from 'xml2js';
 import { fileURLToPath } from 'url';
 import ffmpegStatic from 'ffmpeg-static';
 
+// NOTE: Please ensure you have pipewire-jack installed and running through `pw-jack node x.js` if you encounter any errors
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3000;
