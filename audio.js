@@ -155,10 +155,6 @@ async function fadeOutAll(duration = 2) {
  *   loopXfade              {number}  Crossfade duration at loop boundary (default: 0)
  *                                    0 = Tone.js built-in looping
  *                                    >0 = two-player crossfade for smooth loops
-            const shouldLoop = clipStart < (loopEnd ?? bufDuration) && (loopEnd ?? bufDuration) > loopStart;
-            player.loop = shouldLoop;
-            player.loopStart = loopStart;
-            player.loopEnd = loopEnd ?? bufDuration;
  */
 async function playCue(cue) {
     const {
@@ -306,22 +302,12 @@ function stopAll() {
 
 /**
  * Devamp a looping (vamp) instance.
+ * Stops looping and plays out to the end.
  * @param {string} instanceId
- * @param {string} [action]       - override; falls back to cue.devampAction ('fade_out')
- * @param {number} [fadeDuration] - override; falls back to cue.manualFadeOutDuration (2)
- *
- * Actions:
- *   'jump_to_end'  - seek to loop-end, play out the file's remainder
- *   'fade_to_end'  - disable re-looping, fade out while remainder plays
- *   'play_out'     - finish current loop iteration then stop (no re-loop)
- *   'fade_out'     - fade out immediately (default)
  */
-function devamp(instanceId, action, fadeDuration) {
+function devamp(instanceId) {
     const inst = activeInstances.get(instanceId);
     if (!inst) return;
-
-    const act = action ?? inst.cue.devampAction ?? 'fade_w_loop';
-    const fd  = fadeDuration ?? inst.cue.devampFadeDuration ?? inst.cue.manualFadeOutDuration ?? 2;
 
     // Stop all crossfade scheduling
     inst.isDeramping = true;
@@ -329,7 +315,7 @@ function devamp(instanceId, action, fadeDuration) {
     inst.cleanupTimers.clear();
 
     if (inst.type === 'xfade_vamp') {
-        const { players, buffer, lEnd, bufDuration, loopDuration, targetVolume } = inst;
+        const { players, buffer, lEnd, bufDuration } = inst;
 
         // Keep the newest player, which is the one currently leading the vamp.
         const primaryEntry = players[players.length - 1];
@@ -339,36 +325,13 @@ function devamp(instanceId, action, fadeDuration) {
         if (!primaryEntry) { activeInstances.delete(instanceId); return; }
         const primary = primaryEntry.player;
 
-        switch (act) {
-            case 'play_out': {
-                // Let the primary run to the end of the cue/file.
-                const elapsed = (Date.now() - primaryEntry.wallStartMs) / 1000;
-                const currentPos = primaryEntry.startOffset + elapsed;
-                const remaining = Math.max(0, buffer.duration - currentPos);
-                const t = setTimeout(() => stopPlayer(primary), remaining * 1000);
-                inst.cleanupTimers.add(t);
-                scheduleCleanup(instanceId, remaining * 1000 + 200);
-                break;
-            }
-            case 'fade_w_loop':
-                // Keep looping, ramp volume to silence
-                primary.volume.rampTo(-Infinity, fd);
-                scheduleCleanup(instanceId, fd * 1000 + 200);
-                break;
-
-            case 'fade_wo_loop':
-                // Stop looping, fade while the active iteration plays to the end.
-                primary.volume.rampTo(-Infinity, fd);
-                scheduleCleanup(instanceId, Math.max(fd, Math.max(0, buffer.duration - primaryEntry.startOffset)) * 1000 + 200);
-                break;
-
-            // Legacy/fallback
-            case 'fade_out':
-            default:
-                primary.volume.rampTo(-Infinity, fd);
-                scheduleCleanup(instanceId, fd * 1000 + 200);
-                break;
-        }
+        // Let the primary run to the end of the cue/file.
+        const elapsed = (Date.now() - primaryEntry.wallStartMs) / 1000;
+        const currentPos = primaryEntry.startOffset + elapsed;
+        const remaining = Math.max(0, buffer.duration - currentPos);
+        const t = setTimeout(() => stopPlayer(primary), remaining * 1000);
+        inst.cleanupTimers.add(t);
+        scheduleCleanup(instanceId, remaining * 1000 + 200);
 
     } else {
         // Simple vamp player
@@ -377,31 +340,8 @@ function devamp(instanceId, action, fadeDuration) {
         const lEnd = cue.loopEnd ?? bufDuration;
         const lStart = cue.loopStart ?? 0;
 
-        switch (act) {
-            case 'play_out':
-                player.loop = false;
-                scheduleCleanup(instanceId, (lEnd - lStart) * 1000 + 200);
-                break;
-
-            case 'fade_w_loop':
-                // Keep looping, ramp volume to silence
-                player.volume.rampTo(-Infinity, fd);
-                scheduleCleanup(instanceId, fd * 1000 + 200);
-                break;
-
-            case 'fade_wo_loop':
-                // Stop looping, fade while tail plays
-                player.loop = false;
-                player.volume.rampTo(-Infinity, fd);
-                scheduleCleanup(instanceId, fd * 1000 + 200);
-                break;
-
-            // Legacy/fallback
-            case 'fade_out':
-            default:
-                rampAllAndCleanup(instanceId, fd);
-                break;
-        }
+        player.loop = false;
+        scheduleCleanup(instanceId, (lEnd - lStart) * 1000 + 200);
     }
 }
 

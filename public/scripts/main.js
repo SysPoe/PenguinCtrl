@@ -783,7 +783,7 @@ async function deleteCue() {
 
 // === SOUND MODAL ===
 
-const SLIDER_IDS = ['p-clip-start','p-clip-end','p-fade-in','p-fade-out','p-manual-fo','p-volume','p-loop-start','p-loop-end','p-loop-xfade','p-devamp-fade'];
+const SLIDER_IDS = ['p-clip-start','p-clip-end','p-fade-in','p-fade-out','p-manual-fo','p-volume','p-loop-start','p-loop-end','p-loop-xfade'];
 
 function numVal(id) {
   const v = document.getElementById(id)?.value;
@@ -813,7 +813,6 @@ function getParamBounds() {
     'p-loop-start': { min: clipStart,                      max: Math.max(clipStart, loopEnd - 0.001) },
     'p-loop-end':   { min: Math.max(clipStart, loopStart + 0.001), max: clipEnd },
     'p-loop-xfade': { min: 0,                              max: Math.max(0, loopLen / 2) },
-    'p-devamp-fade':{ min: 0.1,                            max: 30 },
   };
 }
 
@@ -908,13 +907,6 @@ function selectPlayStyle(btn) {
   btn.classList.add('selected');
 }
 
-function onDevampActionChange() {
-  const action = document.getElementById('p-devamp-action')?.value;
-  const showFade = action === 'fade_w_loop' || action === 'fade_wo_loop';
-  const row = document.getElementById('devamp-fade-row');
-  if (row) row.style.display = showFade ? 'block' : 'none';
-}
-
 function getSoundData() {
   const playStyleBtn = document.querySelector('#play-style-control .seg-btn.selected');
   const clipEndVal   = document.getElementById('p-clip-end').value;
@@ -935,8 +927,6 @@ function getSoundData() {
     data.loopStart         = numVal('p-loop-start') ?? 0;
     data.loopEnd           = loopEndVal !== '' ? parseFloat(loopEndVal) : null;
     data.loopXfade         = numVal('p-loop-xfade') ?? 0;
-    data.devampAction      = document.getElementById('p-devamp-action').value || 'play_out';
-    data.devampFadeDuration = numVal('p-devamp-fade') ?? 2;
   }
   return data;
 }
@@ -956,7 +946,6 @@ function initSoundForm(cueData) {
     document.getElementById('p-loop-start').value  = '0';
     document.getElementById('p-loop-end').value    = '';
     document.getElementById('p-loop-xfade').value  = '0';
-    document.getElementById('p-devamp-action').value = 'play_out';
     document.querySelectorAll('#play-style-control .seg-btn').forEach(b => {
       b.classList.toggle('selected', b.dataset.value === 'alongside');
     });
@@ -981,9 +970,6 @@ function initSoundForm(cueData) {
   document.getElementById('p-loop-start').value  = cueData.loopStart ?? 0;
   document.getElementById('p-loop-end').value    = cueData.loopEnd != null ? cueData.loopEnd : '';
   document.getElementById('p-loop-xfade').value  = cueData.loopXfade ?? 0;
-  document.getElementById('p-devamp-action').value = cueData.devampAction || 'play_out';
-  document.getElementById('p-devamp-fade').value = cueData.devampFadeDuration ?? 2;
-  onDevampActionChange();
 
   if (cueData.clip) {
     currentClipPath = cueData.clip;

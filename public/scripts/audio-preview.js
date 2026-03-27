@@ -345,12 +345,10 @@ const PreviewEngine = (() => {
 
   // ── Public: devamp ────────────────────────────────────────────────────────
 
-  function devamp(instanceId, action, fadeDuration) {
+  function devamp(instanceId) {
     const inst = activeInstances.get(instanceId);
     if (!inst) return;
 
-    const act = action ?? inst.cue?.devampAction ?? 'fade_w_loop';
-    const fd = fadeDuration ?? inst.cue?.devampFadeDuration ?? inst.cue?.manualFadeOutDuration ?? 2;
     const ctx = getCtx();
 
     // Cancel pending timers / crossfade scheduling
@@ -358,86 +356,27 @@ const PreviewEngine = (() => {
     inst.timers.forEach(t => clearTimeout(t));
     inst.timers.clear();
 
-    switch (act) {
-      case 'play_out': {
-        // Stop looping; let the active iteration play to the cue end.
-        if (inst.type === 'xfade_vamp') {
-          // Keep the newest player, which is the one currently leading the vamp.
-          const primary = inst.players[inst.players.length - 1];
-          inst.players.slice(0, -1).forEach(disposePlayer);
-          inst.players = primary ? [primary] : [];
-          if (!primary) { activeInstances.delete(instanceId); notifyDone(instanceId); return; }
-          const elapsed = ctx.currentTime - primary.startCtxTime;
-          const currentPos = primary.startOffset + elapsed;
-          inst.playheadAnchorTime = ctx.currentTime;
-          inst.playheadAnchorOffset = currentPos;
-          const remaining = Math.max(0, inst.buffer.duration - currentPos);
-          const t = setTimeout(() => { clearInstance(instanceId); notifyDone(instanceId); }, remaining * 1000 + 300);
-          inst.timers.add(t);
-        } else if (inst.nodes) {
-          inst.nodes.source.loop = false;
-          const elapsed = ctx.currentTime - inst.audioContextStartTime;
-          const currentPos = (inst.clipStartOffset ?? 0) + elapsed;
-          const remaining = Math.max(0, inst.buffer.duration - currentPos);
-          const t = setTimeout(() => { clearInstance(instanceId); notifyDone(instanceId); }, remaining * 1000 + 300);
-          inst.timers.add(t);
-        }
-        break;
-      }
-
-      case 'fade_w_loop': {
-        // Keep looping, fade the volume to silence
-        const vol = dbToLinear(inst.cue?.volume ?? 0);
-        if (inst.type === 'xfade_vamp') {
-          inst.players.forEach(p => {
-            p.gain.gain.setValueAtTime(inst.targetVol, ctx.currentTime);
-            p.gain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + fd);
-          });
-        } else if (inst.nodes) {
-          inst.nodes.gain.gain.setValueAtTime(vol, ctx.currentTime);
-          inst.nodes.gain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + fd);
-        }
-        const t = setTimeout(() => { clearInstance(instanceId); notifyDone(instanceId); }, fd * 1000 + 150);
-        inst.timers.add(t);
-        break;
-      }
-
-      case 'fade_wo_loop': {
-        // Stop looping, fade while the active iteration plays to the cue end.
-        const vol = dbToLinear(inst.cue?.volume ?? 0);
-        if (inst.type === 'xfade_vamp') {
-          const primary = inst.players[inst.players.length - 1];
-          inst.players.slice(0, -1).forEach(disposePlayer);
-          inst.players = primary ? [primary] : [];
-          if (primary) {
-            const elapsed = ctx.currentTime - primary.startCtxTime;
-            const currentPos = primary.startOffset + elapsed;
-            inst.playheadAnchorTime = ctx.currentTime;
-            inst.playheadAnchorOffset = currentPos;
-            primary.gain.gain.setValueAtTime(inst.targetVol, ctx.currentTime);
-            primary.gain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + fd);
-            const remaining = Math.max(0, inst.buffer.duration - currentPos);
-            const t = setTimeout(() => { clearInstance(instanceId); notifyDone(instanceId); }, Math.max(fd, remaining) * 1000 + 150);
-            inst.timers.add(t);
-          }
-        } else if (inst.nodes) {
-          inst.nodes.source.loop = false;
-          inst.nodes.gain.gain.setValueAtTime(vol, ctx.currentTime);
-          inst.nodes.gain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + fd);
-          const elapsed = ctx.currentTime - inst.audioContextStartTime;
-          const currentPos = (inst.clipStartOffset ?? 0) + elapsed;
-          const remaining = Math.max(0, inst.buffer.duration - currentPos);
-          const t = setTimeout(() => { clearInstance(instanceId); notifyDone(instanceId); }, Math.max(fd, remaining) * 1000 + 150);
-          inst.timers.add(t);
-        }
-        break;
-      }
-
-      // Legacy fallbacks
-      case 'fade_out':
-      default:
-        fadeOut(instanceId, fd);
-        break;
+    // Stop looping; let the active iteration play to the cue end.
+    if (inst.type === 'xfade_vamp') {
+      // Keep the newest player, which is the one currently leading the vamp.
+      const primary = inst.players[inst.players.length - 1];
+      inst.players.slice(0, -1).forEach(disposePlayer);
+      inst.players = primary ? [primary] : [];
+      if (!primary) { activeInstances.delete(instanceId); notifyDone(instanceId); return; }
+      const elapsed = ctx.currentTime - primary.startCtxTime;
+      const currentPos = primary.startOffset + elapsed;
+      inst.playheadAnchorTime = ctx.currentTime;
+      inst.playheadAnchorOffset = currentPos;
+      const remaining = Math.max(0, inst.buffer.duration - currentPos);
+      const t = setTimeout(() => { clearInstance(instanceId); notifyDone(instanceId); }, remaining * 1000 + 300);
+      inst.timers.add(t);
+    } else if (inst.nodes) {
+      inst.nodes.source.loop = false;
+      const elapsed = ctx.currentTime - inst.audioContextStartTime;
+      const currentPos = (inst.clipStartOffset ?? 0) + elapsed;
+      const remaining = Math.max(0, inst.buffer.duration - currentPos);
+      const t = setTimeout(() => { clearInstance(instanceId); notifyDone(instanceId); }, remaining * 1000 + 300);
+      inst.timers.add(t);
     }
   }
 

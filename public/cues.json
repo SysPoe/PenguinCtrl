@@ -17,9 +17,7 @@
         "allowMultipleInstances": true,
         "loopStart": 1.167,
         "loopEnd": 2.107,
-        "loopXfade": 0.08,
-        "devampAction": "play_out",
-        "devampFadeDuration": 2
+        "loopXfade": 0.08
       }
     ]
   }
