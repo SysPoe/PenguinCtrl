@@ -22,7 +22,7 @@
 }
 
 body {
-    font-family: 'Courier Prime', monospace;
+    font-family: 'Atkinson Hyperlegible', 'Arial', sans-serif;
     background: var(--bg);
     color: var(--text);
     height: 100vh;
@@ -524,7 +524,7 @@ input[type=range]:active::-webkit-slider-thumb {
 }
 
 .vc-time {
-    font-family: 'Courier Prime', monospace;
+    font-family: 'Atkinson Hyperlegible Mono', monospace;
     font-size: 11px;
     color: #7aaac0;
     flex-shrink: 0;

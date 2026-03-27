@@ -14,7 +14,7 @@
         "fadeOut": 0,
         "volume": 0,
         "manualFadeOutDuration": 2,
-        "allowMultipleInstances": true,
+        "allowMultipleInstances": false,
         "loopStart": 1.167,
         "loopEnd": 2.107,
         "loopXfade": 0.08
