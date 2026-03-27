@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url';
 import ffmpegStatic from 'ffmpeg-static';
 import { playCue, fadeOut as audioFadeOut, stop as audioStop, stopAll as audioStopAll,
          fadeOutAll as audioFadeOutAll, devamp as audioDevamp,
-         listActive, setVolume, masterVolume } from './audio.js';
+         listActive, setVolume, masterVolume } from './server-audio.js';
 
 // NOTE: Please ensure you have pipewire-jack installed and running through `pw-jack node x.js` if you encounter any errors
 
@@ -376,7 +376,7 @@ function broadcastPlayed() {
 }
 
 function safeMasterVolume(db) {
-  try { return masterVolume(db); } catch (_) { return 0; }
+  try { return masterVolume(db); } catch (_) { return db ?? 0; }
 }
 
 // Periodic broadcast so clients stay in sync
@@ -404,7 +404,8 @@ wss.on('connection', (ws) => {
         const cue = { ...msg.cue };
         if (!cue.cueType && cue.soundSubtype) cue.cueType = cue.soundSubtype;
         if (cue.clip && cue.clip.startsWith('/')) {
-          cue.clip = join(__dirname, 'public', cue.clip);
+          // Strip leading slash so path.join doesn't treat it as absolute
+          cue.clip = join(__dirname, 'public', cue.clip.replace(/^\//, ''));
         }
         const instanceId = await playCue(cue);
         ws.send(JSON.stringify({ type: 'go_ack', instanceId }));
