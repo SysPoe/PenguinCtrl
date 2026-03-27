@@ -1,19 +1,30 @@
 // Server-side audio engine using node-web-audio-api directly (no Tone.js)
-// NOTE: run via `pw-jack bun server.js` for JACK/PipeWire output
+// NOTE: run via `pw-jack bun server.js`
 
 import { AudioContext } from 'node-web-audio-api';
 import { execFile } from 'child_process';
 import ffmpegStatic from 'ffmpeg-static';
 
-// NOTE: Please ensure you have pipewire-jack installed and running through `pw-jack bun server.js`
-
-let audioCtx = null;
+let _ctx = null;
+let _masterGain = null;
+let _masterDb = 0;
 
 function getCtx() {
-    if (!audioCtx || audioCtx.state === 'closed') {
-        audioCtx = new AudioContext({ latencyHint: 'playback' });
+    if (!_ctx || _ctx.state === 'closed') {
+        _ctx = new AudioContext({ latencyHint: 'playback' });
+        _masterGain = null; // reset when context recreated
     }
-    return audioCtx;
+    return _ctx;
+}
+
+function getMasterGain() {
+    const ctx = getCtx();
+    if (!_masterGain) {
+        _masterGain = ctx.createGain();
+        _masterGain.gain.value = dbToLinear(_masterDb);
+        _masterGain.connect(ctx.destination);
+    }
+    return _masterGain;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -23,24 +34,20 @@ function dbToLinear(db) {
     return Math.pow(10, db / 20);
 }
 
-// Buffer cache (keyed by file path)
+// Buffer cache (keyed by filesystem path)
 const bufferCache = new Map();
 
 async function loadBuffer(filePath) {
     if (bufferCache.has(filePath)) return bufferCache.get(filePath);
 
-    // Use ffmpeg to decode to raw f32le PCM, piped to stdout
     const pcmBuf = await new Promise((resolve, reject) => {
-        const chunks = [];
-        const ff = execFile(ffmpegStatic, [
+        execFile(ffmpegStatic, [
             '-i', filePath,
-            '-f', 'f32le',
-            '-acodec', 'pcm_f32le',
-            '-ar', '48000',
-            '-ac', '2',
+            '-f', 'f32le', '-acodec', 'pcm_f32le',
+            '-ar', '48000', '-ac', '2',
             'pipe:1',
         ], { encoding: 'buffer', maxBuffer: 256 * 1024 * 1024 }, (err, stdout, stderr) => {
-            if (err) reject(new Error(stderr.toString() || err.message));
+            if (err) reject(new Error(stderr?.toString() || err.message));
             else resolve(stdout);
         });
     });
@@ -70,7 +77,7 @@ function makeGain(ctx, vol, fadeIn) {
     } else {
         g.gain.setValueAtTime(vol, ctx.currentTime);
     }
-    g.connect(ctx.destination);
+    g.connect(getMasterGain());
     return g;
 }
 
@@ -98,10 +105,6 @@ function disposePlayer(p) {
 }
 
 // ── Active instances ───────────────────────────────────────────────────────
-// Simple  - { type:'play_once', clip, cue, buffer, nodes:{source,gain}, timers, isDeramping }
-// Vamp    - { type:'vamp',      clip, cue, buffer, nodes:{source,gain}, timers, isDeramping, lStart, lEnd }
-// Xfade   - { type:'xfade_vamp',clip, cue, buffer, players:[{source,gain,startCtxTime,startOffset}],
-//             timers, isDeramping, lStart, lEnd, loopDuration, loopXfade, targetVol }
 
 const activeInstances = new Map();
 let nextId = 0;
@@ -128,15 +131,13 @@ function scheduleCrossfade(instanceId, currentPlayer, delaySeconds) {
     const t = setTimeout(() => {
         const inst = activeInstances.get(instanceId);
         if (!inst || inst.isDeramping) return;
-
         const ctx = getCtx();
         const { buffer, lStart, loopXfade, targetVol, loopDuration } = inst;
 
-        // New player starting from loop start with fade-in
         const nextGain = ctx.createGain();
         nextGain.gain.setValueAtTime(0.0001, ctx.currentTime);
         nextGain.gain.linearRampToValueAtTime(targetVol, ctx.currentTime + loopXfade);
-        nextGain.connect(ctx.destination);
+        nextGain.connect(getMasterGain());
         const nextSrc = ctx.createBufferSource();
         nextSrc.buffer = buffer;
         nextSrc.connect(nextGain);
@@ -144,7 +145,6 @@ function scheduleCrossfade(instanceId, currentPlayer, delaySeconds) {
         const nextPlayer = { source: nextSrc, gain: nextGain, startCtxTime: ctx.currentTime, startOffset: lStart };
         inst.players.push(nextPlayer);
 
-        // Fade out outgoing player
         currentPlayer.gain.gain.setValueAtTime(targetVol, ctx.currentTime);
         currentPlayer.gain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + loopXfade);
         const disposeT = setTimeout(() => {
@@ -161,12 +161,150 @@ function scheduleCrossfade(instanceId, currentPlayer, delaySeconds) {
     inst.timers.add(t);
 }
 
+// ── Position ───────────────────────────────────────────────────────────────
+
+function getPosition(instanceId) {
+    const inst = activeInstances.get(instanceId);
+    if (!inst) return 0;
+    if (inst.paused) return inst.pausedAt ?? 0;
+
+    const ctx = getCtx();
+
+    if (inst.type === 'xfade_vamp') {
+        if (!inst.players.length) return 0;
+        const primary = inst.players[inst.players.length - 1];
+        const elapsed = ctx.currentTime - primary.startCtxTime;
+        return primary.startOffset + elapsed;
+    }
+
+    const elapsed = ctx.currentTime - (inst.audioContextStartTime ?? ctx.currentTime);
+    if (inst.type === 'vamp') {
+        const cs = inst.clipStartOffset ?? 0;
+        const { lStart, lEnd, loopDuration } = inst;
+        const initialLen = Math.max(0, lStart - cs);
+        if (elapsed <= initialLen) return cs + elapsed;
+        return lStart + ((elapsed - initialLen) % (loopDuration || 1));
+    }
+    return Math.min((inst.clipStartOffset ?? 0) + elapsed, inst.buffer.duration);
+}
+
+// ── Seek (stop + restart from new position) ────────────────────────────────
+
+async function seek(instanceId, newPos) {
+    const inst = activeInstances.get(instanceId);
+    if (!inst) return;
+
+    // Stop existing audio
+    inst.timers.forEach(t => clearTimeout(t));
+    inst.timers.clear();
+    if (inst.type === 'xfade_vamp') {
+        inst.players.forEach(p => { try { p.source.stop(); } catch (_) {} try { p.gain.disconnect(); } catch (_) {} });
+        inst.players = [];
+    } else if (inst.nodes) {
+        try { inst.nodes.source.stop(); } catch (_) {}
+        try { inst.nodes.gain.disconnect(); } catch (_) {}
+        inst.nodes = null;
+    }
+    inst.isDeramping = false;
+    inst.paused = false;
+
+    const ctx = getCtx();
+    const buffer = inst.buffer;
+    const cue = inst.cue;
+    const vol = dbToLinear(cue.volume ?? 0);
+    const loopXfade = cue.loopXfade ?? 0;
+    const lStart = cue.loopStart ?? 0;
+    const lEnd = cue.loopEnd ?? buffer.duration;
+    const loopDuration = lEnd - lStart;
+
+    newPos = Math.max(0, Math.min(buffer.duration - 0.01, newPos));
+
+    if (inst.type === 'xfade_vamp') {
+        const firstGain = ctx.createGain();
+        firstGain.gain.setValueAtTime(vol, ctx.currentTime);
+        firstGain.connect(getMasterGain());
+        const firstSrc = ctx.createBufferSource();
+        firstSrc.buffer = buffer;
+        firstSrc.connect(firstGain);
+        firstSrc.start(ctx.currentTime, newPos);
+        const firstPlayer = { source: firstSrc, gain: firstGain, startCtxTime: ctx.currentTime, startOffset: newPos };
+        inst.players = [firstPlayer];
+        inst.targetVol = vol;
+
+        const distToLoopEnd = lEnd - newPos;
+        if (distToLoopEnd > loopXfade && loopDuration > 0) {
+            scheduleCrossfade(instanceId, firstPlayer, distToLoopEnd - loopXfade);
+        }
+
+    } else if (inst.type === 'vamp') {
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(vol, ctx.currentTime);
+        g.connect(getMasterGain());
+        const src = ctx.createBufferSource();
+        src.buffer = buffer;
+        src.loop = true;
+        src.loopStart = lStart;
+        src.loopEnd = lEnd;
+        src.connect(g);
+        src.start(ctx.currentTime, newPos);
+        inst.nodes = { source: src, gain: g };
+        inst.audioContextStartTime = ctx.currentTime;
+        inst.clipStartOffset = newPos;
+
+    } else {
+        const end = cue.clipEnd ?? buffer.duration;
+        const remaining = Math.max(0.01, end - newPos);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(vol, ctx.currentTime);
+        g.connect(getMasterGain());
+        const src = ctx.createBufferSource();
+        src.buffer = buffer;
+        src.connect(g);
+        src.start(ctx.currentTime, newPos, remaining);
+        inst.nodes = { source: src, gain: g };
+        inst.audioContextStartTime = ctx.currentTime;
+        inst.clipStartOffset = newPos;
+        const cleanupT = setTimeout(() => { clearInstance(instanceId); }, remaining * 1000 + 300);
+        inst.timers.add(cleanupT);
+    }
+}
+
+// ── Pause / Resume ─────────────────────────────────────────────────────────
+
+function pause(instanceId) {
+    const inst = activeInstances.get(instanceId);
+    if (!inst || inst.paused) return;
+    inst.pausedAt = getPosition(instanceId);
+    inst.paused = true;
+    inst.timers.forEach(t => clearTimeout(t));
+    inst.timers.clear();
+    if (inst.type === 'xfade_vamp') {
+        inst.isDeramping = true; // stop crossfade scheduling
+        inst.players.forEach(p => { try { p.source.stop(); } catch (_) {} try { p.gain.disconnect(); } catch (_) {} });
+        inst.players = [];
+    } else if (inst.nodes) {
+        try { inst.nodes.source.stop(); } catch (_) {}
+        try { inst.nodes.gain.disconnect(); } catch (_) {}
+        inst.nodes = null;
+    }
+}
+
+async function resume(instanceId) {
+    const inst = activeInstances.get(instanceId);
+    if (!inst || !inst.paused) return;
+    const pos = inst.pausedAt ?? 0;
+    inst.paused = false;
+    inst.isDeramping = false;
+    await seek(instanceId, pos);
+}
+
 // ── Public API ─────────────────────────────────────────────────────────────
 
 async function playCue(cue) {
     const cueType = cue.cueType || cue.soundSubtype || 'play_once';
     const {
         clip,
+        clipUrl      = null,
         playStyle    = 'alongside',
         clipStart    = 0,
         clipEnd      = null,
@@ -182,7 +320,6 @@ async function playCue(cue) {
 
     if (!clip) throw new Error('playCue: clip is required');
 
-    // Pre-conditions
     if (playStyle === 'wait') {
         await waitForAll();
     } else if (playStyle === 'fade_all') {
@@ -214,7 +351,6 @@ async function playCue(cue) {
         const shouldLoop = clipStart < lEnd && loopDuration > 0;
 
         if (shouldLoop && loopXfade > 0) {
-            // Crossfade vamp
             const firstLoopDuration = lEnd - clipStart;
             const firstGain = makeGain(ctx, vol, fadeIn);
             const firstSrc = ctx.createBufferSource();
@@ -224,36 +360,35 @@ async function playCue(cue) {
             const firstPlayer = { source: firstSrc, gain: firstGain, startCtxTime: ctx.currentTime, startOffset: clipStart };
 
             activeInstances.set(instanceId, {
-                type: 'xfade_vamp', clip, cue, buffer,
-                players: [firstPlayer], timers, isDeramping: false,
+                type: 'xfade_vamp', clip, clipUrl, cue, buffer,
+                players: [firstPlayer], timers, isDeramping: false, paused: false,
                 lStart, lEnd, loopDuration, loopXfade, targetVol: vol,
             });
             scheduleCrossfade(instanceId, firstPlayer, firstLoopDuration - loopXfade);
 
         } else if (shouldLoop) {
-            // Simple loop vamp
             const gain = makeGain(ctx, vol, fadeIn);
             const src = startSrc(ctx, buffer, gain, clipStart, null, true, lStart, lEnd);
             activeInstances.set(instanceId, {
-                type: 'vamp', clip, cue, buffer,
-                nodes: { source: src, gain }, timers, isDeramping: false,
+                type: 'vamp', clip, clipUrl, cue, buffer,
+                nodes: { source: src, gain }, timers, isDeramping: false, paused: false,
                 lStart, lEnd, loopDuration,
+                audioContextStartTime: ctx.currentTime, clipStartOffset: clipStart,
             });
 
         } else {
-            // Play remainder (started past loop region)
             const gain = makeGain(ctx, vol, fadeIn);
             const src = startSrc(ctx, buffer, gain, clipStart, playDuration, false);
             const cleanupT = setTimeout(() => { clearInstance(instanceId); }, playDuration * 1000 + 300);
             timers.add(cleanupT);
             activeInstances.set(instanceId, {
-                type: 'play_once', clip, cue, buffer,
-                nodes: { source: src, gain }, timers, isDeramping: false,
+                type: 'play_once', clip, clipUrl, cue, buffer,
+                nodes: { source: src, gain }, timers, isDeramping: false, paused: false,
+                audioContextStartTime: ctx.currentTime, clipStartOffset: clipStart,
             });
         }
 
     } else {
-        // Play once
         const gain = makeGain(ctx, vol, fadeIn);
         const src = startSrc(ctx, buffer, gain, clipStart, playDuration, false);
 
@@ -270,8 +405,9 @@ async function playCue(cue) {
         const cleanupT = setTimeout(() => { clearInstance(instanceId); }, playDuration * 1000 + 300);
         timers.add(cleanupT);
         activeInstances.set(instanceId, {
-            type: 'play_once', clip, cue, buffer,
-            nodes: { source: src, gain }, timers, isDeramping: false,
+            type: 'play_once', clip, clipUrl, cue, buffer,
+            nodes: { source: src, gain }, timers, isDeramping: false, paused: false,
+            audioContextStartTime: ctx.currentTime, clipStartOffset: clipStart,
         });
     }
 
@@ -302,13 +438,9 @@ function fadeOut(instanceId, duration) {
     inst.timers.add(t);
 }
 
-function stop(instanceId) {
-    clearInstance(instanceId);
-}
+function stop(instanceId) { clearInstance(instanceId); }
 
-function stopAll() {
-    [...activeInstances.keys()].forEach(clearInstance);
-}
+function stopAll() { [...activeInstances.keys()].forEach(clearInstance); }
 
 function fadeOutAll(duration = 2) {
     [...activeInstances.keys()].forEach(id => fadeOut(id, duration));
@@ -318,7 +450,6 @@ function devamp(instanceId) {
     const inst = activeInstances.get(instanceId);
     if (!inst) return;
     const ctx = getCtx();
-
     inst.isDeramping = true;
     inst.timers.forEach(t => clearTimeout(t));
     inst.timers.clear();
@@ -335,14 +466,12 @@ function devamp(instanceId) {
         inst.timers.add(t);
     } else if (inst.nodes) {
         inst.nodes.source.loop = false;
-        const remaining = Math.max(0, inst.buffer.duration - clipStart(inst));
+        const elapsed = ctx.currentTime - (inst.audioContextStartTime ?? ctx.currentTime);
+        const currentPos = (inst.clipStartOffset ?? 0) + elapsed;
+        const remaining = Math.max(0, inst.buffer.duration - currentPos);
         const t = setTimeout(() => { clearInstance(instanceId); }, remaining * 1000 + 300);
         inst.timers.add(t);
     }
-}
-
-function clipStart(inst) {
-    return inst.cue?.clipStart ?? 0;
 }
 
 function setVolume(instanceId, db) {
@@ -352,9 +481,7 @@ function setVolume(instanceId, db) {
     const vol = dbToLinear(db);
     if (inst.type === 'xfade_vamp') {
         inst.targetVol = vol;
-        inst.players.forEach(p => {
-            p.gain.gain.setValueAtTime(vol, ctx.currentTime);
-        });
+        inst.players.forEach(p => p.gain.gain.setValueAtTime(vol, ctx.currentTime));
     } else if (inst.nodes) {
         inst.nodes.gain.gain.setValueAtTime(vol, ctx.currentTime);
     }
@@ -362,36 +489,31 @@ function setVolume(instanceId, db) {
 }
 
 function masterVolume(db) {
-    const ctx = getCtx();
     if (db !== undefined) {
-        ctx.destination.gain?.setValueAtTime(dbToLinear(db), ctx.currentTime);
+        _masterDb = db;
+        const g = getMasterGain();
+        g.gain.setValueAtTime(dbToLinear(db), getCtx().currentTime);
     }
-    // node-web-audio-api destination may not expose .gain directly; best-effort
-    return db ?? 0;
+    return _masterDb;
 }
 
 function listActive() {
     return [...activeInstances.entries()].map(([instanceId, inst]) => {
-        let volumeDb = inst.cue?.volume ?? 0;
-        try {
-            let gainVal;
-            if (inst.type === 'xfade_vamp' && inst.players.length) {
-                gainVal = inst.players[inst.players.length - 1].gain.gain.value;
-            } else if (inst.nodes) {
-                gainVal = inst.nodes.gain.gain.value;
-            }
-            if (gainVal != null && gainVal > 0.00015) {
-                volumeDb = Math.round(20 * Math.log10(gainVal) * 10) / 10;
-            }
-        } catch (_) {}
+        const volumeDb = inst.cue?.volume ?? 0;
         return {
             instanceId,
             clip: inst.clip,
+            clipUrl: inst.clipUrl || null,
             title: inst.cue?.title || inst.clip.split('/').pop(),
             cueType: inst.cue?.cueType ?? inst.cue?.soundSubtype ?? 'play_once',
             isVamp: inst.type === 'xfade_vamp' || inst.type === 'vamp',
             isDeramping: inst.isDeramping,
+            paused: inst.paused ?? false,
             volume: volumeDb,
+            position: getPosition(instanceId),
+            duration: inst.buffer?.duration ?? 0,
+            loopStart: inst.lStart ?? inst.cue?.loopStart ?? 0,
+            loopEnd: inst.lEnd ?? inst.cue?.loopEnd ?? inst.buffer?.duration ?? 0,
         };
     });
 }
@@ -405,4 +527,4 @@ async function waitForAll() {
     });
 }
 
-export { playCue, fadeOut, stop, stopAll, fadeOutAll, devamp, listActive, setVolume, masterVolume };
+export { playCue, fadeOut, stop, stopAll, fadeOutAll, devamp, listActive, setVolume, masterVolume, pause, resume, seek };

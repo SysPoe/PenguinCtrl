@@ -476,137 +476,88 @@
 
     /* Voices panel */
     .voices-panel {
-      flex: 1;
-      overflow-y: auto;
-      padding: 8px 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
+      flex: 1; overflow-y: auto; padding: 5px 7px;
+      display: flex; flex-direction: column; gap: 4px;
     }
-
     .voices-header {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      color: var(--text3);
-      padding-bottom: 5px;
-      border-bottom: 1px solid var(--border2);
-      flex-shrink: 0;
+      font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px;
+      color: var(--text3); padding-bottom: 4px;
+      border-bottom: 1px solid var(--border2); flex-shrink: 0;
     }
 
-    .voice-row {
-      display: grid;
-      grid-template-columns: 1fr auto auto;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 8px;
-      background: var(--bg2);
-      border: 1px solid var(--border2);
-      border-radius: 4px;
+    /* ── Voice card ── */
+    .vc { background: #181820; border: 1px solid #36363e; border-radius: 4px; overflow: hidden; }
+    .vc.deramping { opacity: 0.55; }
+
+    .vc-header {
+      display: flex; align-items: center; gap: 5px;
+      padding: 3px 7px; background: #1e1e28;
+    }
+    .vc-name {
+      flex: 1; min-width: 0; font-size: 12px; font-weight: 600;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #d4d4e8;
+    }
+    .vc-badge {
+      font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
+      padding: 1px 5px; border-radius: 2px; flex-shrink: 0;
+    }
+    .vc-badge.vamp { background: rgba(110,70,200,0.3); color: #b898f8; }
+    .vc-badge.once { background: rgba(40,110,40,0.3); color: #78d878; }
+    .vc-time {
+      font-family: 'Courier Prime', monospace; font-size: 11px;
+      color: #7aaac0; flex-shrink: 0; letter-spacing: 0.5px;
     }
 
-    .voice-row.deramping {
-      opacity: 0.5;
+    .vc-wave-wrap {
+      position: relative; height: 38px; background: #0e0e18; cursor: crosshair; user-select: none;
+    }
+    .vc-wave { width: 100%; height: 100%; display: block; }
+    .vc-loop-region {
+      position: absolute; top: 0; bottom: 0;
+      background: rgba(110,70,200,0.12); pointer-events: none;
+    }
+    .vc-playhead {
+      position: absolute; top: 0; bottom: 0; width: 2px;
+      background: #ffffff; pointer-events: none;
+      box-shadow: 0 0 4px rgba(255,255,255,0.5);
+      transform: translateX(-1px);
     }
 
-    .voice-info {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-      min-width: 0;
+    .vc-controls {
+      display: flex; align-items: center; padding: 3px 5px; gap: 4px;
     }
+    .btn-vc {
+      padding: 2px 7px; border-radius: 3px; border: 1px solid #3c3c46;
+      background: #22222e; color: #9898a8;
+      font-size: 10px; font-family: inherit; cursor: pointer;
+      font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;
+      white-space: nowrap; flex-shrink: 0; line-height: 1.5;
+    }
+    .btn-vc:hover { color: #d8d8e8; border-color: #58586a; }
+    .btn-vc.play  { background: #122018; color: #58d858; border-color: #285a28; }
+    .btn-vc.play:hover  { background: #183022; }
+    .btn-vc.pause { background: #101828; color: #5888d8; border-color: #284268; }
+    .btn-vc.pause:hover { background: #141f38; }
+    .btn-vc.dvmp  { color: #a888f0; border-color: rgba(110,70,190,0.55); }
+    .btn-vc.dvmp:hover  { background: rgba(80,50,150,0.25); }
+    .btn-vc.fade  { color: #e0b020; border-color: rgba(140,100,0,0.55); }
+    .btn-vc.fade:hover  { background: rgba(100,72,0,0.25); }
+    .btn-vc.stop  { color: #e86060; border-color: rgba(160,38,38,0.55); }
+    .btn-vc.stop:hover  { background: rgba(120,26,26,0.3); }
 
-    .voice-name {
-      font-size: 13px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      color: var(--text);
+    .vc-vol-group {
+      flex: 1; display: flex; align-items: center; gap: 4px;
+      min-width: 0; margin-left: 2px;
     }
+    .vc-vol-db { font-size: 10px; color: #606070; width: 34px; flex-shrink: 0; text-align: right; }
+    input[type=range].vc-vol {
+      flex: 1; min-width: 30px; height: 4px;
+      /* Prevent layout recalc by containing width */
+      max-width: 100%;
+    }
+    input[type=range].vc-vol::-webkit-slider-thumb { width: 11px; height: 11px; }
 
-    .voice-vol-row {
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-
-    .voice-vol-label {
-      font-size: 10px;
-      color: var(--text2);
-      width: 30px;
-      text-align: right;
-      flex-shrink: 0;
-    }
-
-    input[type=range].voice-vol {
-      height: 4px;
-      flex: 1;
-      min-width: 60px;
-    }
-
-    input[type=range].voice-vol::-webkit-slider-thumb {
-      width: 12px;
-      height: 12px;
-    }
-
-    .voice-actions {
-      display: flex;
-      gap: 4px;
-    }
-
-    .btn-voice {
-      padding: 4px 8px;
-      border-radius: 3px;
-      border: 1px solid var(--border);
-      background: var(--bg3);
-      color: var(--text2);
-      font-size: 11px;
-      font-family: inherit;
-      cursor: pointer;
-      text-transform: uppercase;
-      font-weight: 700;
-      letter-spacing: 0.3px;
-      white-space: nowrap;
-    }
-
-    .btn-voice:hover {
-      color: var(--text);
-      border-color: var(--text2);
-    }
-
-    .btn-voice.devamp {
-      color: #c0a0ff;
-      border-color: rgba(130, 90, 220, 0.6);
-    }
-
-    .btn-voice.devamp:hover {
-      background: rgba(110, 70, 200, 0.25);
-    }
-
-    .btn-voice.fade {
-      color: #f0c840;
-      border-color: rgba(160, 120, 0, 0.6);
-    }
-
-    .btn-voice.fade:hover {
-      background: rgba(120, 90, 0, 0.25);
-    }
-
-    .btn-voice.stop {
-      color: #ff9090;
-      border-color: rgba(180, 40, 40, 0.6);
-    }
-
-    .btn-voice.stop:hover {
-      background: rgba(140, 30, 30, 0.3);
-    }
-
-    .no-voices {
-      color: var(--text3);
-      font-size: 13px;
-      font-style: italic;
-      padding: 10px 0;
-    }
+    .no-voices { color: var(--text3); font-size: 13px; font-style: italic; padding: 10px 0; }
 
     /* scrollbar */
     ::-webkit-scrollbar {
@@ -728,7 +679,7 @@
         const msg = JSON.parse(e.data);
         if (msg.type === 'instances') {
           activeInstances = msg.list || [];
-          renderVoices();
+          updateVoices();
         } else if (msg.type === 'playedCues') {
           playedIds = new Set(msg.ids || []);
           applyPlayedTicks();
@@ -898,57 +849,228 @@
     function stopAll() { wsSend({ type: 'stopAll' }); }
     function resetPlayed() { wsSend({ type: 'resetPlayed' }); }
 
-    function onMasterVol(val) {
-      const db = parseFloat(val);
-      document.getElementById('master-db-label').textContent = fmtDb(db) + ' dB';
-      wsSend({ type: 'masterVolume', db });
-    }
-
     function fmtDbLabel(db) {
       if (!isFinite(db) || db <= -40) return '-∞ dB';
       return `${db >= 0 ? '+' : ''}${db.toFixed(1)} dB`;
     }
 
-    // ── Voices ─────────────────────────────────────────────────────────────────
-    function renderVoices() {
+    function onMasterVol(val) {
+      const db = parseFloat(val);
+      document.getElementById('master-db-label').textContent = fmtDbLabel(db);
+      wsSend({ type: 'masterVolume', db });
+    }
+
+    // ── Waveform cache & drawing ───────────────────────────────────────────────
+    const waveCache = new Map();
+
+    async function loadWaveform(clipUrl) {
+      if (waveCache.has(clipUrl)) return waveCache.get(clipUrl);
+      try {
+        const res = await fetch(clipUrl);
+        const ab = await res.arrayBuffer();
+        const actx = new (window.AudioContext || window.webkitAudioContext)();
+        const buf = await actx.decodeAudioData(ab);
+        actx.close();
+        const ch = buf.getChannelData(0);
+        const N = 300;
+        const step = Math.floor(ch.length / N);
+        const peaks = new Float32Array(N);
+        for (let i = 0; i < N; i++) {
+          let max = 0;
+          for (let j = 0; j < step; j++) { const v = Math.abs(ch[i * step + j] || 0); if (v > max) max = v; }
+          peaks[i] = max;
+        }
+        waveCache.set(clipUrl, peaks);
+        return peaks;
+      } catch (_) { return null; }
+    }
+
+    function drawWaveform(canvas, peaks, position, duration, loopStart, loopEnd, isVamp) {
+      const W = canvas.offsetWidth || canvas.parentElement?.offsetWidth || 200;
+      const H = 38;
+      if (canvas.width !== W) canvas.width = W;
+      canvas.height = H;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, W, H);
+      const mid = H / 2;
+      if (peaks && peaks.length) {
+        if (isVamp && duration > 0) {
+          const lx = (loopStart / duration) * W;
+          const lw = Math.max(0, ((loopEnd - loopStart) / duration) * W);
+          ctx.fillStyle = 'rgba(100,60,200,0.15)';
+          ctx.fillRect(lx, 0, lw, H);
+        }
+        const bw = W / peaks.length;
+        ctx.fillStyle = '#3070a8';
+        for (let i = 0; i < peaks.length; i++) {
+          const h = Math.max(1, peaks[i] * mid * 1.8);
+          ctx.fillRect(i * bw, mid - h, Math.max(1, bw - 0.5), h * 2);
+        }
+      } else {
+        ctx.fillStyle = '#222234';
+        ctx.fillRect(0, mid - 1, W, 2);
+      }
+      if (duration > 0) {
+        const px = Math.round((position / duration) * W);
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.fillRect(px - 1, 0, 2, H);
+        ctx.beginPath();
+        ctx.moveTo(px - 4, 0); ctx.lineTo(px + 4, 0); ctx.lineTo(px, 7);
+        ctx.fillStyle = '#ffffff'; ctx.fill();
+      }
+    }
+
+    // ── Stable voice DOM ───────────────────────────────────────────────────────
+    const voiceDomMap = new Map();
+    const voicePosState = new Map();
+
+    function updateVoices() {
       const container = document.getElementById('voices-list');
-      if (!activeInstances.length) {
-        container.innerHTML = '<div class="no-voices">No active voices</div>';
-        return;
+      const currentIds = new Set(activeInstances.map(i => i.instanceId));
+
+      for (const [id, el] of voiceDomMap.entries()) {
+        if (!currentIds.has(id)) { el.remove(); voiceDomMap.delete(id); voicePosState.delete(id); }
       }
 
-      container.innerHTML = activeInstances.map(inst => {
-        const name = inst.title || inst.clip.split('/').pop();
-        const db = isFinite(inst.volume) ? inst.volume : 0;
-        const deramping = inst.isDeramping ? ' deramping' : '';
-        const devampBtn = inst.isVamp && !inst.isDeramping
-          ? `<button class="btn-voice devamp" onclick="voiceDevamp('${inst.instanceId}')">Dvmp</button>`
-          : '';
-        return `<div class="voice-row${deramping}" data-iid="${inst.instanceId}">
-      <div class="voice-name" title="${escHtml(name)}">${escHtml(name)}</div>
-      <div class="voice-vol-wrap">
-        <span class="voice-vol-label">${fmtDb(db)}</span>
-        <input type="range" class="voice-vol" min="-40" max="6" step="0.5"
-          value="${Math.max(-40, Math.min(6, db))}"
-          oninput="voiceVol('${inst.instanceId}', this)">
-      </div>
-      <div class="voice-actions">
-        ${devampBtn}
-        <button class="btn-voice fade" onclick="voiceFade('${inst.instanceId}')">Fade</button>
-        <button class="btn-voice stop" onclick="voiceStop('${inst.instanceId}')">Stop</button>
-      </div>
-    </div>`;
-      }).join('');
+      let noVoicesEl = container.querySelector('.no-voices');
+      if (!activeInstances.length) {
+        if (!noVoicesEl) container.innerHTML = '<div class="no-voices">No active voices</div>';
+        return;
+      }
+      if (noVoicesEl) noVoicesEl.remove();
+
+      activeInstances.forEach(inst => {
+        const id = inst.instanceId;
+        let card = voiceDomMap.get(id);
+        if (!card) {
+          card = buildVoiceCard(inst);
+          container.appendChild(card);
+          voiceDomMap.set(id, card);
+          if (inst.clipUrl) {
+            loadWaveform(inst.clipUrl).then(peaks => {
+              if (voiceDomMap.has(id)) {
+                const c = card.querySelector('.vc-wave');
+                if (c) drawWaveform(c, peaks, inst.position || 0, inst.duration, inst.loopStart, inst.loopEnd, inst.isVamp);
+              }
+            });
+          }
+        }
+
+        voicePosState.set(id, { serverPos: inst.position || 0, receivedAt: performance.now(), paused: inst.paused, duration: inst.duration || 0 });
+
+        card.classList.toggle('deramping', !!inst.isDeramping);
+
+        const playBtn = card.querySelector('.btn-vc[data-role="playpause"]');
+        if (playBtn) {
+          playBtn.className = `btn-vc ${inst.paused ? 'play' : 'pause'}`;
+          playBtn.setAttribute('data-role', 'playpause');
+          playBtn.textContent = inst.paused ? 'Play' : 'Pause';
+        }
+
+        const dvmpBtn = card.querySelector('.btn-vc[data-role="dvmp"]');
+        if (dvmpBtn) dvmpBtn.style.display = (inst.isVamp && !inst.isDeramping) ? '' : 'none';
+
+        const slider = card.querySelector('.vc-vol');
+        if (slider && !slider.matches(':active') && document.activeElement !== slider) {
+          const db = isFinite(inst.volume) ? inst.volume : 0;
+          const clamped = Math.max(-40, Math.min(6, db));
+          if (Math.abs(parseFloat(slider.value) - clamped) > 0.4) {
+            slider.value = clamped;
+            const lbl = card.querySelector('.vc-vol-db');
+            if (lbl) lbl.textContent = fmtDb(db);
+          }
+        }
+
+        const canvas = card.querySelector('.vc-wave');
+        if (canvas) {
+          const peaks = inst.clipUrl ? waveCache.get(inst.clipUrl) : null;
+          drawWaveform(canvas, peaks, inst.position || 0, inst.duration, inst.loopStart, inst.loopEnd, inst.isVamp);
+        }
+      });
     }
 
-    function voiceDevamp(id) { wsSend({ type: 'devamp', instanceId: id }); }
-    function voiceFade(id) { wsSend({ type: 'fadeOut', instanceId: id }); }
-    function voiceStop(id) { wsSend({ type: 'stop', instanceId: id }); }
-    function voiceVol(id, el) {
-      const db = parseFloat(el.value);
-      el.previousElementSibling.textContent = fmtDb(db);
-      wsSend({ type: 'setVolume', instanceId: id, db });
+    function buildVoiceCard(inst) {
+      const id = inst.instanceId;
+      const name = inst.title || (inst.clipUrl || inst.clip || '').split('/').pop();
+      const db = isFinite(inst.volume) ? inst.volume : 0;
+      const card = document.createElement('div');
+      card.className = 'vc';
+      card.dataset.iid = id;
+      card.innerHTML = `
+        <div class="vc-header">
+          <span class="vc-name" title="${escHtml(name)}">${escHtml(name)}</span>
+          <span class="vc-badge ${inst.isVamp ? 'vamp' : 'once'}">${inst.isVamp ? 'Vamp' : 'Once'}</span>
+          <span class="vc-time">00:00.00</span>
+        </div>
+        <div class="vc-wave-wrap">
+          <canvas class="vc-wave"></canvas>
+          <div class="vc-playhead"></div>
+        </div>
+        <div class="vc-controls">
+          <button class="btn-vc ${inst.paused ? 'play' : 'pause'}" data-role="playpause">${inst.paused ? 'Play' : 'Pause'}</button>
+          <button class="btn-vc dvmp" data-role="dvmp" style="${inst.isVamp ? '' : 'display:none'}">Dvmp</button>
+          <button class="btn-vc fade" data-role="fade">Fade</button>
+          <button class="btn-vc stop" data-role="stop">Stop</button>
+          <div class="vc-vol-group">
+            <span class="vc-vol-db">${fmtDb(db)}</span>
+            <input type="range" class="vc-vol" min="-40" max="6" step="0.5" value="${Math.max(-40, Math.min(6, db))}">
+          </div>
+        </div>`;
+
+      card.querySelector('[data-role="playpause"]').addEventListener('click', () => {
+        const btn = card.querySelector('[data-role="playpause"]');
+        wsSend({ type: btn.classList.contains('pause') ? 'pause' : 'resume', instanceId: id });
+      });
+      card.querySelector('[data-role="dvmp"]').addEventListener('click', () => wsSend({ type: 'devamp', instanceId: id }));
+      card.querySelector('[data-role="fade"]').addEventListener('click', () => wsSend({ type: 'fadeOut', instanceId: id }));
+      card.querySelector('[data-role="stop"]').addEventListener('click', () => wsSend({ type: 'stop', instanceId: id }));
+
+      const slider = card.querySelector('.vc-vol');
+      const dbLabel = card.querySelector('.vc-vol-db');
+      slider.addEventListener('input', () => {
+        const db = parseFloat(slider.value);
+        dbLabel.textContent = fmtDb(db);
+        wsSend({ type: 'setVolume', instanceId: id, db });
+      });
+
+      const waveWrap = card.querySelector('.vc-wave-wrap');
+      let seeking = false;
+      const doSeek = e => {
+        const rect = waveWrap.getBoundingClientRect();
+        const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        const st = voicePosState.get(id);
+        if (!st || !st.duration) return;
+        wsSend({ type: 'seek', instanceId: id, position: ratio * st.duration });
+        // Update local state immediately for responsive feel
+        if (st) { st.serverPos = ratio * st.duration; st.receivedAt = performance.now(); }
+      };
+      waveWrap.addEventListener('mousedown', e => { seeking = true; doSeek(e); e.preventDefault(); });
+      document.addEventListener('mousemove', e => { if (seeking) doSeek(e); });
+      document.addEventListener('mouseup', () => { seeking = false; });
+
+      return card;
     }
+
+    // ── RAF loop for smooth playhead ───────────────────────────────────────────
+    function fmtTimecode(secs) {
+      if (!isFinite(secs) || secs < 0) secs = 0;
+      const m = Math.floor(secs / 60), s = Math.floor(secs % 60), cs = Math.floor((secs % 1) * 100);
+      return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}.${String(cs).padStart(2,'0')}`;
+    }
+
+    (function rafLoop() {
+      requestAnimationFrame(rafLoop);
+      for (const [id, state] of voicePosState.entries()) {
+        const card = voiceDomMap.get(id);
+        if (!card || !state.duration) continue;
+        const elapsed = state.paused ? 0 : (performance.now() - state.receivedAt) / 1000;
+        const pos = Math.min(state.serverPos + elapsed, state.duration);
+        const timeEl = card.querySelector('.vc-time');
+        if (timeEl) timeEl.textContent = fmtTimecode(pos);
+        const ph = card.querySelector('.vc-playhead');
+        if (ph) ph.style.left = ((pos / state.duration) * 100).toFixed(3) + '%';
+      }
+    })();
 
     // ── Resizer ────────────────────────────────────────────────────────────────
     (function () {

@@ -9,7 +9,8 @@ import { fileURLToPath } from 'url';
 import ffmpegStatic from 'ffmpeg-static';
 import { playCue, fadeOut as audioFadeOut, stop as audioStop, stopAll as audioStopAll,
          fadeOutAll as audioFadeOutAll, devamp as audioDevamp,
-         listActive, setVolume, masterVolume } from './server-audio.js';
+         listActive, setVolume, masterVolume,
+         pause as audioPause, resume as audioResume, seek as audioSeek } from './server-audio.js';
 
 // NOTE: Please ensure you have pipewire-jack installed and running through `pw-jack node x.js` if you encounter any errors
 
@@ -404,7 +405,7 @@ wss.on('connection', (ws) => {
         const cue = { ...msg.cue };
         if (!cue.cueType && cue.soundSubtype) cue.cueType = cue.soundSubtype;
         if (cue.clip && cue.clip.startsWith('/')) {
-          // Strip leading slash so path.join doesn't treat it as absolute
+          cue.clipUrl = cue.clip; // preserve web path for client waveform display
           cue.clip = join(__dirname, 'public', cue.clip.replace(/^\//, ''));
         }
         const instanceId = await playCue(cue);
@@ -437,6 +438,18 @@ wss.on('connection', (ws) => {
 
       } else if (msg.type === 'setVolume') {
         setVolume(msg.instanceId, msg.db);
+
+      } else if (msg.type === 'pause') {
+        audioPause(msg.instanceId);
+        broadcastInstances();
+
+      } else if (msg.type === 'resume') {
+        await audioResume(msg.instanceId);
+        broadcastInstances();
+
+      } else if (msg.type === 'seek') {
+        await audioSeek(msg.instanceId, msg.position);
+        broadcastInstances();
 
       } else if (msg.type === 'masterVolume') {
         safeMasterVolume(msg.db);
