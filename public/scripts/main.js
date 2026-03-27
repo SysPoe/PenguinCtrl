@@ -21,6 +21,186 @@ let waveformRedrawTimer = null;
 let waveformDrag = null; // { handle, inputId, containerLeft, containerWidth, duration }
 let waveformRafId = null;
 
+// Cue list popup
+let cueListWindow = null;
+
+// === CUE LIST POPUP ===
+
+function openCueList() {
+  if (cueListWindow && !cueListWindow.closed) {
+    cueListWindow.focus();
+    sendCueDataToPopup();
+    return;
+  }
+
+  const width = 900;
+  const height = 600;
+  const left = (screen.width - width) / 2;
+  const top = (screen.height - height) / 2;
+
+  cueListWindow = window.open(
+    'cue-list.html',
+    'cueList',
+    `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+  );
+
+  // Send data once popup loads
+  cueListWindow.onload = () => {
+    sendCueDataToPopup();
+  };
+}
+
+function closeCueList() {
+  if (cueListWindow && !cueListWindow.closed) {
+    cueListWindow.close();
+  }
+  cueListWindow = null;
+}
+
+function getAllCuesSorted() {
+  const cueOrder = calculateCueOrder();
+  const allCues = [];
+
+  // Build a flat list of all cues with their info
+  Object.entries(cueOrder).forEach(([targetId, cueNums]) => {
+    const targetCues = cues[targetId] || {};
+
+    // Lighting cues
+    if (cueNums.lighting && targetCues.lighting) {
+      const lightingList = normalizeCueList(targetCues.lighting);
+      cueNums.lighting.forEach((num, idx) => {
+        if (lightingList[idx]) {
+          allCues.push({
+            id: `${targetId}_l_${lightingList[idx].id}`,
+            targetId,
+            cueType: 'lighting',
+            number: num,
+            title: lightingList[idx].title || 'Untitled',
+            description: lightingList[idx].description || '',
+            position: getCuePosition(targetId),
+            duration: null,
+            soundType: null,
+            liveVoices: null // Placeholder for future implementation
+          });
+        }
+      });
+    }
+
+    // Sound cues
+    if (cueNums.sound && targetCues.sound) {
+      const soundList = normalizeCueList(targetCues.sound);
+      cueNums.sound.forEach((num, idx) => {
+        if (soundList[idx]) {
+          const raw = soundList[idx];
+          allCues.push({
+            id: `${targetId}_s_${raw.id}`,
+            targetId,
+            cueType: 'sound',
+            number: num,
+            title: raw.title || 'Untitled',
+            description: raw.description || '',
+            position: getCuePosition(targetId),
+            duration: raw.duration || null,
+            soundType: raw.soundSubtype || raw.subtype || 'play_once',
+            // Full cue data for execution
+            fullCue: raw,
+          });
+        }
+      });
+    }
+  });
+
+  // Sort by cue number (lighting and sound have separate numbering sequences)
+  // We'll sort by position in the script
+  return allCues.sort((a, b) => {
+    // Get position indices for comparison
+    const posA = getCueSortIndex(a.targetId);
+    const posB = getCueSortIndex(b.targetId);
+    if (posA !== posB) return posA - posB;
+    // Same position: lighting before sound
+    if (a.cueType !== b.cueType) {
+      return a.cueType === 'lighting' ? -1 : 1;
+    }
+    // Same type: sort by cue number
+    return a.number - b.number;
+  });
+}
+
+function getCuePosition(targetId) {
+  // Find the position in the script for display purposes
+  for (const page of pages) {
+    for (const el of page.elements) {
+      if (el.type === 'stage' && el.id === targetId) {
+        return `Page ${page.number} - Stage Direction`;
+      }
+      if (el.type === 'dialogue') {
+        for (const line of el.lines) {
+          if (line.id === targetId) {
+            return `Page ${page.number} - ${el.speaker || 'Unknown'}`;
+          }
+          // Check word-level cues
+          if (targetId.startsWith(line.id + '_w')) {
+            return `Page ${page.number} - ${el.speaker || 'Unknown'} (word)`;
+          }
+        }
+      }
+    }
+  }
+  return 'Unknown position';
+}
+
+function getCueSortIndex(targetId) {
+  // Returns a sortable index based on position in script
+  let idx = 0;
+  for (const page of pages) {
+    for (const el of page.elements) {
+      if (el.type === 'stage') {
+        if (el.id === targetId) return idx;
+        idx++;
+      }
+      if (el.type === 'dialogue') {
+        for (const line of el.lines) {
+          if (line.type === 'line') {
+            // Check target-level
+            if (line.id === targetId) return idx;
+            // Check word-level
+            if (targetId.startsWith(line.id + '_w')) {
+              const wordIdx = parseInt(targetId.split('_w')[1], 10) || 0;
+              return idx + wordIdx * 0.001;
+            }
+            idx++;
+          }
+        }
+      }
+    }
+  }
+  return Infinity;
+}
+
+function sendCueDataToPopup() {
+  if (!cueListWindow || cueListWindow.closed) return;
+
+  const allCues = getAllCuesSorted();
+  cueListWindow.postMessage({
+    type: 'cueData',
+    cues: allCues,
+  }, '*');
+}
+
+// Listen for messages from popup
+window.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'requestCues') {
+    sendCueDataToPopup();
+  } else if (event.data && event.data.type === 'scrollToTarget') {
+    const targetId = event.data.targetId;
+    // Find the element and scroll to it
+    const el = document.querySelector(`[data-line-id="${targetId}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+});
+
 // === UTILITIES ===
 
 function generateId() {
@@ -1558,6 +1738,9 @@ async function persistAndRefresh() {
       currentZoom = savedZoom;
       applyZoom();
       container.scrollTop = savedScrollTop;
+
+      // Update cue list popup if open
+      sendCueDataToPopup();
     } else {
       const error = await res.json();
       console.error('Error saving:', error.error);

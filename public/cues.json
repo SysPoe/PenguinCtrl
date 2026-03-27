@@ -20,5 +20,14 @@
         "loopXfade": 0.08
       }
     ]
+  },
+  "scene_1_2_p12_sd0_w12": {
+    "lighting": [
+      {
+        "id": "mn8nngx5c1dm0",
+        "title": "test",
+        "description": ""
+      }
+    ]
   }
 }

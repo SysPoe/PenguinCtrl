@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cue List</title>
+  <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #1a1a1c;
+      --bg2: #232325;
+      --bg3: #2a2a2c;
+      --border: #3a3a3d;
+      --border2: #28282a;
+      --text: #d4d4d4;
+      --text2: #888;
+      --text3: #555;
+      --accent: #0d6eac;
+      --accent-h: #1080c8;
+      --go-color: #1a7a3a;
+      --go-hover: #22963f;
+      --stop-color: #8b1a1a;
+      --stop-hover: #b02020;
+      --fade-color: #4a3a10;
+      --fade-hover: #6a5418;
+      --vamp-color: #5b3fa6;
+      --once-color: #2a6a2a;
+      --light-color: #8a6a10;
+      --sel-bg: rgba(13,110,172,0.18);
+      --sel-border: rgba(13,110,172,0.6);
+      --active-bg: rgba(26,122,58,0.12);
+    }
+
+    body {
+      font-family: 'Courier Prime', monospace;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      font-size: 12px;
+    }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 5px 10px;
+      background: var(--bg2);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      height: 32px;
+    }
+    .header-left { display: flex; align-items: baseline; gap: 8px; }
+    .header-title { font-size: 12px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text); }
+    .header-count { font-size: 10px; color: var(--text3); }
+    .ws-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--text3); display: inline-block; margin-left: 4px;
+      transition: background 0.3s;
+    }
+    .ws-dot.connected { background: #2d9e5a; }
+    .ws-dot.error { background: #c03030; }
+    .header-btn {
+      background: none; border: 1px solid var(--border); color: var(--text2);
+      font-size: 10px; font-family: inherit; padding: 2px 8px; border-radius: 3px;
+      cursor: pointer;
+    }
+    .header-btn:hover { border-color: var(--text2); color: var(--text); }
+
+    /* ── Cue table pane ── */
+    .pane-top {
+      flex-shrink: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 80px;
+    }
+
+    .cue-table-wrap { flex: 1; overflow-y: auto; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    thead {
+      position: sticky; top: 0; z-index: 5;
+    }
+
+    th {
+      background: var(--bg2);
+      color: var(--text3);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      padding: 4px 6px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    th.r { text-align: right; }
+
+    td {
+      padding: 3px 6px;
+      border-bottom: 1px solid var(--border2);
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+
+    tr.cue-row {
+      cursor: pointer;
+      transition: background 0.06s;
+    }
+    tr.cue-row:hover { background: var(--bg3); }
+    tr.cue-row.selected {
+      background: var(--sel-bg);
+      outline: 1px solid var(--sel-border);
+      outline-offset: -1px;
+    }
+
+    .cue-num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-size: 10px;
+      font-weight: 700;
+      min-width: 30px;
+    }
+    .cue-num.s { background: #1e4a1e; color: #6dd96d; }
+    .cue-num.l { background: #4a3a00; color: #e0b840; }
+
+    .cue-title-cell { max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 0px 5px;
+      border-radius: 2px;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .badge.vamp { background: rgba(91,63,166,0.25); color: #a07de0; }
+    .badge.once { background: rgba(42,106,42,0.2); color: #6abf6a; }
+    .badge.light { background: rgba(138,106,16,0.2); color: #c9a040; }
+
+    .len { color: var(--text2); text-align: right; font-size: 11px; }
+
+    .col-num { width: 42px; }
+    .col-type { width: 56px; }
+    .col-len { width: 50px; text-align: right; }
+
+    /* ── Resizer ── */
+    .resizer {
+      height: 5px;
+      background: var(--border);
+      cursor: ns-resize;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 10;
+    }
+    .resizer:hover, .resizer.dragging { background: var(--accent); }
+    .resizer::after {
+      content: '';
+      position: absolute;
+      left: 50%; top: 50%;
+      transform: translate(-50%, -50%);
+      width: 30px; height: 1px;
+      background: var(--text3);
+    }
+
+    /* ── Bottom transport pane ── */
+    .pane-bottom {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      min-height: 60px;
+    }
+
+    /* Left controls */
+    .transport {
+      width: 140px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 8px;
+      border-right: 1px solid var(--border);
+      background: var(--bg2);
+    }
+
+    .master-vol-row {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .master-vol-label {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text3);
+      display: flex;
+      justify-content: space-between;
+    }
+    .master-vol-label span { color: var(--text2); }
+
+    input[type=range] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 4px;
+      background: var(--bg3);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      background: var(--accent-h);
+      cursor: pointer;
+    }
+    input[type=range].vol-slider::-webkit-slider-thumb { background: #5090c0; }
+
+    .btn-transport {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      padding: 6px 0;
+      border-radius: 4px;
+      border: none;
+      font-size: 11px;
+      font-weight: 700;
+      font-family: inherit;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: background 0.1s;
+    }
+
+    .btn-go {
+      background: var(--go-color);
+      color: #fff;
+      font-size: 14px;
+      padding: 8px 0;
+    }
+    .btn-go:hover { background: var(--go-hover); }
+    .btn-go:active { transform: scale(0.97); }
+    .btn-go:disabled { background: var(--bg3); color: var(--text3); cursor: default; }
+
+    .btn-fade {
+      background: var(--fade-color);
+      color: #c8a040;
+    }
+    .btn-fade:hover { background: var(--fade-hover); }
+
+    .btn-stop {
+      background: var(--stop-color);
+      color: #e06060;
+    }
+    .btn-stop:hover { background: var(--stop-hover); }
+
+    /* Right voices panel */
+    .voices-panel {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .voices-header {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text3);
+      padding-bottom: 4px;
+      border-bottom: 1px solid var(--border2);
+      margin-bottom: 2px;
+    }
+
+    .voice-row {
+      display: grid;
+      grid-template-columns: 1fr 46px 80px 72px;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 6px;
+      background: var(--bg2);
+      border: 1px solid var(--border2);
+      border-radius: 3px;
+    }
+    .voice-row.deramping { opacity: 0.55; }
+
+    .voice-name {
+      font-size: 11px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .voice-vol-wrap {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .voice-vol-label { font-size: 9px; color: var(--text3); width: 26px; text-align: right; }
+
+    input[type=range].voice-vol {
+      height: 3px;
+      flex: 1;
+    }
+    input[type=range].voice-vol::-webkit-slider-thumb {
+      width: 10px; height: 10px;
+    }
+
+    .voice-actions {
+      display: flex;
+      gap: 3px;
+    }
+
+    .btn-voice {
+      padding: 2px 5px;
+      border-radius: 2px;
+      border: 1px solid var(--border);
+      background: var(--bg3);
+      color: var(--text2);
+      font-size: 9px;
+      font-family: inherit;
+      cursor: pointer;
+      white-space: nowrap;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    .btn-voice:hover { color: var(--text); border-color: var(--text2); }
+    .btn-voice.devamp { color: #a07de0; border-color: rgba(91,63,166,0.5); }
+    .btn-voice.devamp:hover { background: rgba(91,63,166,0.2); }
+    .btn-voice.fade { color: #c8a040; border-color: rgba(138,106,16,0.5); }
+    .btn-voice.fade:hover { background: rgba(138,106,16,0.2); }
+    .btn-voice.stop { color: #e06060; border-color: rgba(139,26,26,0.5); }
+    .btn-voice.stop:hover { background: rgba(139,26,26,0.2); }
+
+    .no-voices { color: var(--text3); font-size: 11px; font-style: italic; padding: 8px 0; }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+
+    .empty-cues {
+      padding: 20px;
+      text-align: center;
+      color: var(--text3);
+      font-size: 11px;
+    }
+
+    /* Played tick */
+    tr.cue-row.played td:first-child::before {
+      content: '✓';
+      color: #3a8a4a;
+      font-size: 10px;
+      margin-right: 3px;
+    }
+    tr.cue-row.played .cue-title-cell { color: var(--text3); }
+
+    /* Reset button */
+    .btn-reset {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text3);
+      font-size: 9px;
+      font-family: inherit;
+      padding: 3px 6px;
+      border-radius: 3px;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .btn-reset:hover { color: var(--text2); border-color: var(--text2); }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <span class="header-title">Cue List</span>
+    <span class="header-count" id="cue-count">—</span>
+    <span class="ws-dot" id="ws-dot" title="WebSocket status"></span>
+  </div>
+  <div style="display:flex;gap:6px">
+    <button class="btn-reset" onclick="resetPlayed()" title="Clear all tick marks">Reset</button>
+    <button class="header-btn" onclick="requestCues()">Refresh</button>
+  </div>
+</div>
+
+<div class="pane-top" id="pane-top" style="height: 55vh;">
+  <div class="cue-table-wrap">
+    <table id="cue-table">
+      <thead>
+        <tr>
+          <th class="col-num">#</th>
+          <th>Title</th>
+          <th class="col-type">Type</th>
+          <th class="col-len r">Length</th>
+        </tr>
+      </thead>
+      <tbody id="cue-tbody"></tbody>
+    </table>
+    <div class="empty-cues" id="empty-cues" style="display:none">No cues defined</div>
+  </div>
+</div>
+
+<div class="resizer" id="resizer"></div>
+
+<div class="pane-bottom">
+  <div class="transport">
+    <div class="master-vol-row">
+      <div class="master-vol-label">Master Vol <span id="master-db-label">0 dB</span></div>
+      <input type="range" id="master-vol" min="-40" max="6" step="0.5" value="0"
+             oninput="onMasterVol(this.value)">
+    </div>
+    <button class="btn-transport btn-go" id="btn-go" onclick="goSelected()" disabled>
+      ▶ GO
+    </button>
+    <button class="btn-transport btn-fade" onclick="fadeAll()">
+      ⏷ Fade All
+    </button>
+    <button class="btn-transport btn-stop" onclick="stopAll()">
+      ■ Stop All
+    </button>
+  </div>
+
+  <div class="voices-panel">
+    <div class="voices-header">Active Voices</div>
+    <div id="voices-list"><div class="no-voices">No active voices</div></div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let cuesData = [];
+let selectedIdx = -1;
+let ws = null;
+let activeInstances = [];
+let playedIds = new Set();
+
+// ── WebSocket ──────────────────────────────────────────────────────────────
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}`);
+  const dot = document.getElementById('ws-dot');
+
+  ws.onopen = () => { dot.className = 'ws-dot connected'; };
+  ws.onclose = () => {
+    dot.className = 'ws-dot error';
+    setTimeout(connectWS, 2000);
+  };
+  ws.onerror = () => { dot.className = 'ws-dot error'; };
+
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'instances') {
+      activeInstances = msg.list || [];
+      renderVoices();
+    } else if (msg.type === 'playedCues') {
+      playedIds = new Set(msg.ids || []);
+      applyPlayedTicks();
+    } else if (msg.type === 'masterVolume') {
+      const slider = document.getElementById('master-vol');
+      if (slider && !slider.matches(':active')) {
+        const db = msg.db ?? 0;
+        slider.value = Math.max(-40, Math.min(6, db));
+        document.getElementById('master-db-label').textContent = fmtDb(db) + ' dB';
+      }
+    }
+  };
+}
+
+function wsSend(obj) {
+  if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+}
+
+// ── Cue data ───────────────────────────────────────────────────────────────
+function requestCues() {
+  if (window.opener && window.opener.postMessage) {
+    window.opener.postMessage({ type: 'requestCues' }, '*');
+  }
+}
+
+window.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'cueData') {
+    cuesData = e.data.cues || [];
+    renderCues();
+  }
+});
+
+// ── Formatting ─────────────────────────────────────────────────────────────
+function fmtDur(s) {
+  if (!s || s <= 0) return '—';
+  const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+  return `${m}:${sec.toString().padStart(2, '0')}`;
+}
+
+function fmtDb(db) {
+  if (!isFinite(db) || db <= -40) return '-∞';
+  return `${db >= 0 ? '+' : ''}${db.toFixed(1)}`;
+}
+
+function escHtml(t) {
+  if (!t) return '';
+  return String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+}
+
+// ── Render cue table ───────────────────────────────────────────────────────
+function renderCues() {
+  const tbody = document.getElementById('cue-tbody');
+  const empty = document.getElementById('empty-cues');
+  const count = document.getElementById('cue-count');
+
+  count.textContent = `${cuesData.length} cue${cuesData.length !== 1 ? 's' : ''}`;
+
+  if (!cuesData.length) {
+    tbody.innerHTML = '';
+    empty.style.display = '';
+    setSelected(-1);
+    return;
+  }
+  empty.style.display = 'none';
+
+  tbody.innerHTML = cuesData.map((cue, i) => {
+    const isS = cue.cueType === 'sound';
+    const numClass = isS ? 's' : 'l';
+    const numLabel = isS ? `S${cue.number}` : `L${cue.number}`;
+    let badge = '';
+    if (isS) {
+      const st = cue.soundType || 'play_once';
+      badge = st === 'vamp'
+        ? '<span class="badge vamp">Vamp</span>'
+        : '<span class="badge once">Once</span>';
+    } else {
+      badge = '<span class="badge light">Light</span>';
+    }
+    const sel = i === selectedIdx ? ' selected' : '';
+    const played = playedIds.has(cue.id) ? ' played' : '';
+    return `<tr class="cue-row${sel}${played}" data-idx="${i}" data-id="${escHtml(cue.id)}"
+        ondblclick="goSelected()" onclick="selectRow(${i})">
+      <td class="col-num"><span class="cue-num ${numClass}">${numLabel}</span></td>
+      <td class="cue-title-cell">${escHtml(cue.title)}</td>
+      <td class="col-type">${badge}</td>
+      <td class="col-len len">${isS ? fmtDur(cue.duration) : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  updateGoBtn();
+}
+
+function applyPlayedTicks() {
+  document.querySelectorAll('.cue-row[data-id]').forEach(row => {
+    row.classList.toggle('played', playedIds.has(row.dataset.id));
+  });
+}
+
+// ── Selection ──────────────────────────────────────────────────────────────
+function setSelected(idx) {
+  selectedIdx = idx;
+  document.querySelectorAll('.cue-row').forEach((r, i) => {
+    r.classList.toggle('selected', i === idx);
+  });
+  updateGoBtn();
+  if (idx >= 0 && cuesData[idx]) {
+    if (window.opener && window.opener.postMessage) {
+      window.opener.postMessage({ type: 'scrollToTarget', targetId: cuesData[idx].targetId }, '*');
+    }
+  }
+}
+
+function selectRow(i) { setSelected(i); }
+
+function updateGoBtn() {
+  const btn = document.getElementById('btn-go');
+  btn.disabled = selectedIdx < 0 || selectedIdx >= cuesData.length;
+}
+
+// ── Keyboard nav ───────────────────────────────────────────────────────────
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    const next = Math.min(selectedIdx + 1, cuesData.length - 1);
+    setSelected(next);
+    scrollRowIntoView(next);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    const prev = Math.max(selectedIdx - 1, 0);
+    setSelected(prev);
+    scrollRowIntoView(prev);
+  } else if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    goSelected();
+  }
+});
+
+function scrollRowIntoView(idx) {
+  const row = document.querySelector(`.cue-row[data-idx="${idx}"]`);
+  if (row) row.scrollIntoView({ block: 'nearest' });
+}
+
+// ── Cue execution ──────────────────────────────────────────────────────────
+function goSelected() {
+  if (selectedIdx < 0 || selectedIdx >= cuesData.length) return;
+  const cue = cuesData[selectedIdx];
+
+  if (cue.cueType === 'sound' && cue.fullCue) {
+    wsSend({ type: 'go', cueId: cue.id, cue: cue.fullCue });
+  } else {
+    // Lighting or non-audio: just tick it off
+    wsSend({ type: 'go', cueId: cue.id });
+  }
+
+  // Advance to next cue
+  const next = selectedIdx + 1;
+  if (next < cuesData.length) {
+    setSelected(next);
+    scrollRowIntoView(next);
+  }
+}
+
+function fadeAll()    { wsSend({ type: 'fadeOutAll', duration: 2 }); }
+function stopAll()    { wsSend({ type: 'stopAll' }); }
+function resetPlayed(){ wsSend({ type: 'resetPlayed' }); }
+
+function onMasterVol(val) {
+  const db = parseFloat(val);
+  document.getElementById('master-db-label').textContent = fmtDb(db) + ' dB';
+  wsSend({ type: 'masterVolume', db });
+}
+
+// ── Voices ─────────────────────────────────────────────────────────────────
+function renderVoices() {
+  const container = document.getElementById('voices-list');
+  if (!activeInstances.length) {
+    container.innerHTML = '<div class="no-voices">No active voices</div>';
+    return;
+  }
+
+  container.innerHTML = activeInstances.map(inst => {
+    const name = inst.title || inst.clip.split('/').pop();
+    const db = isFinite(inst.volume) ? inst.volume : 0;
+    const deramping = inst.isDeramping ? ' deramping' : '';
+    const devampBtn = inst.isVamp && !inst.isDeramping
+      ? `<button class="btn-voice devamp" onclick="voiceDevamp('${inst.instanceId}')">Dvmp</button>`
+      : '';
+    return `<div class="voice-row${deramping}" data-iid="${inst.instanceId}">
+      <div class="voice-name" title="${escHtml(name)}">${escHtml(name)}</div>
+      <div class="voice-vol-wrap">
+        <span class="voice-vol-label">${fmtDb(db)}</span>
+        <input type="range" class="voice-vol" min="-40" max="6" step="0.5"
+          value="${Math.max(-40, Math.min(6, db))}"
+          oninput="voiceVol('${inst.instanceId}', this)">
+      </div>
+      <div class="voice-actions">
+        ${devampBtn}
+        <button class="btn-voice fade" onclick="voiceFade('${inst.instanceId}')">Fade</button>
+        <button class="btn-voice stop" onclick="voiceStop('${inst.instanceId}')">Stop</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function voiceDevamp(id) { wsSend({ type: 'devamp', instanceId: id }); }
+function voiceFade(id)   { wsSend({ type: 'fadeOut', instanceId: id }); }
+function voiceStop(id)   { wsSend({ type: 'stop', instanceId: id }); }
+function voiceVol(id, el) {
+  const db = parseFloat(el.value);
+  el.previousElementSibling.textContent = fmtDb(db);
+  wsSend({ type: 'setVolume', instanceId: id, db });
+}
+
+// ── Resizer ────────────────────────────────────────────────────────────────
+(function() {
+  const resizer = document.getElementById('resizer');
+  const paneTop = document.getElementById('pane-top');
+  let startY = 0, startH = 0;
+
+  resizer.addEventListener('mousedown', (e) => {
+    startY = e.clientY;
+    startH = paneTop.offsetHeight;
+    resizer.classList.add('dragging');
+    document.addEventListener('mousemove', onDrag);
+    document.addEventListener('mouseup', onUp);
+    e.preventDefault();
+  });
+
+  function onDrag(e) {
+    const dy = e.clientY - startY;
+    const newH = Math.max(60, Math.min(window.innerHeight - 120, startH + dy));
+    paneTop.style.height = newH + 'px';
+  }
+  function onUp() {
+    resizer.classList.remove('dragging');
+    document.removeEventListener('mousemove', onDrag);
+    document.removeEventListener('mouseup', onUp);
+  }
+})();
+
+// ── Init ───────────────────────────────────────────────────────────────────
+connectWS();
+requestCues();
+</script>
+</body>
+</html>
