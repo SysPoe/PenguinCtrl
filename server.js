@@ -381,7 +381,7 @@ function safeMasterVolume(db) {
 }
 
 // Periodic broadcast so clients stay in sync
-setInterval(broadcastInstances, 500);
+setInterval(broadcastInstances, 100);
 
 wss.on('connection', (ws) => {
   ws.send(JSON.stringify({ type: 'instances', list: listActive() }));
