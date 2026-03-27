@@ -8,7 +8,7 @@ import { parseString } from 'xml2js';
 import { fileURLToPath } from 'url';
 import ffmpegStatic from 'ffmpeg-static';
 import { playCue, fadeOut as audioFadeOut, stop as audioStop, stopAll as audioStopAll,
-         fadeOutAll as audioFadeOutAll, devamp as audioDevamp,
+         fadeOutAll as audioFadeOutAll, devamp as audioDevamp, cancelDevamp as audioCancelDevamp,
          listActive, setVolume, masterVolume,
          pause as audioPause, resume as audioResume, seek as audioSeek } from './server-audio.js';
 
@@ -430,6 +430,10 @@ wss.on('connection', (ws) => {
 
       } else if (msg.type === 'devamp') {
         audioDevamp(msg.instanceId);
+        broadcastInstances();
+
+      } else if (msg.type === 'cancelDevamp') {
+        audioCancelDevamp(msg.instanceId);
         broadcastInstances();
 
       } else if (msg.type === 'fadeOutAll') {

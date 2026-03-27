@@ -527,4 +527,28 @@ async function waitForAll() {
     });
 }
 
-export { playCue, fadeOut, stop, stopAll, fadeOutAll, devamp, listActive, setVolume, masterVolume, pause, resume, seek };
+function cancelDevamp(instanceId) {
+    const inst = activeInstances.get(instanceId);
+    if (!inst || !inst.isDeramping) return;
+    inst.isDeramping = false;
+    inst.timers.forEach(t => clearTimeout(t));
+    inst.timers.clear();
+
+    if (inst.type === 'xfade_vamp') {
+        // Re-enable crossfade scheduling from current player
+        const primary = inst.players[inst.players.length - 1];
+        if (!primary) return;
+        const ctx = getCtx();
+        const elapsed = ctx.currentTime - primary.startCtxTime;
+        const posInLoop = ((primary.startOffset + elapsed) - inst.lStart) % inst.loopDuration;
+        const remaining = inst.loopDuration - posInLoop - inst.loopXfade;
+        scheduleCrossfade(instanceId, primary, Math.max(0, remaining));
+    } else if (inst.nodes) {
+        // Re-enable loop for simple vamp
+        inst.nodes.source.loop = true;
+        inst.nodes.source.loopStart = inst.lStart;
+        inst.nodes.source.loopEnd = inst.lEnd;
+    }
+}
+
+export { playCue, fadeOut, stop, stopAll, fadeOutAll, devamp, cancelDevamp, listActive, setVolume, masterVolume, pause, resume, seek };
