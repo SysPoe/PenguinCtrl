@@ -1,10 +1,15 @@
 import express from 'express';
+import { createServer } from 'http';
+import { WebSocketServer } from 'ws';
 import { readFileSync, statSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync } from 'fs';
 import { join, dirname, extname, basename } from 'path';
 import { execFile } from 'child_process';
 import { parseString } from 'xml2js';
 import { fileURLToPath } from 'url';
 import ffmpegStatic from 'ffmpeg-static';
+import { playCue, fadeOut as audioFadeOut, stop as audioStop, stopAll as audioStopAll,
+         fadeOutAll as audioFadeOutAll, devamp as audioDevamp,
+         listActive, setVolume, masterVolume } from './audio.js';
 
 // NOTE: Please ensure you have pipewire-jack installed and running through `pw-jack node x.js` if you encounter any errors
 
@@ -347,8 +352,103 @@ app.post('/api/audio/upload', express.raw({ type: () => true, limit: '300mb' }),
   }
 });
 
+// ── WebSocket server ──────────────────────────────────────────────────────────
+
+const httpServer = createServer(app);
+const wss = new WebSocketServer({ server: httpServer });
+
+// Played cues tracking (survives reconnects)
+const playedCueIds = new Set();
+
+function broadcast(data) {
+  const msg = JSON.stringify(data);
+  wss.clients.forEach(client => {
+    if (client.readyState === 1) client.send(msg);
+  });
+}
+
+function broadcastInstances() {
+  broadcast({ type: 'instances', list: listActive() });
+}
+
+function broadcastPlayed() {
+  broadcast({ type: 'playedCues', ids: [...playedCueIds] });
+}
+
+function safeMasterVolume(db) {
+  try { return masterVolume(db); } catch (_) { return 0; }
+}
+
+// Periodic broadcast so clients stay in sync
+setInterval(broadcastInstances, 500);
+
+wss.on('connection', (ws) => {
+  ws.send(JSON.stringify({ type: 'instances', list: listActive() }));
+  ws.send(JSON.stringify({ type: 'playedCues', ids: [...playedCueIds] }));
+  try { ws.send(JSON.stringify({ type: 'masterVolume', db: safeMasterVolume() })); } catch (_) {}
+
+  ws.on('message', async (raw) => {
+    let msg;
+    try { msg = JSON.parse(raw); } catch { return; }
+
+    try {
+      if (msg.type === 'go') {
+        // Track played cue id (for tick display)
+        if (msg.cueId) {
+          playedCueIds.add(msg.cueId);
+          broadcastPlayed();
+        }
+        // Lighting cues have no audio — just tracking above
+        if (!msg.cue) return;
+
+        const cue = { ...msg.cue };
+        if (!cue.cueType && cue.soundSubtype) cue.cueType = cue.soundSubtype;
+        if (cue.clip && cue.clip.startsWith('/')) {
+          cue.clip = join(__dirname, 'public', cue.clip);
+        }
+        const instanceId = await playCue(cue);
+        ws.send(JSON.stringify({ type: 'go_ack', instanceId }));
+        broadcastInstances();
+
+      } else if (msg.type === 'resetPlayed') {
+        playedCueIds.clear();
+        broadcastPlayed();
+
+      } else if (msg.type === 'fadeOut') {
+        audioFadeOut(msg.instanceId, msg.duration);
+        broadcastInstances();
+
+      } else if (msg.type === 'stop') {
+        audioStop(msg.instanceId);
+        broadcastInstances();
+
+      } else if (msg.type === 'stopAll') {
+        audioStopAll();
+        broadcastInstances();
+
+      } else if (msg.type === 'devamp') {
+        audioDevamp(msg.instanceId);
+        broadcastInstances();
+
+      } else if (msg.type === 'fadeOutAll') {
+        audioFadeOutAll(msg.duration ?? 2);
+        setTimeout(broadcastInstances, 100);
+
+      } else if (msg.type === 'setVolume') {
+        setVolume(msg.instanceId, msg.db);
+
+      } else if (msg.type === 'masterVolume') {
+        safeMasterVolume(msg.db);
+        broadcast({ type: 'masterVolume', db: safeMasterVolume() });
+      }
+    } catch (err) {
+      ws.send(JSON.stringify({ type: 'error', message: err.message }));
+    }
+  });
+});
+
 // Start server
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   loadSceneIndex().catch(e => console.error('Error loading scenes:', e.message));
   console.log(`Script Viewer running at http://localhost:${PORT}`);
 });

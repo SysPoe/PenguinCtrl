@@ -347,14 +347,61 @@ function devamp(instanceId) {
 
 /**
  * List all currently active instances.
- * @returns {Array<{instanceId: string, clip: string, cueType: string}>}
+ * @returns {Array<{instanceId, clip, title, cueType, isVamp, volume}>}
  */
 function listActive() {
-    return [...activeInstances.entries()].map(([instanceId, inst]) => ({
-        instanceId,
-        clip: inst.clip,
-        cueType: inst.cue.cueType ?? 'play_once',
-    }));
+    return [...activeInstances.entries()].map(([instanceId, inst]) => {
+        let volume = inst.cue?.volume ?? 0;
+        try {
+            if (inst.players) {
+                const last = inst.players[inst.players.length - 1];
+                if (last) {
+                    const v = last.player.volume.value;
+                    if (isFinite(v)) volume = v;
+                }
+            } else if (inst.player) {
+                const v = inst.player.volume.value;
+                if (isFinite(v)) volume = v;
+            }
+        } catch (_) {}
+        return {
+            instanceId,
+            clip: inst.clip,
+            title: inst.cue?.title || inst.clip.split('/').pop(),
+            cueType: inst.cue?.cueType ?? 'play_once',
+            isVamp: inst.type === 'xfade_vamp' || (inst.type === 'simple' && inst.cue?.cueType === 'vamp'),
+            isDeramping: inst.isDeramping,
+            volume,
+        };
+    });
 }
 
-export { playCue, fadeOut, stop, stopAll, fadeOutAll, devamp, listActive };
+/**
+ * Set the volume of a specific instance.
+ * @param {string} instanceId
+ * @param {number} db - Volume in dB
+ */
+function setVolume(instanceId, db) {
+    const inst = activeInstances.get(instanceId);
+    if (!inst) return;
+    if (inst.players) {
+        inst.players.forEach(e => { try { e.player.volume.value = db; } catch (_) {} });
+    } else if (inst.player) {
+        try { inst.player.volume.value = db; } catch (_) {}
+    }
+    if (inst.cue) inst.cue.volume = db;
+}
+
+/**
+ * Get/set master output volume.
+ * @param {number} [db] - If provided, sets the master volume.
+ * @returns {number} Current master volume in dB.
+ */
+function masterVolume(db) {
+    const dest = Tone.getDestination();
+    if (!dest) return 0;
+    if (db !== undefined) dest.volume.value = db;
+    return dest.volume.value;
+}
+
+export { playCue, fadeOut, stop, stopAll, fadeOutAll, devamp, listActive, setVolume, masterVolume };
