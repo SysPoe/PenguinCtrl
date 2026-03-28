@@ -176,6 +176,7 @@ body {
   margin-bottom: 30px;
   box-shadow: var(--page-shadow);
   position: relative;
+  font-family: 'Atkinson Hyperlegible Mono', monospace;
 }
 
 .struck-section {
