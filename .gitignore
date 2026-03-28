@@ -2,3 +2,4 @@ node_modules
 bun.lock
 .claude
 package-lock.json
+yarn.lock
