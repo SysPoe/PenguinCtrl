@@ -22,11 +22,16 @@
     ]
   },
   "scene_1_2_p12_sd0_w12": {
-    "lighting": [
+    "osc": [
       {
         "id": "mn8nngx5c1dm0",
         "title": "test",
-        "description": ""
+        "description": "",
+        "oscAction": "go",
+        "oscPlayback": 1,
+        "oscCueNumber": "1",
+        "oscLevel": 100,
+        "oscTransport": "auto"
       }
     ]
   },

@@ -166,6 +166,7 @@ function buildRemoteCommand({ action, playback, cueNumber, level }) {
 }
 
 cueExecutionEngine.registerHandler('oscDispatch', async (cue) => {
+  console.log('Executing OSC dispatch cue:', cue);
   const action = String(cue?.oscAction || 'go').trim().toLowerCase();
   const playback = 1;
   const cueNumber = cue?.oscCueNumber ?? '1';
@@ -197,6 +198,7 @@ cueExecutionEngine.registerHandler('oscDispatch', async (cue) => {
     return { instanceId: null };
   } catch (err) {
     const targetPort = resolvedTransport === 'osc' ? oscPort : remotePort;
+    console.error(`Error sending ${resolvedTransport.toUpperCase()} command:`, err);
     throw new Error(
       `Failed to send ${resolvedTransport.toUpperCase()} command (${action}) to ${host}:${targetPort} - ${err.message}`
     );

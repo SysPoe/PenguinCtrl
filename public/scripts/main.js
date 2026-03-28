@@ -745,8 +745,12 @@ function getCuePosition(targetId) {
       if (el.type === 'stage' && el.id === targetId) {
         return `Page ${page.number} - Stage Direction`;
       }
+      if (el.type === 'stage' && targetId.startsWith(el.id + '_w')) {
+        return `Page ${page.number} - Stage Direction (word)`;
+      }
       if (el.type === 'dialogue') {
         for (const line of el.lines) {
+          if (!line.id) continue;
           if (line.id === targetId) {
             return `Page ${page.number} - ${el.speaker || 'Unknown'}`;
           }
@@ -768,10 +772,15 @@ function getCueSortIndex(targetId) {
     for (const el of page.elements) {
       if (el.type === 'stage') {
         if (el.id === targetId) return idx;
+        if (targetId.startsWith(el.id + '_w')) {
+          const wordIdx = parseInt(targetId.slice(el.id.length + 2), 10) || 0;
+          return idx + wordIdx * 0.001;
+        }
         idx++;
       }
       if (el.type === 'dialogue') {
         for (const line of el.lines) {
+          if (!line.id) continue;
           if (line.type === 'line') {
             // Check target-level
             if (line.id === targetId) return idx;
@@ -1058,6 +1067,12 @@ function getTargetContext(targetId) {
       if (el.type === 'stage' && el.id === targetId) {
         const t = el.text || '';
         return t.length > 55 ? '"' + t.slice(0, 55) + '…"' : '"' + t + '"';
+      }
+      if (el.type === 'stage' && targetId.startsWith(el.id + '_w')) {
+        const widx = parseInt(targetId.slice(el.id.length + 2));
+        const words = (el.text || '').trim().split(/\s+/);
+        const word = words[widx] || '';
+        return `"${word}" — word ${widx + 1}`;
       }
       if (el.type === 'dialogue') {
         for (const line of el.lines) {
