@@ -29,5 +29,24 @@
         "description": ""
       }
     ]
+  },
+  "scene_1_2_p12_sd0_w16": {
+    "sound": [
+      {
+        "id": "mn9z5gtum83pw",
+        "title": "test2",
+        "description": "",
+        "soundSubtype": "play_once",
+        "clip": "/audio/among-us-role-reveal-sound_1774476508953.webm",
+        "playStyle": "wait",
+        "clipStart": 2.58,
+        "clipEnd": 4.572,
+        "fadeIn": 0.115,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false
+      }
+    ]
   }
 }

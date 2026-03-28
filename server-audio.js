@@ -27,6 +27,13 @@ function getMasterGain() {
     return _masterGain;
 }
 
+function createOutputGain(ctx) {
+    const g = ctx.createGain();
+    g.gain.value = 1;
+    g.connect(getMasterGain());
+    return g;
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function dbToLinear(db) {
@@ -69,7 +76,7 @@ async function loadBuffer(filePath) {
     return audioBuffer;
 }
 
-function makeGain(ctx, vol, fadeIn) {
+function makeGain(ctx, vol, fadeIn, destination = getMasterGain()) {
     const g = ctx.createGain();
     if (fadeIn > 0) {
         g.gain.setValueAtTime(0.0001, ctx.currentTime);
@@ -77,7 +84,7 @@ function makeGain(ctx, vol, fadeIn) {
     } else {
         g.gain.setValueAtTime(vol, ctx.currentTime);
     }
-    g.connect(getMasterGain());
+    g.connect(destination);
     return g;
 }
 
@@ -116,6 +123,9 @@ function clearInstance(id) {
     inst.timers.clear();
     if (inst.type === 'xfade_vamp') {
         inst.players.forEach(disposePlayer);
+        if (inst.outputGain) {
+            try { inst.outputGain.disconnect(); } catch (_) { }
+        }
     } else if (inst.nodes) {
         disposePlayer(inst.nodes);
     }
@@ -132,12 +142,13 @@ function scheduleCrossfade(instanceId, currentPlayer, delaySeconds) {
         const inst = activeInstances.get(instanceId);
         if (!inst || inst.isDeramping) return;
         const ctx = getCtx();
-        const { buffer, lStart, loopXfade, targetVol, loopDuration } = inst;
+        const { buffer, lStart, loopXfade, targetVol, loopDuration, outputGain } = inst;
+        const destination = outputGain ?? getMasterGain();
 
         const nextGain = ctx.createGain();
         nextGain.gain.setValueAtTime(0.0001, ctx.currentTime);
         nextGain.gain.linearRampToValueAtTime(targetVol, ctx.currentTime + loopXfade);
-        nextGain.connect(getMasterGain());
+        nextGain.connect(destination);
         const nextSrc = ctx.createBufferSource();
         nextSrc.buffer = buffer;
         nextSrc.connect(nextGain);
@@ -220,9 +231,13 @@ async function seek(instanceId, newPos) {
     newPos = Math.max(0, Math.min(buffer.duration - 0.01, newPos));
 
     if (inst.type === 'xfade_vamp') {
+        const outputGain = inst.outputGain ?? createOutputGain(ctx);
+        inst.outputGain = outputGain;
+        outputGain.gain.cancelScheduledValues(ctx.currentTime);
+        outputGain.gain.setValueAtTime(1, ctx.currentTime);
         const firstGain = ctx.createGain();
         firstGain.gain.setValueAtTime(vol, ctx.currentTime);
-        firstGain.connect(getMasterGain());
+        firstGain.connect(outputGain);
         const firstSrc = ctx.createBufferSource();
         firstSrc.buffer = buffer;
         firstSrc.connect(firstGain);
@@ -352,7 +367,8 @@ async function playCue(cue) {
 
         if (shouldLoop && loopXfade > 0) {
             const firstLoopDuration = lEnd - clipStart;
-            const firstGain = makeGain(ctx, vol, fadeIn);
+            const outputGain = createOutputGain(ctx);
+            const firstGain = makeGain(ctx, vol, fadeIn, outputGain);
             const firstSrc = ctx.createBufferSource();
             firstSrc.buffer = buffer;
             firstSrc.connect(firstGain);
@@ -363,6 +379,7 @@ async function playCue(cue) {
                 type: 'xfade_vamp', clip, clipUrl, cue, buffer,
                 players: [firstPlayer], timers, isDeramping: false, paused: false,
                 lStart, lEnd, loopDuration, loopXfade, targetVol: vol,
+                outputGain,
             });
             scheduleCrossfade(instanceId, firstPlayer, firstLoopDuration - loopXfade);
 
@@ -419,23 +436,28 @@ function fadeOut(instanceId, duration) {
     if (!inst) return;
     const ctx = getCtx();
     const fd = duration ?? inst.cue?.manualFadeOutDuration ?? 2;
-    inst.isDeramping = true;
-    inst.timers.forEach(t => clearTimeout(t));
-    inst.timers.clear();
 
     if (inst.type === 'xfade_vamp') {
-        inst.players.forEach(p => {
-            p.gain.gain.setValueAtTime(inst.targetVol, ctx.currentTime);
-            p.gain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + fd);
-        });
+        const outputGain = inst.outputGain ?? createOutputGain(ctx);
+        inst.outputGain = outputGain;
+        outputGain.gain.cancelScheduledValues(ctx.currentTime);
+        const currentValue = outputGain.gain.value == null ? 1 : Math.max(outputGain.gain.value, 0.0001);
+        outputGain.gain.setValueAtTime(currentValue, ctx.currentTime);
+        outputGain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + fd);
+
+        const t = setTimeout(() => { clearInstance(instanceId); }, fd * 1000 + 150);
+        inst.timers.add(t);
     } else if (inst.nodes) {
+        inst.isDeramping = true;
+        inst.timers.forEach(t => clearTimeout(t));
+        inst.timers.clear();
         const vol = dbToLinear(inst.cue?.volume ?? 0);
         inst.nodes.gain.gain.setValueAtTime(vol, ctx.currentTime);
         inst.nodes.gain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + fd);
-    }
 
-    const t = setTimeout(() => { clearInstance(instanceId); }, fd * 1000 + 150);
-    inst.timers.add(t);
+        const t = setTimeout(() => { clearInstance(instanceId); }, fd * 1000 + 150);
+        inst.timers.add(t);
+    }
 }
 
 function stop(instanceId) { clearInstance(instanceId); }
