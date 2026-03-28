@@ -682,7 +682,7 @@ function connectRuntimeSocket() {
   };
 
   runtimeWs.onerror = () => {
-    try { runtimeWs.close(); } catch (_) {}
+    try { runtimeWs.close(); } catch (_) { }
   };
 }
 
@@ -1253,11 +1253,11 @@ function updateBreadcrumb(index) {
     if (sceneMeta) break;
   }
 
+  breadcrumbAct.textContent = 'CuSus - p.' + page?.number;
+
   if (sceneMeta) {
-    breadcrumbAct.textContent = sceneMeta.meta.act || '';
     breadcrumbTitle.textContent = sceneMeta.meta.title || 'Untitled';
   } else {
-    breadcrumbAct.textContent = 'Page ' + page?.number;
     breadcrumbTitle.textContent = page?.number ? 'Page ' + page.number : '';
   }
 }
