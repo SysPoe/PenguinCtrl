@@ -6,6 +6,73 @@ let ws = null;
 let activeInstances = [];
 let playedIds = new Set();
 
+const DEFAULT_META = {
+    config: {
+        audio: {
+            masterVolume: {
+                minDb: -40,
+                maxDb: 6,
+                defaultDb: 0,
+            },
+        },
+        realtime: {
+            reconnectDelayMs: 2000,
+        },
+    },
+};
+
+let runtimeMeta = structuredClone(DEFAULT_META);
+
+function isObject(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function deepMerge(base, patch) {
+    if (!isObject(base)) return structuredClone(patch);
+    if (!isObject(patch)) return structuredClone(base);
+    const out = structuredClone(base);
+    Object.entries(patch).forEach(([key, value]) => {
+        if (isObject(value) && isObject(out[key])) out[key] = deepMerge(out[key], value);
+        else out[key] = structuredClone(value);
+    });
+    return out;
+}
+
+function getReconnectDelayMs() {
+    const value = Number(runtimeMeta?.config?.realtime?.reconnectDelayMs ?? 2000);
+    return Number.isFinite(value) ? Math.max(250, value) : 2000;
+}
+
+function getMasterBounds() {
+    const minDb = Number(runtimeMeta?.config?.audio?.masterVolume?.minDb ?? -40);
+    const maxDb = Number(runtimeMeta?.config?.audio?.masterVolume?.maxDb ?? 6);
+    const safeMin = Number.isFinite(minDb) ? minDb : -40;
+    const safeMax = Number.isFinite(maxDb) ? maxDb : 6;
+    return {
+        minDb: Math.min(safeMin, safeMax),
+        maxDb: Math.max(safeMin, safeMax),
+    };
+}
+
+function getDefaultFadeOutSeconds() {
+    const value = Number(runtimeMeta?.config?.ui?.cues?.defaultManualFadeOutSeconds ?? 2);
+    return Number.isFinite(value) ? Math.max(0.1, value) : 2;
+}
+
+function applyRuntimeMeta(meta) {
+    runtimeMeta = deepMerge(DEFAULT_META, isObject(meta) ? meta : {});
+    const slider = document.getElementById('master-vol');
+    if (slider) {
+        const { minDb, maxDb } = getMasterBounds();
+        slider.min = String(minDb);
+        slider.max = String(maxDb);
+        const current = parseFloat(slider.value);
+        const safeCurrent = Number.isFinite(current) ? Math.max(minDb, Math.min(maxDb, current)) : 0;
+        slider.value = safeCurrent;
+        document.getElementById('master-db-label').textContent = fmtDbLabel(safeCurrent);
+    }
+}
+
 // ── WebSocket ──────────────────────────────────────────────────────────────
 function connectWS() {
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -20,7 +87,7 @@ function connectWS() {
     ws.onclose = () => {
         dot.className = 'ws-dot error';
         banner.classList.add('show');
-        setTimeout(connectWS, 2000);
+        setTimeout(connectWS, getReconnectDelayMs());
     };
     ws.onerror = () => {
         dot.className = 'ws-dot error';
@@ -32,14 +99,29 @@ function connectWS() {
         if (msg.type === 'instances') {
             activeInstances = msg.list || [];
             updateVoices();
+        } else if (msg.type === 'meta') {
+            applyRuntimeMeta(msg);
         } else if (msg.type === 'playedCues') {
             playedIds = new Set(msg.ids || []);
             applyPlayedTicks();
         } else if (msg.type === 'masterVolume') {
             const slider = document.getElementById('master-vol');
+            if (Number.isFinite(Number(msg.minDb)) && Number.isFinite(Number(msg.maxDb))) {
+                applyRuntimeMeta({
+                    config: {
+                        audio: {
+                            masterVolume: {
+                                minDb: Number(msg.minDb),
+                                maxDb: Number(msg.maxDb),
+                            },
+                        },
+                    },
+                });
+            }
             if (slider && !slider.matches(':active')) {
                 const db = msg.db ?? 0;
-                slider.value = Math.max(-40, Math.min(6, db));
+                const { minDb, maxDb } = getMasterBounds();
+                slider.value = Math.max(minDb, Math.min(maxDb, db));
                 document.getElementById('master-db-label').textContent = fmtDbLabel(db);
             }
         } else if (msg.type === 'error') {
@@ -74,7 +156,8 @@ function fmtDur(s) {
 }
 
 function fmtDb(db) {
-    if (!isFinite(db) || db <= -40) return '-∞';
+    const { minDb } = getMasterBounds();
+    if (!isFinite(db) || db <= minDb) return '-∞';
     return `${db >= 0 ? '+' : ''}${db.toFixed(1)}`;
 }
 
@@ -100,26 +183,30 @@ function renderCues() {
     empty.style.display = 'none';
 
     tbody.innerHTML = cuesData.map((cue, i) => {
-        const isS = cue.cueType === 'sound';
+        const isS = !!cue?.isAudio;
+        const typeLabel = cue.cueTypeLabel || cue.cueType || 'Cue';
+        const shortLabel = cue.cueTypeShortLabel || typeLabel.slice(0, 1).toUpperCase();
         const numClass = isS ? 's' : 'l';
-        const numLabel = isS ? `S${cue.number}` : `L${cue.number}`;
+        const numLabel = `${shortLabel}${cue.number}`;
         let badge = '';
         if (isS) {
-            const st = cue.soundType || 'play_once';
+            const st = cue.subtype || cue.soundType || 'run';
             badge = st === 'vamp'
                 ? '<span class="badge vamp">Vamp</span>'
-                : '<span class="badge once">Once</span>';
+                : `<span class="badge once">${escHtml(typeLabel)}</span>`;
         } else {
-            badge = '<span class="badge light">Light</span>';
+            badge = `<span class="badge light">${escHtml(typeLabel)}</span>`;
         }
         const sel = i === selectedIdx ? ' selected' : '';
         const played = playedIds.has(cue.id) ? ' played' : '';
+        const cueColor = cue.cueTypeColor || '';
+        const styleAttr = cueColor ? ` style="--cue-color:${escHtml(cueColor)}"` : '';
         return `<tr class="cue-row${sel}${played}" data-idx="${i}" data-id="${escHtml(cue.id)}"
         ondblclick="goSelected()" onclick="selectRow(${i})">
-      <td class="col-num"><span class="cue-num ${numClass}">${numLabel}</span></td>
+      <td class="col-num"><span class="cue-num ${numClass}"${styleAttr}>${numLabel}</span></td>
       <td class="cue-title-cell">${escHtml(cue.title)}</td>
       <td class="col-type">${badge}</td>
-      <td class="col-len len">${isS ? fmtDur(cue.duration) : '—'}</td>
+      <td class="col-len len">${cue.fullCue?.clip ? fmtDur(cue.duration) : '—'}</td>
     </tr>`;
     }).join('');
 
@@ -182,7 +269,7 @@ function goSelected() {
     if (selectedIdx < 0 || selectedIdx >= cuesData.length) return;
     const cue = cuesData[selectedIdx];
 
-    if (cue.cueType === 'sound' && cue.fullCue) {
+    if (cue.fullCue) {
         wsSend({ type: 'go', cueId: cue.id, cue: cue.fullCue });
     } else {
         // Lighting or non-audio: just tick it off
@@ -197,19 +284,22 @@ function goSelected() {
     }
 }
 
-function fadeAll() { wsSend({ type: 'fadeOutAll', duration: 2 }); }
+function fadeAll() { wsSend({ type: 'fadeOutAll', duration: getDefaultFadeOutSeconds() }); }
 function stopAll() { wsSend({ type: 'stopAll' }); }
 function resetPlayed() { wsSend({ type: 'resetPlayed' }); }
 
 function fmtDbLabel(db) {
-    if (!isFinite(db) || db <= -40) return '-∞ dB';
+    const { minDb } = getMasterBounds();
+    if (!isFinite(db) || db <= minDb) return '-∞ dB';
     return `${db >= 0 ? '+' : ''}${db.toFixed(1)} dB`;
 }
 
 function onMasterVol(val) {
     const db = parseFloat(val);
-    document.getElementById('master-db-label').textContent = fmtDbLabel(db);
-    wsSend({ type: 'masterVolume', db });
+    const { minDb, maxDb } = getMasterBounds();
+    const clamped = Math.max(minDb, Math.min(maxDb, db));
+    document.getElementById('master-db-label').textContent = fmtDbLabel(clamped);
+    wsSend({ type: 'masterVolume', db: clamped });
 }
 
 // ── Waveform cache & drawing ───────────────────────────────────────────────
@@ -336,7 +426,8 @@ function updateVoices() {
         const slider = card.querySelector('.vc-vol');
         if (slider && !slider.matches(':active') && document.activeElement !== slider) {
             const db = isFinite(inst.volume) ? inst.volume : 0;
-            const clamped = Math.max(-40, Math.min(6, db));
+            const { minDb, maxDb } = getMasterBounds();
+            const clamped = Math.max(minDb, Math.min(maxDb, db));
             if (Math.abs(parseFloat(slider.value) - clamped) > 0.4) {
                 slider.value = clamped;
                 const lbl = card.querySelector('.vc-vol-db');
@@ -356,6 +447,7 @@ function buildVoiceCard(inst) {
     const id = inst.instanceId;
     const name = inst.title || (inst.clipUrl || inst.clip || '').split('/').pop();
     const db = isFinite(inst.volume) ? inst.volume : 0;
+    const { minDb, maxDb } = getMasterBounds();
     const card = document.createElement('div');
     card.className = 'vc';
     card.dataset.iid = id;
@@ -378,7 +470,7 @@ function buildVoiceCard(inst) {
           <button class="btn-vc stop" data-role="stop">Stop</button>
           <div class="vc-vol-group">
             <span class="vc-vol-db">${fmtDb(db)}</span>
-            <input type="range" class="vc-vol" min="-40" max="6" step="0.5" value="${Math.max(-40, Math.min(6, db))}">
+            <input type="range" class="vc-vol" min="${minDb}" max="${maxDb}" step="0.5" value="${Math.max(minDb, Math.min(maxDb, db))}">
           </div>
         </div>`;
 

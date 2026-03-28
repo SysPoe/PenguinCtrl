@@ -317,6 +317,7 @@ async function resume(instanceId) {
 
 async function playCue(cue) {
     const cueType = cue.cueType || cue.soundSubtype || 'play_once';
+    const playbackMode = cue.soundSubtype || (cueType === 'sound' ? 'play_once' : cueType);
     const {
         clip,
         clipUrl = null,
@@ -359,7 +360,7 @@ async function playCue(cue) {
     const timers = new Set();
     const vol = dbToLinear(volumeDb);
 
-    if (cueType === 'vamp') {
+    if (playbackMode === 'vamp') {
         const lEnd = loopEnd ?? dur;
         const lStart = loopStart;
         const loopDuration = lEnd - lStart;

@@ -1,0 +1,30 @@
+{
+  "audio": {
+    "upload": {
+      "maxMb": 300
+    },
+    "masterVolume": {
+      "defaultDb": 0,
+      "minDb": -40,
+      "maxDb": 6
+    }
+  },
+  "realtime": {
+    "instanceBroadcastMs": 100,
+    "reconnectDelayMs": 2000
+  },
+  "ui": {
+    "script": {
+      "minZoom": 50,
+      "maxZoom": 200,
+      "zoomStep": 10,
+      "wheelZoomStep": 5
+    },
+    "cues": {
+      "defaultManualFadeOutSeconds": 2
+    }
+  },
+  "system": {
+    "notes": "When running with pulseaudio please ensure you are running it through pw-jack"
+  }
+}

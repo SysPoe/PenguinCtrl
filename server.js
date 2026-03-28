@@ -11,6 +11,9 @@ import { playCue, fadeOut as audioFadeOut, stop as audioStop, stopAll as audioSt
          fadeOutAll as audioFadeOutAll, devamp as audioDevamp, cancelDevamp as audioCancelDevamp,
          listActive, setVolume, masterVolume,
          pause as audioPause, resume as audioResume, seek as audioSeek } from './server-audio.js';
+import { createConfigService } from './config/config-service.js';
+import { createCueTypeRegistry } from './config/cue-type-registry.js';
+import { createCueExecutionEngine } from './server-cue-handlers.js';
 
 // NOTE: Please ensure you have pipewire-jack installed and running through `pw-jack node x.js` if you encounter any errors
 
@@ -22,7 +25,63 @@ const PORT = process.env.PORT || 3000;
 const SCENES_FILE = join(__dirname, 'scenes.xml');
 const CUES_FILE = join(__dirname, 'public', 'cues.json');
 const AUDIO_DIR = join(__dirname, 'public', 'audio');
+const CONFIG_SCHEMA_FILE = join(__dirname, 'config', 'config-schema.json');
+const CONFIG_VALUES_FILE = join(__dirname, 'config', 'config-values.json');
+const CUE_TYPES_FILE = join(__dirname, 'config', 'cue-types.json');
 if (!existsSync(AUDIO_DIR)) mkdirSync(AUDIO_DIR, { recursive: true });
+
+const configService = createConfigService({
+  schemaPath: CONFIG_SCHEMA_FILE,
+  valuesPath: CONFIG_VALUES_FILE,
+});
+
+const cueTypeRegistry = createCueTypeRegistry({
+  filePath: CUE_TYPES_FILE,
+});
+
+const cueExecutionEngine = createCueExecutionEngine({
+  cueTypeRegistry,
+  playAudioCue: playCue,
+  workspaceRoot: __dirname,
+});
+
+function getUploadLimit() {
+  const maxMb = Number(configService.getValue('audio.upload.maxMb', 300));
+  const normalized = Number.isFinite(maxMb) ? Math.max(10, maxMb) : 300;
+  return `${normalized}mb`;
+}
+
+function getMasterVolumeBounds() {
+  const minDb = Number(configService.getValue('audio.masterVolume.minDb', -40));
+  const maxDb = Number(configService.getValue('audio.masterVolume.maxDb', 6));
+  const safeMin = Number.isFinite(minDb) ? minDb : -40;
+  const safeMax = Number.isFinite(maxDb) ? maxDb : 6;
+  return {
+    minDb: Math.min(safeMin, safeMax),
+    maxDb: Math.max(safeMin, safeMax),
+  };
+}
+
+function clampMasterVolumeDb(db) {
+  const value = Number(db);
+  const { minDb, maxDb } = getMasterVolumeBounds();
+  if (!Number.isFinite(value)) return Number(configService.getValue('audio.masterVolume.defaultDb', 0)) || 0;
+  return Math.min(maxDb, Math.max(minDb, value));
+}
+
+function getRuntimeMeta() {
+  const db = safeMasterVolume();
+  return {
+    config: configService.getClientConfig(),
+    cueTypes: cueTypeRegistry.listTypes(),
+    masterVolume: {
+      ...getMasterVolumeBounds(),
+      db,
+    },
+  };
+}
+
+safeMasterVolume(clampMasterVolumeDb(configService.getValue('audio.masterVolume.defaultDb', 0)));
 
 // Cache for parsed scenes
 let sceneCache = {
@@ -259,6 +318,69 @@ function mergeCuesWithPages(pages, cues) {
 app.use(express.static(join(__dirname, 'public')));
 app.use(express.json());
 
+function uploadRawMiddleware(req, res, next) {
+  return express.raw({ type: () => true, limit: getUploadLimit() })(req, res, next);
+}
+
+// API: Runtime metadata used by clients
+app.get('/api/meta', (_req, res) => {
+  res.json(getRuntimeMeta());
+});
+
+// API: Config schema + values
+app.get('/api/config', (_req, res) => {
+  const bundle = configService.getBundle();
+  res.json({
+    schema: bundle.schema,
+    values: bundle.values,
+    effective: bundle.effective,
+    client: bundle.client,
+    cueTypes: cueTypeRegistry.listTypes(),
+    masterVolume: {
+      ...getMasterVolumeBounds(),
+      db: safeMasterVolume(),
+    },
+  });
+});
+
+// API: Save config values
+app.post('/api/config', (req, res) => {
+  try {
+    const payload = req.body && typeof req.body === 'object' ? req.body : {};
+    const nextValues = payload.values && typeof payload.values === 'object'
+      ? payload.values
+      : payload;
+
+    const bundle = configService.saveValues(nextValues);
+    const currentDb = safeMasterVolume();
+    safeMasterVolume(clampMasterVolumeDb(currentDb));
+    broadcast({
+      type: 'meta',
+      config: bundle.client,
+      cueTypes: cueTypeRegistry.listTypes(),
+      masterVolume: {
+        ...getMasterVolumeBounds(),
+        db: safeMasterVolume(),
+      },
+    });
+
+    res.json({
+      success: true,
+      schema: bundle.schema,
+      values: bundle.values,
+      effective: bundle.effective,
+      client: bundle.client,
+      cueTypes: cueTypeRegistry.listTypes(),
+      masterVolume: {
+        ...getMasterVolumeBounds(),
+        db: safeMasterVolume(),
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // API: Get all cues
 app.get('/api/cues', async (req, res) => {
   try {
@@ -322,7 +444,7 @@ app.get('/api/audio/list', (_req, res) => {
 });
 
 // API: Upload and transcode audio file
-app.post('/api/audio/upload', express.raw({ type: () => true, limit: '300mb' }), async (req, res) => {
+app.post('/api/audio/upload', uploadRawMiddleware, async (req, res) => {
   const rawName = (req.headers['x-filename'] || 'upload.bin').replace(/\.\./g, '');
   const safe = basename(rawName).replace(/[^a-zA-Z0-9._\-]/g, '_');
   const ts = Date.now();
@@ -377,13 +499,29 @@ function broadcastPlayed() {
 }
 
 function safeMasterVolume(db) {
-  try { return masterVolume(db); } catch (_) { return db ?? 0; }
+  const clamped = db === undefined ? undefined : clampMasterVolumeDb(db);
+  try {
+    return masterVolume(clamped);
+  } catch (_) {
+    if (clamped === undefined) return 0;
+    return clamped;
+  }
 }
 
 // Periodic broadcast so clients stay in sync
-setInterval(broadcastInstances, 100);
+function scheduleInstanceBroadcast() {
+  const intervalMs = Number(configService.getValue('realtime.instanceBroadcastMs', 100));
+  const safeInterval = Number.isFinite(intervalMs) ? Math.max(25, intervalMs) : 100;
+  setTimeout(() => {
+    broadcastInstances();
+    scheduleInstanceBroadcast();
+  }, safeInterval);
+}
+
+scheduleInstanceBroadcast();
 
 wss.on('connection', (ws) => {
+  ws.send(JSON.stringify({ type: 'meta', ...getRuntimeMeta() }));
   ws.send(JSON.stringify({ type: 'instances', list: listActive() }));
   ws.send(JSON.stringify({ type: 'playedCues', ids: [...playedCueIds] }));
   try { ws.send(JSON.stringify({ type: 'masterVolume', db: safeMasterVolume() })); } catch (_) {}
@@ -399,17 +537,14 @@ wss.on('connection', (ws) => {
           playedCueIds.add(msg.cueId);
           broadcastPlayed();
         }
-        // Lighting cues have no audio — just tracking above
-        if (!msg.cue) return;
 
-        const cue = { ...msg.cue };
-        if (!cue.cueType && cue.soundSubtype) cue.cueType = cue.soundSubtype;
-        if (cue.clip && cue.clip.startsWith('/')) {
-          cue.clipUrl = cue.clip; // preserve web path for client waveform display
-          cue.clip = join(__dirname, 'public', cue.clip.replace(/^\//, ''));
-        }
-        const instanceId = await playCue(cue);
-        ws.send(JSON.stringify({ type: 'go_ack', instanceId }));
+        const execution = await cueExecutionEngine.execute(msg.cue || null);
+        ws.send(JSON.stringify({
+          type: 'go_ack',
+          instanceId: execution.instanceId ?? null,
+          cueType: execution.cueType,
+          handler: execution.handlerName,
+        }));
         broadcastInstances();
 
       } else if (msg.type === 'resetPlayed') {
@@ -437,7 +572,9 @@ wss.on('connection', (ws) => {
         broadcastInstances();
 
       } else if (msg.type === 'fadeOutAll') {
-        audioFadeOutAll(msg.duration ?? 2);
+        const defaultFade = Number(configService.getValue('ui.cues.defaultManualFadeOutSeconds', 2));
+        const fallbackDuration = Number.isFinite(defaultFade) ? Math.max(0.1, defaultFade) : 2;
+        audioFadeOutAll(msg.duration ?? fallbackDuration);
         setTimeout(broadcastInstances, 100);
 
       } else if (msg.type === 'setVolume') {
@@ -457,7 +594,11 @@ wss.on('connection', (ws) => {
 
       } else if (msg.type === 'masterVolume') {
         safeMasterVolume(msg.db);
-        broadcast({ type: 'masterVolume', db: safeMasterVolume() });
+        broadcast({
+          type: 'masterVolume',
+          db: safeMasterVolume(),
+          ...getMasterVolumeBounds(),
+        });
       }
     } catch (err) {
       ws.send(JSON.stringify({ type: 'error', message: err.message }));

@@ -228,10 +228,22 @@ tr.cue-row.selected {
     border: 1px solid #2a6a2a;
 }
 
+.cue-num.s[style*="--cue-color"] {
+    background: color-mix(in srgb, var(--cue-color) 28%, #111a11);
+    border-color: color-mix(in srgb, var(--cue-color) 72%, #2a6a2a);
+    color: color-mix(in srgb, var(--cue-color) 82%, #ffffff);
+}
+
 .cue-num.l {
     background: #3a2c00;
     color: #f0c840;
     border: 1px solid #6a5000;
+}
+
+.cue-num.l[style*="--cue-color"] {
+    background: color-mix(in srgb, var(--cue-color) 28%, #1a1200);
+    border-color: color-mix(in srgb, var(--cue-color) 72%, #6a5000);
+    color: color-mix(in srgb, var(--cue-color) 82%, #ffffff);
 }
 
 .cue-title-cell {

@@ -1,3 +1,64 @@
+const DEFAULT_APP_CONFIG = {
+  audio: {
+    masterVolume: {
+      minDb: -40,
+      maxDb: 6,
+      defaultDb: 0,
+    },
+  },
+  realtime: {
+    reconnectDelayMs: 2000,
+    instanceBroadcastMs: 100,
+  },
+  ui: {
+    script: {
+      minZoom: 50,
+      maxZoom: 200,
+      zoomStep: 10,
+      wheelZoomStep: 5,
+    },
+    cues: {
+      defaultManualFadeOutSeconds: 2,
+    },
+  },
+};
+
+const DEFAULT_CUE_TYPES = [
+  {
+    id: 'lighting',
+    label: 'Lighting',
+    shortLabel: 'L',
+    editor: 'basic',
+    handler: 'trackOnly',
+    color: '#f59e0b',
+    order: 10,
+    payloadDefaults: {},
+  },
+  {
+    id: 'sound',
+    label: 'Sound',
+    shortLabel: 'S',
+    editor: 'sound',
+    handler: 'audioPlay',
+    color: '#10b981',
+    order: 20,
+    payloadDefaults: {
+      soundSubtype: 'play_once',
+      playStyle: 'alongside',
+      clipStart: 0,
+      clipEnd: null,
+      fadeIn: 0,
+      fadeOut: 0,
+      volume: 0,
+      manualFadeOutDuration: 2,
+      allowMultipleInstances: false,
+      loopStart: 0,
+      loopEnd: null,
+      loopXfade: 0,
+    },
+  },
+];
+
 let pages = [];
 let renderedPages = new Set();
 let currentZoom = 100;
@@ -6,6 +67,10 @@ let savedScrollPosition = null;
 let cues = {};
 let cueNumberingCache = null;
 let previewSeekPosition = null;
+
+let appConfig = deepMerge(DEFAULT_APP_CONFIG, {});
+let cueTypes = normalizeCueTypeDefs(DEFAULT_CUE_TYPES);
+let cueTypeMap = buildCueTypeMap(cueTypes);
 
 // Modal state
 let currentTargetId = null;
@@ -23,6 +88,454 @@ let waveformRafId = null;
 
 // Cue list popup
 let cueListWindow = null;
+
+// Config modal state
+let configSchema = null;
+let configValues = {};
+let configFieldDefs = new Map();
+
+function isObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function deepMerge(base, patch) {
+  if (!isObject(base)) return structuredClone(patch);
+  if (!isObject(patch)) return structuredClone(base);
+
+  const out = structuredClone(base);
+  Object.entries(patch).forEach(([key, value]) => {
+    if (isObject(value) && isObject(out[key])) {
+      out[key] = deepMerge(out[key], value);
+    } else {
+      out[key] = structuredClone(value);
+    }
+  });
+  return out;
+}
+
+function getObjectPath(obj, path, fallback = undefined) {
+  const parts = String(path || '').split('.').filter(Boolean);
+  let cur = obj;
+  for (const part of parts) {
+    if (!isObject(cur) || !(part in cur)) return fallback;
+    cur = cur[part];
+  }
+  return cur;
+}
+
+function setObjectPath(obj, path, value) {
+  const parts = String(path || '').split('.').filter(Boolean);
+  if (!parts.length) return;
+
+  let cur = obj;
+  for (let i = 0; i < parts.length - 1; i++) {
+    const part = parts[i];
+    if (!isObject(cur[part])) cur[part] = {};
+    cur = cur[part];
+  }
+  cur[parts[parts.length - 1]] = value;
+}
+
+function sanitizeCueTypeId(rawId, fallbackId = 'type') {
+  const clean = String(rawId || '').trim().replace(/[^a-zA-Z0-9_-]/g, '');
+  return clean || fallbackId;
+}
+
+function jsQuote(value) {
+  return JSON.stringify(String(value ?? '')).slice(1, -1)
+    .replace(/'/g, "\\'");
+}
+
+function normalizeCueTypeDefs(rawTypes) {
+  const source = Array.isArray(rawTypes) && rawTypes.length ? rawTypes : DEFAULT_CUE_TYPES;
+  const seen = new Set();
+  const out = [];
+
+  source.forEach((type, index) => {
+    const id = sanitizeCueTypeId(type?.id, `type_${index + 1}`);
+    if (seen.has(id)) return;
+    seen.add(id);
+    out.push({
+      id,
+      label: String(type?.label || id),
+      shortLabel: String(type?.shortLabel || id.slice(0, 1).toUpperCase()),
+      editor: type?.editor === 'sound' ? 'sound' : 'basic',
+      handler: String(type?.handler || 'trackOnly'),
+      color: String(type?.color || '#888888'),
+      order: Number.isFinite(Number(type?.order)) ? Number(type.order) : (index + 1) * 10,
+      payloadDefaults: isObject(type?.payloadDefaults) ? structuredClone(type.payloadDefaults) : {},
+    });
+  });
+
+  if (!out.length) return normalizeCueTypeDefs(DEFAULT_CUE_TYPES);
+
+  out.sort((a, b) => a.order - b.order);
+  return out;
+}
+
+function buildCueTypeMap(types) {
+  return Object.fromEntries((types || []).map(type => [type.id, type]));
+}
+
+function getCueType(typeId) {
+  return cueTypeMap[typeId] || null;
+}
+
+function isSoundCueType(typeId) {
+  return getCueType(typeId)?.editor === 'sound';
+}
+
+function getPrimarySoundCueType() {
+  return cueTypes.find(type => type.editor === 'sound') || null;
+}
+
+function getCurrentSoundCueTypeId() {
+  if (currentCueType && isSoundCueType(currentCueType)) return currentCueType;
+  return getPrimarySoundCueType()?.id || 'sound';
+}
+
+function safeCssColor(color, fallback = '#888888') {
+  const value = String(color || '').trim();
+  if (/^#([0-9a-f]{3,8})$/i.test(value)) return value;
+  if (/^rgba?\([0-9.,\s%]+\)$/i.test(value)) return value;
+  if (/^hsla?\([0-9.,\s%]+\)$/i.test(value)) return value;
+  return fallback;
+}
+
+function getTypeColor(typeId) {
+  return safeCssColor(getCueType(typeId)?.color || '#888888');
+}
+
+function getTypeBorderClass(typeId) {
+  if (typeId === 'lighting') return 'has-lighting';
+  if (typeId === 'sound') return 'has-sound';
+  return '';
+}
+
+function getTypeLabel(typeId) {
+  return getCueType(typeId)?.label || typeId;
+}
+
+function getTypeShortLabel(typeId) {
+  return getCueType(typeId)?.shortLabel || (typeId ? typeId.slice(0, 1).toUpperCase() : '?');
+}
+
+function getCueTypePayloadDefaults(typeId) {
+  return structuredClone(getCueType(typeId)?.payloadDefaults || {});
+}
+
+function cueTypeSortIndex(typeId) {
+  const idx = cueTypes.findIndex(type => type.id === typeId);
+  return idx === -1 ? Number.MAX_SAFE_INTEGER : idx;
+}
+
+function getConfig(path, fallback = undefined) {
+  const parts = String(path || '').split('.').filter(Boolean);
+  let cur = appConfig;
+  for (const part of parts) {
+    if (!isObject(cur) || !(part in cur)) return fallback;
+    cur = cur[part];
+  }
+  return cur;
+}
+
+function getZoomMin() {
+  const value = Number(getConfig('ui.script.minZoom', 50));
+  return Number.isFinite(value) ? Math.max(10, value) : 50;
+}
+
+function getZoomMax() {
+  const value = Number(getConfig('ui.script.maxZoom', 200));
+  return Number.isFinite(value) ? Math.max(getZoomMin(), value) : 200;
+}
+
+function getZoomStep() {
+  const value = Number(getConfig('ui.script.zoomStep', 10));
+  return Number.isFinite(value) ? Math.max(1, value) : 10;
+}
+
+function getWheelZoomStep() {
+  const value = Number(getConfig('ui.script.wheelZoomStep', 5));
+  return Number.isFinite(value) ? Math.max(1, value) : 5;
+}
+
+function getDefaultManualFadeOutSeconds() {
+  const value = Number(getConfig('ui.cues.defaultManualFadeOutSeconds', 2));
+  return Number.isFinite(value) ? Math.max(0.1, value) : 2;
+}
+
+function clampZoom(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return getZoomMin();
+  return Math.max(getZoomMin(), Math.min(getZoomMax(), parsed));
+}
+
+function getCueTypeIcon(type) {
+  if (type.id === 'lighting') {
+    return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6M12 2v1M12 21v1M4.22 4.22l.7.7M19.08 19.08l.7.7M2 12h1M21 12h1M4.22 19.78l.7-.7M19.08 4.92l.7-.7M12 6a6 6 0 0 0 0 12" /></svg>`;
+  }
+  if (type.editor === 'sound') {
+    return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14" /></svg>`;
+  }
+  return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>`;
+}
+
+function renderCueTypeSelector() {
+  const selector = document.getElementById('cue-type-selector');
+  if (!selector) return;
+
+  selector.innerHTML = cueTypes.map(type => {
+    const typeId = sanitizeCueTypeId(type.id, 'type');
+    const color = getTypeColor(type.id);
+    return `<button class="cue-type-btn dynamic" data-type="${typeId}" onclick="selectCueType('${jsQuote(typeId)}')" style="--cue-accent:${color}">${getCueTypeIcon(type)}${escapeHtml(type.label)}</button>`;
+  }).join('');
+}
+
+function applyMeta(meta = {}) {
+  appConfig = deepMerge(DEFAULT_APP_CONFIG, isObject(meta.config) ? meta.config : {});
+  cueTypes = normalizeCueTypeDefs(meta.cueTypes);
+  cueTypeMap = buildCueTypeMap(cueTypes);
+  renderCueTypeSelector();
+  currentZoom = clampZoom(currentZoom);
+  if (document.getElementById('script-content')) {
+    applyZoom();
+  }
+
+  const master = meta.masterVolume;
+  if (isObject(master)) {
+    const minDb = Number(master.minDb);
+    const maxDb = Number(master.maxDb);
+    const db = Number(master.db);
+    if (Number.isFinite(minDb) && Number.isFinite(maxDb)) {
+      appConfig.audio = appConfig.audio || {};
+      appConfig.audio.masterVolume = appConfig.audio.masterVolume || {};
+      appConfig.audio.masterVolume.minDb = Math.min(minDb, maxDb);
+      appConfig.audio.masterVolume.maxDb = Math.max(minDb, maxDb);
+    }
+    if (Number.isFinite(db)) {
+      appConfig.audio = appConfig.audio || {};
+      appConfig.audio.masterVolume = appConfig.audio.masterVolume || {};
+      appConfig.audio.masterVolume.defaultDb = db;
+    }
+  }
+}
+
+function normalizeConfigField(section, rawField) {
+  return {
+    sectionId: section.id,
+    sectionLabel: section.label,
+    key: String(rawField.key || ''),
+    label: String(rawField.label || rawField.key || 'Field'),
+    type: String(rawField.type || 'text'),
+    min: rawField.min,
+    max: rawField.max,
+    step: rawField.step,
+    help: rawField.help || '',
+    placeholder: rawField.placeholder || '',
+    multiline: !!rawField.multiline,
+    options: Array.isArray(rawField.options) ? rawField.options : [],
+    default: rawField.default,
+  };
+}
+
+function rebuildConfigFieldIndex(schema) {
+  const fieldMap = new Map();
+  const sections = Array.isArray(schema?.sections) ? schema.sections : [];
+  sections.forEach(section => {
+    const fields = Array.isArray(section.fields) ? section.fields : [];
+    fields.forEach(rawField => {
+      if (!rawField || typeof rawField.key !== 'string') return;
+      fieldMap.set(rawField.key, normalizeConfigField(section, rawField));
+    });
+  });
+  configFieldDefs = fieldMap;
+}
+
+function parseConfigInputValue(field, rawValue) {
+  const type = field?.type || 'text';
+  if (type === 'number') {
+    const parsed = Number(rawValue);
+    if (!Number.isFinite(parsed)) return Number(field.default) || 0;
+    let value = parsed;
+    if (Number.isFinite(Number(field.min))) value = Math.max(Number(field.min), value);
+    if (Number.isFinite(Number(field.max))) value = Math.min(Number(field.max), value);
+    return value;
+  }
+
+  if (type === 'boolean') {
+    return !!rawValue;
+  }
+
+  if (type === 'json') {
+    if (!rawValue) return field.default ?? null;
+    try {
+      return JSON.parse(rawValue);
+    } catch {
+      return field.default ?? null;
+    }
+  }
+
+  if (type === 'select') {
+    return rawValue;
+  }
+
+  return rawValue == null ? '' : String(rawValue);
+}
+
+function renderConfigField(field, values) {
+  const value = getObjectPath(values, field.key, field.default);
+  const keyAttr = escapeHtml(field.key);
+  const label = escapeHtml(field.label);
+  const help = field.help ? `<div class="config-help">${escapeHtml(field.help)}</div>` : '';
+  const placeholder = field.placeholder ? ` placeholder="${escapeHtml(field.placeholder)}"` : '';
+
+  let inputHtml = '';
+  if (field.type === 'boolean') {
+    const checked = value ? ' checked' : '';
+    inputHtml = `<label class="toggle-row"><input type="checkbox" data-config-key="${keyAttr}"${checked}><span>${label}</span></label>`;
+    return `<div class="config-field">${inputHtml}${help}</div>`;
+  }
+
+  if (field.type === 'select') {
+    inputHtml = `<select data-config-key="${keyAttr}">${field.options.map(option => {
+      const optionValue = isObject(option) ? option.value : option;
+      const optionLabel = isObject(option) ? (option.label ?? option.value) : option;
+      const selected = String(optionValue) === String(value) ? ' selected' : '';
+      return `<option value="${escapeHtml(String(optionValue))}"${selected}>${escapeHtml(String(optionLabel))}</option>`;
+    }).join('')}</select>`;
+  } else if (field.type === 'json' || field.multiline) {
+    const raw = field.type === 'json'
+      ? JSON.stringify(value ?? field.default ?? null, null, 2)
+      : String(value ?? '');
+    inputHtml = `<textarea data-config-key="${keyAttr}"${placeholder}>${escapeHtml(raw)}</textarea>`;
+  } else {
+    const inputType = field.type === 'number' ? 'number' : 'text';
+    const minAttr = field.type === 'number' && Number.isFinite(Number(field.min)) ? ` min="${field.min}"` : '';
+    const maxAttr = field.type === 'number' && Number.isFinite(Number(field.max)) ? ` max="${field.max}"` : '';
+    const stepAttr = field.type === 'number' && Number.isFinite(Number(field.step)) ? ` step="${field.step}"` : '';
+    inputHtml = `<input type="${inputType}" data-config-key="${keyAttr}" value="${escapeHtml(String(value ?? ''))}"${minAttr}${maxAttr}${stepAttr}${placeholder}>`;
+  }
+
+  return `<div class="config-field"><label>${label}</label>${inputHtml}${help}</div>`;
+}
+
+function renderConfigModalBody() {
+  const body = document.getElementById('config-modal-body');
+  if (!body) return;
+
+  const sections = Array.isArray(configSchema?.sections) ? configSchema.sections : [];
+  if (!sections.length) {
+    body.innerHTML = '<div class="config-loading">No configurable fields found.</div>';
+    return;
+  }
+
+  const html = sections.map(section => {
+    const fields = Array.isArray(section.fields) ? section.fields : [];
+    const sectionFields = fields
+      .filter(field => field && typeof field.key === 'string')
+      .map(field => renderConfigField(normalizeConfigField(section, field), configValues))
+      .join('');
+
+    const desc = section.description ? `<div class="config-section-desc">${escapeHtml(section.description)}</div>` : '';
+    return `<section class="config-section"><div class="config-section-header"><div class="config-section-title">${escapeHtml(section.label || section.id || 'Section')}</div>${desc}</div><div class="config-fields">${sectionFields}</div></section>`;
+  }).join('');
+
+  body.innerHTML = `<div class="config-sections">${html}</div>`;
+}
+
+async function openConfigModal() {
+  const overlay = document.getElementById('config-modal-overlay');
+  const body = document.getElementById('config-modal-body');
+  if (!overlay || !body) return;
+
+  overlay.classList.add('visible');
+  body.innerHTML = '<div class="config-loading">Loading configuration…</div>';
+
+  try {
+    const res = await fetch('/api/config');
+    if (!res.ok) throw new Error('Failed to load config');
+    const payload = await res.json();
+
+    configSchema = payload.schema || { sections: [] };
+    configValues = deepMerge({}, payload.values || {});
+    applyMeta({
+      config: payload.client || {},
+      cueTypes: payload.cueTypes || cueTypes,
+      masterVolume: payload.masterVolume,
+    });
+    rebuildConfigFieldIndex(configSchema);
+    renderConfigModalBody();
+  } catch (err) {
+    body.innerHTML = `<div class="config-error">${escapeHtml(err.message || 'Could not load configuration.')}</div>`;
+  }
+}
+
+function closeConfigModal(event) {
+  const overlay = document.getElementById('config-modal-overlay');
+  const body = document.getElementById('config-modal-body');
+  if (!overlay) return;
+  if (!event || event.target === overlay) {
+    if (body) {
+      body.querySelectorAll('.config-error').forEach(el => el.remove());
+    }
+    overlay.classList.remove('visible');
+  }
+}
+
+function collectConfigFormValues() {
+  const values = deepMerge({}, configValues || {});
+  const body = document.getElementById('config-modal-body');
+  if (!body) return values;
+
+  body.querySelectorAll('[data-config-key]').forEach(input => {
+    const key = input.getAttribute('data-config-key');
+    const field = configFieldDefs.get(key);
+    if (!field) return;
+
+    let rawValue;
+    if (input.type === 'checkbox') rawValue = !!input.checked;
+    else rawValue = input.value;
+
+    const value = parseConfigInputValue(field, rawValue);
+    setObjectPath(values, key, value);
+  });
+
+  return values;
+}
+
+async function saveConfigModal() {
+  const body = document.getElementById('config-modal-body');
+  if (!body) return;
+
+  body.querySelectorAll('.config-error').forEach(el => el.remove());
+
+  const nextValues = collectConfigFormValues();
+  try {
+    const res = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values: nextValues }),
+    });
+    if (!res.ok) {
+      const errorBody = await res.json().catch(() => ({}));
+      throw new Error(errorBody.error || 'Failed to save config');
+    }
+
+    const payload = await res.json();
+    configSchema = payload.schema || configSchema;
+    configValues = deepMerge({}, payload.values || nextValues);
+    rebuildConfigFieldIndex(configSchema);
+    applyMeta({
+      config: payload.client || {},
+      cueTypes: payload.cueTypes || cueTypes,
+      masterVolume: payload.masterVolume,
+    });
+    renderConfigModalBody();
+    closeConfigModal();
+  } catch (err) {
+    body.insertAdjacentHTML('afterbegin', `<div class="config-error">${escapeHtml(err.message || 'Could not save configuration.')}</div>`);
+  }
+}
 
 // === CUE LIST POPUP ===
 
@@ -65,63 +578,46 @@ function getAllCuesSorted() {
   Object.entries(cueOrder).forEach(([targetId, cueNums]) => {
     const targetCues = cues[targetId] || {};
 
-    // Lighting cues
-    if (cueNums.lighting && targetCues.lighting) {
-      const lightingList = normalizeCueList(targetCues.lighting);
-      cueNums.lighting.forEach((num, idx) => {
-        if (lightingList[idx]) {
-          allCues.push({
-            id: `${targetId}_l_${lightingList[idx].id}`,
-            targetId,
-            cueType: 'lighting',
-            number: num,
-            title: lightingList[idx].title || 'Untitled',
-            description: lightingList[idx].description || '',
-            position: getCuePosition(targetId),
-            duration: null,
-            soundType: null,
-            liveVoices: null // Placeholder for future implementation
-          });
-        }
-      });
-    }
+    cueTypes.forEach(type => {
+      const nums = cueNums[type.id] || [];
+      const cueList = normalizeCueList(targetCues[type.id], type.id);
 
-    // Sound cues
-    if (cueNums.sound && targetCues.sound) {
-      const soundList = normalizeCueList(targetCues.sound);
-      cueNums.sound.forEach((num, idx) => {
-        if (soundList[idx]) {
-          const raw = soundList[idx];
-          allCues.push({
-            id: `${targetId}_s_${raw.id}`,
-            targetId,
-            cueType: 'sound',
-            number: num,
-            title: raw.title || 'Untitled',
-            description: raw.description || '',
-            position: getCuePosition(targetId),
-            duration: raw.duration || null,
-            soundType: raw.soundSubtype || raw.subtype || 'play_once',
-            // Full cue data for execution
-            fullCue: raw,
-          });
-        }
+      nums.forEach((num, idx) => {
+        if (!cueList[idx]) return;
+        const raw = cueList[idx];
+        const fullCue = buildExecutableCue(type.id, raw);
+
+        allCues.push({
+          id: `${targetId}_${type.id}_${raw.id}`,
+          targetId,
+          cueType: type.id,
+          cueTypeLabel: type.label,
+          cueTypeShortLabel: type.shortLabel,
+          cueTypeColor: type.color,
+          number: num,
+          title: raw.title || 'Untitled',
+          description: raw.description || '',
+          position: getCuePosition(targetId),
+          duration: deriveCueDurationSeconds(fullCue),
+          subtype: raw.soundSubtype || raw.subtype || null,
+          isAudio: !!fullCue.clip,
+          liveVoices: null,
+          fullCue,
+        });
       });
-    }
+    });
   });
 
-  // Sort by cue number (lighting and sound have separate numbering sequences)
-  // We'll sort by position in the script
+  // Sort by script position, then cue type order, then cue number.
   return allCues.sort((a, b) => {
-    // Get position indices for comparison
     const posA = getCueSortIndex(a.targetId);
     const posB = getCueSortIndex(b.targetId);
     if (posA !== posB) return posA - posB;
-    // Same position: lighting before sound
+
     if (a.cueType !== b.cueType) {
-      return a.cueType === 'lighting' ? -1 : 1;
+      return cueTypeSortIndex(a.cueType) - cueTypeSortIndex(b.cueType);
     }
-    // Same type: sort by cue number
+
     return a.number - b.number;
   });
 }
@@ -213,15 +709,58 @@ function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, m => map[m]);
 }
 
-// Normalize cue list: handles legacy single-object format and array format.
-// Uses a deterministic hash for legacy entries so IDs are stable across calls.
-function normalizeCueList(val) {
-  if (!val) return [];
-  if (Array.isArray(val)) return val;
+function hashStable(seed) {
   let h = 5381;
-  const s = (val.title || '') + '\0' + (val.description || '');
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
-  return [{ id: 'l' + Math.abs(h).toString(36), title: val.title || '', description: val.description || '' }];
+  for (let i = 0; i < seed.length; i++) h = ((h << 5) + h + seed.charCodeAt(i)) | 0;
+  return Math.abs(h).toString(36);
+}
+
+function normalizeCueEntry(rawEntry, typeId, idx, legacySingle = false) {
+  const entry = isObject(rawEntry) ? { ...rawEntry } : {};
+
+  if (!entry.id) {
+    const stableSeed = [
+      typeId,
+      entry.title || '',
+      entry.description || '',
+      entry.clip || '',
+      entry.soundSubtype || '',
+      String(idx),
+    ].join('\u0000');
+    entry.id = legacySingle ? `l${hashStable(stableSeed)}` : `${typeId}_${hashStable(stableSeed)}`;
+  }
+
+  if (entry.title == null) entry.title = '';
+  if (entry.description == null) entry.description = '';
+  return entry;
+}
+
+// Normalize cue list: handles legacy single-object format and array format.
+function normalizeCueList(val, typeId = 'cue') {
+  if (!val) return [];
+  if (Array.isArray(val)) {
+    return val.map((entry, idx) => normalizeCueEntry(entry, typeId, idx));
+  }
+  return [normalizeCueEntry(val, typeId, 0, true)];
+}
+
+function buildExecutableCue(typeId, cueData) {
+  const payloadDefaults = getCueTypePayloadDefaults(typeId);
+  const payload = deepMerge(payloadDefaults, isObject(cueData) ? cueData : {});
+  payload.cueType = typeId;
+  return payload;
+}
+
+function deriveCueDurationSeconds(cue) {
+  const explicit = Number(cue?.duration);
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
+
+  const start = Number(cue?.clipStart ?? 0);
+  const end = Number(cue?.clipEnd);
+  if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+    return end - start;
+  }
+  return null;
 }
 
 // === STATE ===
@@ -230,7 +769,7 @@ function loadSavedState() {
   const savedZoom = localStorage.getItem('scriptZoom');
   const savedScroll = localStorage.getItem('scriptScroll');
   if (savedZoom) {
-    currentZoom = parseInt(savedZoom, 10);
+    currentZoom = clampZoom(parseInt(savedZoom, 10));
     if (currentZoom) applyZoom();
   }
   if (savedScroll) {
@@ -248,8 +787,26 @@ function saveState() {
 
 function calculateCueOrder() {
   const result = {};
-  let lightingCount = 0;
-  let soundCount = 0;
+  const typeCounts = {};
+  cueTypes.forEach(type => {
+    typeCounts[type.id] = 0;
+  });
+
+  function assignTargetCueNumbers(targetId) {
+    const targetCues = cues[targetId];
+    if (!targetCues) return;
+
+    const bucket = {};
+    cueTypes.forEach(type => {
+      const arr = normalizeCueList(targetCues[type.id], type.id);
+      if (!arr.length) return;
+      bucket[type.id] = arr.map(() => ++typeCounts[type.id]);
+    });
+
+    if (Object.keys(bucket).length > 0) {
+      result[targetId] = bucket;
+    }
+  }
 
   function processTarget(targetId, text) {
     // Word-level cues first (in word order within the text)
@@ -257,29 +814,12 @@ function calculateCueOrder() {
       const words = text.trim().split(/\s+/).filter(Boolean);
       words.forEach((_, wordIdx) => {
         const wId = targetId + '_w' + wordIdx;
-        const wc = cues[wId];
-        if (wc) {
-          const lArr = normalizeCueList(wc.lighting);
-          const sArr = normalizeCueList(wc.sound);
-          if (lArr.length || sArr.length) {
-            result[wId] = {};
-            if (lArr.length) result[wId].lighting = lArr.map(() => ++lightingCount);
-            if (sArr.length) result[wId].sound = sArr.map(() => ++soundCount);
-          }
-        }
+        assignTargetCueNumbers(wId);
       });
     }
+
     // Then target-level cues
-    const tc = cues[targetId];
-    if (tc) {
-      const lArr = normalizeCueList(tc.lighting);
-      const sArr = normalizeCueList(tc.sound);
-      if (lArr.length || sArr.length) {
-        if (!result[targetId]) result[targetId] = {};
-        if (lArr.length) result[targetId].lighting = lArr.map(() => ++lightingCount);
-        if (sArr.length) result[targetId].sound = sArr.map(() => ++soundCount);
-      }
-    }
+    assignTargetCueNumbers(targetId);
   }
 
   pages.forEach(page => {
@@ -304,24 +844,22 @@ function calculateCueOrder() {
 
 function renderCueMarkers(targetId, cueNumbering) {
   const tc = cues[targetId] || {};
-  const lighting = normalizeCueList(tc.lighting);
-  const sound = normalizeCueList(tc.sound);
   const nums = cueNumbering[targetId] || {};
-  const hasCues = lighting.length > 0 || sound.length > 0;
 
   let html = '<div class="cue-marker">';
 
-  lighting.forEach((cue, i) => {
-    const num = nums.lighting ? nums.lighting[i] : '?';
-    html += `<span class="cue-badge lighting" onclick="openCueModalEdit('${targetId}','lighting','${cue.id}')">L${num} ${escapeHtml(cue.title)}</span>`;
+  cueTypes.forEach(type => {
+    const list = normalizeCueList(tc[type.id], type.id);
+    list.forEach((cue, i) => {
+      const numbers = nums[type.id] || [];
+      const num = numbers[i] ?? '?';
+      const shortLabel = getTypeShortLabel(type.id);
+      const color = getTypeColor(type.id);
+      html += `<span class="cue-badge dynamic" style="--cue-accent:${color}" onclick="openCueModalEdit('${jsQuote(targetId)}','${jsQuote(type.id)}','${jsQuote(cue.id)}')">${escapeHtml(shortLabel)}${num} ${escapeHtml(cue.title)}</span>`;
+    });
   });
 
-  sound.forEach((cue, i) => {
-    const num = nums.sound ? nums.sound[i] : '?';
-    html += `<span class="cue-badge sound" onclick="openCueModalEdit('${targetId}','sound','${cue.id}')">S${num} ${escapeHtml(cue.title)}</span>`;
-  });
-
-  html += `<button class="cue-add-btn" onclick="openCueModal('${targetId}')">+</button>`;
+  html += `<button class="cue-add-btn" onclick="openCueModal('${jsQuote(targetId)}')">+</button>`;
   html += '</div>';
 
   return html;
@@ -339,38 +877,51 @@ function renderWordSpans(text, targetId) {
     } else {
       const wId = targetId + '_w' + wordIdx;
       const wc = cues[wId] || {};
-      const wLighting = normalizeCueList(wc.lighting);
-      const wSound = normalizeCueList(wc.sound);
-      const hasCues = wLighting.length > 0 || wSound.length > 0;
+      const perType = cueTypes.map(type => ({
+        type,
+        list: normalizeCueList(wc[type.id], type.id),
+      }));
+      const firstWithCue = perType.find(entry => entry.list.length > 0) || null;
+      const hasCues = !!firstWithCue;
       const nums = (cueNumberingCache || {})[wId] || {};
 
       let cls = 'script-word';
       if (hasCues) cls += ' has-word-cue';
-      if (wLighting.length) cls += ' has-lighting';
-      if (wSound.length) cls += ' has-sound';
+
+      perType.forEach(entry => {
+        if (!entry.list.length) return;
+        cls += ` has-type-${sanitizeCueTypeId(entry.type.id, 'cue')}`;
+        const legacyClass = getTypeBorderClass(entry.type.id);
+        if (legacyClass) cls += ` ${legacyClass}`;
+      });
 
       // Every word is clickable: cue words open edit, bare words open add
       let clickFn;
-      if (hasCues) {
-        const ft = wLighting.length ? 'lighting' : 'sound';
-        const fc = wLighting.length ? wLighting[0] : wSound[0];
-        clickFn = `event.stopPropagation();openCueModalEdit('${escapeHtml(wId)}','${ft}','${fc.id}')`;
+      if (firstWithCue) {
+        const ft = firstWithCue.type.id;
+        const fc = firstWithCue.list[0];
+        clickFn = `event.stopPropagation();openCueModalEdit('${jsQuote(wId)}','${jsQuote(ft)}','${jsQuote(fc.id)}')`;
       } else {
-        clickFn = `event.stopPropagation();openCueModal('${escapeHtml(wId)}')`;
+        clickFn = `event.stopPropagation();openCueModal('${jsQuote(wId)}')`;
       }
 
-      html += `<span class="${cls}" data-wid="${escapeHtml(wId)}" onclick="${clickFn}">`;
+      const typeColor = firstWithCue ? getTypeColor(firstWithCue.type.id) : '';
+      const styleAttr = typeColor ? ` style="--type-color:${typeColor}"` : '';
+
+      html += `<span class="${cls}" data-wid="${escapeHtml(wId)}" onclick="${clickFn}"${styleAttr}>`;
 
       // Pills shown above words that already have cues
       if (hasCues) {
         html += '<span class="word-cue-pills">';
-        wLighting.forEach((c, i) => {
-          const num = nums.lighting ? nums.lighting[i] : '?';
-          html += `<span class="word-cue-pill lighting" onclick="event.stopPropagation();openCueModalEdit('${escapeHtml(wId)}','lighting','${c.id}')">L${num}</span>`;
-        });
-        wSound.forEach((c, i) => {
-          const num = nums.sound ? nums.sound[i] : '?';
-          html += `<span class="word-cue-pill sound" onclick="event.stopPropagation();openCueModalEdit('${escapeHtml(wId)}','sound','${c.id}')">S${num}</span>`;
+        perType.forEach(entry => {
+          entry.list.forEach((c, i) => {
+            const typeId = entry.type.id;
+            const typeNums = nums[typeId] || [];
+            const num = typeNums[i] ?? '?';
+            const shortLabel = getTypeShortLabel(typeId);
+            const color = getTypeColor(typeId);
+            html += `<span class="word-cue-pill dynamic" style="--cue-accent:${color}" onclick="event.stopPropagation();openCueModalEdit('${jsQuote(wId)}','${jsQuote(typeId)}','${jsQuote(c.id)}')">${escapeHtml(shortLabel)}${num}</span>`;
+          });
         });
         html += '</span>';
       }
@@ -630,8 +1181,8 @@ function zoomTo(newZoom) {
   });
 }
 
-function zoomIn() { zoomTo(Math.min(200, currentZoom + 10)); }
-function zoomOut() { zoomTo(Math.max(50, currentZoom - 10)); }
+function zoomIn() { zoomTo(Math.min(getZoomMax(), currentZoom + getZoomStep())); }
+function zoomOut() { zoomTo(Math.max(getZoomMin(), currentZoom - getZoomStep())); }
 
 function applyZoom() {
   document.getElementById('script-content').style.transform = `scale(${currentZoom / 100})`;
@@ -643,9 +1194,10 @@ function applyZoom() {
 document.getElementById('scroll-container').addEventListener('wheel', (e) => {
   if (e.ctrlKey) {
     e.preventDefault();
+    const wheelStep = getWheelZoomStep();
     const newZoom = e.deltaY < 0
-      ? Math.min(200, currentZoom + 5)
-      : Math.max(50, currentZoom - 5);
+      ? Math.min(getZoomMax(), currentZoom + wheelStep)
+      : Math.max(getZoomMin(), currentZoom - wheelStep);
     zoomTo(newZoom);
   }
 }, { passive: false });
@@ -722,6 +1274,12 @@ document.addEventListener('keydown', (e) => {
 
 async function loadPages() {
   try {
+    const metaRes = await fetch('/api/meta');
+    if (metaRes.ok) {
+      const meta = await metaRes.json();
+      applyMeta(meta);
+    }
+
     loadSavedState();
 
     const cuesRes = await fetch('/api/cues');
@@ -763,6 +1321,7 @@ function openCueModal(targetId) {
   currentTargetId = targetId;
   currentCueType = null;
   currentCueId = null;
+  currentClipPath = null;
 
   document.getElementById('cue-modal-title').textContent = 'Add Cue';
   document.getElementById('cue-modal-context').textContent = getTargetContext(targetId);
@@ -775,6 +1334,11 @@ function openCueModal(targetId) {
 
   document.getElementById('sound-section').style.display = 'none';
   document.querySelector('.cue-modal').classList.remove('modal-wide');
+
+  const primarySoundType = getPrimarySoundCueType();
+  if (primarySoundType) {
+    initSoundForm(null, primarySoundType.id);
+  }
 
   document.getElementById('cue-modal-overlay').classList.add('visible');
   setTimeout(() => document.getElementById('cue-title').focus(), 50);
@@ -789,7 +1353,7 @@ function openCueModalEdit(targetId, type, cueId) {
   document.getElementById('cue-modal-context').textContent = getTargetContext(targetId);
 
   const tc = cues[targetId] || {};
-  const arr = normalizeCueList(tc[type]);
+  const arr = normalizeCueList(tc[type], type);
   const cueData = arr.find(c => c.id === cueId);
 
   document.getElementById('cue-title').value = cueData?.title || '';
@@ -802,10 +1366,10 @@ function openCueModalEdit(targetId, type, cueId) {
 
   const soundSection = document.getElementById('sound-section');
   const modal = document.querySelector('.cue-modal');
-  if (type === 'sound') {
+  if (isSoundCueType(type)) {
     soundSection.style.display = 'block';
     modal.classList.add('modal-wide');
-    initSoundForm(cueData);
+    initSoundForm(cueData, type);
   } else {
     soundSection.style.display = 'none';
     modal.classList.remove('modal-wide');
@@ -822,11 +1386,22 @@ function updateExistingCuesList(targetId) {
   const list = document.getElementById('cue-modal-existing-list');
 
   const tc = cues[targetId] || {};
-  const lighting = normalizeCueList(tc.lighting);
-  const sound = normalizeCueList(tc.sound);
   const nums = (cueNumberingCache || {})[targetId] || {};
 
-  if (lighting.length === 0 && sound.length === 0) {
+  const entries = [];
+  cueTypes.forEach(type => {
+    const cueList = normalizeCueList(tc[type.id], type.id);
+    cueList.forEach((cue, idx) => {
+      const typeNums = nums[type.id] || [];
+      entries.push({
+        typeId: type.id,
+        cue,
+        num: typeNums[idx] ?? '?',
+      });
+    });
+  });
+
+  if (entries.length === 0) {
     container.style.display = 'none';
     return;
   }
@@ -834,25 +1409,22 @@ function updateExistingCuesList(targetId) {
   container.style.display = 'block';
   let html = '';
 
-  lighting.forEach((c, i) => {
-    const num = nums.lighting ? nums.lighting[i] : '?';
-    const isActive = currentCueId === c.id;
+  entries.forEach(entry => {
+    const { typeId, cue } = entry;
+    const num = entry.num;
+    const shortLabel = getTypeShortLabel(typeId);
+    const color = getTypeColor(typeId);
+    const typeLabel = getTypeLabel(typeId);
+    const isActive = currentCueId === cue.id;
+    const targetArg = jsQuote(targetId);
+    const typeArg = jsQuote(typeId);
+    const cueArg = jsQuote(cue.id);
     html += `<div class="existing-cue-item${isActive ? ' active' : ''}"
-      onclick="openCueModalEdit('${escapeHtml(targetId)}','lighting','${c.id}')">
-      <span class="existing-cue-badge lighting">L${num}</span>
-      <span class="existing-cue-title">${escapeHtml(c.title)}</span>
-      ${c.description ? `<span class="existing-cue-desc">${escapeHtml(c.description)}</span>` : ''}
-    </div>`;
-  });
-
-  sound.forEach((c, i) => {
-    const num = nums.sound ? nums.sound[i] : '?';
-    const isActive = currentCueId === c.id;
-    html += `<div class="existing-cue-item${isActive ? ' active' : ''}"
-      onclick="openCueModalEdit('${escapeHtml(targetId)}','sound','${c.id}')">
-      <span class="existing-cue-badge sound">S${num}</span>
-      <span class="existing-cue-title">${escapeHtml(c.title)}</span>
-      ${c.description ? `<span class="existing-cue-desc">${escapeHtml(c.description)}</span>` : ''}
+      onclick="openCueModalEdit('${targetArg}','${typeArg}','${cueArg}')">
+      <span class="existing-cue-badge dynamic" style="--cue-accent:${color}">${escapeHtml(shortLabel)}${num}</span>
+      <span class="existing-cue-title">${escapeHtml(cue.title)}</span>
+      <span class="existing-cue-type">${escapeHtml(typeLabel)}</span>
+      ${cue.description ? `<span class="existing-cue-desc">${escapeHtml(cue.description)}</span>` : ''}
     </div>`;
   });
 
@@ -877,10 +1449,10 @@ function selectCueType(type) {
 
   const soundSection = document.getElementById('sound-section');
   const modal = document.querySelector('.cue-modal');
-  if (type === 'sound') {
+  if (isSoundCueType(type)) {
     soundSection.style.display = 'block';
     modal.classList.add('modal-wide');
-    if (!currentCueId) initSoundForm(null);
+    if (!currentCueId) initSoundForm(null, type);
   } else {
     soundSection.style.display = 'none';
     modal.classList.remove('modal-wide');
@@ -920,20 +1492,23 @@ async function saveCue() {
 
   if (!cues[currentTargetId]) cues[currentTargetId] = {};
 
-  const cueList = normalizeCueList(cues[currentTargetId][currentCueType]);
+  const cueList = normalizeCueList(cues[currentTargetId][currentCueType], currentCueType);
 
-  const soundData = currentCueType === 'sound' ? getSoundData() : {};
+  const typePayloadDefaults = getCueTypePayloadDefaults(currentCueType);
+  const cuePayload = isSoundCueType(currentCueType)
+    ? deepMerge(typePayloadDefaults, getSoundData())
+    : deepMerge(typePayloadDefaults, {});
 
   if (currentCueId) {
     // Update existing
     const idx = cueList.findIndex(c => c.id === currentCueId);
     if (idx !== -1) {
-      cueList[idx] = { ...cueList[idx], title, description, ...soundData };
+      cueList[idx] = { ...cueList[idx], title, description, ...cuePayload };
     } else {
-      cueList.push({ id: currentCueId, title, description, ...soundData });
+      cueList.push({ id: currentCueId, title, description, ...cuePayload });
     }
   } else {
-    cueList.push({ id: generateId(), title, description, ...soundData });
+    cueList.push({ id: generateId(), title, description, ...cuePayload });
   }
 
   cues[currentTargetId][currentCueType] = cueList;
@@ -947,7 +1522,7 @@ async function deleteCue() {
 
   const tc = cues[currentTargetId];
   if (tc && tc[currentCueType]) {
-    const filtered = normalizeCueList(tc[currentCueType]).filter(c => c.id !== currentCueId);
+    const filtered = normalizeCueList(tc[currentCueType], currentCueType).filter(c => c.id !== currentCueId);
     if (filtered.length === 0) {
       delete tc[currentCueType];
     } else {
@@ -1090,71 +1665,105 @@ function selectPlayStyle(btn) {
 function getSoundData() {
   const playStyleBtn = document.querySelector('#play-style-control .seg-btn.selected');
   const clipEndVal = document.getElementById('p-clip-end').value;
+  const soundTypeId = getCurrentSoundCueTypeId();
+  const typeDefaults = getCueTypePayloadDefaults(soundTypeId);
+  const mergedDefaults = deepMerge({
+    soundSubtype: 'play_once',
+    playStyle: 'alongside',
+    clipStart: 0,
+    clipEnd: null,
+    fadeIn: 0,
+    fadeOut: 0,
+    volume: 0,
+    manualFadeOutDuration: getDefaultManualFadeOutSeconds(),
+    allowMultipleInstances: false,
+    loopStart: 0,
+    loopEnd: null,
+    loopXfade: 0,
+  }, typeDefaults);
+
   const data = {
     soundSubtype: currentSoundSubtype,
     clip: currentClipPath,
-    playStyle: playStyleBtn ? playStyleBtn.dataset.value : 'alongside',
-    clipStart: numVal('p-clip-start') ?? 0,
+    playStyle: playStyleBtn ? playStyleBtn.dataset.value : mergedDefaults.playStyle,
+    clipStart: numVal('p-clip-start') ?? mergedDefaults.clipStart,
     clipEnd: clipEndVal !== '' ? parseFloat(clipEndVal) : null,
-    fadeIn: numVal('p-fade-in') ?? 0,
-    fadeOut: numVal('p-fade-out') ?? 0,
-    volume: numVal('p-volume') ?? 0,
-    manualFadeOutDuration: numVal('p-manual-fo') ?? 2,
+    fadeIn: numVal('p-fade-in') ?? mergedDefaults.fadeIn,
+    fadeOut: numVal('p-fade-out') ?? mergedDefaults.fadeOut,
+    volume: numVal('p-volume') ?? mergedDefaults.volume,
+    manualFadeOutDuration: numVal('p-manual-fo') ?? mergedDefaults.manualFadeOutDuration,
     allowMultipleInstances: document.getElementById('p-allow-multi').checked,
   };
   if (currentSoundSubtype === 'vamp') {
     const loopEndVal = document.getElementById('p-loop-end').value;
-    data.loopStart = numVal('p-loop-start') ?? 0;
+    data.loopStart = numVal('p-loop-start') ?? mergedDefaults.loopStart;
     data.loopEnd = loopEndVal !== '' ? parseFloat(loopEndVal) : null;
-    data.loopXfade = numVal('p-loop-xfade') ?? 0;
+    data.loopXfade = numVal('p-loop-xfade') ?? mergedDefaults.loopXfade;
   }
   return data;
 }
 
-function initSoundForm(cueData) {
+function initSoundForm(cueData, cueTypeId = getCurrentSoundCueTypeId()) {
+  const typeDefaults = deepMerge({
+    soundSubtype: 'play_once',
+    playStyle: 'alongside',
+    clipStart: 0,
+    clipEnd: null,
+    fadeIn: 0,
+    fadeOut: 0,
+    volume: 0,
+    manualFadeOutDuration: getDefaultManualFadeOutSeconds(),
+    allowMultipleInstances: false,
+    loopStart: 0,
+    loopEnd: null,
+    loopXfade: 0,
+  }, getCueTypePayloadDefaults(cueTypeId));
+
   if (!cueData) {
-    selectSoundSubtype('play_once');
+    selectSoundSubtype(typeDefaults.soundSubtype || 'play_once');
     currentClipPath = null;
     document.getElementById('clip-name-text').textContent = 'No clip selected';
-    document.getElementById('p-clip-start').value = '0';
+    document.getElementById('p-clip-start').value = typeDefaults.clipStart ?? 0;
     document.getElementById('p-clip-end').value = '';
-    document.getElementById('p-fade-in').value = '0';
-    document.getElementById('p-fade-out').value = '0';
-    document.getElementById('p-volume').value = '0';
-    document.getElementById('p-manual-fo').value = '2';
-    document.getElementById('p-allow-multi').checked = false;
-    document.getElementById('p-loop-start').value = '0';
+    document.getElementById('p-fade-in').value = typeDefaults.fadeIn ?? 0;
+    document.getElementById('p-fade-out').value = typeDefaults.fadeOut ?? 0;
+    document.getElementById('p-volume').value = typeDefaults.volume ?? 0;
+    document.getElementById('p-manual-fo').value = typeDefaults.manualFadeOutDuration ?? getDefaultManualFadeOutSeconds();
+    document.getElementById('p-allow-multi').checked = !!typeDefaults.allowMultipleInstances;
+    document.getElementById('p-loop-start').value = typeDefaults.loopStart ?? 0;
     document.getElementById('p-loop-end').value = '';
-    document.getElementById('p-loop-xfade').value = '0';
+    document.getElementById('p-loop-xfade').value = typeDefaults.loopXfade ?? 0;
     document.querySelectorAll('#play-style-control .seg-btn').forEach(b => {
-      b.classList.toggle('selected', b.dataset.value === 'alongside');
+      b.classList.toggle('selected', b.dataset.value === (typeDefaults.playStyle || 'alongside'));
     });
     clearWaveformDisplay();
     syncAllSlidersFromInputs();
     return;
   }
 
-  selectSoundSubtype(cueData.soundSubtype || 'play_once');
+  const merged = deepMerge(typeDefaults, cueData || {});
+
+  selectSoundSubtype(merged.soundSubtype || 'play_once');
 
   document.querySelectorAll('#play-style-control .seg-btn').forEach(b => {
-    b.classList.toggle('selected', b.dataset.value === (cueData.playStyle || 'alongside'));
+    b.classList.toggle('selected', b.dataset.value === (merged.playStyle || 'alongside'));
   });
 
-  document.getElementById('p-clip-start').value = cueData.clipStart ?? 0;
-  document.getElementById('p-clip-end').value = cueData.clipEnd != null ? cueData.clipEnd : '';
-  document.getElementById('p-fade-in').value = cueData.fadeIn ?? 0;
-  document.getElementById('p-fade-out').value = cueData.fadeOut ?? 0;
-  document.getElementById('p-volume').value = cueData.volume ?? 0;
-  document.getElementById('p-manual-fo').value = cueData.manualFadeOutDuration ?? 2;
-  document.getElementById('p-allow-multi').checked = cueData.allowMultipleInstances !== false;
-  document.getElementById('p-loop-start').value = cueData.loopStart ?? 0;
-  document.getElementById('p-loop-end').value = cueData.loopEnd != null ? cueData.loopEnd : '';
-  document.getElementById('p-loop-xfade').value = cueData.loopXfade ?? 0;
+  document.getElementById('p-clip-start').value = merged.clipStart ?? 0;
+  document.getElementById('p-clip-end').value = merged.clipEnd != null ? merged.clipEnd : '';
+  document.getElementById('p-fade-in').value = merged.fadeIn ?? 0;
+  document.getElementById('p-fade-out').value = merged.fadeOut ?? 0;
+  document.getElementById('p-volume').value = merged.volume ?? 0;
+  document.getElementById('p-manual-fo').value = merged.manualFadeOutDuration ?? getDefaultManualFadeOutSeconds();
+  document.getElementById('p-allow-multi').checked = merged.allowMultipleInstances !== false;
+  document.getElementById('p-loop-start').value = merged.loopStart ?? 0;
+  document.getElementById('p-loop-end').value = merged.loopEnd != null ? merged.loopEnd : '';
+  document.getElementById('p-loop-xfade').value = merged.loopXfade ?? 0;
 
-  if (cueData.clip) {
-    currentClipPath = cueData.clip;
-    document.getElementById('clip-name-text').textContent = cueData.clip.split('/').pop();
-    loadWaveform(cueData.clip);
+  if (merged.clip) {
+    currentClipPath = merged.clip;
+    document.getElementById('clip-name-text').textContent = merged.clip.split('/').pop();
+    loadWaveform(merged.clip);
   } else {
     currentClipPath = null;
     document.getElementById('clip-name-text').textContent = 'No clip selected';
@@ -1186,7 +1795,7 @@ async function loadClipBrowser() {
     }
     inner.innerHTML = clips.map(c => `
       <button class="clip-pill${currentClipPath === c.path ? ' selected' : ''}"
-              onclick="selectClip('${c.path}','${escapeHtml(c.filename)}')">
+              onclick="selectClip('${jsQuote(c.path)}','${jsQuote(c.filename)}')">
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
         ${escapeHtml(c.filename.replace(/_\d+\.webm$/, '').replace(/_/g, ' '))}
       </button>`).join('');
@@ -1517,7 +2126,6 @@ function updateWaveformHandles() {
 // === AUDIO PREVIEW ===
 
 let previewInstanceId = null;
-let previewPollTimer = null;
 let previewPlayheadT = null;
 let playheadRafId = null;
 

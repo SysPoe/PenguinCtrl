@@ -30,6 +30,7 @@
             <button class="nav-btn" onclick="goToPageNumber()">Go</button>
           </div>
         </div>
+        <button class="nav-btn" onclick="openConfigModal()">Config</button>
         <button class="nav-btn" onclick="openCueList()">Cue List</button>
         <div class="zoom-controls">
           <button class="nav-btn" onclick="zoomOut()">−</button>
@@ -68,20 +69,8 @@
       <div class="cue-modal-body">
         <!-- Type selector -->
         <div class="cue-type-selector" id="cue-type-selector">
-          <button class="cue-type-btn" data-type="lighting" onclick="selectCueType('lighting')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path
-                d="M9 18h6M12 2v1M12 21v1M4.22 4.22l.7.7M19.08 19.08l.7.7M2 12h1M21 12h1M4.22 19.78l.7-.7M19.08 4.92l.7-.7M12 6a6 6 0 0 0 0 12" />
-            </svg>
-            Lighting
-          </button>
-          <button class="cue-type-btn" data-type="sound" onclick="selectCueType('sound')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-              <path d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14" />
-            </svg>
-            Sound
-          </button>
+          <button class="cue-type-btn" data-type="lighting" onclick="selectCueType('lighting')">Lighting</button>
+          <button class="cue-type-btn" data-type="sound" onclick="selectCueType('sound')">Sound</button>
         </div>
 
         <!-- Sound options (shown when type=sound) -->
@@ -369,6 +358,26 @@
           Save
           <span class="btn-hint">↵</span>
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Config Modal -->
+  <div class="config-modal-overlay" id="config-modal-overlay" onclick="closeConfigModal(event)">
+    <div class="config-modal">
+      <div class="config-modal-header">
+        <div>
+          <h2 class="config-modal-title">Configuration</h2>
+          <p class="config-modal-subtitle">Driven by <code>config/config-schema.json</code></p>
+        </div>
+        <button class="cue-modal-close" onclick="closeConfigModal()">✕</button>
+      </div>
+      <div class="config-modal-body" id="config-modal-body">
+        <div class="config-loading">Loading configuration…</div>
+      </div>
+      <div class="config-modal-actions">
+        <button class="btn btn-ghost" onclick="closeConfigModal()">Close</button>
+        <button class="btn btn-primary" onclick="saveConfigModal()">Save Config</button>
       </div>
     </div>
   </div>
