@@ -433,7 +433,7 @@ function fmtTimecode(secs) {
         let pos = state.serverPos + elapsed;
 
         // For vamping (not deramping), wrap position in loop region
-        if (state.isVamp && !state.isDeramping && state.loopEnd > state.loopStart) {
+        if (state.isVamp && !state.isDeramping && state.loopEnd > state.loopStart && state.serverPos <= state.loopEnd) {
             const { loopStart, loopEnd } = state;
             if (pos >= loopStart) {
                 const loopLen = loopEnd - loopStart;
