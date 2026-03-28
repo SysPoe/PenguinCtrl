@@ -217,7 +217,7 @@ body {
 }
 
 .scene-description {
-  font-family: 'Atkinson Hyperlegible', monospace;
+  font-family: 'Atkinson Hyperlegible Mono', monospace;
   font-style: italic;
   font-size: 13px;
   color: #666;
@@ -279,7 +279,7 @@ body {
 
 /* Stage direction row (uses same table layout as dialogue) */
 .stage-row .stage-direction {
-  font-family: 'Atkinson Hyperlegible', monospace;
+  font-family: 'Atkinson Hyperlegible Mono', monospace;
   font-style: italic;
   font-size: 14px;
   line-height: 1.6;
