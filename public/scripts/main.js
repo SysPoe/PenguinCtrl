@@ -21,6 +21,13 @@ const DEFAULT_APP_CONFIG = {
       defaultManualFadeOutSeconds: 2,
     },
   },
+  osc: {
+    target: {
+      ip: '127.0.0.1',
+      oscPort: 8000,
+      remotePort: 6553,
+    },
+  },
 };
 
 const DEFAULT_CUE_TYPES = [
@@ -57,6 +64,22 @@ const DEFAULT_CUE_TYPES = [
       loopXfade: 0,
     },
   },
+  {
+    id: 'osc',
+    label: 'OSC',
+    shortLabel: 'O',
+    editor: 'osc',
+    handler: 'oscDispatch',
+    color: '#38bdf8',
+    order: 30,
+    payloadDefaults: {
+      oscAction: 'go',
+      oscPlayback: 1,
+      oscCueNumber: '1',
+      oscLevel: 100,
+      oscTransport: 'auto',
+    },
+  },
 ];
 
 let pages = [];
@@ -85,6 +108,13 @@ let waveformPeaks = null;
 let waveformRedrawTimer = null;
 let waveformDrag = null; // { handle, inputId, containerLeft, containerWidth, duration }
 let waveformRafId = null;
+
+// OSC modal state
+let currentOscAction = 'go';
+
+// Runtime websocket (errors + meta updates)
+let runtimeWs = null;
+let runtimeReconnectTimer = null;
 
 // Cue list popup
 let cueListWindow = null;
@@ -159,7 +189,7 @@ function normalizeCueTypeDefs(rawTypes) {
       id,
       label: String(type?.label || id),
       shortLabel: String(type?.shortLabel || id.slice(0, 1).toUpperCase()),
-      editor: type?.editor === 'sound' ? 'sound' : 'basic',
+      editor: type?.editor === 'sound' || type?.editor === 'osc' ? type.editor : 'basic',
       handler: String(type?.handler || 'trackOnly'),
       color: String(type?.color || '#888888'),
       order: Number.isFinite(Number(type?.order)) ? Number(type.order) : (index + 1) * 10,
@@ -185,13 +215,26 @@ function isSoundCueType(typeId) {
   return getCueType(typeId)?.editor === 'sound';
 }
 
+function isOscCueType(typeId) {
+  return getCueType(typeId)?.editor === 'osc';
+}
+
 function getPrimarySoundCueType() {
   return cueTypes.find(type => type.editor === 'sound') || null;
+}
+
+function getPrimaryOscCueType() {
+  return cueTypes.find(type => type.editor === 'osc') || null;
 }
 
 function getCurrentSoundCueTypeId() {
   if (currentCueType && isSoundCueType(currentCueType)) return currentCueType;
   return getPrimarySoundCueType()?.id || 'sound';
+}
+
+function getCurrentOscCueTypeId() {
+  if (currentCueType && isOscCueType(currentCueType)) return currentCueType;
+  return getPrimaryOscCueType()?.id || 'osc';
 }
 
 function safeCssColor(color, fallback = '#888888') {
@@ -276,6 +319,9 @@ function getCueTypeIcon(type) {
   }
   if (type.editor === 'sound') {
     return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14" /></svg>`;
+  }
+  if (type.editor === 'osc') {
+    return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.4 10.8l7.2-3.6M8.4 13.2l7.2 3.6"/></svg>`;
   }
   return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>`;
 }
@@ -568,6 +614,76 @@ function closeCueList() {
     cueListWindow.close();
   }
   cueListWindow = null;
+}
+
+function showCueError(message) {
+  const text = String(message || '').trim();
+  if (!text) return;
+
+  const host = document.getElementById('cue-toast-container');
+  if (!host) {
+    window.alert(text);
+    return;
+  }
+
+  const toast = document.createElement('div');
+  toast.className = 'cue-toast-error';
+  toast.textContent = text;
+  host.appendChild(toast);
+
+  requestAnimationFrame(() => toast.classList.add('visible'));
+
+  const remove = () => {
+    toast.classList.remove('visible');
+    setTimeout(() => {
+      if (toast.parentNode) toast.parentNode.removeChild(toast);
+    }, 140);
+  };
+
+  toast.addEventListener('click', remove, { once: true });
+  setTimeout(remove, 5600);
+}
+
+function handleRuntimeSocketMessage(msg) {
+  if (!isObject(msg)) return;
+  if (msg.type === 'meta') {
+    applyMeta(msg);
+    return;
+  }
+  if (msg.type === 'error' || msg.type === 'runtimeError') {
+    showCueError(msg.message || 'Unknown runtime error');
+  }
+}
+
+function connectRuntimeSocket() {
+  if (runtimeWs && (runtimeWs.readyState === WebSocket.OPEN || runtimeWs.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
+
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  runtimeWs = new WebSocket(`${proto}//${location.host}`);
+
+  runtimeWs.onmessage = (event) => {
+    let msg;
+    try {
+      msg = JSON.parse(event.data);
+    } catch {
+      return;
+    }
+    handleRuntimeSocketMessage(msg);
+  };
+
+  runtimeWs.onclose = () => {
+    runtimeWs = null;
+    if (runtimeReconnectTimer) clearTimeout(runtimeReconnectTimer);
+    const delay = Number(getConfig('realtime.reconnectDelayMs', 2000));
+    const safeDelay = Number.isFinite(delay) ? Math.max(250, delay) : 2000;
+    runtimeReconnectTimer = setTimeout(connectRuntimeSocket, safeDelay);
+  };
+
+  runtimeWs.onerror = () => {
+    try { runtimeWs.close(); } catch (_) {}
+  };
 }
 
 function getAllCuesSorted() {
@@ -1314,6 +1430,7 @@ async function loadPages() {
 }
 
 loadPages();
+connectRuntimeSocket();
 
 // === CUE MODAL ===
 
@@ -1322,6 +1439,7 @@ function openCueModal(targetId) {
   currentCueType = null;
   currentCueId = null;
   currentClipPath = null;
+  currentOscAction = 'go';
 
   document.getElementById('cue-modal-title').textContent = 'Add Cue';
   document.getElementById('cue-modal-context').textContent = getTargetContext(targetId);
@@ -1333,11 +1451,16 @@ function openCueModal(targetId) {
   updateExistingCuesList(targetId);
 
   document.getElementById('sound-section').style.display = 'none';
+  document.getElementById('osc-section').style.display = 'none';
   document.querySelector('.cue-modal').classList.remove('modal-wide');
 
   const primarySoundType = getPrimarySoundCueType();
   if (primarySoundType) {
     initSoundForm(null, primarySoundType.id);
+  }
+  const primaryOscType = getPrimaryOscCueType();
+  if (primaryOscType) {
+    initOscForm(null, primaryOscType.id);
   }
 
   document.getElementById('cue-modal-overlay').classList.add('visible');
@@ -1365,13 +1488,21 @@ function openCueModalEdit(targetId, type, cueId) {
   });
 
   const soundSection = document.getElementById('sound-section');
+  const oscSection = document.getElementById('osc-section');
   const modal = document.querySelector('.cue-modal');
   if (isSoundCueType(type)) {
     soundSection.style.display = 'block';
+    oscSection.style.display = 'none';
     modal.classList.add('modal-wide');
     initSoundForm(cueData, type);
+  } else if (isOscCueType(type)) {
+    soundSection.style.display = 'none';
+    oscSection.style.display = 'block';
+    modal.classList.add('modal-wide');
+    initOscForm(cueData, type);
   } else {
     soundSection.style.display = 'none';
+    oscSection.style.display = 'none';
     modal.classList.remove('modal-wide');
   }
 
@@ -1438,6 +1569,7 @@ function closeCueModal(event) {
     currentTargetId = null;
     currentCueType = null;
     currentCueId = null;
+    currentOscAction = 'go';
   }
 }
 
@@ -1448,13 +1580,21 @@ function selectCueType(type) {
   });
 
   const soundSection = document.getElementById('sound-section');
+  const oscSection = document.getElementById('osc-section');
   const modal = document.querySelector('.cue-modal');
   if (isSoundCueType(type)) {
     soundSection.style.display = 'block';
+    oscSection.style.display = 'none';
     modal.classList.add('modal-wide');
     if (!currentCueId) initSoundForm(null, type);
+  } else if (isOscCueType(type)) {
+    soundSection.style.display = 'none';
+    oscSection.style.display = 'block';
+    modal.classList.add('modal-wide');
+    if (!currentCueId) initOscForm(null, type);
   } else {
     soundSection.style.display = 'none';
+    oscSection.style.display = 'none';
     modal.classList.remove('modal-wide');
   }
 }
@@ -1495,9 +1635,19 @@ async function saveCue() {
   const cueList = normalizeCueList(cues[currentTargetId][currentCueType], currentCueType);
 
   const typePayloadDefaults = getCueTypePayloadDefaults(currentCueType);
-  const cuePayload = isSoundCueType(currentCueType)
-    ? deepMerge(typePayloadDefaults, getSoundData())
-    : deepMerge(typePayloadDefaults, {});
+  let cuePayload;
+  try {
+    if (isSoundCueType(currentCueType)) {
+      cuePayload = deepMerge(typePayloadDefaults, getSoundData());
+    } else if (isOscCueType(currentCueType)) {
+      cuePayload = deepMerge(typePayloadDefaults, parseOscForm(currentCueType));
+    } else {
+      cuePayload = deepMerge(typePayloadDefaults, {});
+    }
+  } catch (err) {
+    showCueError(err.message || 'Invalid cue data');
+    return;
+  }
 
   if (currentCueId) {
     // Update existing
@@ -1660,6 +1810,195 @@ function selectSoundSubtype(subtype) {
 function selectPlayStyle(btn) {
   document.querySelectorAll('#play-style-control .seg-btn').forEach(b => b.classList.remove('selected'));
   btn.classList.add('selected');
+}
+
+const OSC_ACTIONS = {
+  go: {
+    label: 'Go',
+    desc: 'Trigger GO on playback.',
+    requiresCue: false,
+    requiresLevel: false,
+    allowedTransports: ['osc', 'remote', 'auto'],
+    fixedTransport: null,
+  },
+  back: {
+    label: 'Back',
+    desc: 'Step one cue back (QuickQ remote command S).',
+    requiresCue: false,
+    requiresLevel: false,
+    allowedTransports: ['remote', 'auto'],
+    fixedTransport: 'remote',
+  },
+  release: {
+    label: 'Release',
+    desc: 'Release playback.',
+    requiresCue: false,
+    requiresLevel: false,
+    allowedTransports: ['osc', 'remote', 'auto'],
+    fixedTransport: null,
+  },
+  goto: {
+    label: 'Go To Cue',
+    desc: 'Jump playback to cue number.',
+    requiresCue: true,
+    requiresLevel: false,
+    allowedTransports: ['osc', 'remote', 'auto'],
+    fixedTransport: null,
+  },
+  level: {
+    label: 'Set Level',
+    desc: 'Set playback fader level.',
+    requiresCue: false,
+    requiresLevel: true,
+    allowedTransports: ['osc', 'remote', 'auto'],
+    fixedTransport: null,
+  },
+  flash: {
+    label: 'Flash',
+    desc: 'Set playback to flash state.',
+    requiresCue: false,
+    requiresLevel: true,
+    allowedTransports: ['osc', 'remote', 'auto'],
+    fixedTransport: null,
+  },
+};
+
+function parseCueNumberOrNull(raw) {
+  const source = String(raw || '').trim();
+  if (!source) return null;
+  const match = source.match(/^(\d+)(?:\.(\d+))?$/);
+  if (!match) return null;
+  const cueInt = Number(match[1]);
+  if (!Number.isFinite(cueInt) || cueInt < 1 || cueInt > 65536) return null;
+  const cueDecRaw = match[2] || '0';
+  const cueDecPadded = (cueDecRaw + '00').slice(0, 2);
+  const cueDec = Number(cueDecPadded);
+  if (!Number.isFinite(cueDec) || cueDec < 0 || cueDec > 99) return null;
+  const cueDecText = cueDecPadded.replace(/0+$/, '');
+  return cueDecText ? `${cueInt}.${cueDecText}` : `${cueInt}`;
+}
+
+function getOscActionMeta(action) {
+  return OSC_ACTIONS[action] || OSC_ACTIONS.go;
+}
+
+function getOscTransportOptions(action) {
+  const meta = getOscActionMeta(action);
+  const transportSelect = document.getElementById('osc-transport');
+  if (transportSelect && meta.fixedTransport) {
+    transportSelect.value = meta.fixedTransport;
+  }
+  return meta.allowedTransports || ['osc', 'remote', 'auto'];
+}
+
+function updateOscActionUi() {
+  const action = currentOscAction;
+  const meta = getOscActionMeta(action);
+  document.querySelectorAll('.osc-action-btn').forEach(b => {
+    b.classList.toggle('selected', b.dataset.action === action);
+  });
+
+  const cueRow = document.getElementById('osc-cue-row');
+  if (cueRow) cueRow.style.display = meta.requiresCue ? 'flex' : 'none';
+
+  const levelRow = document.getElementById('osc-level-row');
+  if (levelRow) levelRow.style.display = meta.requiresLevel ? 'flex' : 'none';
+
+  const desc = document.getElementById('osc-action-desc');
+  if (desc) desc.textContent = meta.desc;
+
+  const transportSelect = document.getElementById('osc-transport');
+  if (transportSelect) {
+    const allowed = new Set(getOscTransportOptions(action));
+    Array.from(transportSelect.options).forEach(option => {
+      option.disabled = !allowed.has(option.value);
+    });
+    if (!allowed.has(transportSelect.value)) {
+      const firstAllowed = Array.from(allowed.values())[0] || 'auto';
+      transportSelect.value = firstAllowed;
+    }
+  }
+}
+
+function selectOscAction(action) {
+  currentOscAction = OSC_ACTIONS[action] ? action : 'go';
+  updateOscActionUi();
+}
+
+function parseOscForm(cueTypeId = getCurrentOscCueTypeId()) {
+  const typeDefaults = deepMerge({
+    oscAction: 'go',
+    oscPlayback: 1,
+    oscCueNumber: '1',
+    oscLevel: 100,
+    oscTransport: 'auto',
+  }, getCueTypePayloadDefaults(cueTypeId));
+
+  const action = currentOscAction;
+  const playbackInput = document.getElementById('osc-playback');
+  const cueInput = document.getElementById('osc-cue-number');
+  const levelInput = document.getElementById('osc-level');
+  const transportSelect = document.getElementById('osc-transport');
+  const cueField = document.getElementById('osc-cue-number');
+
+  if (playbackInput) playbackInput.value = '1';
+  const playback = 1;
+
+  const levelRaw = Number(levelInput?.value ?? typeDefaults.oscLevel ?? 100);
+  const level = Number.isFinite(levelRaw) ? Math.max(0, Math.min(100, Math.round(levelRaw))) : 100;
+
+  const cueNumber = parseCueNumberOrNull(cueInput?.value ?? typeDefaults.oscCueNumber ?? '1');
+  const transportValue = String(transportSelect?.value || typeDefaults.oscTransport || 'auto').trim().toLowerCase();
+  const allowedTransports = getOscTransportOptions(action);
+  const transport = allowedTransports.includes(transportValue)
+    ? transportValue
+    : (allowedTransports[0] || 'auto');
+
+  cueField?.classList.remove('input-error');
+
+  const meta = getOscActionMeta(action);
+  if (meta.requiresCue && !cueNumber) {
+    cueField?.classList.add('input-error');
+    cueField?.focus();
+    throw new Error('Cue number must be like 5 or 5.1');
+  }
+
+  return {
+    oscAction: action,
+    oscPlayback: playback,
+    oscCueNumber: cueNumber || String(typeDefaults.oscCueNumber || '1'),
+    oscLevel: level,
+    oscTransport: transport,
+  };
+}
+
+function initOscForm(cueData, cueTypeId = getCurrentOscCueTypeId()) {
+  const typeDefaults = deepMerge({
+    oscAction: 'go',
+    oscPlayback: 1,
+    oscCueNumber: '1',
+    oscLevel: 100,
+    oscTransport: 'auto',
+  }, getCueTypePayloadDefaults(cueTypeId));
+
+  const merged = deepMerge(typeDefaults, cueData || {});
+  currentOscAction = String(merged.oscAction || 'go').toLowerCase();
+  if (!OSC_ACTIONS[currentOscAction]) currentOscAction = 'go';
+
+  const playbackInput = document.getElementById('osc-playback');
+  const cueInput = document.getElementById('osc-cue-number');
+  const levelInput = document.getElementById('osc-level');
+  const transportSelect = document.getElementById('osc-transport');
+
+  if (playbackInput) playbackInput.value = '1';
+  if (cueInput) cueInput.value = parseCueNumberOrNull(merged.oscCueNumber) || String(typeDefaults.oscCueNumber || '1');
+  if (levelInput) {
+    const level = Number.isFinite(Number(merged.oscLevel)) ? Number(merged.oscLevel) : 100;
+    levelInput.value = String(Math.max(0, Math.min(100, Math.round(level))));
+  }
+  if (transportSelect) transportSelect.value = String(merged.oscTransport || 'auto').toLowerCase();
+
+  updateOscActionUi();
 }
 
 function getSoundData() {
@@ -2341,6 +2680,7 @@ async function persistAndRefresh() {
       currentTargetId = null;
       currentCueType = null;
       currentCueId = null;
+      currentOscAction = 'go';
 
       renderAllPages();
       currentZoom = savedZoom;
@@ -2351,9 +2691,9 @@ async function persistAndRefresh() {
       sendCueDataToPopup();
     } else {
       const error = await res.json();
-      console.error('Error saving:', error.error);
+      showCueError(error.error || 'Could not save cue');
     }
   } catch (err) {
-    console.error('Error saving:', err.message);
+    showCueError(err.message || 'Could not save cue');
   }
 }

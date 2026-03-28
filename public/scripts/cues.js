@@ -125,13 +125,43 @@ function connectWS() {
                 document.getElementById('master-db-label').textContent = fmtDbLabel(db);
             }
         } else if (msg.type === 'error') {
-            console.error('Error from server:', msg);
+            showCueModeError(msg.message || 'Runtime error');
+        } else if (msg.type === 'runtimeError') {
+            showCueModeError(msg.message || 'Runtime error');
         }
     };
 }
 
 function wsSend(obj) {
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
+}
+
+function showCueModeError(message) {
+    const text = String(message || '').trim();
+    if (!text) return;
+
+    const host = document.getElementById('cue-error-toasts');
+    if (!host) {
+        alert(text);
+        return;
+    }
+
+    const toast = document.createElement('div');
+    toast.className = 'cue-error-toast';
+    toast.textContent = text;
+    host.appendChild(toast);
+
+    requestAnimationFrame(() => toast.classList.add('visible'));
+
+    const remove = () => {
+        toast.classList.remove('visible');
+        setTimeout(() => {
+            if (toast.parentNode) toast.parentNode.removeChild(toast);
+        }, 140);
+    };
+
+    toast.addEventListener('click', remove, { once: true });
+    setTimeout(remove, 5600);
 }
 
 // ── Cue data ───────────────────────────────────────────────────────────────

@@ -34,6 +34,23 @@
         "loopEnd": null,
         "loopXfade": 0
       }
+    },
+    {
+      "id": "osc",
+      "label": "OSC",
+      "shortLabel": "O",
+      "description": "Open Sound Control / QuickQ remote playback control cues.",
+      "editor": "osc",
+      "handler": "oscDispatch",
+      "color": "#38bdf8",
+      "order": 30,
+      "payloadDefaults": {
+        "oscAction": "go",
+        "oscPlayback": 1,
+        "oscCueNumber": "1",
+        "oscLevel": 100,
+        "oscTransport": "auto"
+      }
     }
   ]
 }

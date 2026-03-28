@@ -45,7 +45,24 @@
         "fadeOut": 0,
         "volume": 0,
         "manualFadeOutDuration": 2,
-        "allowMultipleInstances": false
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0
+      }
+    ]
+  },
+  "scene_1_2_p12_sd0_w4": {
+    "osc": [
+      {
+        "id": "mna3hne3pxmbl",
+        "title": "Movers up",
+        "description": "",
+        "oscAction": "go",
+        "oscPlayback": 1,
+        "oscCueNumber": "1",
+        "oscLevel": 100,
+        "oscTransport": "auto"
       }
     ]
   }

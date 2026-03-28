@@ -26,5 +26,12 @@
   },
   "system": {
     "notes": "When running with pulseaudio please ensure you are running it through pw-jack"
+  },
+  "osc": {
+    "target": {
+      "ip": "127.0.0.1",
+      "oscPort": 8000,
+      "remotePort": 6553
+    }
   }
 }
