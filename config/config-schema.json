@@ -138,6 +138,41 @@
           "exposeToClient": false
         }
       ]
+    },
+    {
+      "id": "osc",
+      "label": "OSC",
+      "description": "Target network settings for OSC and QuickQ/MagicQ remote playback commands.",
+      "fields": [
+        {
+          "key": "osc.target.ip",
+          "label": "Target IP",
+          "type": "text",
+          "default": "127.0.0.1",
+          "placeholder": "192.168.1.100",
+          "help": "Lighting console IP address receiving cue commands."
+        },
+        {
+          "key": "osc.target.oscPort",
+          "label": "OSC receive port",
+          "type": "number",
+          "default": 8000,
+          "min": 1,
+          "max": 65535,
+          "step": 1,
+          "help": "Default OSC RX port (QuickQ/MagicQ typically 8000)."
+        },
+        {
+          "key": "osc.target.remotePort",
+          "label": "Remote protocol UDP port",
+          "type": "number",
+          "default": 6553,
+          "min": 1,
+          "max": 65535,
+          "step": 1,
+          "help": "ChamSys Ethernet Remote UDP port (QuickQ fixed at 6553)."
+        }
+      ]
     }
   ]
 }

@@ -71,6 +71,7 @@
         <div class="cue-type-selector" id="cue-type-selector">
           <button class="cue-type-btn" data-type="lighting" onclick="selectCueType('lighting')">Lighting</button>
           <button class="cue-type-btn" data-type="sound" onclick="selectCueType('sound')">Sound</button>
+          <button class="cue-type-btn" data-type="osc" onclick="selectCueType('osc')">OSC</button>
         </div>
 
         <!-- Sound options (shown when type=sound) -->
@@ -335,6 +336,48 @@
 
         </div>
 
+        <!-- OSC options (shown when type=osc) -->
+        <div id="osc-section" class="osc-section" style="display:none">
+          <div class="osc-action-bar">
+            <button class="osc-action-btn selected" data-action="go" onclick="selectOscAction('go')">Go</button>
+            <button class="osc-action-btn" data-action="back" onclick="selectOscAction('back')">Back</button>
+            <button class="osc-action-btn" data-action="goto" onclick="selectOscAction('goto')">Go To Cue</button>
+            <button class="osc-action-btn" data-action="release" onclick="selectOscAction('release')">Release</button>
+          </div>
+
+          <div class="osc-action-desc" id="osc-action-desc">Trigger GO on playback.</div>
+
+          <div class="osc-grid">
+            <div class="osc-field-row">
+              <label for="osc-playback">Playback (Cue Stack)</label>
+              <input type="number" id="osc-playback" min="1" max="1" step="1" value="1" disabled>
+            </div>
+
+            <div class="osc-field-row" id="osc-cue-row" style="display:none">
+              <label for="osc-cue-number">Cue Number</label>
+              <input type="text" id="osc-cue-number" value="1" placeholder="e.g. 5 or 5.1">
+            </div>
+
+            <div class="osc-field-row" id="osc-level-row" style="display:none">
+              <label for="osc-level">Level</label>
+              <input type="number" id="osc-level" min="0" max="100" step="1" value="100">
+            </div>
+
+            <div class="osc-field-row">
+              <label for="osc-transport">Transport</label>
+              <select id="osc-transport" class="param-select" onchange="updateOscActionUi()">
+                <option value="auto">Auto</option>
+                <option value="osc">OSC</option>
+                <option value="remote">QuickQ Remote UDP</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="osc-help-note">
+            QuickQ cue stack is Playback 1. Use OSC for standard playback commands and Remote UDP for Back.
+          </div>
+        </div>
+
         <div class="form-group">
           <label for="cue-title">Title</label>
           <input type="text" id="cue-title" placeholder="e.g., Blackout, Thunder roll" autocomplete="off"
@@ -380,6 +423,8 @@
       </div>
     </div>
   </div>
+
+  <div class="cue-toast-container" id="cue-toast-container"></div>
 
   <script src="scripts/audio-preview.js"></script>
   <script src="scripts/main.js"></script>

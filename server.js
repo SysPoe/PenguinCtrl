@@ -4,6 +4,7 @@ import { WebSocketServer } from 'ws';
 import { readFileSync, statSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync } from 'fs';
 import { join, dirname, extname, basename } from 'path';
 import { execFile } from 'child_process';
+import dgram from 'node:dgram';
 import { parseString } from 'xml2js';
 import { fileURLToPath } from 'url';
 import ffmpegStatic from 'ffmpeg-static';
@@ -43,6 +44,163 @@ const cueExecutionEngine = createCueExecutionEngine({
   cueTypeRegistry,
   playAudioCue: playCue,
   workspaceRoot: __dirname,
+});
+
+const udpSocket = dgram.createSocket('udp4');
+
+function clampPort(value, fallback) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(1, Math.min(65535, Math.round(parsed)));
+}
+
+function clampLevel(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 100;
+  return Math.max(0, Math.min(100, Math.round(parsed)));
+}
+
+function parseCueNumber(rawCueNumber) {
+  const source = String(rawCueNumber ?? '').trim();
+  const match = source.match(/^(\d+)(?:\.(\d+))?$/);
+  if (!match) {
+    throw new Error(`Invalid cue number "${source}". Use a number like 5 or 5.1`);
+  }
+
+  const cueInt = Number(match[1]);
+  const cueDecSource = match[2] || '0';
+  const cueDecPadded = (cueDecSource + '00').slice(0, 2);
+  const cueDec = Number(cueDecPadded);
+
+  if (!Number.isFinite(cueInt) || cueInt < 1 || cueInt > 65536) {
+    throw new Error(`Cue number integer part must be 1..65536 (got ${cueInt})`);
+  }
+
+  if (!Number.isFinite(cueDec) || cueDec < 0 || cueDec > 99) {
+    throw new Error(`Cue number decimal part must be 0..99 (got ${cueDec})`);
+  }
+
+  const cueDecText = cueDecPadded.replace(/0+$/, '');
+
+  return {
+    cueInt,
+    cueDec,
+    normalized: cueDecText ? `${cueInt}.${cueDecText}` : `${cueInt}`,
+  };
+}
+
+function padOscString(value) {
+  const source = `${String(value ?? '')}\0`;
+  const raw = Buffer.from(source, 'utf8');
+  const padding = (4 - (raw.length % 4)) % 4;
+  return padding ? Buffer.concat([raw, Buffer.alloc(padding)]) : raw;
+}
+
+function encodeOscMessage(address, args = []) {
+  if (typeof address !== 'string' || !address.startsWith('/')) {
+    throw new Error(`Invalid OSC address: ${address}`);
+  }
+
+  const typeTags = [','];
+  const argBuffers = [];
+
+  for (const arg of args) {
+    if (typeof arg === 'number' && Number.isFinite(arg)) {
+      if (Number.isInteger(arg)) {
+        typeTags.push('i');
+        const buf = Buffer.alloc(4);
+        buf.writeInt32BE(arg, 0);
+        argBuffers.push(buf);
+      } else {
+        typeTags.push('f');
+        const buf = Buffer.alloc(4);
+        buf.writeFloatBE(arg, 0);
+        argBuffers.push(buf);
+      }
+    } else {
+      typeTags.push('s');
+      argBuffers.push(padOscString(String(arg ?? '')));
+    }
+  }
+
+  return Buffer.concat([
+    padOscString(address),
+    padOscString(typeTags.join('')),
+    ...argBuffers,
+  ]);
+}
+
+function sendUdpPacket(payload, { host, port }) {
+  return new Promise((resolve, reject) => {
+    udpSocket.send(payload, port, host, (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
+function buildOscAddressAndArgs({ action, playback, cueNumber, level }) {
+  if (action === 'go') return { address: `/pb/${playback}/go`, args: [1] };
+  if (action === 'pause') return { address: `/pb/${playback}/pause`, args: [1] };
+  if (action === 'release') return { address: `/pb/${playback}/release`, args: [1] };
+  if (action === 'flash') return { address: `/pb/${playback}/flash`, args: [level > 0 ? 1 : 0] };
+  if (action === 'level') return { address: `/pb/${playback}`, args: [level] };
+  if (action === 'goto') {
+    const parsed = parseCueNumber(cueNumber);
+    return { address: `/pb/${playback}/${parsed.normalized}`, args: [1] };
+  }
+  throw new Error(`OSC transport does not support action "${action}"`);
+}
+
+function buildRemoteCommand({ action, playback, cueNumber, level }) {
+  if (action === 'go') return `${playback}G`;
+  if (action === 'back') return `${playback}S`;
+  if (action === 'release') return `${playback}R`;
+  if (action === 'flash') return level > 0 ? `${playback}T` : `${playback}U`;
+  if (action === 'level') return `${playback},${level}L`;
+  if (action === 'goto') {
+    const parsed = parseCueNumber(cueNumber);
+    return `${playback},${parsed.cueInt},${parsed.cueDec}J`;
+  }
+  throw new Error(`Remote transport does not support action "${action}"`);
+}
+
+cueExecutionEngine.registerHandler('oscDispatch', async (cue) => {
+  const action = String(cue?.oscAction || 'go').trim().toLowerCase();
+  const playback = 1;
+  const cueNumber = cue?.oscCueNumber ?? '1';
+  const level = clampLevel(cue?.oscLevel);
+  const transport = String(cue?.oscTransport || 'auto').trim().toLowerCase();
+
+  const host = String(configService.getValue('osc.target.ip', '127.0.0.1') || '127.0.0.1').trim() || '127.0.0.1';
+  const oscPort = clampPort(configService.getValue('osc.target.oscPort', 8000), 8000);
+  const remotePort = clampPort(configService.getValue('osc.target.remotePort', 6553), 6553);
+
+  const resolvedTransport = transport === 'auto'
+    ? (action === 'back' ? 'remote' : (action === 'goto' ? 'remote' : 'osc'))
+    : transport;
+
+  if (resolvedTransport !== 'osc' && resolvedTransport !== 'remote') {
+    throw new Error(`Invalid OSC transport "${transport}" (expected auto, osc, or remote)`);
+  }
+
+  try {
+    if (resolvedTransport === 'osc') {
+      const { address, args } = buildOscAddressAndArgs({ action, playback, cueNumber, level });
+      const payload = encodeOscMessage(address, args);
+      await sendUdpPacket(payload, { host, port: oscPort });
+      return { instanceId: null };
+    }
+
+    const command = buildRemoteCommand({ action, playback, cueNumber, level });
+    await sendUdpPacket(Buffer.from(command, 'ascii'), { host, port: remotePort });
+    return { instanceId: null };
+  } catch (err) {
+    const targetPort = resolvedTransport === 'osc' ? oscPort : remotePort;
+    throw new Error(
+      `Failed to send ${resolvedTransport.toUpperCase()} command (${action}) to ${host}:${targetPort} - ${err.message}`
+    );
+  }
 });
 
 function getUploadLimit() {
@@ -601,7 +759,8 @@ wss.on('connection', (ws) => {
         });
       }
     } catch (err) {
-      ws.send(JSON.stringify({ type: 'error', message: err.message }));
+      const message = err?.message || 'Unknown runtime error';
+      broadcast({ type: 'runtimeError', message });
     }
   });
 });

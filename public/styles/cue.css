@@ -32,6 +32,40 @@ body {
     font-size: 15px;
 }
 
+.cue-error-toasts {
+    position: fixed;
+    right: 14px;
+    bottom: 14px;
+    z-index: 1400;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+}
+
+.cue-error-toast {
+    min-width: 220px;
+    max-width: min(420px, calc(100vw - 28px));
+    background: #37171b;
+    border: 1px solid rgba(230, 90, 90, 0.5);
+    color: #ffd0d4;
+    border-radius: 7px;
+    padding: 9px 11px;
+    font-size: 12px;
+    line-height: 1.35;
+    box-shadow: 0 9px 24px rgba(0, 0, 0, 0.35);
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 0.12s ease, transform 0.12s ease;
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+.cue-error-toast.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
 /* ── WS error banner ── */
 #ws-banner {
     display: none;
