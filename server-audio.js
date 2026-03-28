@@ -99,9 +99,9 @@ function startSrc(ctx, buffer, gainNode, offset, duration, loop, loopStart, loop
 }
 
 function disposePlayer(p) {
-    try { p.source.stop(); } catch (_) {}
-    try { p.source.disconnect(); } catch (_) {}
-    try { p.gain.disconnect(); } catch (_) {}
+    try { p.source.stop(); } catch (_) { }
+    try { p.source.disconnect(); } catch (_) { }
+    try { p.gain.disconnect(); } catch (_) { }
 }
 
 // ── Active instances ───────────────────────────────────────────────────────
@@ -198,11 +198,11 @@ async function seek(instanceId, newPos) {
     inst.timers.forEach(t => clearTimeout(t));
     inst.timers.clear();
     if (inst.type === 'xfade_vamp') {
-        inst.players.forEach(p => { try { p.source.stop(); } catch (_) {} try { p.gain.disconnect(); } catch (_) {} });
+        inst.players.forEach(p => { try { p.source.stop(); } catch (_) { } try { p.gain.disconnect(); } catch (_) { } });
         inst.players = [];
     } else if (inst.nodes) {
-        try { inst.nodes.source.stop(); } catch (_) {}
-        try { inst.nodes.gain.disconnect(); } catch (_) {}
+        try { inst.nodes.source.stop(); } catch (_) { }
+        try { inst.nodes.gain.disconnect(); } catch (_) { }
         inst.nodes = null;
     }
     inst.isDeramping = false;
@@ -280,11 +280,11 @@ function pause(instanceId) {
     inst.timers.clear();
     if (inst.type === 'xfade_vamp') {
         inst.isDeramping = true; // stop crossfade scheduling
-        inst.players.forEach(p => { try { p.source.stop(); } catch (_) {} try { p.gain.disconnect(); } catch (_) {} });
+        inst.players.forEach(p => { try { p.source.stop(); } catch (_) { } try { p.gain.disconnect(); } catch (_) { } });
         inst.players = [];
     } else if (inst.nodes) {
-        try { inst.nodes.source.stop(); } catch (_) {}
-        try { inst.nodes.gain.disconnect(); } catch (_) {}
+        try { inst.nodes.source.stop(); } catch (_) { }
+        try { inst.nodes.gain.disconnect(); } catch (_) { }
         inst.nodes = null;
     }
 }
@@ -304,18 +304,18 @@ async function playCue(cue) {
     const cueType = cue.cueType || cue.soundSubtype || 'play_once';
     const {
         clip,
-        clipUrl      = null,
-        playStyle    = 'alongside',
-        clipStart    = 0,
-        clipEnd      = null,
-        fadeIn       = 0,
-        fadeOut      = 0,
+        clipUrl = null,
+        playStyle = 'alongside',
+        clipStart = 0,
+        clipEnd = null,
+        fadeIn = 0,
+        fadeOut = 0,
         volume: volumeDb = 0,
         allowMultipleInstances = true,
-        manualFadeOutDuration  = 2,
-        loopStart    = 0,
-        loopEnd      = null,
-        loopXfade    = 0,
+        manualFadeOutDuration = 2,
+        loopStart = 0,
+        loopEnd = null,
+        loopXfade = 0,
     } = cue;
 
     if (!clip) throw new Error('playCue: clip is required');
