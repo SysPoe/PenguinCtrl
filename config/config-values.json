@@ -10,7 +10,7 @@
     }
   },
   "realtime": {
-    "instanceBroadcastMs": 100,
+    "instanceBroadcastMs": 200,
     "reconnectDelayMs": 2000
   },
   "ui": {
