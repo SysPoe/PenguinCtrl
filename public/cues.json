@@ -529,5 +529,28 @@
         "description": "Fade to black. Or spotlight movie effect where it closes in on Stella’s face."
       }
     ]
+  },
+  "scene_1_2_p12_sd0_w0": {
+    "sound": [
+      {
+        "id": "mncrab0kisyep",
+        "title": "Test Sound Cue",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 0,
+        "clipEnd": 4.572,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscTriggers": [],
+        "clip": "/audio/among-us-role-reveal-sound_1774476508953.webm"
+      }
+    ]
   }
 }

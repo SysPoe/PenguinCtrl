@@ -792,17 +792,45 @@ function sendCueDataToPopup() {
   }, '*');
 }
 
+function findScrollTarget(targetId) {
+  if (!targetId) return null;
+
+  const selectors = [
+    `[data-wid="${CSS.escape(targetId)}"]`,
+    `[data-line-id="${CSS.escape(targetId)}"]`,
+  ];
+
+  for (const selector of selectors) {
+    const el = document.querySelector(selector);
+    if (el) return el;
+  }
+
+  return null;
+}
+
+function scrollTargetIntoView(targetId, behavior = 'smooth') {
+  const el = findScrollTarget(targetId);
+  if (el) {
+    el.scrollIntoView({ behavior, block: 'center' });
+    return true;
+  }
+  return false;
+}
+
+function scrollToTargetWithRetry(targetId) {
+  if (scrollTargetIntoView(targetId)) return;
+
+  requestAnimationFrame(() => {
+    scrollTargetIntoView(targetId, 'auto');
+  });
+}
+
 // Listen for messages from popup
 window.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'requestCues') {
     sendCueDataToPopup();
   } else if (event.data && event.data.type === 'scrollToTarget') {
-    const targetId = event.data.targetId;
-    // Find the element and scroll to it
-    const el = document.querySelector(`[data-line-id="${targetId}"]`);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
+    scrollToTargetWithRetry(event.data.targetId);
   }
 });
 
