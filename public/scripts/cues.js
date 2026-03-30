@@ -351,7 +351,7 @@ function renderCues() {
         const typeLabel = cue.cueTypeLabel || cue.cueType || 'Cue';
         const shortLabel = cue.cueTypeShortLabel || typeLabel.slice(0, 1).toUpperCase();
         const numClass = isS ? 's' : 'l';
-        const numLabel = `${shortLabel}${cue.number}`;
+        const numLabel = `${cue.number}`;
         let badge = '';
         if (isS) {
             const st = cue.subtype || cue.soundType || 'run';
