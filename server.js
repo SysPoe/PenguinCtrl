@@ -11,7 +11,7 @@ import ffmpegStatic from 'ffmpeg-static';
 import {
   playCue, fadeOut as audioFadeOut, stop as audioStop, stopAll as audioStopAll,
   fadeOutAll as audioFadeOutAll, devamp as audioDevamp, cancelDevamp as audioCancelDevamp,
-  listActive, setVolume, masterVolume,
+  listActive, setVolume, masterVolume, cancelWaitingCues as audioCancelWaitingCues,
   pause as audioPause, resume as audioResume, seek as audioSeek, setTriggerCallback as audioSetTriggerCallback
 } from './server-audio.js';
 import { createConfigService } from './config/config-service.js';
@@ -693,6 +693,22 @@ const wss = new WebSocketServer({ server: httpServer });
 
 // Played cues tracking (survives reconnects)
 const playedCueIds = new Set();
+const pendingCueExecutions = new Map();
+
+function normalizePendingCueEntries() {
+  return [...pendingCueExecutions.entries()].map(([cueId, count]) => ({ cueId, count }));
+}
+
+function setPendingCueCount(cueId, delta) {
+  if (!cueId) return;
+  const nextCount = Math.max(0, (pendingCueExecutions.get(cueId) || 0) + delta);
+  if (nextCount === 0) pendingCueExecutions.delete(cueId);
+  else pendingCueExecutions.set(cueId, nextCount);
+}
+
+function clearPendingCueExecutions() {
+  pendingCueExecutions.clear();
+}
 
 function broadcast(data) {
   const msg = JSON.stringify(data);
@@ -703,6 +719,10 @@ function broadcast(data) {
 
 function broadcastInstances() {
   broadcast({ type: 'instances', list: listActive() });
+}
+
+function broadcastPendingCues() {
+  broadcast({ type: 'pendingCues', list: normalizePendingCueEntries() });
 }
 
 function broadcastPlayed() {
@@ -734,6 +754,7 @@ scheduleInstanceBroadcast();
 wss.on('connection', (ws) => {
   ws.send(JSON.stringify({ type: 'meta', ...getRuntimeMeta() }));
   ws.send(JSON.stringify({ type: 'instances', list: listActive() }));
+  ws.send(JSON.stringify({ type: 'pendingCues', list: normalizePendingCueEntries() }));
   ws.send(JSON.stringify({ type: 'playedCues', ids: [...playedCueIds] }));
   try { ws.send(JSON.stringify({ type: 'masterVolume', db: safeMasterVolume() })); } catch (_) { }
 
@@ -749,14 +770,26 @@ wss.on('connection', (ws) => {
           broadcastPlayed();
         }
 
-        const execution = await cueExecutionEngine.execute(msg.cue || null);
-        ws.send(JSON.stringify({
-          type: 'go_ack',
-          instanceId: execution.instanceId ?? null,
-          cueType: execution.cueType,
-          handler: execution.handlerName,
-        }));
-        broadcastInstances();
+        if (msg.cueId) {
+          setPendingCueCount(msg.cueId, 1);
+          broadcastPendingCues();
+        }
+
+        try {
+          const execution = await cueExecutionEngine.execute(msg.cue || null);
+          ws.send(JSON.stringify({
+            type: 'go_ack',
+            instanceId: execution.instanceId ?? null,
+            cueType: execution.cueType,
+            handler: execution.handlerName,
+          }));
+        } finally {
+          if (msg.cueId) {
+            setPendingCueCount(msg.cueId, -1);
+            broadcastPendingCues();
+          }
+          broadcastInstances();
+        }
 
       } else if (msg.type === 'resetPlayed') {
         playedCueIds.clear();
@@ -771,6 +804,9 @@ wss.on('connection', (ws) => {
         broadcastInstances();
 
       } else if (msg.type === 'stopAll') {
+        audioCancelWaitingCues();
+        clearPendingCueExecutions();
+        broadcastPendingCues();
         audioStopAll();
         broadcastInstances();
 
@@ -785,6 +821,9 @@ wss.on('connection', (ws) => {
       } else if (msg.type === 'fadeOutAll') {
         const defaultFade = Number(configService.getValue('ui.cues.defaultManualFadeOutSeconds', 2));
         const fallbackDuration = Number.isFinite(defaultFade) ? Math.max(0.1, defaultFade) : 2;
+        audioCancelWaitingCues();
+        clearPendingCueExecutions();
+        broadcastPendingCues();
         audioFadeOutAll(msg.duration ?? fallbackDuration);
         setTimeout(broadcastInstances, 100);
 
@@ -812,6 +851,10 @@ wss.on('connection', (ws) => {
         });
       }
     } catch (err) {
+      if (err?.code === 'WAITING_CUE_CANCELLED') {
+        broadcastInstances();
+        return;
+      }
       const message = err?.message || 'Unknown runtime error';
       broadcast({ type: 'runtimeError', message });
     }

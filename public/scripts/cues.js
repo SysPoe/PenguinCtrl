@@ -5,6 +5,8 @@ let selectedIdx = -1;
 let ws = null;
 let activeInstances = [];
 let playedIds = new Set();
+let activeCueCounts = new Map();
+let pendingCueCounts = new Map();
 
 const DEFAULT_META = {
     config: {
@@ -99,6 +101,11 @@ function connectWS() {
         if (msg.type === 'instances') {
             activeInstances = msg.list || [];
             updateVoices();
+            updateCueCounts();
+            applyCueStatusBadges();
+        } else if (msg.type === 'pendingCues') {
+            pendingCueCounts = new Map((msg.list || []).map(item => [item.cueId, Number(item.count) || 0]));
+            applyCueStatusBadges();
         } else if (msg.type === 'meta') {
             applyRuntimeMeta(msg);
         } else if (msg.type === 'playedCues') {
@@ -196,6 +203,46 @@ function escHtml(t) {
     return String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c]));
 }
 
+function updateCueCounts() {
+    const counts = new Map();
+    activeInstances.forEach(inst => {
+        const cueId = inst.cueId;
+        if (!cueId) return;
+        counts.set(cueId, (counts.get(cueId) || 0) + 1);
+    });
+    activeCueCounts = counts;
+}
+
+function getCueStatusParts(cueId) {
+    const activeCount = activeCueCounts.get(cueId) || 0;
+    const pendingCount = pendingCueCounts.get(cueId) || 0;
+    const parts = [];
+
+    if (pendingCount > 0) {
+        parts.push({ kind: 'waiting', text: pendingCount > 1 ? `Waiting x${pendingCount}` : 'Waiting' });
+    }
+
+    if (activeCount > 1) {
+        parts.push({ kind: 'active', text: `x${activeCount} active` });
+    }
+
+    return parts;
+}
+
+function renderCueStatusBadges(cueId) {
+    const parts = getCueStatusParts(cueId);
+    if (!parts.length) return '<span class="cue-state empty">—</span>';
+    return parts.map(part => `<span class="cue-state ${part.kind}">${escHtml(part.text)}</span>`).join('');
+}
+
+function applyCueStatusBadges() {
+    document.querySelectorAll('.cue-row[data-id]').forEach(row => {
+        const cueId = row.dataset.id;
+        const stateCell = row.querySelector('.cue-state-cell');
+        if (stateCell) stateCell.innerHTML = renderCueStatusBadges(cueId);
+    });
+}
+
 // ── Render cue table ───────────────────────────────────────────────────────
 function renderCues() {
     const tbody = document.getElementById('cue-tbody');
@@ -236,10 +283,13 @@ function renderCues() {
       <td class="col-num"><span class="cue-num ${numClass}"${styleAttr}>${numLabel}</span></td>
       <td class="cue-title-cell">${escHtml(cue.title)}</td>
       <td class="col-type">${badge}</td>
+            <td class="col-state"><div class="cue-state-cell">${renderCueStatusBadges(cue.id)}</div></td>
       <td class="col-len len">${cue.fullCue?.clip ? fmtDur(cue.duration) : '—'}</td>
     </tr>`;
     }).join('');
 
+        updateCueCounts();
+        applyCueStatusBadges();
     updateGoBtn();
 }
 
@@ -396,6 +446,64 @@ function drawWaveform(canvas, peaks, position, duration, loopStart, loopEnd, isV
     }
 }
 
+function drawWaveformFromStart(canvas, peaks, position, duration, clipStart, loopStart, loopEnd, isVamp) {
+    const start = Number.isFinite(Number(clipStart)) ? Math.max(0, Number(clipStart)) : 0;
+    const safeDuration = Number.isFinite(duration) ? duration : 0;
+    const visibleDuration = Math.max(0, safeDuration - start);
+    const W = canvas.offsetWidth || canvas.parentElement?.offsetWidth || 200;
+    const H = 38;
+    if (canvas.width !== W) canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+    const mid = H / 2;
+
+    if (!(peaks && peaks.length) || visibleDuration <= 0) {
+        ctx.fillStyle = '#222234';
+        ctx.fillRect(0, mid - 1, W, 2);
+        return;
+    }
+
+    const visibleStartIdx = Math.min(peaks.length, Math.max(0, Math.floor((start / safeDuration) * peaks.length)));
+    const visiblePeaks = peaks.slice(visibleStartIdx);
+    if (!visiblePeaks.length) {
+        ctx.fillStyle = '#222234';
+        ctx.fillRect(0, mid - 1, W, 2);
+        return;
+    }
+
+    if (isVamp && safeDuration > 0 && loopEnd > loopStart) {
+        const clipStartInVisible = Math.max(start, loopStart);
+        const clipEndInVisible = Math.min(loopEnd, safeDuration);
+        if (clipEndInVisible > clipStartInVisible) {
+            const lx = ((clipStartInVisible - start) / visibleDuration) * W;
+            const lw = Math.max(0, ((clipEndInVisible - clipStartInVisible) / visibleDuration) * W);
+            ctx.fillStyle = 'rgba(140,90,255,0.22)';
+            ctx.fillRect(lx, 0, lw, H);
+            ctx.fillStyle = 'rgba(160,110,255,0.5)';
+            ctx.fillRect(lx, 0, 1.5, H);
+            ctx.fillRect(lx + lw - 1.5, 0, 1.5, H);
+        }
+    }
+
+    const bw = W / visiblePeaks.length;
+    ctx.fillStyle = '#4a9edd';
+    for (let i = 0; i < visiblePeaks.length; i++) {
+        const h = Math.max(1, visiblePeaks[i] * mid * 1.8);
+        ctx.fillRect(i * bw, mid - h, Math.max(1, bw - 0.5), h * 2);
+    }
+
+    if (duration > 0 && position >= start) {
+        const visiblePos = Math.max(0, position - start);
+        const px = Math.round((visiblePos / Math.max(0.001, visibleDuration)) * W);
+        ctx.fillStyle = 'rgba(255,255,255,0.9)';
+        ctx.fillRect(px - 1, 0, 2, H);
+        ctx.beginPath();
+        ctx.moveTo(px - 4, 0); ctx.lineTo(px + 4, 0); ctx.lineTo(px, 7);
+        ctx.fillStyle = '#ffffff'; ctx.fill();
+    }
+}
+
 // ── Stable voice DOM ───────────────────────────────────────────────────────
 const voiceDomMap = new Map();
 const voicePosState = new Map();
@@ -426,7 +534,7 @@ function updateVoices() {
                 loadWaveform(inst.clipUrl).then(peaks => {
                     if (voiceDomMap.has(id)) {
                         const c = card.querySelector('.vc-wave');
-                        if (c) drawWaveform(c, peaks, inst.position || 0, inst.duration, inst.loopStart, inst.loopEnd, inst.isVamp);
+                        if (c) drawWaveformFromStart(c, peaks, inst.position || 0, inst.duration, inst.clipStart || 0, inst.loopStart, inst.loopEnd, inst.isVamp);
                     }
                 });
             }
@@ -468,7 +576,7 @@ function updateVoices() {
         const canvas = card.querySelector('.vc-wave');
         if (canvas) {
             const peaks = inst.clipUrl ? waveCache.get(inst.clipUrl) : null;
-            drawWaveform(canvas, peaks, inst.position || 0, inst.duration, inst.loopStart, inst.loopEnd, inst.isVamp);
+            drawWaveformFromStart(canvas, peaks, inst.position || 0, inst.duration, inst.clipStart || 0, inst.loopStart, inst.loopEnd, inst.isVamp);
         }
     });
 }

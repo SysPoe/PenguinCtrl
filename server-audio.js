@@ -115,6 +115,25 @@ function disposePlayer(p) {
 
 const activeInstances = new Map();
 let nextId = 0;
+let waitingCueGeneration = 0;
+
+class WaitingCueCancelledError extends Error {
+    constructor() {
+        super('Waiting cue cancelled');
+        this.name = 'WaitingCueCancelledError';
+        this.code = 'WAITING_CUE_CANCELLED';
+    }
+}
+
+function cancelWaitingCues() {
+    waitingCueGeneration += 1;
+}
+
+function assertWaitingCuesNotCancelled(startGeneration) {
+    if (startGeneration !== waitingCueGeneration) {
+        throw new WaitingCueCancelledError();
+    }
+}
 
 function clearInstance(id) {
     const inst = activeInstances.get(id);
@@ -316,6 +335,7 @@ async function resume(instanceId) {
 // ── Public API ─────────────────────────────────────────────────────────────
 
 async function playCue(cue) {
+    const cueGeneration = waitingCueGeneration;
     const cueType = cue.cueType || cue.soundSubtype || 'play_once';
     const playbackMode = cue.soundSubtype || (cueType === 'sound' ? 'play_once' : cueType);
     const {
@@ -337,10 +357,14 @@ async function playCue(cue) {
     if (!clip) throw new Error('playCue: clip is required');
 
     if (playStyle === 'wait') {
+        assertWaitingCuesNotCancelled(cueGeneration);
         await waitForAll();
+        assertWaitingCuesNotCancelled(cueGeneration);
     } else if (playStyle === 'fade_all') {
+        assertWaitingCuesNotCancelled(cueGeneration);
         fadeOutAll(manualFadeOutDuration);
         await new Promise(r => setTimeout(r, manualFadeOutDuration * 1000 + 200));
+        assertWaitingCuesNotCancelled(cueGeneration);
     } else if (playStyle === 'xfade') {
         [...activeInstances.keys()].forEach(id => fadeOut(id, manualFadeOutDuration));
     }
@@ -525,6 +549,7 @@ function listActive() {
         const volumeDb = inst.cue?.volume ?? 0;
         return {
             instanceId,
+            cueId: inst.cue?.id ?? null,
             clip: inst.clip,
             clipUrl: inst.clipUrl || null,
             title: inst.cue?.title || inst.clip.split('/').pop(),
@@ -535,6 +560,7 @@ function listActive() {
             volume: volumeDb,
             position: getPosition(instanceId),
             duration: inst.buffer?.duration ?? 0,
+            clipStart: inst.cue?.clipStart ?? inst.clipStartOffset ?? 0,
             loopStart: inst.lStart ?? inst.cue?.loopStart ?? 0,
             loopEnd: inst.lEnd ?? inst.cue?.loopEnd ?? inst.buffer?.duration ?? 0,
         };
@@ -574,7 +600,7 @@ function cancelDevamp(instanceId) {
     }
 }
 
-export { playCue, fadeOut, stop, stopAll, fadeOutAll, devamp, cancelDevamp, listActive, setVolume, masterVolume, pause, resume, seek, setTriggerCallback };
+export { playCue, fadeOut, stop, stopAll, fadeOutAll, devamp, cancelDevamp, listActive, setVolume, masterVolume, pause, resume, seek, setTriggerCallback, cancelWaitingCues };
 
 let triggerCallback = null;
 function setTriggerCallback(cb) {

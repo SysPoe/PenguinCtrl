@@ -330,9 +330,53 @@ tr.cue-row.selected {
     width: 64px;
 }
 
+.col-state {
+    width: 110px;
+}
+
 .col-len {
     width: 58px;
     text-align: right;
+}
+
+.cue-state-cell {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+    min-height: 18px;
+}
+
+.cue-state {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.35px;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.cue-state.empty {
+    color: var(--text3);
+    padding-inline: 0;
+    background: none;
+    border: none;
+    letter-spacing: 0;
+}
+
+.cue-state.waiting {
+    background: rgba(220, 160, 40, 0.18);
+    color: #ffd36a;
+    border: 1px solid rgba(220, 160, 40, 0.45);
+}
+
+.cue-state.active {
+    background: rgba(74, 191, 90, 0.16);
+    color: #7ce08a;
+    border: 1px solid rgba(74, 191, 90, 0.45);
 }
 
 /* Played tick */
@@ -406,6 +450,7 @@ tr.cue-row.played .cue-title-cell {
 }
 
 input[type=range] {
+    appearance: none;
     -webkit-appearance: none;
     width: 100%;
     height: 5px;
