@@ -1,162 +1,532 @@
 {
-  "scene_1_2_p12_sd0_w1": {
-    "sound": [
-      {
-        "id": "mn71dfa04443g",
-        "title": "test",
-        "description": "",
-        "soundSubtype": "vamp",
-        "clip": "/audio/among-us-role-reveal-sound_1774476508953.webm",
-        "playStyle": "alongside",
-        "clipStart": 0,
-        "clipEnd": 4.572,
-        "fadeIn": 0,
-        "fadeOut": 0,
-        "volume": 0,
-        "manualFadeOutDuration": 2,
-        "allowMultipleInstances": false,
-        "loopStart": 1.167,
-        "loopEnd": 2.107,
-        "loopXfade": 0.08
-      }
-    ]
-  },
-  "scene_1_2_p12_sd0_w12": {
+  "scene_1_2_p12_sd4": {
     "lighting": [
       {
-        "id": "mn8nngx5c1dm0",
-        "title": "test",
-        "description": "",
-        "oscAction": "go",
-        "oscPlayback": 1,
-        "oscCueNumber": "1",
-        "oscLevel": 100,
-        "oscTransport": "auto"
+        "id": "lq_01_starts_choking",
+        "title": "Starts choking",
+        "description": "Strobe lighting, red / purple / green light accents"
       }
     ]
   },
-  "scene_1_2_p12_sd0_w16": {
-    "sound": [
-      {
-        "id": "mn9z5gtum83pw",
-        "title": "test2",
-        "description": "",
-        "soundSubtype": "play_once",
-        "clip": "/audio/among-us-role-reveal-sound_1774476508953.webm",
-        "playStyle": "wait",
-        "clipStart": 2.58,
-        "clipEnd": 4.572,
-        "fadeIn": 0.115,
-        "fadeOut": 0,
-        "volume": 0,
-        "manualFadeOutDuration": 2,
-        "allowMultipleInstances": false,
-        "loopStart": 0,
-        "loopEnd": null,
-        "loopXfade": 0
-      }
-    ]
-  },
-  "scene_1_2_p12_sd0_w4": {
+  "scene_1_2_p13_sd1": {
     "lighting": [
       {
-        "id": "mna3hne3pxmbl",
-        "title": "Movers up",
-        "description": "",
-        "oscAction": "back",
-        "oscPlayback": 1,
-        "oscCueNumber": "1",
-        "oscLevel": 100,
-        "oscTransport": "remote"
+        "id": "lq_02_sink_to_bottom",
+        "title": "Can sinking to bottom",
+        "description": "Lights down for shadow screen? (depending on implementation)"
       }
     ]
   },
-  "scene_1_2_p12_sd0_w31": {
-    "sound": [
-      {
-        "id": "mnclvfxkmnnq3",
-        "title": "test3",
-        "description": "",
-        "soundSubtype": "play_once",
-        "playStyle": "alongside",
-        "clipStart": 0,
-        "clipEnd": 4.572,
-        "fadeIn": 0,
-        "fadeOut": 0,
-        "volume": 0,
-        "manualFadeOutDuration": 2,
-        "allowMultipleInstances": false,
-        "loopStart": 0,
-        "loopEnd": null,
-        "loopXfade": 0,
-        "oscTriggers": [
-          {
-            "timeMs": 0,
-            "oscAction": "go",
-            "oscPlayback": 1,
-            "oscCueNumber": "1",
-            "oscLevel": 100,
-            "oscTransport": "auto"
-          },
-          {
-            "timeMs": 1107.5010137162972,
-            "oscAction": "go",
-            "oscPlayback": 1,
-            "oscCueNumber": "1",
-            "oscLevel": 100,
-            "oscTransport": "auto"
-          },
-          {
-            "timeMs": 1496.0958181377464,
-            "oscAction": "go",
-            "oscPlayback": 1,
-            "oscCueNumber": "1",
-            "oscLevel": 100,
-            "oscTransport": "auto"
-          },
-          {
-            "timeMs": 1705.1050912228795,
-            "oscAction": "go",
-            "oscPlayback": 1,
-            "oscCueNumber": "1",
-            "oscLevel": 100,
-            "oscTransport": "auto"
-          },
-          {
-            "timeMs": 1918.2479065362752,
-            "oscAction": "go",
-            "oscPlayback": 1,
-            "oscCueNumber": "1",
-            "oscLevel": 100,
-            "oscTransport": "auto"
-          },
-          {
-            "timeMs": 2137.328121704463,
-            "oscAction": "go",
-            "oscPlayback": 1,
-            "oscCueNumber": "1",
-            "oscLevel": 100,
-            "oscTransport": "auto"
-          },
-          {
-            "timeMs": 2387.936212212376,
-            "oscAction": "go",
-            "oscPlayback": 1,
-            "oscCueNumber": "1",
-            "oscLevel": 100,
-            "oscTransport": "auto"
-          }
-        ],
-        "clip": "/audio/among-us-role-reveal-sound_1774476508953.webm"
-      }
-    ]
-  },
-  "scene_1_2_p12_sd0_w40": {
+  "scene_1_2_p14_sd0": {
     "lighting": [
       {
-        "id": "mnco66rey0j7t",
-        "title": "test222",
-        "description": ""
+        "id": "lq_03_blackout_title",
+        "title": "Scene over",
+        "description": "Blackout for title sequence"
+      }
+    ]
+  },
+  "scene_1_3_p14_sd0": {
+    "lighting": [
+      {
+        "id": "lq_04_school_yard_warm",
+        "title": "Start of school yard scene",
+        "description": "Lights up for school yard / stella variation. Warm early day lighting."
+      }
+    ]
+  },
+  "scene_1_4_p21_sd0": {
+    "lighting": [
+      {
+        "id": "lq_05_assembly_bell",
+        "title": "Bell rings",
+        "description": "Lighting change for assembly / stella variation. White spot on podium. Dim warm white wash."
+      }
+    ]
+  },
+  "scene_1_4_line_9": {
+    "lighting": [
+      {
+        "id": "lq_06_maddison_speaks",
+        "title": "Maddison's start speaking",
+        "description": "Microphone feedback from when Maddison's start speaking at assembly"
+      }
+    ]
+  },
+  "scene_1_5_p23_sd0": {
+    "lighting": [
+      {
+        "id": "lq_07_science_lab_detention",
+        "title": "Scene changes for science lab detention",
+        "description": "Lighting change for lab / stella variation. Bring up washers to neutral / warmish white (~3000K), spot off. A bit dull."
+      }
+    ]
+  },
+  "scene_1_5_p25_sd1": {
+    "lighting": [
+      {
+        "id": "lq_08_breakdance_burst",
+        "title": "Break dance",
+        "description": "Quick break with rainbow lights, movers"
+      }
+    ]
+  },
+  "scene_1_5_p26_sd1": {
+    "lighting": [
+      {
+        "id": "lq_09_back_to_normal",
+        "title": "Miss Duane returns",
+        "description": "Lights back to normal"
+      }
+    ]
+  },
+  "scene_1_5_p27_sd1": {
+    "lighting": [
+      {
+        "id": "lq_10_lab_closes_in",
+        "title": "Everyone leaves",
+        "description": "Lighting goes bluer, closes in on Stella and Squish. Spots maybe? With subtle washers. Lab / Squish Variation."
+      }
+    ]
+  },
+  "scene_1_5_p28_sd0": {
+    "lighting": [
+      {
+        "id": "lq_11_classroom_lights_out",
+        "title": "Classroom lights off",
+        "description": "Classroom lights off as the kids leave, then slowly fade in dim lights for Stella's House / Stella variation"
+      }
+    ]
+  },
+  "scene_1_6_p28_sd0": {
+    "lighting": [
+      {
+        "id": "lq_12_stella_home_fade_in",
+        "title": "Classroom lights off",
+        "description": "Classroom lights off as the kids leave, then slowly fade in dim lights for Stella's House / Stella variation"
+      }
+    ]
+  },
+  "scene_1_6_p30_sd0": {
+    "lighting": [
+      {
+        "id": "lq_13_squish_transforms",
+        "title": "Squish transformation",
+        "description": "Lights off for shadow screen? Lights on the back. 10s transition to deep purple as this happens."
+      }
+    ]
+  },
+  "scene_2_1_p30_sd0": {
+    "lighting": [
+      {
+        "id": "lq_14_science_lab_entry",
+        "title": "Science lab entry",
+        "description": "Science lab lights / Stella variation"
+      }
+    ]
+  },
+  "scene_2_1_p32_sd0": {
+    "lighting": [
+      {
+        "id": "lq_15_greg_enters",
+        "title": "Greg enters",
+        "description": "Fade to science lab / squish variation"
+      }
+    ]
+  },
+  "scene_2_1_p32_sd2": {
+    "lighting": [
+      {
+        "id": "lq_16_everyone_leaves",
+        "title": "Everyone else leaves",
+        "description": "Lights close in on Stella and Greg. External washer dim, main spots / washers on actors stay on."
+      }
+    ]
+  },
+  "scene_2_1_p33_sd2": {
+    "lighting": [
+      {
+        "id": "lq_17_reentry_reset",
+        "title": "Greg leaves, everyone else enters",
+        "description": "Lights go to science lab / stella variation"
+      }
+    ]
+  },
+  "scene_2_2_p34_sd0": {
+    "lighting": [
+      {
+        "id": "lq_18_student_council",
+        "title": "Student council",
+        "description": "Lighting change to student council"
+      }
+    ]
+  },
+  "scene_2_3_p37_sd0": {
+    "lighting": [
+      {
+        "id": "lq_19_group_chat_dim",
+        "title": "New kid scene",
+        "description": "Group chat lighting?? Maybe off or very dim washers"
+      }
+    ]
+  },
+  "scene_2_4_p38_sd2": {
+    "lighting": [
+      {
+        "id": "lq_21_dodgeball",
+        "title": "Dodgeball",
+        "description": "A vicious game of Dodgeball highlighting Greg's aggression"
+      }
+    ]
+  },
+  "scene_2_4_p39_sd1": {
+    "lighting": [
+      {
+        "id": "lq_22_court_cools",
+        "title": "Stella leaves court",
+        "description": "Switch lighting to cooler as Stella leaves and Greg is remaining?? – HPE / Squish"
+      }
+    ]
+  },
+  "scene_2_5_p39_sd0": {
+    "lighting": [
+      {
+        "id": "lq_23_locker_room_harsh",
+        "title": "Boy's locker room",
+        "description": "Less saturated HPE / Squish. Harsh dim-ish."
+      }
+    ]
+  },
+  "scene_2_5_line_29": {
+    "lighting": [
+      {
+        "id": "lq_24_get_out",
+        "title": "GET OUT!!",
+        "description": "Lights go bluer??"
+      }
+    ]
+  },
+  "scene_2_6_p42_sd0": {
+    "lighting": [
+      {
+        "id": "lq_25_playground_light",
+        "title": "Duane is on Schoolary",
+        "description": "School yard / Stella"
+      }
+    ]
+  },
+  "scene_3_1_p46_sd1": {
+    "lighting": [
+      {
+        "id": "lq_26_behind_the_sheds",
+        "title": "The Grade 7s",
+        "description": "Light change for 'behind the sheds'. Bit warmer lighting here."
+      }
+    ]
+  },
+  "scene_3_2_p47_sd0": {
+    "lighting": [
+      {
+        "id": "lq_27_principals_office",
+        "title": "Mr. Fowler is sitting with Greg",
+        "description": "Light change to school yard / squish"
+      }
+    ]
+  },
+  "scene_3_3_p49_sd1": {
+    "lighting": [
+      {
+        "id": "lq_28_stage_goes_dark",
+        "title": "They run at each other as the stage goes dark",
+        "description": "Brief blackout. Lighting to assembly / squish."
+      }
+    ]
+  },
+  "scene_3_5_p50_sd2": {
+    "lighting": [
+      {
+        "id": "lq_29_stella_priya_exit",
+        "title": "Stella and Priya leave",
+        "description": "Lighting to school yard / Squish variation."
+      }
+    ]
+  },
+  "scene_3_5_p52_sd1": {
+    "lighting": [
+      {
+        "id": "lq_30_flashbang",
+        "title": "Francine flashbangs Greg",
+        "description": "Lights flashbang"
+      }
+    ]
+  },
+  "scene_4_1_p52_sd0": {
+    "lighting": [
+      {
+        "id": "lq_31_dance_party",
+        "title": "The dance",
+        "description": "Formal lights 'dance party'. Disco lights."
+      }
+    ]
+  },
+  "scene_4_1_p53_sd3": {
+    "lighting": [
+      {
+        "id": "lq_32_cha_cha_slide",
+        "title": "The cha cha slide",
+        "description": "Cha Cha Slide and romantic slow dance song"
+      }
+    ]
+  },
+  "scene_4_1_p54_sd0": {
+    "lighting": [
+      {
+        "id": "lq_33_stormy_end",
+        "title": "End of page",
+        "description": "Stella's house / squish variation. Lightning flashes."
+      }
+    ]
+  },
+  "scene_4_2_p55_sd0": {
+    "lighting": [
+      {
+        "id": "lq_34_tyson_enters",
+        "title": "Tyson enters",
+        "description": "Fade to Stella's House / stella"
+      }
+    ]
+  },
+  "scene_4_2_p56_sd0": {
+    "lighting": [
+      {
+        "id": "lq_35_tyson_leaves",
+        "title": "Tyson leaves",
+        "description": "Fade to Stella's House / squish"
+      }
+    ]
+  },
+  "scene_4_3_p56_sd0": {
+    "lighting": [
+      {
+        "id": "lq_36_tonys_room",
+        "title": "Tony's room",
+        "description": "Fade to Tony's Room / Stella"
+      }
+    ]
+  },
+  "scene_4_3_p57_sd0": {
+    "lighting": [
+      {
+        "id": "lq_37_tony_dances",
+        "title": "Tony dances",
+        "description": "Rainbow disco lights"
+      }
+    ]
+  },
+  "scene_4_4_p57_sd0": {
+    "lighting": [
+      {
+        "id": "lq_38_stellas_room",
+        "title": "Stella's Room (bottom of page)",
+        "description": "Fade to Stella's House / squish"
+      }
+    ]
+  },
+  "scene_4_4_p59_sd1": {
+    "lighting": [
+      {
+        "id": "lq_39_tonys_room_again",
+        "title": "Tony's room",
+        "description": "Fade to rainbow disco lights"
+      }
+    ]
+  },
+  "scene_4_4_p59_sd2": {
+    "lighting": [
+      {
+        "id": "lq_40_music_cut",
+        "title": "Francine turns off the music",
+        "description": "Cut to Tony's Room / Stella"
+      }
+    ]
+  },
+  "scene_4_4_p60_line_37": {
+    "lighting": [
+      {
+        "id": "lq_41_francine_monologue",
+        "title": "Francine monologue",
+        "description": "Spot on Francine"
+      }
+    ]
+  },
+  "scene_5_1_p61_sd0": {
+    "lighting": [
+      {
+        "id": "lq_42_classroom",
+        "title": "Classroom",
+        "description": "Fade to Classroom / Squish (light)"
+      }
+    ]
+  },
+  "scene_5_1_p64_sd4": {
+    "lighting": [
+      {
+        "id": "lq_43_everyone_exits",
+        "title": "Everyone exits bottom of page",
+        "description": "Fade to Classroom / squish (deep)"
+      }
+    ]
+  },
+  "scene_5_3_line_14": {
+    "lighting": [
+      {
+        "id": "lq_44_tyson_enters_home",
+        "title": "Tyson enters",
+        "description": "Fade to Stella's house / stella"
+      }
+    ]
+  },
+  "scene_5_4_p71_sd0": {
+    "lighting": [
+      {
+        "id": "lq_45_paper_mache_knife",
+        "title": "Squish is making a paper mache knife art",
+        "description": "Half n' half deal. Half with Classroom / squish, half with Stella's house / stella."
+      }
+    ]
+  },
+  "scene_5_4_p71_sd2": {
+    "lighting": [
+      {
+        "id": "lq_46_back_to_the_kids",
+        "title": "Back to the kids",
+        "description": "Fade to Stella's house / stella"
+      }
+    ]
+  },
+  "scene_5_4_p73_sd0": {
+    "lighting": [
+      {
+        "id": "lq_47_vision_of_gregs",
+        "title": "Priya's vision multiple Gregs",
+        "description": "Intense darkness lighting. Stella's house / squish (xdeep)."
+      }
+    ]
+  },
+  "scene_5_5_p74_sd0": {
+    "lighting": [
+      {
+        "id": "lq_48_training_montage",
+        "title": "Training montage",
+        "description": "Montage music"
+      }
+    ]
+  },
+  "scene_5_5_p74_sd1": {
+    "lighting": [
+      {
+        "id": "lq_49_spot_welding",
+        "title": "Spot welding",
+        "description": "Flashing lights???"
+      }
+    ]
+  },
+  "scene_5_5_p75_sd0": {
+    "lighting": [
+      {
+        "id": "lq_50_friday_255",
+        "title": "Friday 2:55 PM",
+        "description": "Playground / Stella & Squish combined??? (½ + ½?). Dimmed lights, smoke, flashing lights, highly stylised."
+      }
+    ]
+  },
+  "scene_5_6_p76_sd3": {
+    "lighting": [
+      {
+        "id": "lq_51_fight_scene",
+        "title": "Fight scene",
+        "description": "School bell"
+      }
+    ]
+  },
+  "scene_5_6_p77_sd2": {
+    "lighting": [
+      {
+        "id": "lq_52_tony_peaceful",
+        "title": "Tony shakes more violently",
+        "description": "Beautiful flowing, nice and peaceful lighting. Bright and rainbows."
+      }
+    ]
+  },
+  "scene_5_6_p79_line_43": {
+    "lighting": [
+      {
+        "id": "lq_53_city_planners",
+        "title": "City planners",
+        "description": "Spotlight on junior city planners"
+      }
+    ]
+  },
+  "scene_5_6_p80_sd0": {
+    "lighting": [
+      {
+        "id": "lq_54_as_they_crash",
+        "title": "As they crash",
+        "description": "Crazy fight lights"
+      }
+    ]
+  },
+  "scene_5_6_p80_sd1": {
+    "lighting": [
+      {
+        "id": "lq_55_firecrackers",
+        "title": "Stella reaches into the bum bag",
+        "description": "Lights flashing for firecrackers"
+      }
+    ]
+  },
+  "scene_5_6_p80_sd2": {
+    "lighting": [
+      {
+        "id": "lq_56_standstill",
+        "title": "Standstill",
+        "description": "Chiller lights for the standstill"
+      }
+    ]
+  },
+  "scene_5_6_p80_sd4": {
+    "lighting": [
+      {
+        "id": "lq_57_back_to_action",
+        "title": "Back to the action",
+        "description": "Flashing lights and stuff as Stella delivers a finishing blow"
+      }
+    ]
+  },
+  "scene_5_6_p82_sd0": {
+    "lighting": [
+      {
+        "id": "lq_58_squish_dead",
+        "title": "Squish is dead",
+        "description": "Fade to playground / stella (xdeep)"
+      }
+    ]
+  },
+  "scene_6_1_p82_sd0": {
+    "lighting": [
+      {
+        "id": "lq_59_storytellers_return",
+        "title": "Storytellers",
+        "description": "Idk what but figure it out"
+      }
+    ]
+  },
+  "scene_6_1_p83_sd0": {
+    "lighting": [
+      {
+        "id": "lq_60_stella_gets_up",
+        "title": "Stella gets up; ending",
+        "description": "Fade to black. Or spotlight movie effect where it closes in on Stella’s face."
       }
     ]
   }
