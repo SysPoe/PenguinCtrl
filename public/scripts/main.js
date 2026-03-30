@@ -924,10 +924,7 @@ function saveState() {
 
 function calculateCueOrder() {
   const result = {};
-  const typeCounts = {};
-  cueTypes.forEach(type => {
-    typeCounts[type.id] = 0;
-  });
+  let globalCount = 0;
 
   function assignTargetCueNumbers(targetId) {
     const targetCues = cues[targetId];
@@ -937,7 +934,7 @@ function calculateCueOrder() {
     cueTypes.forEach(type => {
       const arr = normalizeCueList(targetCues[type.id], type.id);
       if (!arr.length) return;
-      bucket[type.id] = arr.map(() => ++typeCounts[type.id]);
+      bucket[type.id] = arr.map(() => ++globalCount);
     });
 
     if (Object.keys(bucket).length > 0) {
@@ -992,7 +989,7 @@ function renderCueMarkers(targetId, cueNumbering) {
       const num = numbers[i] ?? '?';
       const shortLabel = getTypeShortLabel(type.id);
       const color = getTypeColor(type.id);
-      html += `<span class="cue-badge dynamic" style="--cue-accent:${color}" onclick="openCueModalEdit('${jsQuote(targetId)}','${jsQuote(type.id)}','${jsQuote(cue.id)}')">${escapeHtml(shortLabel)}${num}</span>`;
+      html += `<span class="cue-badge dynamic" style="--cue-accent:${color}" onclick="openCueModalEdit('${jsQuote(targetId)}','${jsQuote(type.id)}','${jsQuote(cue.id)}')">${num}</span>`;
     });
   });
 
@@ -1057,7 +1054,7 @@ function renderWordSpans(text, targetId) {
             const num = typeNums[i] ?? '?';
             const shortLabel = getTypeShortLabel(typeId);
             const color = getTypeColor(typeId);
-            html += `<span class="word-cue-pill dynamic" style="--cue-accent:${color}" onclick="event.stopPropagation();openCueModalEdit('${jsQuote(wId)}','${jsQuote(typeId)}','${jsQuote(c.id)}')">${escapeHtml(shortLabel)}${num}</span>`;
+            html += `<span class="word-cue-pill dynamic" style="--cue-accent:${color}" onclick="event.stopPropagation();openCueModalEdit('${jsQuote(wId)}','${jsQuote(typeId)}','${jsQuote(c.id)}')">${num}</span>`;
           });
         });
         html += '</span>';
@@ -1610,7 +1607,7 @@ function updateExistingCuesList(targetId) {
     const cueArg = jsQuote(cue.id);
     html += `<div class="existing-cue-item${isActive ? ' active' : ''}"
       onclick="openCueModalEdit('${targetArg}','${typeArg}','${cueArg}')">
-      <span class="existing-cue-badge dynamic" style="--cue-accent:${color}">${escapeHtml(shortLabel)}${num}</span>
+      <span class="existing-cue-badge dynamic" style="--cue-accent:${color}">${num}</span>
       <span class="existing-cue-title">${escapeHtml(cue.title)}</span>
       <span class="existing-cue-type">${escapeHtml(typeLabel)}</span>
       ${cue.description ? `<span class="existing-cue-desc">${escapeHtml(cue.description)}</span>` : ''}
