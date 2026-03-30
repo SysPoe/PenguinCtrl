@@ -5,6 +5,8 @@ import { AudioContext } from 'node-web-audio-api';
 import { execFile } from 'child_process';
 import ffmpegStatic from 'ffmpeg-static';
 
+const CLEANUP_GRACE_MS = 25;
+
 let _ctx = null;
 let _masterGain = null;
 let _masterDb = 0;
@@ -116,6 +118,7 @@ function disposePlayer(p) {
 const activeInstances = new Map();
 let nextId = 0;
 let waitingCueGeneration = 0;
+const waitingResolvers = new Set();
 
 class WaitingCueCancelledError extends Error {
     constructor() {
@@ -149,6 +152,10 @@ function clearInstance(id) {
         disposePlayer(inst.nodes);
     }
     activeInstances.delete(id);
+    if (activeInstances.size === 0 && waitingResolvers.size > 0) {
+        for (const resolve of waitingResolvers) resolve();
+        waitingResolvers.clear();
+    }
 }
 
 // ── Crossfade scheduling ───────────────────────────────────────────────────
@@ -298,7 +305,7 @@ async function seek(instanceId, newPos) {
         inst.nodes = { source: src, gain: g };
         inst.audioContextStartTime = ctx.currentTime;
         inst.clipStartOffset = newPos;
-        const cleanupT = setTimeout(() => { clearInstance(instanceId); }, remaining * 1000 + 300);
+        const cleanupT = setTimeout(() => { clearInstance(instanceId); }, remaining * 1000 + CLEANUP_GRACE_MS);
         inst.timers.add(cleanupT);
     }
 }
@@ -421,7 +428,7 @@ async function playCue(cue) {
         } else {
             const gain = makeGain(ctx, vol, fadeIn);
             const src = startSrc(ctx, buffer, gain, clipStart, playDuration, false);
-            const cleanupT = setTimeout(() => { clearInstance(instanceId); }, playDuration * 1000 + 300);
+            const cleanupT = setTimeout(() => { clearInstance(instanceId); }, playDuration * 1000 + CLEANUP_GRACE_MS);
             timers.add(cleanupT);
             activeInstances.set(instanceId, {
                 type: 'play_once', clip, clipUrl, cue, buffer,
@@ -444,7 +451,7 @@ async function playCue(cue) {
             timers.add(rampT);
         }
 
-        const cleanupT = setTimeout(() => { clearInstance(instanceId); }, playDuration * 1000 + 300);
+        const cleanupT = setTimeout(() => { clearInstance(instanceId); }, playDuration * 1000 + CLEANUP_GRACE_MS);
         timers.add(cleanupT);
         activeInstances.set(instanceId, {
             type: 'play_once', clip, clipUrl, cue, buffer,
@@ -473,7 +480,7 @@ function fadeOut(instanceId, duration) {
         outputGain.gain.setValueAtTime(currentValue, ctx.currentTime);
         outputGain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + fd);
 
-        const t = setTimeout(() => { clearInstance(instanceId); }, fd * 1000 + 150);
+        const t = setTimeout(() => { clearInstance(instanceId); }, fd * 1000 + CLEANUP_GRACE_MS);
         inst.timers.add(t);
     } else if (inst.nodes) {
         inst.isDeramping = true;
@@ -486,7 +493,7 @@ function fadeOut(instanceId, duration) {
         inst.nodes.gain.gain.setValueAtTime(vol, ctx.currentTime);
         inst.nodes.gain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + fd);
 
-        const t = setTimeout(() => { clearInstance(instanceId); }, fd * 1000 + 150);
+        const t = setTimeout(() => { clearInstance(instanceId); }, fd * 1000 + CLEANUP_GRACE_MS);
         inst.timers.add(t);
     }
 }
@@ -523,7 +530,7 @@ function devamp(instanceId) {
         const elapsed = ctx.currentTime - primary.startCtxTime;
         const currentPos = primary.startOffset + elapsed;
         const remaining = Math.max(0, inst.buffer.duration - currentPos);
-        const t = setTimeout(() => { clearInstance(instanceId); }, remaining * 1000 + 300);
+        const t = setTimeout(() => { clearInstance(instanceId); }, remaining * 1000 + CLEANUP_GRACE_MS);
         inst.timers.add(t);
     } else if (inst.nodes) {
         inst.nodes.source.loop = false;
@@ -531,7 +538,7 @@ function devamp(instanceId) {
         const elapsed = ctx.currentTime - (inst.audioContextStartTime ?? ctx.currentTime);
         const currentPos = (inst.clipStartOffset ?? 0) + elapsed;
         const remaining = Math.max(0, inst.buffer.duration - currentPos);
-        const t = setTimeout(() => { clearInstance(instanceId); }, remaining * 1000 + 300);
+        const t = setTimeout(() => { clearInstance(instanceId); }, remaining * 1000 + CLEANUP_GRACE_MS);
         inst.timers.add(t);
     }
 }
@@ -591,10 +598,11 @@ function listActive() {
 
 async function waitForAll() {
     return new Promise(resolve => {
-        if (activeInstances.size === 0) { resolve(); return; }
-        const iv = setInterval(() => {
-            if (activeInstances.size === 0) { clearInterval(iv); resolve(); }
-        }, 100);
+        if (activeInstances.size === 0) {
+            resolve();
+            return;
+        }
+        waitingResolvers.add(resolve);
     });
 }
 
