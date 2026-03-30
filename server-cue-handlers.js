@@ -57,9 +57,9 @@ export function createCueExecutionEngine({ cueTypeRegistry, playAudioCue, worksp
     const lightingAction = String(cue.oscAction || '').trim().toLowerCase();
     const hasLightingAction = cueType === 'lighting' && lightingAction && lightingAction !== 'none';
     const handlerName =
-      (typeDef && typeof typeDef.handler === 'string' && typeDef.handler.trim())
+      (hasLightingAction ? 'oscDispatch' : null)
+      || (typeDef && typeof typeDef.handler === 'string' && typeDef.handler.trim())
       || (typeof cue.handler === 'string' && cue.handler.trim())
-      || (hasLightingAction ? 'oscDispatch' : null)
       || fallbackHandlerName;
 
     const handler = handlerRegistry.get(handlerName);
