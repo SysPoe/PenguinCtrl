@@ -964,7 +964,7 @@ function renderCueMarkers(targetId, cueNumbering) {
       const num = numbers[i] ?? '?';
       const shortLabel = getTypeShortLabel(type.id);
       const color = getTypeColor(type.id);
-      html += `<span class="cue-badge dynamic" style="--cue-accent:${color}" onclick="openCueModalEdit('${jsQuote(targetId)}','${jsQuote(type.id)}','${jsQuote(cue.id)}')">${escapeHtml(shortLabel)}${num} ${escapeHtml(cue.title)}</span>`;
+      html += `<span class="cue-badge dynamic" style="--cue-accent:${color}" onclick="openCueModalEdit('${jsQuote(targetId)}','${jsQuote(type.id)}','${jsQuote(cue.id)}')">${escapeHtml(shortLabel)}${num}</span>`;
     });
   });
 
