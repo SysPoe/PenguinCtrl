@@ -219,7 +219,6 @@ function buildRemoteCommand({ action, playback, cueNumber, level }) {
 }
 
 cueExecutionEngine.registerHandler('oscDispatch', async (cue) => {
-  console.log('Executing OSC dispatch cue:', cue);
   const action = String(cue?.oscAction || 'go').trim().toLowerCase();
   const playbackRaw = Number(cue?.oscPlayback);
   const playback = Number.isFinite(playbackRaw) && playbackRaw > 0 ? Math.max(1, Math.round(playbackRaw)) : 1;
