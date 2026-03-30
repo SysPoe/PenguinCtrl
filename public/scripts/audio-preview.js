@@ -153,7 +153,7 @@ const PreviewEngine = (() => {
       await waitForAll();
     }
 
-    if (!allowMultipleInstances) {
+    if (playStyle !== 'alongside' && !allowMultipleInstances) {
       for (const [id, inst] of activeInstances.entries()) {
         if (inst.clip === clip) clearInstance(id);
       }

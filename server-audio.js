@@ -369,7 +369,7 @@ async function playCue(cue) {
         [...activeInstances.keys()].forEach(id => fadeOut(id, manualFadeOutDuration));
     }
 
-    if (!allowMultipleInstances) {
+    if (playStyle !== 'alongside' && !allowMultipleInstances) {
         for (const [id, inst] of activeInstances.entries()) {
             if (inst.clip === clip) clearInstance(id);
         }
