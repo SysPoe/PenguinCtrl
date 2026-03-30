@@ -1,9 +1,3 @@
-// Browser-side audio preview engine
-// Mirrors the API of server-side audio.js but uses native Web Audio API.
-// Cue params match getSoundData(): soundSubtype, clip, clipStart, clipEnd,
-//   fadeIn, fadeOut, volume (dB), allowMultipleInstances, manualFadeOutDuration,
-//   loopStart, loopEnd, loopXfade, devampAction, devampFadeDuration
-
 const PreviewEngine = (() => {
   let audioCtx = null;
   const activeInstances = new Map();
