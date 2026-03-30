@@ -812,6 +812,12 @@ wss.on('connection', (ws) => {
         audioStopAll();
         broadcastInstances();
 
+      } else if (msg.type === 'clearQueue') {
+        audioCancelWaitingCues();
+        clearPendingCueExecutions();
+        broadcastPendingCues();
+        broadcastInstances();
+
       } else if (msg.type === 'devamp') {
         audioDevamp(msg.instanceId);
         broadcastInstances();

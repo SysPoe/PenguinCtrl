@@ -61,7 +61,10 @@
     </div>
 
     <div class="voices-panel">
-      <div class="voices-header" id="voices-header">Active Voices</div>
+      <div class="voices-header">
+        <span id="voices-header-label">Active Voices</span>
+        <button class="header-btn voices-clear-btn" onclick="clearQueue()" title="Cancel any queued waiting cues">Clear Queue</button>
+      </div>
       <div id="voices-list">
         <div class="no-voices">No active voices</div>
       </div>

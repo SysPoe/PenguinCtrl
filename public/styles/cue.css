@@ -545,6 +545,10 @@ input[type=range]:active::-webkit-slider-thumb {
 }
 
 .voices-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     font-size: 10px;
     text-transform: none;
     letter-spacing: 0;
@@ -552,6 +556,11 @@ input[type=range]:active::-webkit-slider-thumb {
     padding-bottom: 3px;
     border-bottom: 1px solid var(--border2);
     flex-shrink: 0;
+}
+
+.voices-clear-btn {
+    padding: 2px 7px;
+    font-size: 9px;
 }
 
 /* ── Voice card ── */

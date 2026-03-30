@@ -130,6 +130,10 @@ class WaitingCueCancelledError extends Error {
 
 function cancelWaitingCues() {
     waitingCueGeneration += 1;
+    if (waitingResolvers.size > 0) {
+        for (const resolve of waitingResolvers) resolve();
+        waitingResolvers.clear();
+    }
 }
 
 function assertWaitingCuesNotCancelled(startGeneration) {

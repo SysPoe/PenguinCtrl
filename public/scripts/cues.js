@@ -293,7 +293,7 @@ function getPendingCueTotal() {
 }
 
 function updateVoicesHeader() {
-    const header = document.getElementById('voices-header');
+    const header = document.getElementById('voices-header-label');
     if (!header) return;
     const waiting = getPendingCueTotal();
     header.textContent = waiting > 0
@@ -437,6 +437,7 @@ function goSelected() {
 
 function fadeAll() { wsSend({ type: 'fadeOutAll', duration: getDefaultFadeOutSeconds() }); }
 function stopAll() { wsSend({ type: 'stopAll' }); }
+function clearQueue() { wsSend({ type: 'clearQueue' }); }
 function resetPlayed() { wsSend({ type: 'resetPlayed' }); }
 
 function fmtDbLabel(db) {
