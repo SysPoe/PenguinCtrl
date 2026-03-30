@@ -52,9 +52,8 @@ const udpSocket = dgram.createSocket('udp4');
 
 audioSetTriggerCallback((trigger) => {
   try {
-    const config = configService.get();
-    const host = config?.osc?.target?.ip || '127.0.0.1';
-    const port = clampPort(config?.osc?.target?.oscPort, 8000);
+    const host = String(configService.getValue('osc.target.ip', '127.0.0.1') || '127.0.0.1').trim() || '127.0.0.1';
+    const port = clampPort(configService.getValue('osc.target.oscPort', 8000), 8000);
 
     const hasCueFields = trigger && typeof trigger === 'object' && (
       'oscAction' in trigger ||
@@ -87,12 +86,13 @@ audioSetTriggerCallback((trigger) => {
       }
 
       const command = buildRemoteCommand({ action, playback, cueNumber, level });
-      sendUdpPacket(Buffer.from(command, 'ascii'), { host, port: clampPort(config?.osc?.target?.remotePort, 6553) })
+      sendUdpPacket(Buffer.from(command, 'ascii'), { host, port: clampPort(configService.getValue('osc.target.remotePort', 6553), 6553) })
         .catch(e => console.error('Failed to dispatch trigger:', e));
       return;
     }
 
     const msg = encodeOscMessage(trigger.address || '/next', Array.isArray(trigger.args) ? trigger.args : []);
+    debugOsc('sending legacy trigger', { address: trigger.address || '/next', args: Array.isArray(trigger.args) ? trigger.args : [], port });
     sendUdpPacket(msg, { host, port }).catch(e => console.error('Failed to dispatch trigger:', e));
   } catch (e) {
     console.error('Trigger dispatch error:', e);

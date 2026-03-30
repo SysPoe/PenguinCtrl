@@ -584,7 +584,6 @@ function setTriggerCallback(cb) {
 // Trigger interval
 setInterval(() => {
     if (!triggerCallback) return;
-    const now = Date.now();
     for (const [id, inst] of activeInstances.entries()) {
         if (inst.paused || !inst.cue || !Array.isArray(inst.cue.oscTriggers)) continue;
         const pos = getPosition(id);

@@ -63,11 +63,11 @@
         "id": "mna3hne3pxmbl",
         "title": "Movers up",
         "description": "",
-        "oscAction": "go",
+        "oscAction": "back",
         "oscPlayback": 1,
         "oscCueNumber": "1",
         "oscLevel": 100,
-        "oscTransport": "auto"
+        "oscTransport": "remote"
       }
     ]
   },
