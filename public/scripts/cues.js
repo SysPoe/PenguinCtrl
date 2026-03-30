@@ -8,6 +8,7 @@ let playedIds = new Set();
 let activeCueCounts = new Map();
 let pendingCueCounts = new Map();
 let pendingCueTotal = 0;
+let masterMuted = false;
 
 const DEFAULT_META = {
     config: {
@@ -73,6 +74,18 @@ function applyRuntimeMeta(meta) {
         const safeCurrent = Number.isFinite(current) ? Math.max(minDb, Math.min(maxDb, current)) : 0;
         slider.value = safeCurrent;
         document.getElementById('master-db-label').textContent = fmtDbLabel(safeCurrent);
+    }
+    if (typeof meta?.masterVolume?.muted === 'boolean') {
+        syncMasterMuteButton(meta.masterVolume.muted);
+    }
+}
+
+function syncMasterMuteButton(muted) {
+    masterMuted = Boolean(muted);
+    const btn = document.getElementById('master-mute-btn');
+    if (btn) {
+        btn.textContent = masterMuted ? 'Unmute' : 'Mute';
+        btn.classList.toggle('active', masterMuted);
     }
 }
 
@@ -140,6 +153,9 @@ function connectWS() {
                 const { minDb, maxDb } = getMasterBounds();
                 slider.value = Math.max(minDb, Math.min(maxDb, db));
                 document.getElementById('master-db-label').textContent = fmtDbLabel(db);
+            }
+            if (typeof msg.muted === 'boolean') {
+                syncMasterMuteButton(msg.muted);
             }
         } else if (msg.type === 'error') {
             showCueModeError(msg.message || 'Runtime error');
@@ -439,6 +455,7 @@ function fadeAll() { wsSend({ type: 'fadeOutAll', duration: getDefaultFadeOutSec
 function stopAll() { wsSend({ type: 'stopAll' }); }
 function clearQueue() { wsSend({ type: 'clearQueue' }); }
 function resetPlayed() { wsSend({ type: 'resetPlayed' }); }
+function toggleMasterMute() { wsSend({ type: 'toggleMasterMute' }); }
 
 function fmtDbLabel(db) {
     const { minDb } = getMasterBounds();
@@ -452,6 +469,10 @@ function onMasterVol(val) {
     const clamped = Math.max(minDb, Math.min(maxDb, db));
     document.getElementById('master-db-label').textContent = fmtDbLabel(clamped);
     wsSend({ type: 'masterVolume', db: clamped });
+}
+
+function toggleVoiceMute(instanceId) {
+    wsSend({ type: 'toggleMute', instanceId });
 }
 
 // ── Waveform cache & drawing ───────────────────────────────────────────────
@@ -696,6 +717,7 @@ function updateVoices() {
             loopXfade: inst.loopXfade ?? 0,
         });
 
+        card.classList.toggle('muted', !!inst.muted);
         card.classList.toggle('fading-out', inst.fadeMode === 'fadeOut');
         card.classList.toggle('devamping', inst.fadeMode === 'devamp');
 
@@ -710,6 +732,11 @@ function updateVoices() {
         if (dvmpBtn) dvmpBtn.style.display = (inst.isVamp && inst.fadeMode !== 'devamp') ? '' : 'none';
         const unvampBtn = card.querySelector('.btn-vc[data-role="unvamp"]');
         if (unvampBtn) unvampBtn.style.display = (inst.isVamp && inst.fadeMode === 'devamp') ? '' : 'none';
+        const muteBtn = card.querySelector('.btn-vc[data-role="mute"]');
+        if (muteBtn) {
+            muteBtn.textContent = inst.muted ? 'Unmute' : 'Mute';
+            muteBtn.classList.toggle('active', !!inst.muted);
+        }
 
         const slider = card.querySelector('.vc-vol');
         if (slider && !slider.matches(':active') && document.activeElement !== slider) {
@@ -756,6 +783,7 @@ function buildVoiceCard(inst) {
         </div>
         <div class="vc-controls">
           <button class="btn-vc ${inst.paused ? 'play' : 'pause'}" data-role="playpause">${inst.paused ? 'Play' : 'Pause'}</button>
+                    <button class="btn-vc mute${inst.muted ? ' active' : ''}" data-role="mute">${inst.muted ? 'Unmute' : 'Mute'}</button>
           <button class="btn-vc dvmp" data-role="dvmp" style="${(inst.isVamp && inst.fadeMode !== 'devamp') ? '' : 'display:none'}">Dvmp</button>
           <button class="btn-vc unvamp" data-role="unvamp" style="${inst.fadeMode === 'devamp' ? '' : 'display:none'}">Loop</button>
           <button class="btn-vc fade" data-role="fade">Fade</button>
@@ -770,6 +798,7 @@ function buildVoiceCard(inst) {
         const btn = card.querySelector('[data-role="playpause"]');
         wsSend({ type: btn.classList.contains('pause') ? 'pause' : 'resume', instanceId: id });
     });
+    card.querySelector('[data-role="mute"]').addEventListener('click', () => toggleVoiceMute(id));
     card.querySelector('[data-role="dvmp"]').addEventListener('click', () => wsSend({ type: 'devamp', instanceId: id }));
     card.querySelector('[data-role="unvamp"]').addEventListener('click', () => wsSend({ type: 'cancelDevamp', instanceId: id }));
     card.querySelector('[data-role="fade"]').addEventListener('click', () => wsSend({ type: 'fadeOut', instanceId: id }));

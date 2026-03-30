@@ -6,6 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cues</title>
   <link rel="stylesheet" href="styles/cue.css">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:ital,wght@0,200..800;1,200..800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=Cormorant+Garamond:ital,wght@0,600;1,600&display=swap"
+    rel="stylesheet">
 </head>
 
 <body>
@@ -50,7 +53,10 @@
   <div class="pane-bottom">
     <div class="transport">
       <div class="master-vol-row">
-        <div class="master-vol-label">Master Vol <span id="master-db-label">+0.0 dB</span></div>
+        <div class="master-vol-top">
+          <div class="master-vol-label">Master Vol <span id="master-db-label">+0.0 dB</span></div>
+          <button class="header-btn btn-master-mute" id="master-mute-btn" onclick="toggleMasterMute()">Mute</button>
+        </div>
         <input type="range" id="master-vol" min="-40" max="6" step="0.5" value="0" oninput="onMasterVol(this.value)">
       </div>
       <div class="transport-btns">

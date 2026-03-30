@@ -11,7 +11,9 @@ import ffmpegStatic from 'ffmpeg-static';
 import {
   playCue, fadeOut as audioFadeOut, stop as audioStop, stopAll as audioStopAll,
   fadeOutAll as audioFadeOutAll, devamp as audioDevamp, cancelDevamp as audioCancelDevamp,
-  listActive, setVolume, masterVolume, cancelWaitingCues as audioCancelWaitingCues,
+  listActive, setVolume, toggleMute as audioToggleMute,
+  masterVolume, toggleMasterMute as audioToggleMasterMute,
+  isMasterMuted as audioIsMasterMuted, cancelWaitingCues as audioCancelWaitingCues,
   pause as audioPause, resume as audioResume, seek as audioSeek, setTriggerCallback as audioSetTriggerCallback
 } from './server-audio.js';
 import { createConfigService } from './config/config-service.js';
@@ -290,6 +292,7 @@ function getRuntimeMeta() {
     masterVolume: {
       ...getMasterVolumeBounds(),
       db,
+      muted: audioIsMasterMuted(),
     },
   };
 }
@@ -574,6 +577,7 @@ app.post('/api/config', (req, res) => {
       masterVolume: {
         ...getMasterVolumeBounds(),
         db: safeMasterVolume(),
+        muted: audioIsMasterMuted(),
       },
     });
 
@@ -587,6 +591,7 @@ app.post('/api/config', (req, res) => {
       masterVolume: {
         ...getMasterVolumeBounds(),
         db: safeMasterVolume(),
+        muted: audioIsMasterMuted(),
       },
     });
   } catch (err) {
@@ -758,7 +763,7 @@ wss.on('connection', (ws) => {
   ws.send(JSON.stringify({ type: 'instances', list: listActive() }));
   ws.send(JSON.stringify({ type: 'pendingCues', list: normalizePendingCueEntries() }));
   ws.send(JSON.stringify({ type: 'playedCues', ids: [...playedCueIds] }));
-  try { ws.send(JSON.stringify({ type: 'masterVolume', db: safeMasterVolume() })); } catch (_) { }
+  try { ws.send(JSON.stringify({ type: 'masterVolume', db: safeMasterVolume(), muted: audioIsMasterMuted() })); } catch (_) { }
 
   ws.on('message', async (raw) => {
     let msg;
@@ -838,6 +843,10 @@ wss.on('connection', (ws) => {
       } else if (msg.type === 'setVolume') {
         setVolume(msg.instanceId, msg.db);
 
+      } else if (msg.type === 'toggleMute') {
+        audioToggleMute(msg.instanceId);
+        broadcastInstances();
+
       } else if (msg.type === 'pause') {
         audioPause(msg.instanceId);
         broadcastInstances();
@@ -855,6 +864,16 @@ wss.on('connection', (ws) => {
         broadcast({
           type: 'masterVolume',
           db: safeMasterVolume(),
+          muted: audioIsMasterMuted(),
+          ...getMasterVolumeBounds(),
+        });
+
+      } else if (msg.type === 'toggleMasterMute') {
+        audioToggleMasterMute();
+        broadcast({
+          type: 'masterVolume',
+          db: safeMasterVolume(),
+          muted: audioIsMasterMuted(),
           ...getMasterVolumeBounds(),
         });
       }

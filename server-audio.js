@@ -10,6 +10,7 @@ const CLEANUP_GRACE_MS = 25;
 let _ctx = null;
 let _masterGain = null;
 let _masterDb = 0;
+let _masterMuted = false;
 
 function getCtx() {
     if (!_ctx || _ctx.state === 'closed') {
@@ -23,7 +24,7 @@ function getMasterGain() {
     const ctx = getCtx();
     if (!_masterGain) {
         _masterGain = ctx.createGain();
-        _masterGain.gain.value = dbToLinear(_masterDb);
+        _masterGain.gain.value = _masterMuted ? 0 : dbToLinear(_masterDb);
         _masterGain.connect(ctx.destination);
     }
     return _masterGain;
@@ -34,6 +35,17 @@ function createOutputGain(ctx) {
     g.gain.value = 1;
     g.connect(getMasterGain());
     return g;
+}
+
+function createMuteGain(ctx, muted = false) {
+    const g = ctx.createGain();
+    g.gain.value = muted ? 0 : 1;
+    g.connect(getMasterGain());
+    return g;
+}
+
+function applyMasterGain(ctx = getCtx()) {
+    getMasterGain().gain.setValueAtTime(_masterMuted ? 0 : dbToLinear(_masterDb), ctx.currentTime);
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -152,8 +164,14 @@ function clearInstance(id) {
         if (inst.outputGain) {
             try { inst.outputGain.disconnect(); } catch (_) { }
         }
+        if (inst.muteGain) {
+            try { inst.muteGain.disconnect(); } catch (_) { }
+        }
     } else if (inst.nodes) {
         disposePlayer(inst.nodes);
+        if (inst.muteGain) {
+            try { inst.muteGain.disconnect(); } catch (_) { }
+        }
     }
     activeInstances.delete(id);
     if (activeInstances.size === 0 && waitingResolvers.size > 0) {
@@ -241,10 +259,17 @@ async function seek(instanceId, newPos) {
     if (inst.type === 'xfade_vamp') {
         inst.players.forEach(p => { try { p.source.stop(); } catch (_) { } try { p.gain.disconnect(); } catch (_) { } });
         inst.players = [];
+        if (inst.outputGain) {
+            try { inst.outputGain.disconnect(); } catch (_) { }
+        }
     } else if (inst.nodes) {
         try { inst.nodes.source.stop(); } catch (_) { }
         try { inst.nodes.gain.disconnect(); } catch (_) { }
         inst.nodes = null;
+    }
+    if (inst.muteGain) {
+        try { inst.muteGain.disconnect(); } catch (_) { }
+        inst.muteGain = null;
     }
     inst.isDeramping = false;
     inst.paused = false; inst.firedTriggers = new Set();
@@ -257,12 +282,15 @@ async function seek(instanceId, newPos) {
     const lStart = cue.loopStart ?? 0;
     const lEnd = cue.loopEnd ?? buffer.duration;
     const loopDuration = lEnd - lStart;
+    const muteGain = createMuteGain(ctx, Boolean(inst.muted));
 
     newPos = Math.max(0, Math.min(buffer.duration - 0.01, newPos));
 
     if (inst.type === 'xfade_vamp') {
-        const outputGain = inst.outputGain ?? createOutputGain(ctx);
+        const outputGain = inst.outputGain ?? ctx.createGain();
         inst.outputGain = outputGain;
+        outputGain.gain.value = 1;
+        outputGain.connect(muteGain);
         outputGain.gain.cancelScheduledValues(ctx.currentTime);
         outputGain.gain.setValueAtTime(1, ctx.currentTime);
         const firstGain = ctx.createGain();
@@ -275,6 +303,7 @@ async function seek(instanceId, newPos) {
         const firstPlayer = { source: firstSrc, gain: firstGain, startCtxTime: ctx.currentTime, startOffset: newPos };
         inst.players = [firstPlayer];
         inst.targetVol = vol;
+        inst.muteGain = muteGain;
 
         const distToLoopEnd = lEnd - newPos;
         if (distToLoopEnd > loopXfade && loopDuration > 0) {
@@ -284,7 +313,7 @@ async function seek(instanceId, newPos) {
     } else if (inst.type === 'vamp') {
         const g = ctx.createGain();
         g.gain.setValueAtTime(vol, ctx.currentTime);
-        g.connect(getMasterGain());
+        g.connect(muteGain);
         const src = ctx.createBufferSource();
         src.buffer = buffer;
         src.loop = true;
@@ -293,6 +322,7 @@ async function seek(instanceId, newPos) {
         src.connect(g);
         src.start(ctx.currentTime, newPos);
         inst.nodes = { source: src, gain: g };
+        inst.muteGain = muteGain;
         inst.audioContextStartTime = ctx.currentTime;
         inst.clipStartOffset = newPos;
 
@@ -301,12 +331,13 @@ async function seek(instanceId, newPos) {
         const remaining = Math.max(0.01, end - newPos);
         const g = ctx.createGain();
         g.gain.setValueAtTime(vol, ctx.currentTime);
-        g.connect(getMasterGain());
+        g.connect(muteGain);
         const src = ctx.createBufferSource();
         src.buffer = buffer;
         src.connect(g);
         src.start(ctx.currentTime, newPos, remaining);
         inst.nodes = { source: src, gain: g };
+        inst.muteGain = muteGain;
         inst.audioContextStartTime = ctx.currentTime;
         inst.clipStartOffset = newPos;
         const cleanupT = setTimeout(() => { clearInstance(instanceId); }, remaining * 1000 + CLEANUP_GRACE_MS);
@@ -331,6 +362,10 @@ function pause(instanceId) {
         try { inst.nodes.source.stop(); } catch (_) { }
         try { inst.nodes.gain.disconnect(); } catch (_) { }
         inst.nodes = null;
+    }
+    if (inst.muteGain) {
+        try { inst.muteGain.disconnect(); } catch (_) { }
+        inst.muteGain = null;
     }
 }
 
@@ -394,16 +429,20 @@ async function playCue(cue) {
     const playDuration = Math.max(0, end - clipStart);
     const timers = new Set();
     const vol = dbToLinear(volumeDb);
+    const muted = false;
 
     if (playbackMode === 'vamp') {
         const lEnd = loopEnd ?? dur;
         const lStart = loopStart;
         const loopDuration = lEnd - lStart;
         const shouldLoop = clipStart < lEnd && loopDuration > 0;
+        const muteGain = createMuteGain(ctx, muted);
 
         if (shouldLoop && loopXfade > 0) {
             const firstLoopDuration = lEnd - clipStart;
-            const outputGain = createOutputGain(ctx);
+            const outputGain = ctx.createGain();
+            outputGain.gain.value = 1;
+            outputGain.connect(muteGain);
             const firstGain = makeGain(ctx, vol, fadeIn, outputGain);
             const firstSrc = ctx.createBufferSource();
             firstSrc.buffer = buffer;
@@ -413,36 +452,40 @@ async function playCue(cue) {
 
             activeInstances.set(instanceId, {
                 type: 'xfade_vamp', clip, clipUrl, cue, buffer,
-                players: [firstPlayer], timers, isDeramping: false, paused: false,
+                players: [firstPlayer], timers, isDeramping: false, paused: false, muted,
                 lStart, lEnd, loopDuration, loopXfade, targetVol: vol,
                 outputGain,
+                muteGain,
             });
             scheduleCrossfade(instanceId, firstPlayer, firstLoopDuration - loopXfade);
 
         } else if (shouldLoop) {
-            const gain = makeGain(ctx, vol, fadeIn);
+            const gain = makeGain(ctx, vol, fadeIn, muteGain);
             const src = startSrc(ctx, buffer, gain, clipStart, null, true, lStart, lEnd);
             activeInstances.set(instanceId, {
                 type: 'vamp', clip, clipUrl, cue, buffer,
-                nodes: { source: src, gain }, timers, isDeramping: false, paused: false,
+                nodes: { source: src, gain }, timers, isDeramping: false, paused: false, muted,
+                muteGain,
                 lStart, lEnd, loopDuration,
                 audioContextStartTime: ctx.currentTime, clipStartOffset: clipStart,
             });
 
         } else {
-            const gain = makeGain(ctx, vol, fadeIn);
+            const gain = makeGain(ctx, vol, fadeIn, muteGain);
             const src = startSrc(ctx, buffer, gain, clipStart, playDuration, false);
             const cleanupT = setTimeout(() => { clearInstance(instanceId); }, playDuration * 1000 + CLEANUP_GRACE_MS);
             timers.add(cleanupT);
             activeInstances.set(instanceId, {
                 type: 'play_once', clip, clipUrl, cue, buffer,
-                nodes: { source: src, gain }, timers, isDeramping: false, paused: false,
+                nodes: { source: src, gain }, timers, isDeramping: false, paused: false, muted,
+                muteGain,
                 audioContextStartTime: ctx.currentTime, clipStartOffset: clipStart,
             });
         }
 
     } else {
-        const gain = makeGain(ctx, vol, fadeIn);
+        const muteGain = createMuteGain(ctx, muted);
+        const gain = makeGain(ctx, vol, fadeIn, muteGain);
         const src = startSrc(ctx, buffer, gain, clipStart, playDuration, false);
 
         if (fadeOut > 0 && playDuration > fadeOut) {
@@ -459,7 +502,8 @@ async function playCue(cue) {
         timers.add(cleanupT);
         activeInstances.set(instanceId, {
             type: 'play_once', clip, clipUrl, cue, buffer,
-            nodes: { source: src, gain }, timers, isDeramping: false, paused: false,
+            nodes: { source: src, gain }, timers, isDeramping: false, paused: false, muted,
+            muteGain,
             audioContextStartTime: ctx.currentTime, clipStartOffset: clipStart,
         });
     }
@@ -561,13 +605,43 @@ function setVolume(instanceId, db) {
     if (inst.cue) inst.cue.volume = db;
 }
 
+function setMuted(instanceId, muted) {
+    const inst = activeInstances.get(instanceId);
+    if (!inst) return;
+    inst.muted = Boolean(muted);
+    if (inst.muteGain) {
+        inst.muteGain.gain.setValueAtTime(inst.muted ? 0 : 1, getCtx().currentTime);
+    }
+}
+
+function toggleMute(instanceId) {
+    const inst = activeInstances.get(instanceId);
+    if (!inst) return false;
+    setMuted(instanceId, !inst.muted);
+    return Boolean(inst.muted);
+}
+
 function masterVolume(db) {
     if (db !== undefined) {
         _masterDb = db;
-        const g = getMasterGain();
-        g.gain.setValueAtTime(dbToLinear(db), getCtx().currentTime);
+        applyMasterGain();
     }
     return _masterDb;
+}
+
+function setMasterMuted(muted) {
+    _masterMuted = Boolean(muted);
+    applyMasterGain();
+}
+
+function toggleMasterMute() {
+    _masterMuted = !_masterMuted;
+    applyMasterGain();
+    return _masterMuted;
+}
+
+function isMasterMuted() {
+    return _masterMuted;
 }
 
 function listActive() {
@@ -586,6 +660,7 @@ function listActive() {
             fadeStartedAt: inst.fadeStartedAt ?? null,
             fadeDuration: inst.fadeDuration ?? null,
             paused: inst.paused ?? false,
+            muted: inst.muted ?? false,
             volume: volumeDb,
             position: getPosition(instanceId),
             duration: inst.buffer?.duration ?? 0,
@@ -634,7 +709,7 @@ function cancelDevamp(instanceId) {
     }
 }
 
-export { playCue, fadeOut, stop, stopAll, fadeOutAll, devamp, cancelDevamp, listActive, setVolume, masterVolume, pause, resume, seek, setTriggerCallback, cancelWaitingCues };
+export { playCue, fadeOut, stop, stopAll, fadeOutAll, devamp, cancelDevamp, listActive, setVolume, setMuted, toggleMute, masterVolume, setMasterMuted, toggleMasterMute, isMasterMuted, pause, resume, seek, setTriggerCallback, cancelWaitingCues };
 
 let triggerCallback = null;
 function setTriggerCallback(cb) {

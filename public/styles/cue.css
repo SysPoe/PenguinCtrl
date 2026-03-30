@@ -421,6 +421,13 @@ tr.cue-row.played .cue-title-cell {
     flex-shrink: 0;
 }
 
+.master-vol-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
 .master-vol-label {
     font-size: 11px;
     text-transform: none;
@@ -434,6 +441,17 @@ tr.cue-row.played .cue-title-cell {
 .master-vol-label span {
     color: var(--text);
     font-size: 12px;
+}
+
+.btn-master-mute {
+    padding: 2px 8px;
+    font-size: 9px;
+}
+
+.btn-master-mute.active {
+    background: #3a1a1a;
+    color: #ffb3b3;
+    border-color: #7a3030;
 }
 
 input[type=range] {
@@ -895,6 +913,29 @@ input[type=range]:active::-webkit-slider-thumb {
 
 .btn-vc.stop:hover {
     background: rgba(120, 26, 26, 0.3);
+}
+
+.btn-vc.mute {
+    color: #e6e6e6;
+    border-color: rgba(160, 160, 170, 0.45);
+}
+
+.btn-vc.mute.active {
+    background: rgba(58, 26, 26, 0.8);
+    color: #ffb3b3;
+    border-color: rgba(122, 48, 48, 0.7);
+}
+
+.btn-vc.mute:hover {
+    background: rgba(72, 72, 82, 0.35);
+}
+
+.btn-vc.mute.active:hover {
+    background: rgba(92, 34, 34, 0.85);
+}
+
+.vc.muted {
+    opacity: 0.86;
 }
 
 .vc-vol-group {
