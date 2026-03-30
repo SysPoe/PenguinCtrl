@@ -503,14 +503,19 @@ function devamp(instanceId) {
     const inst = activeInstances.get(instanceId);
     if (!inst) return;
     const ctx = getCtx();
+    const isFadingOut = inst.fadeMode === 'fadeOut';
     inst.isDeramping = true;
-    inst.fadeMode = 'devamp';
-    inst.fadeStartedAt = null;
-    inst.fadeDuration = null;
-    inst.timers.forEach(t => clearTimeout(t));
-    inst.timers.clear();
+    if (!isFadingOut) {
+        inst.fadeMode = 'devamp';
+        inst.fadeStartedAt = null;
+        inst.fadeDuration = null;
+        inst.timers.forEach(t => clearTimeout(t));
+        inst.timers.clear();
+    }
 
     if (inst.type === 'xfade_vamp') {
+        if (isFadingOut) return;
+
         const primary = inst.players[inst.players.length - 1];
         inst.players.slice(0, -1).forEach(disposePlayer);
         inst.players = primary ? [primary] : [];
@@ -522,6 +527,7 @@ function devamp(instanceId) {
         inst.timers.add(t);
     } else if (inst.nodes) {
         inst.nodes.source.loop = false;
+        if (isFadingOut) return;
         const elapsed = ctx.currentTime - (inst.audioContextStartTime ?? ctx.currentTime);
         const currentPos = (inst.clipStartOffset ?? 0) + elapsed;
         const remaining = Math.max(0, inst.buffer.duration - currentPos);
