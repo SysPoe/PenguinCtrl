@@ -32,7 +32,8 @@
         "allowMultipleInstances": false,
         "loopStart": 0,
         "loopEnd": null,
-        "loopXfade": 0
+        "loopXfade": 0,
+        "oscTriggers": []
       }
     },
     {

@@ -8,10 +8,12 @@ import dgram from 'node:dgram';
 import { parseString } from 'xml2js';
 import { fileURLToPath } from 'url';
 import ffmpegStatic from 'ffmpeg-static';
-import { playCue, fadeOut as audioFadeOut, stop as audioStop, stopAll as audioStopAll,
-         fadeOutAll as audioFadeOutAll, devamp as audioDevamp, cancelDevamp as audioCancelDevamp,
-         listActive, setVolume, masterVolume,
-         pause as audioPause, resume as audioResume, seek as audioSeek } from './server-audio.js';
+import {
+  playCue, fadeOut as audioFadeOut, stop as audioStop, stopAll as audioStopAll,
+  fadeOutAll as audioFadeOutAll, devamp as audioDevamp, cancelDevamp as audioCancelDevamp,
+  listActive, setVolume, masterVolume,
+  pause as audioPause, resume as audioResume, seek as audioSeek, setTriggerCallback as audioSetTriggerCallback
+} from './server-audio.js';
 import { createConfigService } from './config/config-service.js';
 import { createCueTypeRegistry } from './config/cue-type-registry.js';
 import { createCueExecutionEngine } from './server-cue-handlers.js';
@@ -47,6 +49,55 @@ const cueExecutionEngine = createCueExecutionEngine({
 });
 
 const udpSocket = dgram.createSocket('udp4');
+
+audioSetTriggerCallback((trigger) => {
+  try {
+    const config = configService.get();
+    const host = config?.osc?.target?.ip || '127.0.0.1';
+    const port = clampPort(config?.osc?.target?.oscPort, 8000);
+
+    const hasCueFields = trigger && typeof trigger === 'object' && (
+      'oscAction' in trigger ||
+      'oscPlayback' in trigger ||
+      'oscCueNumber' in trigger ||
+      'oscLevel' in trigger ||
+      'oscTransport' in trigger
+    );
+
+    if (hasCueFields) {
+      const action = String(trigger?.oscAction || 'go').trim().toLowerCase();
+      const playbackRaw = Number(trigger?.oscPlayback);
+      const playback = Number.isFinite(playbackRaw) && playbackRaw > 0 ? Math.max(1, Math.round(playbackRaw)) : 1;
+      const cueNumber = trigger?.oscCueNumber ?? '1';
+      const level = clampLevel(trigger?.oscLevel);
+      const transport = String(trigger?.oscTransport || 'auto').trim().toLowerCase();
+      const resolvedTransport = transport === 'auto'
+        ? (action === 'back' ? 'remote' : (action === 'goto' ? 'remote' : 'osc'))
+        : transport;
+
+      if (resolvedTransport !== 'osc' && resolvedTransport !== 'remote') {
+        throw new Error(`Invalid OSC transport "${transport}" (expected auto, osc, or remote)`);
+      }
+
+      if (resolvedTransport === 'osc') {
+        const { address, args } = buildOscAddressAndArgs({ action, playback, cueNumber, level });
+        const msg = encodeOscMessage(address, args);
+        sendUdpPacket(msg, { host, port }).catch(e => console.error('Failed to dispatch trigger:', e));
+        return;
+      }
+
+      const command = buildRemoteCommand({ action, playback, cueNumber, level });
+      sendUdpPacket(Buffer.from(command, 'ascii'), { host, port: clampPort(config?.osc?.target?.remotePort, 6553) })
+        .catch(e => console.error('Failed to dispatch trigger:', e));
+      return;
+    }
+
+    const msg = encodeOscMessage(trigger.address || '/next', Array.isArray(trigger.args) ? trigger.args : []);
+    sendUdpPacket(msg, { host, port }).catch(e => console.error('Failed to dispatch trigger:', e));
+  } catch (e) {
+    console.error('Trigger dispatch error:', e);
+  }
+});
 
 function clampPort(value, fallback) {
   const parsed = Number(value);
@@ -168,7 +219,8 @@ function buildRemoteCommand({ action, playback, cueNumber, level }) {
 cueExecutionEngine.registerHandler('oscDispatch', async (cue) => {
   console.log('Executing OSC dispatch cue:', cue);
   const action = String(cue?.oscAction || 'go').trim().toLowerCase();
-  const playback = 1;
+  const playbackRaw = Number(cue?.oscPlayback);
+  const playback = Number.isFinite(playbackRaw) && playbackRaw > 0 ? Math.max(1, Math.round(playbackRaw)) : 1;
   const cueNumber = cue?.oscCueNumber ?? '1';
   const level = clampLevel(cue?.oscLevel);
   const transport = String(cue?.oscTransport || 'auto').trim().toLowerCase();
@@ -431,8 +483,8 @@ async function loadSceneIndex() {
   const fingerprint = getFileFingerprint(SCENES_FILE);
 
   if (sceneCache.fingerprint &&
-      sceneCache.fingerprint.mtime === fingerprint.mtime &&
-      sceneCache.fingerprint.size === fingerprint.size) {
+    sceneCache.fingerprint.mtime === fingerprint.mtime &&
+    sceneCache.fingerprint.size === fingerprint.size) {
     return { pages: [...sceneCache.pages], tocActs: [...sceneCache.tocActs] };
   }
 
@@ -627,10 +679,10 @@ app.post('/api/audio/upload', uploadRawMiddleware, async (req, res) => {
       });
     });
 
-    try { unlinkSync(inputPath); } catch (_) {}
+    try { unlinkSync(inputPath); } catch (_) { }
     res.json({ path: '/audio/' + outputName, filename: outputName });
   } catch (err) {
-    try { unlinkSync(inputPath); } catch (_) {}
+    try { unlinkSync(inputPath); } catch (_) { }
     res.status(500).json({ error: err.message });
   }
 });
@@ -684,7 +736,7 @@ wss.on('connection', (ws) => {
   ws.send(JSON.stringify({ type: 'meta', ...getRuntimeMeta() }));
   ws.send(JSON.stringify({ type: 'instances', list: listActive() }));
   ws.send(JSON.stringify({ type: 'playedCues', ids: [...playedCueIds] }));
-  try { ws.send(JSON.stringify({ type: 'masterVolume', db: safeMasterVolume() })); } catch (_) {}
+  try { ws.send(JSON.stringify({ type: 'masterVolume', db: safeMasterVolume() })); } catch (_) { }
 
   ws.on('message', async (raw) => {
     let msg;

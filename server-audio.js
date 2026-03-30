@@ -217,7 +217,7 @@ async function seek(instanceId, newPos) {
         inst.nodes = null;
     }
     inst.isDeramping = false;
-    inst.paused = false;
+    inst.paused = false; inst.firedTriggers = new Set();
 
     const ctx = getCtx();
     const buffer = inst.buffer;
@@ -308,7 +308,7 @@ async function resume(instanceId) {
     const inst = activeInstances.get(instanceId);
     if (!inst || !inst.paused) return;
     const pos = inst.pausedAt ?? 0;
-    inst.paused = false;
+    inst.paused = false; inst.firedTriggers = new Set();
     inst.isDeramping = false;
     await seek(instanceId, pos);
 }
@@ -574,4 +574,28 @@ function cancelDevamp(instanceId) {
     }
 }
 
-export { playCue, fadeOut, stop, stopAll, fadeOutAll, devamp, cancelDevamp, listActive, setVolume, masterVolume, pause, resume, seek };
+export { playCue, fadeOut, stop, stopAll, fadeOutAll, devamp, cancelDevamp, listActive, setVolume, masterVolume, pause, resume, seek, setTriggerCallback };
+
+let triggerCallback = null;
+function setTriggerCallback(cb) {
+    triggerCallback = cb;
+}
+
+// Trigger interval
+setInterval(() => {
+    if (!triggerCallback) return;
+    const now = Date.now();
+    for (const [id, inst] of activeInstances.entries()) {
+        if (inst.paused || !inst.cue || !Array.isArray(inst.cue.oscTriggers)) continue;
+        const pos = getPosition(id);
+        if (!inst.firedTriggers) inst.firedTriggers = new Set();
+
+        inst.cue.oscTriggers.forEach((trigger, idx) => {
+            const timeS = (trigger.timeMs || 0) / 1000;
+            if (pos >= timeS && !inst.firedTriggers.has(idx)) {
+                inst.firedTriggers.add(idx);
+                try { triggerCallback(trigger); } catch (e) { console.error("Unhandled error in triggerCallback", e); }
+            }
+        });
+    }
+}, 50);

@@ -160,19 +160,48 @@
           </div>
 
           <!-- Waveform -->
-          <div class="waveform-container" id="waveform-container">
-            <div class="waveform-empty" id="waveform-empty">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-              </svg>
-              No audio loaded
+          <div class="wf-toolbar">
+            <span class="wf-toolbar-title">Waveform</span>
+            <div class="wf-zoom-controls" style="display:none" id="wf-zoom-controls">
+              <button type="button" class="btn btn-ghost btn-xs"
+                onclick="setWaveformZoom(Math.max(1, waveformZoom - 0.5))">−</button>
+              <div style="display: flex; align-items: center; gap: 2px;">
+                <input type="number" id="wf-zoom-input"
+                  style="width: 40px; text-align: right; background: transparent; border: 1px solid #333; color: white; border-radius: 3px; font-size: 0.8rem; padding: 1px 4px; -moz-appearance: textfield;"
+                  value="100" onchange="setWaveformZoom(this.value / 100)" min="10" step="10">
+                <span style="font-size: 0.8rem; opacity: 0.8;">%</span>
+              </div>
+              <button type="button" class="btn btn-ghost btn-xs"
+                onclick="setWaveformZoom(waveformZoom + 0.5)">+</button>
             </div>
-            <div class="waveform-loading" id="waveform-loading" style="display:none">
-              <div class="waveform-loading-bar"></div>
+          </div>
+          <div class="waveform-container" id="waveform-container" style="overflow-x: auto; position: relative;">
+            <div class="waveform-inner" id="waveform-inner" style="position: relative; height: 110px;"
+              onpointerdown="onWaveformScrubStart(event)">
+              <div class="waveform-empty" id="waveform-empty">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                </svg>
+                No audio loaded
+              </div>
+              <div class="waveform-loading" id="waveform-loading" style="display:none">
+                <div class="waveform-loading-bar"></div>
+              </div>
+              <canvas id="waveform-canvas"
+                style="display:none; position:absolute; top:0; left:0; height: 110px;"></canvas>
+              <div id="wf-handle-layer" style="display:none; position:absolute; inset:0; pointer-events:none"></div>
+              <div id="wf-trigger-layer" style="display:none; position:absolute; inset:0; pointer-events:none"></div>
             </div>
-            <canvas id="waveform-canvas" style="display:none; position:absolute; top:0; left:0"></canvas>
-            <div id="wf-handle-layer" style="display:none; position:absolute; inset:0; pointer-events:none"></div>
+          </div>
+
+          <!-- Triggers (Sync OSC) -->
+          <div class="ssg" id="osc-triggers-section" style="display:none;">
+            <div class="ssg-label" style="display: flex; justify-content: space-between; align-items: center;">
+              <span>OSC Sync</span>
+              <button type="button" class="btn btn-ghost btn-xs" onclick="addOscTrigger()">+ Add</button>
+            </div>
+            <div id="osc-triggers-list" class="osc-triggers-list"></div>
           </div>
 
           <!-- Play style -->
@@ -350,7 +379,7 @@
           <div class="osc-grid">
             <div class="osc-field-row">
               <label for="osc-playback">Playback (Cue Stack)</label>
-              <input type="number" id="osc-playback" min="1" max="1" step="1" value="1" disabled>
+              <input type="number" id="osc-playback" min="1" step="1" value="1">
             </div>
 
             <div class="osc-field-row" id="osc-cue-row" style="display:none">

@@ -70,5 +70,85 @@
         "oscTransport": "auto"
       }
     ]
+  },
+  "scene_1_2_p12_sd0_w31": {
+    "sound": [
+      {
+        "id": "mnclvfxkmnnq3",
+        "title": "test3",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 0,
+        "clipEnd": 4.572,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscTriggers": [
+          {
+            "timeMs": 0,
+            "oscAction": "go",
+            "oscPlayback": 1,
+            "oscCueNumber": "1",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 1107.5010137162972,
+            "oscAction": "go",
+            "oscPlayback": 1,
+            "oscCueNumber": "1",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 1496.0958181377464,
+            "oscAction": "go",
+            "oscPlayback": 1,
+            "oscCueNumber": "1",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 1705.1050912228795,
+            "oscAction": "go",
+            "oscPlayback": 1,
+            "oscCueNumber": "1",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 1918.2479065362752,
+            "oscAction": "go",
+            "oscPlayback": 1,
+            "oscCueNumber": "1",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 2137.328121704463,
+            "oscAction": "go",
+            "oscPlayback": 1,
+            "oscCueNumber": "1",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 2387.936212212376,
+            "oscAction": "go",
+            "oscPlayback": 1,
+            "oscCueNumber": "1",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ],
+        "clip": "/audio/among-us-role-reveal-sound_1774476508953.webm"
+      }
+    ]
   }
 }

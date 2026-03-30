@@ -106,8 +106,11 @@ let currentClipPath = null;
 let waveformAudioBuffer = null;
 let waveformPeaks = null;
 let waveformRedrawTimer = null;
-let waveformDrag = null; // { handle, inputId, containerLeft, containerWidth, duration }
+let waveformDrag = null; // { handle, inputId, duration, type }
+let waveformScrubDrag = false;
 let waveformRafId = null;
+let waveformZoom = 1;
+let currentOscTriggers = [];
 
 // OSC modal state
 let currentOscAction = 'go';
@@ -1334,10 +1337,37 @@ document.getElementById('scroll-container').addEventListener('wheel', (e) => {
 }, { passive: false });
 
 document.addEventListener('pointermove', (e) => {
+  if (waveformScrubDrag && waveformAudioBuffer) {
+    const layer = document.getElementById('wf-handle-layer');
+    if (!layer) return;
+    const rect = layer.getBoundingClientRect();
+    const cWidth = rect.width;
+    const dur = waveformAudioBuffer.duration;
+    const x = Math.max(0, Math.min(cWidth, e.clientX - rect.left));
+    let t = (x / cWidth) * dur;
+
+    // clamp to clip bounds
+    const clipStart = numVal('p-clip-start') ?? 0;
+    const clipEnd = numVal('p-clip-end') ?? dur;
+    t = Math.max(clipStart, Math.min(clipEnd, t));
+
+    updatePreviewScrubberValue(t);
+    previewPlayheadT = t;
+    if (waveformRafId) cancelAnimationFrame(waveformRafId);
+    waveformRafId = requestAnimationFrame(drawWaveform);
+    return;
+  }
+
   if (!waveformDrag) return;
-  const { handle, inputId, containerLeft, containerWidth, duration } = waveformDrag;
-  const x = Math.max(0, Math.min(containerWidth, e.clientX - containerLeft));
-  let t = (x / containerWidth) * duration;
+  const { handle, inputId, duration } = waveformDrag;
+
+  const layer = document.getElementById('wf-handle-layer');
+  if (!layer) return;
+  const rect = layer.getBoundingClientRect();
+  const cWidth = rect.width;
+
+  const x = Math.max(0, Math.min(cWidth, e.clientX - rect.left));
+  let t = (x / cWidth) * duration;
 
   const bounds = getParamBounds();
   if (bounds[inputId]) {
@@ -1354,10 +1384,14 @@ document.addEventListener('pointermove', (e) => {
 });
 
 document.addEventListener('pointerup', () => {
+  if (waveformScrubDrag) {
+    waveformScrubDrag = false;
+    if (previewInstanceId !== null && previewPlayheadT !== null) {
+      restartPreviewAt(previewPlayheadT);
+    }
+  }
+
   if (!waveformDrag) return;
-  waveformDrag = null;
-  applyConstraints();
-  updateAllSliderRanges();
   drawWaveform();
   updateWaveformHandles();
 });
@@ -1906,6 +1940,24 @@ function getOscTransportOptions(action) {
   return meta.allowedTransports || ['osc', 'remote', 'auto'];
 }
 
+function normalizeOscTrigger(trigger = {}) {
+  const action = String(trigger.oscAction || '').trim().toLowerCase();
+  const normalizedAction = OSC_ACTIONS[action] ? action : 'go';
+  const allowedTransports = getOscTransportOptions(normalizedAction);
+  const transportValue = String(trigger.oscTransport || 'auto').trim().toLowerCase();
+  const playbackValue = Number(trigger.oscPlayback);
+  const levelValue = Number(trigger.oscLevel);
+
+  return {
+    timeMs: Number(trigger.timeMs) || 0,
+    oscAction: normalizedAction,
+    oscPlayback: Number.isFinite(playbackValue) && playbackValue > 0 ? Math.max(1, Math.round(playbackValue)) : 1,
+    oscCueNumber: parseCueNumberOrNull(trigger.oscCueNumber ?? '1') || '1',
+    oscLevel: Number.isFinite(levelValue) ? Math.max(0, Math.min(100, Math.round(levelValue))) : 100,
+    oscTransport: allowedTransports.includes(transportValue) ? transportValue : (allowedTransports[0] || 'auto'),
+  };
+}
+
 function updateOscActionUi() {
   const action = currentOscAction;
   const meta = getOscActionMeta(action);
@@ -1956,8 +2008,8 @@ function parseOscForm(cueTypeId = getCurrentOscCueTypeId()) {
   const transportSelect = document.getElementById('osc-transport');
   const cueField = document.getElementById('osc-cue-number');
 
-  if (playbackInput) playbackInput.value = '1';
-  const playback = 1;
+  const playbackRaw = Number(playbackInput?.value ?? typeDefaults.oscPlayback ?? 1);
+  const playback = Number.isFinite(playbackRaw) && playbackRaw > 0 ? Math.max(1, Math.round(playbackRaw)) : 1;
 
   const levelRaw = Number(levelInput?.value ?? typeDefaults.oscLevel ?? 100);
   const level = Number.isFinite(levelRaw) ? Math.max(0, Math.min(100, Math.round(levelRaw))) : 100;
@@ -2005,7 +2057,7 @@ function initOscForm(cueData, cueTypeId = getCurrentOscCueTypeId()) {
   const levelInput = document.getElementById('osc-level');
   const transportSelect = document.getElementById('osc-transport');
 
-  if (playbackInput) playbackInput.value = '1';
+  if (playbackInput) playbackInput.value = String(Math.max(1, Math.round(Number(merged.oscPlayback ?? typeDefaults.oscPlayback ?? 1) || 1)));
   if (cueInput) cueInput.value = parseCueNumberOrNull(merged.oscCueNumber) || String(typeDefaults.oscCueNumber || '1');
   if (levelInput) {
     const level = Number.isFinite(Number(merged.oscLevel)) ? Number(merged.oscLevel) : 100;
@@ -2047,6 +2099,7 @@ function getSoundData() {
     volume: numVal('p-volume') ?? mergedDefaults.volume,
     manualFadeOutDuration: numVal('p-manual-fo') ?? mergedDefaults.manualFadeOutDuration,
     allowMultipleInstances: document.getElementById('p-allow-multi').checked,
+    oscTriggers: currentOscTriggers,
   };
   if (currentSoundSubtype === 'vamp') {
     const loopEndVal = document.getElementById('p-loop-end').value;
@@ -2071,11 +2124,13 @@ function initSoundForm(cueData, cueTypeId = getCurrentSoundCueTypeId()) {
     loopStart: 0,
     loopEnd: null,
     loopXfade: 0,
+    oscTriggers: [],
   }, getCueTypePayloadDefaults(cueTypeId));
 
   if (!cueData) {
     selectSoundSubtype(typeDefaults.soundSubtype || 'play_once');
     currentClipPath = null;
+    currentOscTriggers = [];
     document.getElementById('clip-name-text').textContent = 'No clip selected';
     document.getElementById('p-clip-start').value = typeDefaults.clipStart ?? 0;
     document.getElementById('p-clip-end').value = '';
@@ -2113,6 +2168,8 @@ function initSoundForm(cueData, cueTypeId = getCurrentSoundCueTypeId()) {
   document.getElementById('p-loop-start').value = merged.loopStart ?? 0;
   document.getElementById('p-loop-end').value = merged.loopEnd != null ? merged.loopEnd : '';
   document.getElementById('p-loop-xfade').value = merged.loopXfade ?? 0;
+  currentOscTriggers = Array.isArray(merged.oscTriggers) ? structuredClone(merged.oscTriggers) : [];
+  if (typeof renderOscTriggers === 'function') renderOscTriggers();
 
   if (merged.clip) {
     currentClipPath = merged.clip;
@@ -2211,9 +2268,15 @@ async function loadWaveform(url) {
     audioCtx.close();
 
     const container = document.getElementById('waveform-container');
-    const W = container.clientWidth;
+    const W = container.clientWidth * waveformZoom;
     const dpr = window.devicePixelRatio || 1;
     waveformPeaks = computeWaveformPeaks(waveformAudioBuffer, W);
+
+    // Provide scrollbar if zoomed in
+    const inner = document.getElementById('waveform-inner');
+    if (inner) {
+      inner.style.width = W + 'px';
+    }
 
     const canvas = document.getElementById('waveform-canvas');
     canvas.width = W * dpr;
@@ -2222,9 +2285,16 @@ async function loadWaveform(url) {
     canvas.style.height = '110px';
     canvas.style.display = 'block';
     document.getElementById('wf-handle-layer').style.display = 'block';
+    const triggerLayer = document.getElementById('wf-trigger-layer');
+    if (triggerLayer) triggerLayer.style.display = 'block';
+
     document.getElementById('waveform-loading').style.display = 'none';
     document.getElementById('preview-bar').style.display = 'flex';
     document.getElementById('preview-scrub').style.display = 'flex';
+    const zoomControls = document.getElementById('wf-zoom-controls');
+    if (zoomControls) zoomControls.style.display = 'flex';
+    const triggersSection = document.getElementById('osc-triggers-section');
+    if (triggersSection) triggersSection.style.display = 'block';
 
     // Set clip-end / loop-end defaults to clip duration
     const dur = waveformAudioBuffer.duration;
@@ -2470,11 +2540,258 @@ function updateWaveformHandles() {
       e.preventDefault();
       e.stopPropagation();
       div.setPointerCapture(e.pointerId);
-      const rect = container.getBoundingClientRect();
-      waveformDrag = { handle: div, inputId, containerLeft: rect.left, containerWidth: rect.width, duration: dur };
+      waveformDrag = { handle: div, inputId, duration: dur };
     });
     layer.appendChild(div);
   });
+}
+
+function setWaveformZoom(z) {
+  let val = Number(z);
+  if (!Number.isFinite(val)) val = 1;
+  waveformZoom = Math.max(0.1, val);
+  const input = document.getElementById('wf-zoom-input');
+  if (input) input.value = Math.round(waveformZoom * 100);
+
+  if (currentClipPath) {
+    // fast re-render wrapper
+    const container = document.getElementById('waveform-container');
+    const W = container.clientWidth * waveformZoom;
+    const inner = document.getElementById('waveform-inner');
+    if (inner) inner.style.width = W + 'px';
+    const canvas = document.getElementById('waveform-canvas');
+    if (canvas && waveformAudioBuffer) {
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = W * dpr;
+      canvas.style.width = W + 'px';
+      waveformPeaks = computeWaveformPeaks(waveformAudioBuffer, W);
+      drawWaveform();
+      updateWaveformHandles();
+      drawOscTriggersOnWaveform();
+    }
+  }
+}
+
+function renderOscTriggers() {
+  const list = document.getElementById('osc-triggers-list');
+  if (!list) return;
+  list.innerHTML = '';
+  currentOscTriggers.forEach((t, i) => {
+    const trigger = normalizeOscTrigger(t);
+    currentOscTriggers[i] = { ...t, ...trigger };
+    const row = document.createElement('div');
+    row.className = 'osc-trigger-item';
+
+    const header = document.createElement('div');
+    header.className = 'osc-trigger-header';
+
+    const timeField = document.createElement('label');
+    timeField.className = 'osc-trigger-field osc-trigger-time-field';
+    timeField.innerHTML = '<span>Time (s)</span>';
+    const timeInput = document.createElement('input');
+    timeInput.type = 'number';
+    timeInput.step = '0.001';
+    timeInput.min = '0';
+    timeInput.value = String(trigger.timeMs / 1000);
+    timeInput.addEventListener('change', () => updateOscTrigger(i, 'timeMs', timeInput.value));
+    timeField.appendChild(timeInput);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'btn btn-ghost btn-xs osc-trigger-remove';
+    removeBtn.style.color = '#fca5a5';
+    removeBtn.textContent = '✕';
+    removeBtn.addEventListener('click', () => removeOscTrigger(i));
+
+    header.appendChild(timeField);
+    header.appendChild(removeBtn);
+
+    const fields = document.createElement('div');
+    fields.className = 'osc-trigger-fields';
+
+    const actionField = document.createElement('label');
+    actionField.className = 'osc-trigger-field';
+    actionField.innerHTML = '<span>Action</span>';
+    const actionSelect = document.createElement('select');
+    actionSelect.className = 'param-select';
+    Object.entries(OSC_ACTIONS).forEach(([value, meta]) => {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = meta.label;
+      actionSelect.appendChild(option);
+    });
+    actionSelect.value = trigger.oscAction;
+    actionSelect.addEventListener('change', () => updateOscTrigger(i, 'oscAction', actionSelect.value));
+    actionField.appendChild(actionSelect);
+
+    const playbackField = document.createElement('label');
+    playbackField.className = 'osc-trigger-field';
+    playbackField.innerHTML = '<span>Playback</span>';
+    const playbackInput = document.createElement('input');
+    playbackInput.type = 'number';
+    playbackInput.step = '1';
+    playbackInput.min = '1';
+    playbackInput.value = String(trigger.oscPlayback);
+    playbackInput.addEventListener('change', () => updateOscTrigger(i, 'oscPlayback', playbackInput.value));
+    playbackField.appendChild(playbackInput);
+
+    const cueField = document.createElement('label');
+    cueField.className = 'osc-trigger-field osc-trigger-cue-field';
+    cueField.innerHTML = '<span>Cue Number</span>';
+    const cueInput = document.createElement('input');
+    cueInput.type = 'text';
+    cueInput.placeholder = 'e.g. 5 or 5.1';
+    cueInput.value = trigger.oscCueNumber;
+    cueInput.addEventListener('change', () => updateOscTrigger(i, 'oscCueNumber', cueInput.value));
+    cueField.appendChild(cueInput);
+
+    const levelField = document.createElement('label');
+    levelField.className = 'osc-trigger-field osc-trigger-level-field';
+    levelField.innerHTML = '<span>Level</span>';
+    const levelInput = document.createElement('input');
+    levelInput.type = 'number';
+    levelInput.step = '1';
+    levelInput.min = '0';
+    levelInput.max = '100';
+    levelInput.value = String(trigger.oscLevel);
+    levelInput.addEventListener('change', () => updateOscTrigger(i, 'oscLevel', levelInput.value));
+    levelField.appendChild(levelInput);
+
+    const transportField = document.createElement('label');
+    transportField.className = 'osc-trigger-field';
+    transportField.innerHTML = '<span>Transport</span>';
+    const transportSelect = document.createElement('select');
+    transportSelect.className = 'param-select';
+    ['auto', 'osc', 'remote'].forEach(value => {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = value === 'auto' ? 'Auto' : value.toUpperCase();
+      transportSelect.appendChild(option);
+    });
+    transportSelect.value = trigger.oscTransport;
+    transportSelect.addEventListener('change', () => updateOscTrigger(i, 'oscTransport', transportSelect.value));
+    transportField.appendChild(transportSelect);
+
+    const meta = getOscActionMeta(trigger.oscAction);
+    cueField.style.display = meta.requiresCue ? 'flex' : 'none';
+    levelField.style.display = meta.requiresLevel ? 'flex' : 'none';
+    Array.from(transportSelect.options).forEach(option => {
+      option.disabled = !(meta.allowedTransports || []).includes(option.value);
+    });
+    if (!Array.from(transportSelect.options).some(option => option.value === transportSelect.value && !option.disabled)) {
+      transportSelect.value = meta.allowedTransports?.[0] || 'auto';
+    }
+
+    fields.appendChild(actionField);
+    fields.appendChild(playbackField);
+    fields.appendChild(cueField);
+    fields.appendChild(levelField);
+    fields.appendChild(transportField);
+
+    row.appendChild(header);
+    row.appendChild(fields);
+    list.appendChild(row);
+  });
+  drawOscTriggersOnWaveform();
+}
+
+function updateOscTrigger(index, field, value) {
+  if (currentOscTriggers[index]) {
+    const trigger = currentOscTriggers[index];
+    if (field === 'timeMs') {
+      trigger.timeMs = Math.max(0, Number(value) || 0);
+    } else if (field === 'oscAction') {
+      trigger.oscAction = OSC_ACTIONS[value] ? value : 'go';
+      const allowedTransports = getOscTransportOptions(trigger.oscAction);
+      if (!allowedTransports.includes(trigger.oscTransport)) {
+        trigger.oscTransport = allowedTransports[0] || 'auto';
+      }
+    } else if (field === 'oscPlayback') {
+      const playback = Number(value);
+      trigger.oscPlayback = Number.isFinite(playback) && playback > 0 ? Math.max(1, Math.round(playback)) : 1;
+    } else if (field === 'oscCueNumber') {
+      trigger.oscCueNumber = parseCueNumberOrNull(value) || '1';
+    } else if (field === 'oscLevel') {
+      const level = Number(value);
+      trigger.oscLevel = Number.isFinite(level) ? Math.max(0, Math.min(100, Math.round(level))) : 100;
+    } else if (field === 'oscTransport') {
+      const transport = String(value || 'auto').trim().toLowerCase();
+      const allowedTransports = getOscTransportOptions(trigger.oscAction || 'go');
+      trigger.oscTransport = allowedTransports.includes(transport) ? transport : (allowedTransports[0] || 'auto');
+    } else {
+      trigger[field] = value;
+    }
+    drawOscTriggersOnWaveform();
+    renderOscTriggers();
+  }
+}
+
+function removeOscTrigger(index) {
+  currentOscTriggers.splice(index, 1);
+  renderOscTriggers();
+}
+
+function addOscTrigger() {
+  const timeMs = previewPlayheadT !== null ? previewPlayheadT * 1000 : 0;
+  currentOscTriggers.push({
+    timeMs,
+    oscAction: 'go',
+    oscPlayback: 1,
+    oscCueNumber: '1',
+    oscLevel: 100,
+    oscTransport: 'auto',
+  });
+  renderOscTriggers();
+}
+
+function drawOscTriggersOnWaveform() {
+  const layer = document.getElementById('wf-trigger-layer');
+  if (!layer || !waveformAudioBuffer) return;
+  layer.innerHTML = '';
+  const dur = waveformAudioBuffer.duration;
+  currentOscTriggers.forEach(t => {
+    const div = document.createElement('div');
+    div.className = 'osc-trigger-marker';
+    const posX = ((t.timeMs / 1000) / dur) * 100;
+    if (posX >= 0 && posX <= 100) {
+      div.style.left = posX + '%';
+      layer.appendChild(div);
+    }
+  });
+}
+
+function onWaveformScrubStart(e) {
+  // If clicking on a handle, don't scrub
+  if (e.target.closest('.wf-handle')) return;
+  if (!waveformAudioBuffer) return;
+  e.preventDefault();
+  waveformScrubDrag = true;
+
+  const layer = document.getElementById('wf-handle-layer');
+  if (!layer) return;
+  const rect = layer.getBoundingClientRect();
+  const cWidth = rect.width;
+  const dur = waveformAudioBuffer.duration;
+
+  const x = Math.max(0, Math.min(cWidth, e.clientX - rect.left));
+  let t = (x / cWidth) * dur;
+
+  const clipStart = numVal('p-clip-start') ?? 0;
+  const clipEnd = numVal('p-clip-end') ?? dur;
+  t = Math.max(clipStart, Math.min(clipEnd, t));
+
+  updatePreviewScrubberValue(t);
+  previewPlayheadT = t;
+  drawWaveform();
+
+  if (previewInstanceId !== null) {
+    // Stop playback during drag; resume happens on pointerup
+    const oldId = previewInstanceId;
+    previewInstanceId = 'scrubbing'; // prevent immediate resume loops
+    stopPlayheadAnimation();
+    PreviewEngine.stop(oldId);
+
+  }
 }
 
 // === AUDIO PREVIEW ===
