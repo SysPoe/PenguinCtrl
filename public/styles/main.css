@@ -1654,20 +1654,20 @@ body {
   margin-top: 4px;
 }
 
-/* OSC section */
-.osc-section {
+/* Lighting action section */
+.lighting-section {
   border-bottom: 1px solid var(--border-subtle);
   padding: 0 20px 14px;
 }
 
-.osc-action-bar {
+.lighting-action-bar {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
   margin-bottom: 8px;
 }
 
-.osc-action-btn {
+.lighting-action-btn {
   padding: 7px 10px;
   background: #1c1c1c;
   border: 1px solid #3a3a3a;
@@ -1679,18 +1679,18 @@ body {
   transition: all 0.12s;
 }
 
-.osc-action-btn:hover {
+.lighting-action-btn:hover {
   border-color: #5589a4;
   color: #93b9cc;
 }
 
-.osc-action-btn.selected {
+.lighting-action-btn.selected {
   background: var(--osc-bg);
   border-color: var(--osc-color);
   color: var(--osc-color);
 }
 
-.osc-action-desc {
+.lighting-action-desc {
   font-size: 11px;
   color: #7b8b95;
   margin-bottom: 10px;

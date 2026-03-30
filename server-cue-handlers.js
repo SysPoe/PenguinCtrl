@@ -5,7 +5,6 @@ function isObject(value) {
 }
 
 function inferCueType(cue) {
-  if (cue.cueType && typeof cue.cueType === 'string') return cue.cueType;
   if (cue.soundSubtype || cue.clip) return 'sound';
   return 'lighting';
 }
@@ -55,9 +54,12 @@ export function createCueExecutionEngine({ cueTypeRegistry, playAudioCue, worksp
 
     const typeDef = cueTypeRegistry.getType(cueType);
     const fallbackHandlerName = cueType === 'sound' || cue.soundSubtype || cue.clip ? 'audioPlay' : 'trackOnly';
+    const lightingAction = String(cue.oscAction || '').trim().toLowerCase();
+    const hasLightingAction = cueType === 'lighting' && lightingAction && lightingAction !== 'none';
     const handlerName =
       (typeDef && typeof typeDef.handler === 'string' && typeDef.handler.trim())
       || (typeof cue.handler === 'string' && cue.handler.trim())
+      || (hasLightingAction ? 'oscDispatch' : null)
       || fallbackHandlerName;
 
     const handler = handlerRegistry.get(handlerName);

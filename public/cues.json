@@ -22,7 +22,7 @@
     ]
   },
   "scene_1_2_p12_sd0_w12": {
-    "osc": [
+    "lighting": [
       {
         "id": "mn8nngx5c1dm0",
         "title": "test",
@@ -58,7 +58,7 @@
     ]
   },
   "scene_1_2_p12_sd0_w4": {
-    "osc": [
+    "lighting": [
       {
         "id": "mna3hne3pxmbl",
         "title": "Movers up",
@@ -148,6 +148,15 @@
           }
         ],
         "clip": "/audio/among-us-role-reveal-sound_1774476508953.webm"
+      }
+    ]
+  },
+  "scene_1_2_p12_sd0_w40": {
+    "lighting": [
+      {
+        "id": "mnco66rey0j7t",
+        "title": "test222",
+        "description": ""
       }
     ]
   }

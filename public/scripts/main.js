@@ -64,22 +64,6 @@ const DEFAULT_CUE_TYPES = [
       loopXfade: 0,
     },
   },
-  {
-    id: 'osc',
-    label: 'OSC',
-    shortLabel: 'O',
-    editor: 'osc',
-    handler: 'oscDispatch',
-    color: '#38bdf8',
-    order: 30,
-    payloadDefaults: {
-      oscAction: 'go',
-      oscPlayback: 1,
-      oscCueNumber: '1',
-      oscLevel: 100,
-      oscTransport: 'auto',
-    },
-  },
 ];
 
 let pages = [];
@@ -113,7 +97,7 @@ let waveformZoom = 1;
 let currentOscTriggers = [];
 
 // OSC modal state
-let currentOscAction = 'go';
+let currentLightingAction = 'none';
 
 // Runtime websocket (errors + meta updates)
 let runtimeWs = null;
@@ -192,7 +176,7 @@ function normalizeCueTypeDefs(rawTypes) {
       id,
       label: String(type?.label || id),
       shortLabel: String(type?.shortLabel || id.slice(0, 1).toUpperCase()),
-      editor: type?.editor === 'sound' || type?.editor === 'osc' ? type.editor : 'basic',
+      editor: type?.editor === 'sound' ? 'sound' : 'basic',
       handler: String(type?.handler || 'trackOnly'),
       color: String(type?.color || '#888888'),
       order: Number.isFinite(Number(type?.order)) ? Number(type.order) : (index + 1) * 10,
@@ -218,16 +202,16 @@ function isSoundCueType(typeId) {
   return getCueType(typeId)?.editor === 'sound';
 }
 
-function isOscCueType(typeId) {
-  return getCueType(typeId)?.editor === 'osc';
+function isLightingCueType(typeId) {
+  return getCueType(typeId)?.id === 'lighting';
 }
 
 function getPrimarySoundCueType() {
   return cueTypes.find(type => type.editor === 'sound') || null;
 }
 
-function getPrimaryOscCueType() {
-  return cueTypes.find(type => type.editor === 'osc') || null;
+function getPrimaryLightingCueType() {
+  return cueTypes.find(type => type.id === 'lighting') || null;
 }
 
 function getCurrentSoundCueTypeId() {
@@ -235,9 +219,9 @@ function getCurrentSoundCueTypeId() {
   return getPrimarySoundCueType()?.id || 'sound';
 }
 
-function getCurrentOscCueTypeId() {
-  if (currentCueType && isOscCueType(currentCueType)) return currentCueType;
-  return getPrimaryOscCueType()?.id || 'osc';
+function getCurrentLightingCueTypeId() {
+  if (currentCueType && isLightingCueType(currentCueType)) return currentCueType;
+  return getPrimaryLightingCueType()?.id || 'lighting';
 }
 
 function safeCssColor(color, fallback = '#888888') {
@@ -322,9 +306,6 @@ function getCueTypeIcon(type) {
   }
   if (type.editor === 'sound') {
     return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14" /></svg>`;
-  }
-  if (type.editor === 'osc') {
-    return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.4 10.8l7.2-3.6M8.4 13.2l7.2 3.6"/></svg>`;
   }
   return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>`;
 }
@@ -1488,7 +1469,7 @@ function openCueModal(targetId) {
   currentCueType = null;
   currentCueId = null;
   currentClipPath = null;
-  currentOscAction = 'go';
+  currentLightingAction = 'none';
 
   document.getElementById('cue-modal-title').textContent = 'Add Cue';
   document.getElementById('cue-modal-context').textContent = getTargetContext(targetId);
@@ -1500,16 +1481,16 @@ function openCueModal(targetId) {
   updateExistingCuesList(targetId);
 
   document.getElementById('sound-section').style.display = 'none';
-  document.getElementById('osc-section').style.display = 'none';
+  document.getElementById('lighting-section').style.display = 'none';
   document.querySelector('.cue-modal').classList.remove('modal-wide');
 
   const primarySoundType = getPrimarySoundCueType();
   if (primarySoundType) {
     initSoundForm(null, primarySoundType.id);
   }
-  const primaryOscType = getPrimaryOscCueType();
-  if (primaryOscType) {
-    initOscForm(null, primaryOscType.id);
+  const primaryLightingType = getPrimaryLightingCueType();
+  if (primaryLightingType) {
+    initLightingActionForm(null, primaryLightingType.id);
   }
 
   document.getElementById('cue-modal-overlay').classList.add('visible');
@@ -1537,21 +1518,21 @@ function openCueModalEdit(targetId, type, cueId) {
   });
 
   const soundSection = document.getElementById('sound-section');
-  const oscSection = document.getElementById('osc-section');
+  const lightingSection = document.getElementById('lighting-section');
   const modal = document.querySelector('.cue-modal');
   if (isSoundCueType(type)) {
     soundSection.style.display = 'block';
-    oscSection.style.display = 'none';
+    lightingSection.style.display = 'none';
     modal.classList.add('modal-wide');
     initSoundForm(cueData, type);
-  } else if (isOscCueType(type)) {
+  } else if (isLightingCueType(type)) {
     soundSection.style.display = 'none';
-    oscSection.style.display = 'block';
+    lightingSection.style.display = 'block';
     modal.classList.add('modal-wide');
-    initOscForm(cueData, type);
+    initLightingActionForm(cueData, type);
   } else {
     soundSection.style.display = 'none';
-    oscSection.style.display = 'none';
+    lightingSection.style.display = 'none';
     modal.classList.remove('modal-wide');
   }
 
@@ -1618,7 +1599,7 @@ function closeCueModal(event) {
     currentTargetId = null;
     currentCueType = null;
     currentCueId = null;
-    currentOscAction = 'go';
+    currentLightingAction = 'none';
   }
 }
 
@@ -1629,21 +1610,21 @@ function selectCueType(type) {
   });
 
   const soundSection = document.getElementById('sound-section');
-  const oscSection = document.getElementById('osc-section');
+  const lightingSection = document.getElementById('lighting-section');
   const modal = document.querySelector('.cue-modal');
   if (isSoundCueType(type)) {
     soundSection.style.display = 'block';
-    oscSection.style.display = 'none';
+    lightingSection.style.display = 'none';
     modal.classList.add('modal-wide');
     if (!currentCueId) initSoundForm(null, type);
-  } else if (isOscCueType(type)) {
+  } else if (isLightingCueType(type)) {
     soundSection.style.display = 'none';
-    oscSection.style.display = 'block';
+    lightingSection.style.display = 'block';
     modal.classList.add('modal-wide');
-    if (!currentCueId) initOscForm(null, type);
+    if (!currentCueId) initLightingActionForm(null, type);
   } else {
     soundSection.style.display = 'none';
-    oscSection.style.display = 'none';
+    lightingSection.style.display = 'none';
     modal.classList.remove('modal-wide');
   }
 }
@@ -1688,8 +1669,8 @@ async function saveCue() {
   try {
     if (isSoundCueType(currentCueType)) {
       cuePayload = deepMerge(typePayloadDefaults, getSoundData());
-    } else if (isOscCueType(currentCueType)) {
-      cuePayload = deepMerge(typePayloadDefaults, parseOscForm(currentCueType));
+    } else if (isLightingCueType(currentCueType)) {
+      cuePayload = deepMerge(typePayloadDefaults, parseLightingActionForm(currentCueType));
     } else {
       cuePayload = deepMerge(typePayloadDefaults, {});
     }
@@ -1702,12 +1683,36 @@ async function saveCue() {
     // Update existing
     const idx = cueList.findIndex(c => c.id === currentCueId);
     if (idx !== -1) {
-      cueList[idx] = { ...cueList[idx], title, description, ...cuePayload };
+      const nextCue = { ...cueList[idx], title, description, ...cuePayload };
+      if (isLightingCueType(currentCueType) && currentLightingAction === 'none') {
+        delete nextCue.oscAction;
+        delete nextCue.oscPlayback;
+        delete nextCue.oscCueNumber;
+        delete nextCue.oscLevel;
+        delete nextCue.oscTransport;
+      }
+      cueList[idx] = nextCue;
     } else {
-      cueList.push({ id: currentCueId, title, description, ...cuePayload });
+      const nextCue = { id: currentCueId, title, description, ...cuePayload };
+      if (isLightingCueType(currentCueType) && currentLightingAction === 'none') {
+        delete nextCue.oscAction;
+        delete nextCue.oscPlayback;
+        delete nextCue.oscCueNumber;
+        delete nextCue.oscLevel;
+        delete nextCue.oscTransport;
+      }
+      cueList.push(nextCue);
     }
   } else {
-    cueList.push({ id: generateId(), title, description, ...cuePayload });
+    const nextCue = { id: generateId(), title, description, ...cuePayload };
+    if (isLightingCueType(currentCueType) && currentLightingAction === 'none') {
+      delete nextCue.oscAction;
+      delete nextCue.oscPlayback;
+      delete nextCue.oscCueNumber;
+      delete nextCue.oscLevel;
+      delete nextCue.oscTransport;
+    }
+    cueList.push(nextCue);
   }
 
   cues[currentTargetId][currentCueType] = cueList;
@@ -1912,6 +1917,23 @@ const OSC_ACTIONS = {
   },
 };
 
+const LIGHTING_ACTIONS = {
+  none: {
+    label: 'None',
+    desc: 'No OSC action.',
+    requiresCue: false,
+    requiresLevel: false,
+    allowedTransports: [],
+    fixedTransport: null,
+  },
+  go: OSC_ACTIONS.go,
+  back: OSC_ACTIONS.back,
+  goto: OSC_ACTIONS.goto,
+  release: OSC_ACTIONS.release,
+  level: OSC_ACTIONS.level,
+  flash: OSC_ACTIONS.flash,
+};
+
 function parseCueNumberOrNull(raw) {
   const source = String(raw || '').trim();
   if (!source) return null;
@@ -1925,6 +1947,154 @@ function parseCueNumberOrNull(raw) {
   if (!Number.isFinite(cueDec) || cueDec < 0 || cueDec > 99) return null;
   const cueDecText = cueDecPadded.replace(/0+$/, '');
   return cueDecText ? `${cueInt}.${cueDecText}` : `${cueInt}`;
+}
+
+function getLightingActionMeta(action) {
+  return LIGHTING_ACTIONS[action] || LIGHTING_ACTIONS.none;
+}
+
+function getLightingTransportOptions(action) {
+  const meta = getLightingActionMeta(action);
+  const transportSelect = document.getElementById('lighting-transport');
+  if (transportSelect && meta.fixedTransport) {
+    transportSelect.value = meta.fixedTransport;
+  }
+  return meta.allowedTransports || [];
+}
+
+function normalizeLightingAction(trigger = {}) {
+  const action = String(trigger.oscAction || '').trim().toLowerCase();
+  const normalizedAction = LIGHTING_ACTIONS[action] ? action : 'none';
+  const allowedTransports = getLightingTransportOptions(normalizedAction);
+  const transportValue = String(trigger.oscTransport || 'auto').trim().toLowerCase();
+  const playbackValue = Number(trigger.oscPlayback);
+  const levelValue = Number(trigger.oscLevel);
+
+  if (normalizedAction === 'none') {
+    return { timeMs: Number(trigger.timeMs) || 0, oscAction: 'none' };
+  }
+
+  return {
+    timeMs: Number(trigger.timeMs) || 0,
+    oscAction: normalizedAction,
+    oscPlayback: Number.isFinite(playbackValue) && playbackValue > 0 ? Math.max(1, Math.round(playbackValue)) : 1,
+    oscCueNumber: parseCueNumberOrNull(trigger.oscCueNumber ?? '1') || '1',
+    oscLevel: Number.isFinite(levelValue) ? Math.max(0, Math.min(100, Math.round(levelValue))) : 100,
+    oscTransport: allowedTransports.includes(transportValue) ? transportValue : (allowedTransports[0] || 'auto'),
+  };
+}
+
+function updateLightingActionUi() {
+  const action = currentLightingAction;
+  const meta = getLightingActionMeta(action);
+  document.querySelectorAll('.lighting-action-btn').forEach(b => {
+    b.classList.toggle('selected', b.dataset.action === action);
+  });
+
+  const cueRow = document.getElementById('lighting-cue-row');
+  if (cueRow) cueRow.style.display = meta.requiresCue ? 'flex' : 'none';
+
+  const levelRow = document.getElementById('lighting-level-row');
+  if (levelRow) levelRow.style.display = meta.requiresLevel ? 'flex' : 'none';
+
+  const desc = document.getElementById('lighting-action-desc');
+  if (desc) desc.textContent = meta.desc;
+
+  const transportSelect = document.getElementById('lighting-transport');
+  if (transportSelect) {
+    const allowed = new Set(getLightingTransportOptions(action));
+    Array.from(transportSelect.options).forEach(option => {
+      option.disabled = !allowed.has(option.value);
+    });
+    if (!allowed.has(transportSelect.value)) {
+      const firstAllowed = Array.from(allowed.values())[0] || '';
+      transportSelect.value = firstAllowed;
+    }
+  }
+}
+
+function selectLightingAction(action) {
+  currentLightingAction = LIGHTING_ACTIONS[action] ? action : 'none';
+  updateLightingActionUi();
+}
+
+function parseLightingActionForm(cueTypeId = getCurrentLightingCueTypeId()) {
+  const typeDefaults = deepMerge({
+    oscAction: 'none',
+    oscPlayback: 1,
+    oscCueNumber: '1',
+    oscLevel: 100,
+    oscTransport: 'auto',
+  }, getCueTypePayloadDefaults(cueTypeId));
+
+  const action = currentLightingAction;
+  if (action === 'none') {
+    return {};
+  }
+
+  const playbackInput = document.getElementById('lighting-playback');
+  const cueInput = document.getElementById('lighting-cue-number');
+  const levelInput = document.getElementById('lighting-level');
+  const transportSelect = document.getElementById('lighting-transport');
+  const cueField = document.getElementById('lighting-cue-number');
+
+  const playbackRaw = Number(playbackInput?.value ?? typeDefaults.oscPlayback ?? 1);
+  const playback = Number.isFinite(playbackRaw) && playbackRaw > 0 ? Math.max(1, Math.round(playbackRaw)) : 1;
+
+  const levelRaw = Number(levelInput?.value ?? typeDefaults.oscLevel ?? 100);
+  const level = Number.isFinite(levelRaw) ? Math.max(0, Math.min(100, Math.round(levelRaw))) : 100;
+
+  const cueNumber = parseCueNumberOrNull(cueInput?.value ?? typeDefaults.oscCueNumber ?? '1');
+  const transportValue = String(transportSelect?.value || typeDefaults.oscTransport || 'auto').trim().toLowerCase();
+  const allowedTransports = getLightingTransportOptions(action);
+  const transport = allowedTransports.includes(transportValue)
+    ? transportValue
+    : (allowedTransports[0] || 'auto');
+
+  cueField?.classList.remove('input-error');
+
+  const meta = getLightingActionMeta(action);
+  if (meta.requiresCue && !cueNumber) {
+    cueField?.classList.add('input-error');
+    cueField?.focus();
+    throw new Error('Cue number must be like 5 or 5.1');
+  }
+
+  return {
+    oscAction: action,
+    oscPlayback: playback,
+    oscCueNumber: cueNumber || String(typeDefaults.oscCueNumber || '1'),
+    oscLevel: level,
+    oscTransport: transport,
+  };
+}
+
+function initLightingActionForm(cueData, cueTypeId = getCurrentLightingCueTypeId()) {
+  const typeDefaults = deepMerge({
+    oscAction: 'none',
+    oscPlayback: 1,
+    oscCueNumber: '1',
+    oscLevel: 100,
+    oscTransport: 'auto',
+  }, getCueTypePayloadDefaults(cueTypeId));
+
+  const merged = deepMerge(typeDefaults, cueData || {});
+  currentLightingAction = LIGHTING_ACTIONS[String(merged.oscAction || 'none').toLowerCase()] ? String(merged.oscAction || 'none').toLowerCase() : 'none';
+
+  const playbackInput = document.getElementById('lighting-playback');
+  const cueInput = document.getElementById('lighting-cue-number');
+  const levelInput = document.getElementById('lighting-level');
+  const transportSelect = document.getElementById('lighting-transport');
+
+  if (playbackInput) playbackInput.value = String(Math.max(1, Math.round(Number(merged.oscPlayback ?? typeDefaults.oscPlayback ?? 1) || 1)));
+  if (cueInput) cueInput.value = parseCueNumberOrNull(merged.oscCueNumber) || String(typeDefaults.oscCueNumber || '1');
+  if (levelInput) {
+    const level = Number.isFinite(Number(merged.oscLevel)) ? Number(merged.oscLevel) : 100;
+    levelInput.value = String(Math.max(0, Math.min(100, Math.round(level))));
+  }
+  if (transportSelect) transportSelect.value = String(merged.oscTransport || 'auto').toLowerCase();
+
+  updateLightingActionUi();
 }
 
 function getOscActionMeta(action) {
@@ -1956,116 +2126,6 @@ function normalizeOscTrigger(trigger = {}) {
     oscLevel: Number.isFinite(levelValue) ? Math.max(0, Math.min(100, Math.round(levelValue))) : 100,
     oscTransport: allowedTransports.includes(transportValue) ? transportValue : (allowedTransports[0] || 'auto'),
   };
-}
-
-function updateOscActionUi() {
-  const action = currentOscAction;
-  const meta = getOscActionMeta(action);
-  document.querySelectorAll('.osc-action-btn').forEach(b => {
-    b.classList.toggle('selected', b.dataset.action === action);
-  });
-
-  const cueRow = document.getElementById('osc-cue-row');
-  if (cueRow) cueRow.style.display = meta.requiresCue ? 'flex' : 'none';
-
-  const levelRow = document.getElementById('osc-level-row');
-  if (levelRow) levelRow.style.display = meta.requiresLevel ? 'flex' : 'none';
-
-  const desc = document.getElementById('osc-action-desc');
-  if (desc) desc.textContent = meta.desc;
-
-  const transportSelect = document.getElementById('osc-transport');
-  if (transportSelect) {
-    const allowed = new Set(getOscTransportOptions(action));
-    Array.from(transportSelect.options).forEach(option => {
-      option.disabled = !allowed.has(option.value);
-    });
-    if (!allowed.has(transportSelect.value)) {
-      const firstAllowed = Array.from(allowed.values())[0] || 'auto';
-      transportSelect.value = firstAllowed;
-    }
-  }
-}
-
-function selectOscAction(action) {
-  currentOscAction = OSC_ACTIONS[action] ? action : 'go';
-  updateOscActionUi();
-}
-
-function parseOscForm(cueTypeId = getCurrentOscCueTypeId()) {
-  const typeDefaults = deepMerge({
-    oscAction: 'go',
-    oscPlayback: 1,
-    oscCueNumber: '1',
-    oscLevel: 100,
-    oscTransport: 'auto',
-  }, getCueTypePayloadDefaults(cueTypeId));
-
-  const action = currentOscAction;
-  const playbackInput = document.getElementById('osc-playback');
-  const cueInput = document.getElementById('osc-cue-number');
-  const levelInput = document.getElementById('osc-level');
-  const transportSelect = document.getElementById('osc-transport');
-  const cueField = document.getElementById('osc-cue-number');
-
-  const playbackRaw = Number(playbackInput?.value ?? typeDefaults.oscPlayback ?? 1);
-  const playback = Number.isFinite(playbackRaw) && playbackRaw > 0 ? Math.max(1, Math.round(playbackRaw)) : 1;
-
-  const levelRaw = Number(levelInput?.value ?? typeDefaults.oscLevel ?? 100);
-  const level = Number.isFinite(levelRaw) ? Math.max(0, Math.min(100, Math.round(levelRaw))) : 100;
-
-  const cueNumber = parseCueNumberOrNull(cueInput?.value ?? typeDefaults.oscCueNumber ?? '1');
-  const transportValue = String(transportSelect?.value || typeDefaults.oscTransport || 'auto').trim().toLowerCase();
-  const allowedTransports = getOscTransportOptions(action);
-  const transport = allowedTransports.includes(transportValue)
-    ? transportValue
-    : (allowedTransports[0] || 'auto');
-
-  cueField?.classList.remove('input-error');
-
-  const meta = getOscActionMeta(action);
-  if (meta.requiresCue && !cueNumber) {
-    cueField?.classList.add('input-error');
-    cueField?.focus();
-    throw new Error('Cue number must be like 5 or 5.1');
-  }
-
-  return {
-    oscAction: action,
-    oscPlayback: playback,
-    oscCueNumber: cueNumber || String(typeDefaults.oscCueNumber || '1'),
-    oscLevel: level,
-    oscTransport: transport,
-  };
-}
-
-function initOscForm(cueData, cueTypeId = getCurrentOscCueTypeId()) {
-  const typeDefaults = deepMerge({
-    oscAction: 'go',
-    oscPlayback: 1,
-    oscCueNumber: '1',
-    oscLevel: 100,
-    oscTransport: 'auto',
-  }, getCueTypePayloadDefaults(cueTypeId));
-
-  const merged = deepMerge(typeDefaults, cueData || {});
-  currentOscAction = String(merged.oscAction || 'go').toLowerCase();
-  if (!OSC_ACTIONS[currentOscAction]) currentOscAction = 'go';
-
-  const playbackInput = document.getElementById('osc-playback');
-  const cueInput = document.getElementById('osc-cue-number');
-  const levelInput = document.getElementById('osc-level');
-  const transportSelect = document.getElementById('osc-transport');
-
-  if (playbackInput) playbackInput.value = String(Math.max(1, Math.round(Number(merged.oscPlayback ?? typeDefaults.oscPlayback ?? 1) || 1)));
-  if (cueInput) cueInput.value = parseCueNumberOrNull(merged.oscCueNumber) || String(typeDefaults.oscCueNumber || '1');
-  if (levelInput) {
-    const level = Number.isFinite(Number(merged.oscLevel)) ? Number(merged.oscLevel) : 100;
-    levelInput.value = String(Math.max(0, Math.min(100, Math.round(level))));
-  }
-  if (transportSelect) transportSelect.value = String(merged.oscTransport || 'auto').toLowerCase();
-
-  updateOscActionUi();
 }
 
 function getSoundData() {
@@ -3012,7 +3072,7 @@ async function persistAndRefresh() {
       currentTargetId = null;
       currentCueType = null;
       currentCueId = null;
-      currentOscAction = 'go';
+      currentLightingAction = 'none';
 
       renderAllPages();
       currentZoom = savedZoom;
