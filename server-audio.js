@@ -465,6 +465,9 @@ function fadeOut(instanceId, duration) {
     if (inst.type === 'xfade_vamp') {
         const outputGain = inst.outputGain ?? createOutputGain(ctx);
         inst.outputGain = outputGain;
+        inst.fadeMode = 'fadeOut';
+        inst.fadeStartedAt = Date.now();
+        inst.fadeDuration = fd;
         outputGain.gain.cancelScheduledValues(ctx.currentTime);
         const currentValue = outputGain.gain.value == null ? 1 : Math.max(outputGain.gain.value, 0.0001);
         outputGain.gain.setValueAtTime(currentValue, ctx.currentTime);
@@ -474,6 +477,9 @@ function fadeOut(instanceId, duration) {
         inst.timers.add(t);
     } else if (inst.nodes) {
         inst.isDeramping = true;
+        inst.fadeMode = 'fadeOut';
+        inst.fadeStartedAt = Date.now();
+        inst.fadeDuration = fd;
         inst.timers.forEach(t => clearTimeout(t));
         inst.timers.clear();
         const vol = dbToLinear(inst.cue?.volume ?? 0);
@@ -498,6 +504,9 @@ function devamp(instanceId) {
     if (!inst) return;
     const ctx = getCtx();
     inst.isDeramping = true;
+    inst.fadeMode = 'devamp';
+    inst.fadeStartedAt = null;
+    inst.fadeDuration = null;
     inst.timers.forEach(t => clearTimeout(t));
     inst.timers.clear();
 
@@ -556,6 +565,9 @@ function listActive() {
             cueType: inst.cue?.cueType ?? inst.cue?.soundSubtype ?? 'play_once',
             isVamp: inst.type === 'xfade_vamp' || inst.type === 'vamp',
             isDeramping: inst.isDeramping,
+            fadeMode: inst.fadeMode ?? null,
+            fadeStartedAt: inst.fadeStartedAt ?? null,
+            fadeDuration: inst.fadeDuration ?? null,
             paused: inst.paused ?? false,
             volume: volumeDb,
             position: getPosition(instanceId),

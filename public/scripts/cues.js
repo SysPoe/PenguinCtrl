@@ -665,11 +665,15 @@ function updateVoices() {
             fadeIn: inst.fadeIn ?? 0,
             fadeOut: inst.fadeOut ?? 0,
             isVamp: inst.isVamp, isDeramping: inst.isDeramping,
+            fadeMode: inst.fadeMode ?? null,
+            fadeStartedAt: inst.fadeStartedAt ?? null,
+            fadeDuration: inst.fadeDuration ?? null,
             loopStart: inst.loopStart ?? 0, loopEnd: (inst.loopEnd ?? inst.duration ?? 0),
             loopXfade: inst.loopXfade ?? 0,
         });
 
-        card.classList.toggle('deramping', !!inst.isDeramping);
+        card.classList.toggle('fading-out', inst.fadeMode === 'fadeOut');
+        card.classList.toggle('devamping', inst.fadeMode === 'devamp');
 
         const playBtn = card.querySelector('.btn-vc[data-role="playpause"]');
         if (playBtn) {
@@ -679,9 +683,9 @@ function updateVoices() {
         }
 
         const dvmpBtn = card.querySelector('.btn-vc[data-role="dvmp"]');
-        if (dvmpBtn) dvmpBtn.style.display = (inst.isVamp && !inst.isDeramping) ? '' : 'none';
+        if (dvmpBtn) dvmpBtn.style.display = (inst.isVamp && inst.fadeMode !== 'devamp') ? '' : 'none';
         const unvampBtn = card.querySelector('.btn-vc[data-role="unvamp"]');
-        if (unvampBtn) unvampBtn.style.display = (inst.isVamp && inst.isDeramping) ? '' : 'none';
+        if (unvampBtn) unvampBtn.style.display = (inst.isVamp && inst.fadeMode === 'devamp') ? '' : 'none';
 
         const slider = card.querySelector('.vc-vol');
         if (slider && !slider.matches(':active') && document.activeElement !== slider) {
@@ -720,12 +724,13 @@ function buildVoiceCard(inst) {
         <div class="vc-wave-wrap">
           <canvas class="vc-wave"></canvas>
           <div class="vc-fade-overlay"></div>
+                    <div class="vc-fade-progress"><div class="vc-fade-progress-fill"></div></div>
           <div class="vc-playhead"></div>
         </div>
         <div class="vc-controls">
           <button class="btn-vc ${inst.paused ? 'play' : 'pause'}" data-role="playpause">${inst.paused ? 'Play' : 'Pause'}</button>
-          <button class="btn-vc dvmp" data-role="dvmp" style="${(inst.isVamp && !inst.isDeramping) ? '' : 'display:none'}">Dvmp</button>
-          <button class="btn-vc unvamp" data-role="unvamp" style="${inst.isDeramping ? '' : 'display:none'}">Loop</button>
+          <button class="btn-vc dvmp" data-role="dvmp" style="${(inst.isVamp && inst.fadeMode !== 'devamp') ? '' : 'display:none'}">Dvmp</button>
+          <button class="btn-vc unvamp" data-role="unvamp" style="${inst.fadeMode === 'devamp' ? '' : 'display:none'}">Loop</button>
           <button class="btn-vc fade" data-role="fade">Fade</button>
           <button class="btn-vc stop" data-role="stop">Stop</button>
           <div class="vc-vol-group">
@@ -804,6 +809,19 @@ function fmtTimecode(secs) {
         if (timeEl) timeEl.textContent = fmtTimecode(trimPos);
         const ph = card.querySelector('.vc-playhead');
         if (ph && trimDuration > 0) ph.style.left = ((trimPos / trimDuration) * 100).toFixed(3) + '%';
+
+        const fadeFill = card.querySelector('.vc-fade-progress-fill');
+        if (fadeFill) {
+            const shouldShowFade = state.fadeMode === 'fadeOut' && Number.isFinite(state.fadeStartedAt) && Number.isFinite(state.fadeDuration) && state.fadeDuration > 0;
+            if (shouldShowFade) {
+                const progress = Math.max(0, Math.min(1, (Date.now() - state.fadeStartedAt) / (state.fadeDuration * 1000)));
+                fadeFill.style.width = `${(progress * 100).toFixed(2)}%`;
+                fadeFill.parentElement.style.opacity = '1';
+            } else {
+                fadeFill.style.width = '0%';
+                fadeFill.parentElement.style.opacity = '0';
+            }
+        }
     }
 })();
 
