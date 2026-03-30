@@ -22,7 +22,7 @@
 }
 
 body {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+    font-family: 'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
     background: var(--bg);
     color: var(--text);
     height: 100vh;
@@ -656,9 +656,14 @@ input[type=range]:active::-webkit-slider-thumb {
 
 .vc-time {
     font-size: 11px;
-    color: #7aaac0;
+    color: #d8f0ff;
     flex-shrink: 0;
     letter-spacing: 0;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: rgba(122, 170, 192, 0.14);
+    border: 1px solid rgba(122, 170, 192, 0.22);
 }
 
 .vc-wave-wrap {
@@ -667,6 +672,44 @@ input[type=range]:active::-webkit-slider-thumb {
     background: #0e0e18;
     cursor: crosshair;
     user-select: none;
+}
+
+.vc-wave-time {
+    position: absolute;
+    right: 6px;
+    top: 4px;
+    z-index: 3;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: rgba(8, 12, 18, 0.82);
+    border: 1px solid rgba(122, 170, 192, 0.3);
+    color: #e9f8ff;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.8);
+    pointer-events: none;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+}
+
+.vc-server-marker {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 0;
+    pointer-events: none;
+    z-index: 3;
+    transform: translateX(-1px);
+}
+
+.vc-server-marker-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 1px;
+    background: rgba(169, 205, 255, 0.72);
+    box-shadow: 0 0 2px rgba(169, 205, 255, 0.28);
 }
 
 .vc.fading-out .vc-wave-wrap {

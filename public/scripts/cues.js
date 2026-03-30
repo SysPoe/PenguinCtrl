@@ -7,6 +7,7 @@ let activeInstances = [];
 let playedIds = new Set();
 let activeCueCounts = new Map();
 let pendingCueCounts = new Map();
+let pendingCueTotal = 0;
 
 const DEFAULT_META = {
     config: {
@@ -100,12 +101,21 @@ function connectWS() {
         const msg = JSON.parse(e.data);
         if (msg.type === 'instances') {
             activeInstances = msg.list || [];
+            if (Number.isFinite(Number(msg.waitingCount))) {
+                pendingCueTotal = Math.max(0, Number(msg.waitingCount));
+            }
             updateVoices();
             updateCueCounts();
             applyCueStatusBadges();
+            updateVoicesHeader();
         } else if (msg.type === 'pendingCues') {
             pendingCueCounts = new Map((msg.list || []).map(item => [item.cueId, Number(item.count) || 0]));
+            pendingCueTotal = 0;
+            pendingCueCounts.forEach(count => {
+                pendingCueTotal += Math.max(0, Number(count) || 0);
+            });
             applyCueStatusBadges();
+            updateVoicesHeader();
         } else if (msg.type === 'meta') {
             applyRuntimeMeta(msg);
         } else if (msg.type === 'playedCues') {
@@ -277,6 +287,19 @@ function getCueStatusParts(cueId) {
     return parts;
 }
 
+
+function getPendingCueTotal() {
+    return pendingCueTotal;
+}
+
+function updateVoicesHeader() {
+    const header = document.getElementById('voices-header');
+    if (!header) return;
+    const waiting = getPendingCueTotal();
+    header.textContent = waiting > 0
+        ? `Active Voices - ${waiting} waiting`
+        : 'Active Voices';
+}
 function renderCueStatusBadges(cueId) {
     const parts = getCueStatusParts(cueId);
     if (!parts.length) return '<span class="cue-state empty">—</span>';
@@ -723,6 +746,9 @@ function buildVoiceCard(inst) {
         </div>
         <div class="vc-wave-wrap">
           <canvas class="vc-wave"></canvas>
+                    <div class="vc-server-marker">
+                        <div class="vc-server-marker-line"></div>
+                    </div>
           <div class="vc-fade-overlay"></div>
                     <div class="vc-fade-progress"><div class="vc-fade-progress-fill"></div></div>
           <div class="vc-playhead"></div>
@@ -804,9 +830,19 @@ function fmtTimecode(secs) {
         const trimStart = state.clipStart ?? 0;
         const trimDuration = state.trimDuration ?? Math.max(0, (state.clipEnd ?? state.duration) - trimStart);
         const trimPos = Math.max(0, Math.min(trimDuration, pos - trimStart));
+        const serverPos = state.serverPos ?? 0;
+        const serverTrimPos = Math.max(0, Math.min(trimDuration, serverPos - trimStart));
 
         const timeEl = card.querySelector('.vc-time');
         if (timeEl) timeEl.textContent = fmtTimecode(trimPos);
+        const serverMarker = card.querySelector('.vc-server-marker');
+        if (serverMarker && trimDuration > 0) {
+            const left = ((serverTrimPos / trimDuration) * 100).toFixed(3) + '%';
+            serverMarker.style.left = left;
+            serverMarker.style.display = '';
+        } else if (serverMarker) {
+            serverMarker.style.display = 'none';
+        }
         const ph = card.querySelector('.vc-playhead');
         if (ph && trimDuration > 0) ph.style.left = ((trimPos / trimDuration) * 100).toFixed(3) + '%';
 

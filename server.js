@@ -721,7 +721,7 @@ function broadcast(data) {
 }
 
 function broadcastInstances() {
-  broadcast({ type: 'instances', list: listActive() });
+  broadcast({ type: 'instances', list: listActive(), waitingCount: pendingCueExecutions.size });
 }
 
 function broadcastPendingCues() {
