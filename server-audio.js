@@ -561,8 +561,12 @@ function listActive() {
             position: getPosition(instanceId),
             duration: inst.buffer?.duration ?? 0,
             clipStart: inst.cue?.clipStart ?? inst.clipStartOffset ?? 0,
+            clipEnd: inst.cue?.clipEnd ?? inst.buffer?.duration ?? 0,
+            fadeIn: inst.cue?.fadeIn ?? 0,
+            fadeOut: inst.cue?.fadeOut ?? 0,
             loopStart: inst.lStart ?? inst.cue?.loopStart ?? 0,
             loopEnd: inst.lEnd ?? inst.cue?.loopEnd ?? inst.buffer?.duration ?? 0,
+            loopXfade: inst.cue?.loopXfade ?? 0,
         };
     });
 }

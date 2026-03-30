@@ -203,6 +203,54 @@ function escHtml(t) {
     return String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c]));
 }
 
+function getTrimBounds(duration, clipStart, clipEnd) {
+    const safeDuration = Number.isFinite(Number(duration)) ? Math.max(0, Number(duration)) : 0;
+    const start = Number.isFinite(Number(clipStart)) ? Math.max(0, Number(clipStart)) : 0;
+    const candidateEnd = Number(clipEnd);
+    const end = Number.isFinite(candidateEnd) && candidateEnd > start
+        ? Math.min(candidateEnd, safeDuration || candidateEnd)
+        : safeDuration;
+    return {
+        start,
+        end,
+        trimDuration: Math.max(0, end - start),
+        duration: safeDuration,
+    };
+}
+
+function sampleTrimmedPeaks(peaks, start, end, duration, sampleCount) {
+    const safeCount = Math.max(1, Math.floor(sampleCount || 1));
+    const out = new Float32Array(safeCount);
+    if (!(peaks && peaks.length) || duration <= 0 || end <= start) return out;
+
+    const startIdx = Math.max(0, Math.min(peaks.length - 1, (start / duration) * peaks.length));
+    const endIdx = Math.max(startIdx + 1, Math.min(peaks.length, (end / duration) * peaks.length));
+    const span = Math.max(1e-6, endIdx - startIdx);
+
+    for (let i = 0; i < safeCount; i++) {
+        const sourceIndex = startIdx + ((i + 0.5) / safeCount) * span;
+        const left = Math.max(0, Math.min(peaks.length - 1, Math.floor(sourceIndex)));
+        const right = Math.max(0, Math.min(peaks.length - 1, left + 1));
+        const mix = sourceIndex - left;
+        out[i] = (peaks[left] || 0) * (1 - mix) + (peaks[right] || 0) * mix;
+    }
+
+    return out;
+}
+
+function getEnvelopeGain(t, clipStart, clipEnd, fadeIn, fadeOut, loopStart, loopEnd, loopXfade, isVamp) {
+    if (t < clipStart || t > clipEnd) return 0;
+    let gain = 1;
+    const fadeInGain = fadeIn > 0 && t < clipStart + fadeIn ? (t - clipStart) / fadeIn : 1;
+    const fadeOutGain = fadeOut > 0 && t > clipEnd - fadeOut ? (clipEnd - t) / fadeOut : 1;
+    gain *= Math.min(fadeInGain, fadeOutGain);
+    if (isVamp && loopXfade > 0 && (loopEnd - loopStart) > 0) {
+        if (t >= loopStart && t < loopStart + loopXfade) gain *= (t - loopStart) / loopXfade;
+        else if (t > loopEnd - loopXfade && t <= loopEnd) gain *= (loopEnd - t) / loopXfade;
+    }
+    return Math.max(0, Math.min(1, gain));
+}
+
 function updateCueCounts() {
     const counts = new Map();
     activeInstances.forEach(inst => {
@@ -446,10 +494,8 @@ function drawWaveform(canvas, peaks, position, duration, loopStart, loopEnd, isV
     }
 }
 
-function drawWaveformFromStart(canvas, peaks, position, duration, clipStart, loopStart, loopEnd, isVamp) {
-    const start = Number.isFinite(Number(clipStart)) ? Math.max(0, Number(clipStart)) : 0;
-    const safeDuration = Number.isFinite(duration) ? duration : 0;
-    const visibleDuration = Math.max(0, safeDuration - start);
+function drawWaveformFromStart(canvas, peaks, position, duration, clipStart, clipEnd, loopStart, loopEnd, isVamp, fadeIn = 0, fadeOut = 0, loopXfade = 0) {
+    const { start, end, trimDuration, duration: safeDuration } = getTrimBounds(duration, clipStart, clipEnd);
     const W = canvas.offsetWidth || canvas.parentElement?.offsetWidth || 200;
     const H = 38;
     if (canvas.width !== W) canvas.width = W;
@@ -458,50 +504,120 @@ function drawWaveformFromStart(canvas, peaks, position, duration, clipStart, loo
     ctx.clearRect(0, 0, W, H);
     const mid = H / 2;
 
-    if (!(peaks && peaks.length) || visibleDuration <= 0) {
+    if (!(peaks && peaks.length) || safeDuration <= 0 || trimDuration <= 0) {
         ctx.fillStyle = '#222234';
         ctx.fillRect(0, mid - 1, W, 2);
         return;
     }
 
-    const visibleStartIdx = Math.min(peaks.length, Math.max(0, Math.floor((start / safeDuration) * peaks.length)));
-    const visiblePeaks = peaks.slice(visibleStartIdx);
-    if (!visiblePeaks.length) {
-        ctx.fillStyle = '#222234';
-        ctx.fillRect(0, mid - 1, W, 2);
-        return;
+    const renderPeaks = sampleTrimmedPeaks(peaks, start, end, safeDuration, peaks.length);
+    const barW = W / renderPeaks.length;
+
+    ctx.fillStyle = '#0e0e18';
+    ctx.fillRect(0, 0, W, H);
+
+    for (let i = 0; i < renderPeaks.length; i++) {
+        const t = start + ((i + 0.5) / renderPeaks.length) * trimDuration;
+        const gain = getEnvelopeGain(t, start, end, fadeIn, fadeOut, loopStart, loopEnd, loopXfade, isVamp);
+        const peak = renderPeaks[i];
+        const h = Math.max(2, peak * H * 0.85 * Math.max(0.08, gain));
+        const inLoop = isVamp && t >= loopStart && t <= loopEnd;
+        if (inLoop) ctx.fillStyle = `rgba(99,102,241,${(0.5 + gain * 0.45).toFixed(2)})`;
+        else ctx.fillStyle = `rgba(16,185,129,${(0.5 + gain * 0.45).toFixed(2)})`;
+        ctx.fillRect(Math.round((i / renderPeaks.length) * W), (H - h) / 2, Math.max(1, barW - 0.5), h);
     }
 
-    if (isVamp && safeDuration > 0 && loopEnd > loopStart) {
-        const clipStartInVisible = Math.max(start, loopStart);
-        const clipEndInVisible = Math.min(loopEnd, safeDuration);
-        if (clipEndInVisible > clipStartInVisible) {
-            const lx = ((clipStartInVisible - start) / visibleDuration) * W;
-            const lw = Math.max(0, ((clipEndInVisible - clipStartInVisible) / visibleDuration) * W);
-            ctx.fillStyle = 'rgba(140,90,255,0.22)';
-            ctx.fillRect(lx, 0, lw, H);
-            ctx.fillStyle = 'rgba(160,110,255,0.5)';
-            ctx.fillRect(lx, 0, 1.5, H);
-            ctx.fillRect(lx + lw - 1.5, 0, 1.5, H);
+    if (fadeIn > 0 && start + fadeIn <= end) {
+        const x0 = 0;
+        const x1 = Math.max(0, Math.min(W, (fadeIn / trimDuration) * W));
+        if (x1 > x0) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(x0, 0, x1 - x0, H);
+            ctx.clip();
+            ctx.strokeStyle = 'rgba(251,191,36,0.3)';
+            ctx.lineWidth = 1.5;
+            for (let s = -H; s < (x1 - x0) + H; s += 10) {
+                ctx.beginPath();
+                ctx.moveTo(x0 + s, H);
+                ctx.lineTo(x0 + s + H, 0);
+                ctx.stroke();
+            }
+            const g = ctx.createLinearGradient(x0, 0, x1, 0);
+            g.addColorStop(0, 'rgba(0,0,0,0.5)');
+            g.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = g;
+            ctx.fillRect(x0, 0, x1 - x0, H);
+            ctx.restore();
         }
     }
 
-    const bw = W / visiblePeaks.length;
-    ctx.fillStyle = '#4a9edd';
-    for (let i = 0; i < visiblePeaks.length; i++) {
-        const h = Math.max(1, visiblePeaks[i] * mid * 1.8);
-        ctx.fillRect(i * bw, mid - h, Math.max(1, bw - 0.5), h * 2);
+    if (fadeOut > 0 && end - fadeOut >= start) {
+        const x0 = Math.max(0, Math.min(W, ((trimDuration - fadeOut) / trimDuration) * W));
+        const x1 = W;
+        if (x1 > x0) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(x0, 0, x1 - x0, H);
+            ctx.clip();
+            ctx.strokeStyle = 'rgba(251,191,36,0.3)';
+            ctx.lineWidth = 1.5;
+            for (let s = -H; s < (x1 - x0) + H; s += 10) {
+                ctx.beginPath();
+                ctx.moveTo(x0 + s, H);
+                ctx.lineTo(x0 + s + H, 0);
+                ctx.stroke();
+            }
+            const g = ctx.createLinearGradient(x0, 0, x1, 0);
+            g.addColorStop(0, 'rgba(0,0,0,0)');
+            g.addColorStop(1, 'rgba(0,0,0,0.5)');
+            ctx.fillStyle = g;
+            ctx.fillRect(x0, 0, x1 - x0, H);
+            ctx.restore();
+        }
     }
 
-    if (duration > 0 && position >= start) {
-        const visiblePos = Math.max(0, position - start);
-        const px = Math.round((visiblePos / Math.max(0.001, visibleDuration)) * W);
-        ctx.fillStyle = 'rgba(255,255,255,0.9)';
-        ctx.fillRect(px - 1, 0, 2, H);
-        ctx.beginPath();
-        ctx.moveTo(px - 4, 0); ctx.lineTo(px + 4, 0); ctx.lineTo(px, 7);
-        ctx.fillStyle = '#ffffff'; ctx.fill();
+    if (isVamp && loopXfade > 0) {
+        const lxS = Math.max(0, Math.min(W, ((loopStart - start) / trimDuration) * W));
+        const lxE = Math.max(0, Math.min(W, ((loopStart - start + loopXfade) / trimDuration) * W));
+        if (lxE > lxS) {
+            ctx.fillStyle = 'rgba(99,102,241,0.18)';
+            ctx.fillRect(lxS, 0, lxE - lxS, H);
+        }
+        const rxS = Math.max(0, Math.min(W, ((loopEnd - start - loopXfade) / trimDuration) * W));
+        const rxE = Math.max(0, Math.min(W, ((loopEnd - start) / trimDuration) * W));
+        if (rxE > rxS) {
+            ctx.fillStyle = 'rgba(99,102,241,0.18)';
+            ctx.fillRect(rxS, 0, rxE - rxS, H);
+        }
     }
+
+    if (isVamp) {
+        ctx.strokeStyle = 'rgba(99,102,241,0.9)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 3]);
+        [loopStart, loopEnd].forEach(t => {
+            const x = Math.round(((t - start) / trimDuration) * W) + 0.5;
+            if (x >= 0 && x <= W) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, H);
+                ctx.stroke();
+            }
+        });
+        ctx.setLineDash([]);
+    }
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.65)';
+    ctx.lineWidth = 1.5;
+    [start, end].forEach(t => {
+        const x = Math.round(((t - start) / trimDuration) * W) + 0.5;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, H);
+        ctx.stroke();
+    });
+
 }
 
 // ── Stable voice DOM ───────────────────────────────────────────────────────
@@ -534,17 +650,23 @@ function updateVoices() {
                 loadWaveform(inst.clipUrl).then(peaks => {
                     if (voiceDomMap.has(id)) {
                         const c = card.querySelector('.vc-wave');
-                        if (c) drawWaveformFromStart(c, peaks, inst.position || 0, inst.duration, inst.clipStart || 0, inst.loopStart, inst.loopEnd, inst.isVamp);
+                        if (c) drawWaveformFromStart(c, peaks, inst.position ?? 0, inst.duration, inst.clipStart ?? 0, inst.clipEnd ?? inst.duration, inst.loopStart ?? 0, inst.loopEnd ?? inst.duration, inst.isVamp, inst.fadeIn ?? 0, inst.fadeOut ?? 0, inst.loopXfade ?? 0);
                     }
                 });
             }
         }
 
         voicePosState.set(id, {
-            serverPos: inst.position || 0, receivedAt: performance.now(),
+            serverPos: inst.position ?? 0, receivedAt: performance.now(),
             paused: inst.paused, duration: inst.duration || 0,
+            clipStart: inst.clipStart ?? 0,
+            clipEnd: inst.clipEnd ?? inst.duration ?? 0,
+            trimDuration: Math.max(0, (inst.clipEnd ?? inst.duration ?? 0) - (inst.clipStart ?? 0)),
+            fadeIn: inst.fadeIn ?? 0,
+            fadeOut: inst.fadeOut ?? 0,
             isVamp: inst.isVamp, isDeramping: inst.isDeramping,
-            loopStart: inst.loopStart || 0, loopEnd: inst.loopEnd || inst.duration || 0,
+            loopStart: inst.loopStart ?? 0, loopEnd: (inst.loopEnd ?? inst.duration ?? 0),
+            loopXfade: inst.loopXfade ?? 0,
         });
 
         card.classList.toggle('deramping', !!inst.isDeramping);
@@ -576,7 +698,7 @@ function updateVoices() {
         const canvas = card.querySelector('.vc-wave');
         if (canvas) {
             const peaks = inst.clipUrl ? waveCache.get(inst.clipUrl) : null;
-            drawWaveformFromStart(canvas, peaks, inst.position || 0, inst.duration, inst.clipStart || 0, inst.loopStart, inst.loopEnd, inst.isVamp);
+            drawWaveformFromStart(canvas, peaks, inst.position ?? 0, inst.duration, inst.clipStart ?? 0, inst.clipEnd ?? inst.duration, inst.loopStart ?? 0, inst.loopEnd ?? inst.duration, inst.isVamp, inst.fadeIn ?? 0, inst.fadeOut ?? 0, inst.loopXfade ?? 0);
         }
     });
 }
@@ -635,10 +757,11 @@ function buildVoiceCard(inst) {
         const rect = waveWrap.getBoundingClientRect();
         const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
         const st = voicePosState.get(id);
-        if (!st || !st.duration) return;
-        wsSend({ type: 'seek', instanceId: id, position: ratio * st.duration });
+        if (!st || !st.trimDuration) return;
+        const position = st.clipStart + ratio * st.trimDuration;
+        wsSend({ type: 'seek', instanceId: id, position });
         // Update local state immediately for responsive feel
-        if (st) { st.serverPos = ratio * st.duration; st.receivedAt = performance.now(); }
+        if (st) { st.serverPos = position; st.receivedAt = performance.now(); }
     };
     waveWrap.addEventListener('mousedown', e => { seeking = true; doSeek(e); e.preventDefault(); });
     document.addEventListener('mousemove', e => { if (seeking) doSeek(e); });
@@ -673,10 +796,14 @@ function fmtTimecode(secs) {
             pos = Math.min(pos, state.duration);
         }
 
+        const trimStart = state.clipStart ?? 0;
+        const trimDuration = state.trimDuration ?? Math.max(0, (state.clipEnd ?? state.duration) - trimStart);
+        const trimPos = Math.max(0, Math.min(trimDuration, pos - trimStart));
+
         const timeEl = card.querySelector('.vc-time');
-        if (timeEl) timeEl.textContent = fmtTimecode(pos);
+        if (timeEl) timeEl.textContent = fmtTimecode(trimPos);
         const ph = card.querySelector('.vc-playhead');
-        if (ph) ph.style.left = ((pos / state.duration) * 100).toFixed(3) + '%';
+        if (ph && trimDuration > 0) ph.style.left = ((trimPos / trimDuration) * 100).toFixed(3) + '%';
     }
 })();
 
