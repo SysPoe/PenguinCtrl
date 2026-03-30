@@ -92,7 +92,6 @@ audioSetTriggerCallback((trigger) => {
     }
 
     const msg = encodeOscMessage(trigger.address || '/next', Array.isArray(trigger.args) ? trigger.args : []);
-    debugOsc('sending legacy trigger', { address: trigger.address || '/next', args: Array.isArray(trigger.args) ? trigger.args : [], port });
     sendUdpPacket(msg, { host, port }).catch(e => console.error('Failed to dispatch trigger:', e));
   } catch (e) {
     console.error('Trigger dispatch error:', e);
