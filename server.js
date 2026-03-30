@@ -65,6 +65,9 @@ audioSetTriggerCallback((trigger) => {
 
     if (hasCueFields) {
       const action = String(trigger?.oscAction || 'go').trim().toLowerCase();
+      if (action === 'none') {
+        return;
+      }
       const playbackRaw = Number(trigger?.oscPlayback);
       const playback = Number.isFinite(playbackRaw) && playbackRaw > 0 ? Math.max(1, Math.round(playbackRaw)) : 1;
       const cueNumber = trigger?.oscCueNumber ?? '1';
