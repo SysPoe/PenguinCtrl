@@ -9,6 +9,7 @@ import { parseString } from 'xml2js';
 import { fileURLToPath } from 'url';
 import ffmpegStatic from 'ffmpeg-static';
 import {
+  initAudioConfig,
   playCue, fadeOut as audioFadeOut, stop as audioStop, stopAll as audioStopAll,
   fadeOutAll as audioFadeOutAll, devamp as audioDevamp, cancelDevamp as audioCancelDevamp,
   listActive, setVolume, toggleMute as audioToggleMute,
@@ -40,6 +41,8 @@ const configService = createConfigService({
   schemaPath: CONFIG_SCHEMA_FILE,
   valuesPath: CONFIG_VALUES_FILE,
 });
+
+initAudioConfig(configService);
 
 const cueTypeRegistry = createCueTypeRegistry({
   filePath: CUE_TYPES_FILE,

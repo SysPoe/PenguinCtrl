@@ -3,6 +3,11 @@
     "upload": {
       "maxMb": 300
     },
+    "buffer": {
+      "sampleRate": 22050,
+      "channels": 1,
+      "maxCached": 8
+    },
     "masterVolume": {
       "defaultDb": 0,
       "minDb": -40,
