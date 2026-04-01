@@ -18,6 +18,32 @@
           "help": "Maximum accepted payload size for /api/audio/upload."
         },
         {
+          "key": "audio.buffer.sampleRate",
+          "label": "Buffer sample rate (Hz)",
+          "type": "select",
+          "default": 48000,
+          "options": [22050, 44100, 48000],
+          "help": "Lower rates reduce memory usage on constrained devices."
+        },
+        {
+          "key": "audio.buffer.channels",
+          "label": "Buffer channels",
+          "type": "select",
+          "default": 2,
+          "options": [1, 2],
+          "help": "Mono (1) halves memory vs stereo (2)."
+        },
+        {
+          "key": "audio.buffer.maxCached",
+          "label": "Max cached buffers",
+          "type": "number",
+          "default": 0,
+          "min": 0,
+          "max": 256,
+          "step": 1,
+          "help": "Maximum decoded audio buffers kept in memory. 0 = unlimited (no eviction). Older buffers are evicted first."
+        },
+        {
           "key": "audio.masterVolume.defaultDb",
           "label": "Default master volume (dB)",
           "type": "number",

@@ -7,6 +7,12 @@ import ffmpegStatic from 'ffmpeg-static';
 
 const CLEANUP_GRACE_MS = 25;
 
+let _getConfigValue = () => undefined;
+
+export function initAudioConfig(configService) {
+    _getConfigValue = (path, fallback) => configService.getValue(path, fallback);
+}
+
 let _ctx = null;
 let _masterGain = null;
 let _masterDb = 0;
@@ -55,17 +61,34 @@ function dbToLinear(db) {
     return Math.pow(10, db / 20);
 }
 
-// Buffer cache (keyed by filesystem path)
+// LRU buffer cache (keyed by filesystem path)
 const bufferCache = new Map();
 
+function evictBufferCache() {
+    const maxCached = Number(_getConfigValue('audio.buffer.maxCached', 0));
+    if (maxCached <= 0) return;
+    while (bufferCache.size > maxCached) {
+        const oldest = bufferCache.keys().next().value;
+        bufferCache.delete(oldest);
+    }
+}
+
 async function loadBuffer(filePath) {
-    if (bufferCache.has(filePath)) return bufferCache.get(filePath);
+    if (bufferCache.has(filePath)) {
+        const cached = bufferCache.get(filePath);
+        bufferCache.delete(filePath);
+        bufferCache.set(filePath, cached);
+        return cached;
+    }
+
+    const sampleRate = Number(_getConfigValue('audio.buffer.sampleRate', 48000)) || 48000;
+    const channels = Number(_getConfigValue('audio.buffer.channels', 2)) || 2;
 
     const pcmBuf = await new Promise((resolve, reject) => {
         execFile(ffmpegStatic, [
             '-i', filePath,
             '-f', 'f32le', '-acodec', 'pcm_f32le',
-            '-ar', '48000', '-ac', '2',
+            '-ar', String(sampleRate), '-ac', String(channels),
             'pipe:1',
         ], { encoding: 'buffer', maxBuffer: 256 * 1024 * 1024 }, (err, stdout, stderr) => {
             if (err) reject(new Error(stderr?.toString() || err.message));
@@ -74,8 +97,6 @@ async function loadBuffer(filePath) {
     });
 
     const ctx = getCtx();
-    const sampleRate = 48000;
-    const channels = 2;
     const frameCount = pcmBuf.byteLength / (4 * channels);
     const audioBuffer = ctx.createBuffer(channels, frameCount, sampleRate);
 
@@ -87,6 +108,7 @@ async function loadBuffer(filePath) {
     }
 
     bufferCache.set(filePath, audioBuffer);
+    evictBufferCache();
     return audioBuffer;
 }
 
