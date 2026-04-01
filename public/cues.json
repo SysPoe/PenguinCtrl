@@ -4,7 +4,12 @@
       {
         "id": "lq_01_starts_choking",
         "title": "Starts choking",
-        "description": "Strobe lighting, red / purple / green light accents"
+        "description": "Strobe lighting, red / purple / green light accents",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "remote"
       }
     ]
   },
@@ -13,7 +18,12 @@
       {
         "id": "lq_02_sink_to_bottom",
         "title": "Can sinking to bottom",
-        "description": "Lights down for shadow screen? (depending on implementation)"
+        "description": "Lights down for shadow screen? (depending on implementation)",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -22,7 +32,12 @@
       {
         "id": "lq_03_blackout_title",
         "title": "Scene over",
-        "description": "Blackout for title sequence"
+        "description": "Blackout for title sequence",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -31,7 +46,12 @@
       {
         "id": "lq_04_school_yard_warm",
         "title": "Start of school yard scene",
-        "description": "Lights up for school yard / stella variation. Warm early day lighting."
+        "description": "Lights up for school yard / stella variation. Warm early day lighting.",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -40,7 +60,12 @@
       {
         "id": "lq_05_assembly_bell",
         "title": "Bell rings",
-        "description": "Lighting change for assembly / stella variation. White spot on podium. Dim warm white wash."
+        "description": "Lighting change for assembly / stella variation. White spot on podium. Dim warm white wash.",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -49,7 +74,12 @@
       {
         "id": "lq_06_maddison_speaks",
         "title": "Maddison's start speaking",
-        "description": "Microphone feedback from when Maddison's start speaking at assembly"
+        "description": "Microphone feedback from when Maddison's start speaking at assembly",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -58,7 +88,12 @@
       {
         "id": "lq_07_science_lab_detention",
         "title": "Scene changes for science lab detention",
-        "description": "Lighting change for lab / stella variation. Bring up washers to neutral / warmish white (~3000K), spot off. A bit dull."
+        "description": "Lighting change for lab / stella variation. Bring up washers to neutral / warmish white (~3000K), spot off. A bit dull.",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -67,7 +102,12 @@
       {
         "id": "lq_08_breakdance_burst",
         "title": "Break dance",
-        "description": "Quick break with rainbow lights, movers"
+        "description": "Quick break with rainbow lights, movers",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -76,7 +116,12 @@
       {
         "id": "lq_09_back_to_normal",
         "title": "Miss Duane returns",
-        "description": "Lights back to normal"
+        "description": "Lights back to normal",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -85,7 +130,12 @@
       {
         "id": "lq_10_lab_closes_in",
         "title": "Everyone leaves",
-        "description": "Lighting goes bluer, closes in on Stella and Squish. Spots maybe? With subtle washers. Lab / Squish Variation."
+        "description": "Lighting goes bluer, closes in on Stella and Squish. Spots maybe? With subtle washers. Lab / Squish Variation.",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -94,7 +144,12 @@
       {
         "id": "lq_11_classroom_lights_out",
         "title": "Classroom lights off",
-        "description": "Classroom lights off as the kids leave, then slowly fade in dim lights for Stella's House / Stella variation"
+        "description": "Classroom lights off as the kids leave, then slowly fade in dim lights for Stella's House / Stella variation",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -103,7 +158,12 @@
       {
         "id": "lq_12_stella_home_fade_in",
         "title": "Classroom lights off",
-        "description": "Classroom lights off as the kids leave, then slowly fade in dim lights for Stella's House / Stella variation"
+        "description": "Classroom lights off as the kids leave, then slowly fade in dim lights for Stella's House / Stella variation",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -112,7 +172,12 @@
       {
         "id": "lq_13_squish_transforms",
         "title": "Squish transformation",
-        "description": "Lights off for shadow screen? Lights on the back. 10s transition to deep purple as this happens."
+        "description": "Lights off for shadow screen? Lights on the back. 10s transition to deep purple as this happens.",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -121,7 +186,12 @@
       {
         "id": "lq_14_science_lab_entry",
         "title": "Science lab entry",
-        "description": "Science lab lights / Stella variation"
+        "description": "Science lab lights / Stella variation",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -130,7 +200,12 @@
       {
         "id": "lq_15_greg_enters",
         "title": "Greg enters",
-        "description": "Fade to science lab / squish variation"
+        "description": "Fade to science lab / squish variation",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -139,7 +214,12 @@
       {
         "id": "lq_16_everyone_leaves",
         "title": "Everyone else leaves",
-        "description": "Lights close in on Stella and Greg. External washer dim, main spots / washers on actors stay on."
+        "description": "Lights close in on Stella and Greg. External washer dim, main spots / washers on actors stay on.",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -148,7 +228,12 @@
       {
         "id": "lq_17_reentry_reset",
         "title": "Greg leaves, everyone else enters",
-        "description": "Lights go to science lab / stella variation"
+        "description": "Lights go to science lab / stella variation",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -157,7 +242,12 @@
       {
         "id": "lq_18_student_council",
         "title": "Student council",
-        "description": "Lighting change to student council"
+        "description": "Lighting change to student council",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -166,7 +256,12 @@
       {
         "id": "lq_19_group_chat_dim",
         "title": "New kid scene",
-        "description": "Group chat lighting?? Maybe off or very dim washers"
+        "description": "Group chat lighting?? Maybe off or very dim washers",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -175,7 +270,12 @@
       {
         "id": "lq_21_dodgeball",
         "title": "Dodgeball",
-        "description": "A vicious game of Dodgeball highlighting Greg's aggression"
+        "description": "A vicious game of Dodgeball highlighting Greg's aggression",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -184,7 +284,12 @@
       {
         "id": "lq_22_court_cools",
         "title": "Stella leaves court",
-        "description": "Switch lighting to cooler as Stella leaves and Greg is remaining?? – HPE / Squish"
+        "description": "Switch lighting to cooler as Stella leaves and Greg is remaining?? – HPE / Squish",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -193,7 +298,12 @@
       {
         "id": "lq_23_locker_room_harsh",
         "title": "Boy's locker room",
-        "description": "Less saturated HPE / Squish. Harsh dim-ish."
+        "description": "Less saturated HPE / Squish. Harsh dim-ish.",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -202,7 +312,12 @@
       {
         "id": "lq_24_get_out",
         "title": "GET OUT!!",
-        "description": "Lights go bluer??"
+        "description": "Lights go bluer??",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -211,7 +326,12 @@
       {
         "id": "lq_25_playground_light",
         "title": "Duane is on Schoolary",
-        "description": "School yard / Stella"
+        "description": "School yard / Stella",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -220,7 +340,12 @@
       {
         "id": "lq_26_behind_the_sheds",
         "title": "The Grade 7s",
-        "description": "Light change for 'behind the sheds'. Bit warmer lighting here."
+        "description": "Light change for 'behind the sheds'. Bit warmer lighting here.",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -229,7 +354,12 @@
       {
         "id": "lq_27_principals_office",
         "title": "Mr. Fowler is sitting with Greg",
-        "description": "Light change to school yard / squish"
+        "description": "Light change to school yard / squish",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -238,7 +368,12 @@
       {
         "id": "lq_28_stage_goes_dark",
         "title": "They run at each other as the stage goes dark",
-        "description": "Brief blackout. Lighting to assembly / squish."
+        "description": "Brief blackout. Lighting to assembly / squish.",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -247,7 +382,12 @@
       {
         "id": "lq_29_stella_priya_exit",
         "title": "Stella and Priya leave",
-        "description": "Lighting to school yard / Squish variation."
+        "description": "Lighting to school yard / Squish variation.",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -256,7 +396,12 @@
       {
         "id": "lq_30_flashbang",
         "title": "Francine flashbangs Greg",
-        "description": "Lights flashbang"
+        "description": "Lights flashbang",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -265,7 +410,12 @@
       {
         "id": "lq_31_dance_party",
         "title": "The dance",
-        "description": "Formal lights 'dance party'. Disco lights."
+        "description": "Formal lights 'dance party'. Disco lights.",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -274,7 +424,12 @@
       {
         "id": "lq_32_cha_cha_slide",
         "title": "The cha cha slide",
-        "description": "Cha Cha Slide and romantic slow dance song"
+        "description": "Cha Cha Slide and romantic slow dance song",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -283,7 +438,12 @@
       {
         "id": "lq_33_stormy_end",
         "title": "End of page",
-        "description": "Stella's house / squish variation. Lightning flashes."
+        "description": "Stella's house / squish variation. Lightning flashes.",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -291,8 +451,13 @@
     "lighting": [
       {
         "id": "lq_34_tyson_enters",
-        "title": "Tyson enters",
-        "description": "Fade to Stella's House / stella"
+        "title": "Tyson enters, dark blue / night. Spot",
+        "description": "Fade to Stella's House / stella. Night, blue",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -301,7 +466,12 @@
       {
         "id": "lq_35_tyson_leaves",
         "title": "Tyson leaves",
-        "description": "Fade to Stella's House / squish"
+        "description": "Fade to Stella's House / squish",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -310,7 +480,12 @@
       {
         "id": "lq_36_tonys_room",
         "title": "Tony's room",
-        "description": "Fade to Tony's Room / Stella"
+        "description": "Fade to Tony's Room / Stella",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -319,7 +494,12 @@
       {
         "id": "lq_37_tony_dances",
         "title": "Tony dances",
-        "description": "Rainbow disco lights"
+        "description": "Rainbow disco lights",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -327,17 +507,13 @@
     "lighting": [
       {
         "id": "lq_38_stellas_room",
-        "title": "Stella's Room (bottom of page)",
-        "description": "Fade to Stella's House / squish"
-      }
-    ]
-  },
-  "scene_4_4_p59_sd1_w0": {
-    "lighting": [
-      {
-        "id": "lq_39_tonys_room_again",
-        "title": "Tony's room",
-        "description": "Fade to rainbow disco lights"
+        "title": "Cut middle, different colours on different sides. Split. Spot on each person.",
+        "description": "",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -345,8 +521,13 @@
     "lighting": [
       {
         "id": "lq_40_music_cut",
-        "title": "Francine turns off the music",
-        "description": "Cut to Tony's Room / Stella"
+        "title": "Francine turns off the music. Cut to Tony's Room / Stella",
+        "description": "",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -355,7 +536,12 @@
       {
         "id": "lq_41_francine_monologue",
         "title": "Francine monologue",
-        "description": "Spot on Francine"
+        "description": "Spot on Francine",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -364,7 +550,12 @@
       {
         "id": "lq_42_classroom",
         "title": "Classroom",
-        "description": "Fade to Classroom / Squish (light)"
+        "description": "Fade to Classroom / Squish (light)",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -373,7 +564,12 @@
       {
         "id": "lq_43_everyone_exits",
         "title": "Everyone exits bottom of page",
-        "description": "Fade to Classroom / squish (deep)"
+        "description": "Fade to Classroom / squish (deep)",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -382,7 +578,12 @@
       {
         "id": "lq_44_tyson_enters_home",
         "title": "Tyson enters",
-        "description": "Fade to Stella's house / stella"
+        "description": "Fade to Stella's house / stella",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -391,7 +592,12 @@
       {
         "id": "lq_45_paper_mache_knife",
         "title": "Squish is making a paper mache knife art",
-        "description": "Half n' half deal. Half with Classroom / squish, half with Stella's house / stella."
+        "description": "Half n' half deal. Half with Classroom / squish, half with Stella's house / stella.",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -400,7 +606,12 @@
       {
         "id": "lq_46_back_to_the_kids",
         "title": "Back to the kids",
-        "description": "Fade to Stella's house / stella"
+        "description": "Fade to Stella's house / stella",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -409,7 +620,12 @@
       {
         "id": "lq_47_vision_of_gregs",
         "title": "Priya's vision multiple Gregs",
-        "description": "Intense darkness lighting. Stella's house / squish (xdeep)."
+        "description": "Intense darkness lighting. Stella's house / squish (xdeep).",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -418,7 +634,12 @@
       {
         "id": "lq_48_training_montage",
         "title": "Training montage",
-        "description": "Montage music"
+        "description": "Montage music",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -427,7 +648,12 @@
       {
         "id": "lq_49_spot_welding",
         "title": "Spot welding",
-        "description": "Flashing lights???"
+        "description": "Flashing lights???",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -436,7 +662,12 @@
       {
         "id": "lq_50_friday_255",
         "title": "Friday 2:55 PM",
-        "description": "Playground / Stella & Squish combined??? (½ + ½?). Dimmed lights, smoke, flashing lights, highly stylised."
+        "description": "Playground / Stella & Squish combined??? (½ + ½?). Dimmed lights, smoke, flashing lights, highly stylised.",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -445,7 +676,12 @@
       {
         "id": "lq_51_fight_scene",
         "title": "Fight scene",
-        "description": "School bell"
+        "description": "School bell",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -454,7 +690,12 @@
       {
         "id": "lq_52_tony_peaceful",
         "title": "Tony shakes more violently",
-        "description": "Beautiful flowing, nice and peaceful lighting. Bright and rainbows."
+        "description": "Beautiful flowing, nice and peaceful lighting. Bright and rainbows.",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -463,7 +704,12 @@
       {
         "id": "lq_53_city_planners",
         "title": "City planners",
-        "description": "Spotlight on junior city planners"
+        "description": "Spotlight on junior city planners",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -472,7 +718,12 @@
       {
         "id": "lq_54_as_they_crash",
         "title": "As they crash",
-        "description": "Crazy fight lights"
+        "description": "Crazy fight lights",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -481,7 +732,12 @@
       {
         "id": "lq_55_firecrackers",
         "title": "Stella reaches into the bum bag",
-        "description": "Lights flashing for firecrackers"
+        "description": "Lights flashing for firecrackers",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -490,7 +746,12 @@
       {
         "id": "lq_56_standstill",
         "title": "Standstill",
-        "description": "Chiller lights for the standstill"
+        "description": "Chiller lights for the standstill",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -499,7 +760,12 @@
       {
         "id": "lq_57_back_to_action",
         "title": "Back to the action",
-        "description": "Flashing lights and stuff as Stella delivers a finishing blow"
+        "description": "Flashing lights and stuff as Stella delivers a finishing blow",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -508,7 +774,12 @@
       {
         "id": "lq_58_squish_dead",
         "title": "Squish is dead",
-        "description": "Fade to playground / stella (xdeep)"
+        "description": "Fade to playground / stella (xdeep)",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -517,7 +788,12 @@
       {
         "id": "lq_59_storytellers_return",
         "title": "Storytellers",
-        "description": "Idk what but figure it out"
+        "description": "Idk what but figure it out",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
@@ -526,30 +802,96 @@
       {
         "id": "lq_60_stella_gets_up",
         "title": "Stella gets up; ending",
-        "description": "Fade to black. Or spotlight movie effect where it closes in on Stella’s face."
+        "description": "Fade to black. Or spotlight movie effect where it closes in on Stella's face.",
+        "oscAction": "goto",
+        "oscCueNumber": "{cueNumber}",
+        "oscPlayback": 1,
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   },
-  "scene_1_2_p12_sd0_w0": {
-    "sound": [
+  "scene_4_4_line_44_w1": {
+    "lighting": [
       {
-        "id": "mncrab0kisyep",
-        "title": "Test Sound Cue",
+        "id": "mnflle5sajw9u",
+        "title": "Blackout",
         "description": "",
-        "soundSubtype": "play_once",
-        "playStyle": "alongside",
-        "clipStart": 0,
-        "clipEnd": 4.572,
-        "fadeIn": 0,
-        "fadeOut": 0,
-        "volume": 0,
-        "manualFadeOutDuration": 2,
-        "allowMultipleInstances": false,
-        "loopStart": 0,
-        "loopEnd": null,
-        "loopXfade": 0,
-        "oscTriggers": [],
-        "clip": "/audio/among-us-role-reveal-sound_1774476508953.webm"
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "osc"
+      }
+    ]
+  },
+  "scene_4_2_p55_sd0_w26": {
+    "lighting": [
+      {
+        "id": "mnflrz8p5wjy6",
+        "title": "Lightning flash?",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "osc"
+      }
+    ]
+  },
+  "scene_4_2_line_16_w1": {
+    "lighting": [
+      {
+        "id": "mnfltafoe6b3n",
+        "title": "Thunder flash to blackout",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "osc"
+      }
+    ]
+  },
+  "scene_4_3_line_23_w2": {
+    "lighting": [
+      {
+        "id": "mnflv2cbji4oy",
+        "title": "Blackout",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "osc"
+      }
+    ]
+  },
+  "scene_4_4_p59_sd0_w2": {
+    "lighting": [
+      {
+        "id": "mnflwu8lt0qnz",
+        "title": "Blackout",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "osc"
+      }
+    ]
+  },
+  "scene_4_4_p59_sd1_w0": {
+    "lighting": [
+      {
+        "id": "mnflxltkg2ayj",
+        "title": "Tony's Room. to Tony's Room / Stella",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   }
