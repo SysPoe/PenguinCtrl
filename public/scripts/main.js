@@ -22,11 +22,9 @@ const DEFAULT_APP_CONFIG = {
     },
   },
   osc: {
-    target: {
-      ip: '127.0.0.1',
-      oscPort: 8000,
-      remotePort: 6553,
-    },
+    targets: [
+      { ip: '127.0.0.1', oscPort: 8000, remotePort: 6553 },
+    ],
   },
 };
 

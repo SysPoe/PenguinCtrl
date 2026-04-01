@@ -52,11 +52,40 @@ const cueExecutionEngine = createCueExecutionEngine({
 
 const udpSocket = dgram.createSocket('udp4');
 
+function getOscTargets() {
+  const raw = configService.getValue('osc.targets');
+  if (Array.isArray(raw) && raw.length > 0) {
+    return raw.map(t => ({
+      ip: String(t?.ip || '127.0.0.1').trim() || '127.0.0.1',
+      oscPort: clampPort(t?.oscPort, 8000),
+      remotePort: clampPort(t?.remotePort, 6553),
+    }));
+  }
+  const legacyIp = String(configService.getValue('osc.target.ip', '127.0.0.1') || '127.0.0.1').trim() || '127.0.0.1';
+  const legacyOscPort = clampPort(configService.getValue('osc.target.oscPort', 8000), 8000);
+  const legacyRemotePort = clampPort(configService.getValue('osc.target.remotePort', 6553), 6553);
+  return [{ ip: legacyIp, oscPort: legacyOscPort, remotePort: legacyRemotePort }];
+}
+
+function dispatchToAllTargets(payload, transport, overrides = {}) {
+  const targets = getOscTargets();
+  const promises = targets.map(target => {
+    if (transport === 'osc') {
+      return sendUdpPacket(payload, { host: target.ip, port: overrides.oscPort ?? target.oscPort });
+    }
+    return sendUdpPacket(payload, { host: target.ip, port: overrides.remotePort ?? target.remotePort });
+  });
+  return Promise.allSettled(promises).then(results => {
+    results.forEach((r, i) => {
+      if (r.status === 'rejected') {
+        console.error(`Failed to dispatch to ${targets[i].ip}:${transport === 'osc' ? (overrides.oscPort ?? targets[i].oscPort) : (overrides.remotePort ?? targets[i].remotePort)}:`, r.reason);
+      }
+    });
+  });
+}
+
 audioSetTriggerCallback((trigger) => {
   try {
-    const host = String(configService.getValue('osc.target.ip', '127.0.0.1') || '127.0.0.1').trim() || '127.0.0.1';
-    const port = clampPort(configService.getValue('osc.target.oscPort', 8000), 8000);
-
     const hasCueFields = trigger && typeof trigger === 'object' && (
       'oscAction' in trigger ||
       'oscPlayback' in trigger ||
@@ -86,18 +115,17 @@ audioSetTriggerCallback((trigger) => {
       if (resolvedTransport === 'osc') {
         const { address, args } = buildOscAddressAndArgs({ action, playback, cueNumber, level });
         const msg = encodeOscMessage(address, args);
-        sendUdpPacket(msg, { host, port }).catch(e => console.error('Failed to dispatch trigger:', e));
+        dispatchToAllTargets(msg, 'osc');
         return;
       }
 
       const command = buildRemoteCommand({ action, playback, cueNumber, level });
-      sendUdpPacket(Buffer.from(command, 'ascii'), { host, port: clampPort(configService.getValue('osc.target.remotePort', 6553), 6553) })
-        .catch(e => console.error('Failed to dispatch trigger:', e));
+      dispatchToAllTargets(Buffer.from(command, 'ascii'), 'remote');
       return;
     }
 
     const msg = encodeOscMessage(trigger.address || '/next', Array.isArray(trigger.args) ? trigger.args : []);
-    sendUdpPacket(msg, { host, port }).catch(e => console.error('Failed to dispatch trigger:', e));
+    dispatchToAllTargets(msg, 'osc');
   } catch (e) {
     console.error('Trigger dispatch error:', e);
   }
@@ -228,10 +256,6 @@ cueExecutionEngine.registerHandler('oscDispatch', async (cue) => {
   const level = clampLevel(cue?.oscLevel);
   const transport = String(cue?.oscTransport || 'auto').trim().toLowerCase();
 
-  const host = String(configService.getValue('osc.target.ip', '127.0.0.1') || '127.0.0.1').trim() || '127.0.0.1';
-  const oscPort = clampPort(configService.getValue('osc.target.oscPort', 8000), 8000);
-  const remotePort = clampPort(configService.getValue('osc.target.remotePort', 6553), 6553);
-
   const resolvedTransport = transport === 'auto'
     ? (action === 'back' ? 'remote' : (action === 'goto' ? 'remote' : 'osc'))
     : transport;
@@ -240,22 +264,24 @@ cueExecutionEngine.registerHandler('oscDispatch', async (cue) => {
     throw new Error(`Invalid OSC transport "${transport}" (expected auto, osc, or remote)`);
   }
 
+  const targets = getOscTargets();
+
   try {
     if (resolvedTransport === 'osc') {
       const { address, args } = buildOscAddressAndArgs({ action, playback, cueNumber, level });
       const payload = encodeOscMessage(address, args);
-      await sendUdpPacket(payload, { host, port: oscPort });
+      await dispatchToAllTargets(payload, 'osc');
       return { instanceId: null };
     }
 
     const command = buildRemoteCommand({ action, playback, cueNumber, level });
-    await sendUdpPacket(Buffer.from(command, 'ascii'), { host, port: remotePort });
+    await dispatchToAllTargets(Buffer.from(command, 'ascii'), 'remote');
     return { instanceId: null };
   } catch (err) {
-    const targetPort = resolvedTransport === 'osc' ? oscPort : remotePort;
     console.error(`Error sending ${resolvedTransport.toUpperCase()} command:`, err);
+    const targetSummary = targets.map(t => `${t.ip}:${resolvedTransport === 'osc' ? t.oscPort : t.remotePort}`).join(', ');
     throw new Error(
-      `Failed to send ${resolvedTransport.toUpperCase()} command (${action}) to ${host}:${targetPort} - ${err.message}`
+      `Failed to send ${resolvedTransport.toUpperCase()} command (${action}) to [${targetSummary}] - ${err.message}`
     );
   }
 });
