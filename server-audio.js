@@ -709,7 +709,17 @@ function cancelDevamp(instanceId) {
     }
 }
 
-export { playCue, fadeOut, stop, stopAll, fadeOutAll, devamp, cancelDevamp, listActive, setVolume, setMuted, toggleMute, masterVolume, setMasterMuted, toggleMasterMute, isMasterMuted, pause, resume, seek, setTriggerCallback, cancelWaitingCues };
+export { playCue, fadeOut, stop, stopAll, fadeOutAll, devamp, cancelDevamp, listActive, setVolume, setMuted, toggleMute, masterVolume, setMasterMuted, toggleMasterMute, isMasterMuted, pause, resume, seek, setTriggerCallback, cancelWaitingCues, preloadBuffer };
+
+async function preloadBuffer(filePath) {
+    if (!filePath) return;
+    try {
+        await loadBuffer(filePath);
+        console.log("Preload successful for", filePath);
+    } catch (e) {
+        console.error(`preloadBuffer failed for ${filePath}:`, e.message);
+    }
+}
 
 let triggerCallback = null;
 function setTriggerCallback(cb) {

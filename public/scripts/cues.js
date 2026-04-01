@@ -394,8 +394,18 @@ function setSelected(idx) {
     });
     updateGoBtn();
     if (idx >= 0 && cuesData[idx]) {
+        const cue = cuesData[idx];
+        if (cue.fullCue && cue.fullCue.clip) {
+            wsSend({ type: 'preload', clip: cue.fullCue.clip });
+        }
+        for (let n = idx + 1; n <= Math.min(idx + 3, cuesData.length - 1); n++) {
+            const nc = cuesData[n];
+            if (nc.fullCue && nc.fullCue.clip) {
+                wsSend({ type: 'preload', clip: nc.fullCue.clip });
+            }
+        }
         if (window.opener && window.opener.postMessage) {
-            window.opener.postMessage({ type: 'scrollToTarget', targetId: cuesData[idx].targetId }, '*');
+            window.opener.postMessage({ type: 'scrollToTarget', targetId: cue.targetId }, '*');
         }
     }
 }

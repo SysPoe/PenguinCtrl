@@ -14,7 +14,8 @@ import {
   listActive, setVolume, toggleMute as audioToggleMute,
   masterVolume, toggleMasterMute as audioToggleMasterMute,
   isMasterMuted as audioIsMasterMuted, cancelWaitingCues as audioCancelWaitingCues,
-  pause as audioPause, resume as audioResume, seek as audioSeek, setTriggerCallback as audioSetTriggerCallback
+  pause as audioPause, resume as audioResume, seek as audioSeek, setTriggerCallback as audioSetTriggerCallback,
+  preloadBuffer as audioPreloadBuffer
 } from './server-audio.js';
 import { createConfigService } from './config/config-service.js';
 import { createCueTypeRegistry } from './config/cue-type-registry.js';
@@ -822,6 +823,14 @@ wss.on('connection', (ws) => {
             broadcastPendingCues();
           }
           broadcastInstances();
+        }
+
+      } else if (msg.type === 'preload') {
+        if (msg.clip) {
+          const resolved = typeof msg.clip === 'string' && msg.clip.startsWith('/')
+            ? join(__dirname, 'public', msg.clip.replace(/^\//, ''))
+            : msg.clip;
+          audioPreloadBuffer(resolved);
         }
 
       } else if (msg.type === 'resetPlayed') {
