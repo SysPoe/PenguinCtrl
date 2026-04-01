@@ -24,7 +24,7 @@ import { createCueExecutionEngine } from './server-cue-handlers.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 // Config
 const SCENES_FILE = join(__dirname, 'scenes.xml');

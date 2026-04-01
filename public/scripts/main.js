@@ -687,6 +687,18 @@ function getAllCuesSorted() {
         const raw = cueList[idx];
         const fullCue = buildExecutableCue(type.id, raw);
 
+        if (fullCue.oscCueNumber && isCueNumberTemplate(fullCue.oscCueNumber)) {
+          fullCue.oscCueNumber = resolveCueNumberTemplate(fullCue.oscCueNumber, num);
+        }
+        if (Array.isArray(fullCue.oscTriggers)) {
+          fullCue.oscTriggers = fullCue.oscTriggers.map(t => {
+            if (t.oscCueNumber && isCueNumberTemplate(t.oscCueNumber)) {
+              return { ...t, oscCueNumber: resolveCueNumberTemplate(t.oscCueNumber, num) };
+            }
+            return t;
+          });
+        }
+
         allCues.push({
           id: `${targetId}_${type.id}_${raw.id}`,
           targetId,
@@ -1494,7 +1506,7 @@ function openCueModal(targetId) {
   currentCueType = null;
   currentCueId = null;
   currentClipPath = null;
-  currentLightingAction = 'none';
+  currentLightingAction = 'goto';
 
   document.getElementById('cue-modal-title').textContent = 'Add Cue';
   document.getElementById('cue-modal-context').textContent = getTargetContext(targetId);
@@ -1974,6 +1986,44 @@ function parseCueNumberOrNull(raw) {
   return cueDecText ? `${cueInt}.${cueDecText}` : `${cueInt}`;
 }
 
+function isCueNumberTemplate(value) {
+  return typeof value === 'string' && value.includes('{cueNumber}');
+}
+
+function parseCueNumberOrTemplate(raw) {
+  const source = String(raw || '').trim();
+  if (!source) return null;
+  if (isCueNumberTemplate(source)) return source;
+  return parseCueNumberOrNull(source);
+}
+
+function resolveCueNumberTemplate(template, cueNumber) {
+  if (template == null) return String(cueNumber);
+  const str = String(template).trim();
+  if (!isCueNumberTemplate(str)) return str;
+
+  let resolved = str.replace(/\{cueNumber\}/g, String(cueNumber));
+
+  const arithDecMatch = resolved.match(/^(\d+)([+-])(\d+)\.(\d+)$/);
+  if (arithDecMatch) {
+    const base = Number(arithDecMatch[1]);
+    const op = arithDecMatch[2];
+    const offset = Number(arithDecMatch[3]);
+    const dec = arithDecMatch[4];
+    const result = op === '+' ? base + offset : base - offset;
+    return `${Math.max(1, result)}.${dec}`;
+  }
+
+  const arithMatch = resolved.match(/^(\d+)([+-])(\d+)$/);
+  if (arithMatch) {
+    const base = Number(arithMatch[1]);
+    const result = arithMatch[2] === '+' ? base + Number(arithMatch[3]) : base - Number(arithMatch[3]);
+    return String(Math.max(1, result));
+  }
+
+  return resolved;
+}
+
 function getLightingActionMeta(action) {
   return LIGHTING_ACTIONS[action] || LIGHTING_ACTIONS.none;
 }
@@ -2003,7 +2053,7 @@ function normalizeLightingAction(trigger = {}) {
     timeMs: Number(trigger.timeMs) || 0,
     oscAction: normalizedAction,
     oscPlayback: Number.isFinite(playbackValue) && playbackValue > 0 ? Math.max(1, Math.round(playbackValue)) : 1,
-    oscCueNumber: parseCueNumberOrNull(trigger.oscCueNumber ?? '1') || '1',
+    oscCueNumber: parseCueNumberOrTemplate(trigger.oscCueNumber ?? '1') || '1',
     oscLevel: Number.isFinite(levelValue) ? Math.max(0, Math.min(100, Math.round(levelValue))) : 100,
     oscTransport: allowedTransports.includes(transportValue) ? transportValue : (allowedTransports[0] || 'auto'),
   };
@@ -2045,11 +2095,11 @@ function selectLightingAction(action) {
 
 function parseLightingActionForm(cueTypeId = getCurrentLightingCueTypeId()) {
   const typeDefaults = deepMerge({
-    oscAction: 'none',
+    oscAction: 'goto',
     oscPlayback: 1,
-    oscCueNumber: '1',
+    oscCueNumber: '{cueNumber}',
     oscLevel: 100,
-    oscTransport: 'auto',
+    oscTransport: 'osc',
   }, getCueTypePayloadDefaults(cueTypeId));
 
   const action = currentLightingAction;
@@ -2069,12 +2119,12 @@ function parseLightingActionForm(cueTypeId = getCurrentLightingCueTypeId()) {
   const levelRaw = Number(levelInput?.value ?? typeDefaults.oscLevel ?? 100);
   const level = Number.isFinite(levelRaw) ? Math.max(0, Math.min(100, Math.round(levelRaw))) : 100;
 
-  const cueNumber = parseCueNumberOrNull(cueInput?.value ?? typeDefaults.oscCueNumber ?? '1');
-  const transportValue = String(transportSelect?.value || typeDefaults.oscTransport || 'auto').trim().toLowerCase();
+  const cueNumber = parseCueNumberOrTemplate(cueInput?.value ?? typeDefaults.oscCueNumber ?? '{cueNumber}');
+  const transportValue = String(transportSelect?.value || typeDefaults.oscTransport || 'osc').trim().toLowerCase();
   const allowedTransports = getLightingTransportOptions(action);
   const transport = allowedTransports.includes(transportValue)
     ? transportValue
-    : (allowedTransports[0] || 'auto');
+    : (allowedTransports[0] || 'osc');
 
   cueField?.classList.remove('input-error');
 
@@ -2082,13 +2132,13 @@ function parseLightingActionForm(cueTypeId = getCurrentLightingCueTypeId()) {
   if (meta.requiresCue && !cueNumber) {
     cueField?.classList.add('input-error');
     cueField?.focus();
-    throw new Error('Cue number must be like 5 or 5.1');
+    throw new Error('Cue number must be like 5, 5.1, or {cueNumber}');
   }
 
   return {
     oscAction: action,
     oscPlayback: playback,
-    oscCueNumber: cueNumber || String(typeDefaults.oscCueNumber || '1'),
+    oscCueNumber: cueNumber || String(typeDefaults.oscCueNumber || '{cueNumber}'),
     oscLevel: level,
     oscTransport: transport,
   };
@@ -2096,15 +2146,15 @@ function parseLightingActionForm(cueTypeId = getCurrentLightingCueTypeId()) {
 
 function initLightingActionForm(cueData, cueTypeId = getCurrentLightingCueTypeId()) {
   const typeDefaults = deepMerge({
-    oscAction: 'none',
+    oscAction: 'goto',
     oscPlayback: 1,
-    oscCueNumber: '1',
+    oscCueNumber: '{cueNumber}',
     oscLevel: 100,
-    oscTransport: 'auto',
+    oscTransport: 'osc',
   }, getCueTypePayloadDefaults(cueTypeId));
 
   const merged = deepMerge(typeDefaults, cueData || {});
-  currentLightingAction = LIGHTING_ACTIONS[String(merged.oscAction || 'none').toLowerCase()] ? String(merged.oscAction || 'none').toLowerCase() : 'none';
+  currentLightingAction = LIGHTING_ACTIONS[String(merged.oscAction || 'goto').toLowerCase()] ? String(merged.oscAction || 'goto').toLowerCase() : 'goto';
 
   const playbackInput = document.getElementById('lighting-playback');
   const cueInput = document.getElementById('lighting-cue-number');
@@ -2112,12 +2162,12 @@ function initLightingActionForm(cueData, cueTypeId = getCurrentLightingCueTypeId
   const transportSelect = document.getElementById('lighting-transport');
 
   if (playbackInput) playbackInput.value = String(Math.max(1, Math.round(Number(merged.oscPlayback ?? typeDefaults.oscPlayback ?? 1) || 1)));
-  if (cueInput) cueInput.value = parseCueNumberOrNull(merged.oscCueNumber) || String(typeDefaults.oscCueNumber || '1');
+  if (cueInput) cueInput.value = parseCueNumberOrTemplate(merged.oscCueNumber) || String(typeDefaults.oscCueNumber || '{cueNumber}');
   if (levelInput) {
     const level = Number.isFinite(Number(merged.oscLevel)) ? Number(merged.oscLevel) : 100;
     levelInput.value = String(Math.max(0, Math.min(100, Math.round(level))));
   }
-  if (transportSelect) transportSelect.value = String(merged.oscTransport || 'auto').toLowerCase();
+  if (transportSelect) transportSelect.value = String(merged.oscTransport || 'osc').toLowerCase();
 
   updateLightingActionUi();
 }
@@ -2147,7 +2197,7 @@ function normalizeOscTrigger(trigger = {}) {
     timeMs: Number(trigger.timeMs) || 0,
     oscAction: normalizedAction,
     oscPlayback: Number.isFinite(playbackValue) && playbackValue > 0 ? Math.max(1, Math.round(playbackValue)) : 1,
-    oscCueNumber: parseCueNumberOrNull(trigger.oscCueNumber ?? '1') || '1',
+    oscCueNumber: parseCueNumberOrTemplate(trigger.oscCueNumber ?? '1') || '1',
     oscLevel: Number.isFinite(levelValue) ? Math.max(0, Math.min(100, Math.round(levelValue))) : 100,
     oscTransport: allowedTransports.includes(transportValue) ? transportValue : (allowedTransports[0] || 'auto'),
   };
@@ -2725,7 +2775,7 @@ function renderOscTriggers() {
     cueField.innerHTML = '<span>Cue Number</span>';
     const cueInput = document.createElement('input');
     cueInput.type = 'text';
-    cueInput.placeholder = 'e.g. 5 or 5.1';
+    cueInput.placeholder = 'e.g. 5, 5.1, or {cueNumber}';
     cueInput.value = trigger.oscCueNumber;
     cueInput.addEventListener('change', () => updateOscTrigger(i, 'oscCueNumber', cueInput.value));
     cueField.appendChild(cueInput);
@@ -2795,7 +2845,7 @@ function updateOscTrigger(index, field, value) {
       const playback = Number(value);
       trigger.oscPlayback = Number.isFinite(playback) && playback > 0 ? Math.max(1, Math.round(playback)) : 1;
     } else if (field === 'oscCueNumber') {
-      trigger.oscCueNumber = parseCueNumberOrNull(value) || '1';
+      trigger.oscCueNumber = parseCueNumberOrTemplate(value) || '1';
     } else if (field === 'oscLevel') {
       const level = Number(value);
       trigger.oscLevel = Number.isFinite(level) ? Math.max(0, Math.min(100, Math.round(level))) : 100;
