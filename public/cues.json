@@ -894,28 +894,5 @@
         "oscTransport": "osc"
       }
     ]
-  },
-  "scene_1_3_p14_sd0_w0": {
-    "sound": [
-      {
-        "id": "mnfscibqyi6w0",
-        "title": "test",
-        "description": "",
-        "soundSubtype": "play_once",
-        "playStyle": "alongside",
-        "clipStart": 0,
-        "clipEnd": 187.173,
-        "fadeIn": 0,
-        "fadeOut": 0,
-        "volume": 0,
-        "manualFadeOutDuration": 2,
-        "allowMultipleInstances": false,
-        "loopStart": 0,
-        "loopEnd": null,
-        "loopXfade": 0,
-        "oscTriggers": [],
-        "clip": "/audio/Le_Castle_Vania_-_John_Wick_Mode_1774842501876.webm"
-      }
-    ]
   }
 }

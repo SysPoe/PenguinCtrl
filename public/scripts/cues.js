@@ -111,7 +111,12 @@ function connectWS() {
     };
 
     ws.onmessage = (e) => {
-        const msg = JSON.parse(e.data);
+        let msg;
+        try {
+            msg = JSON.parse(e.data);
+        } catch {
+            return;
+        }
         if (msg.type === 'instances') {
             activeInstances = msg.list || [];
             if (Number.isFinite(Number(msg.waitingCount))) {

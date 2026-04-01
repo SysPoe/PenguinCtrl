@@ -1469,7 +1469,7 @@ async function loadPages() {
 
     const res = await fetch('/api/pages');
     const data = await res.json();
-    pages = data.pages;
+    pages = Array.isArray(data.pages) ? data.pages : [];
     renderAllPages();
 
     const container = document.getElementById('scroll-container');

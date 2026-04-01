@@ -147,6 +147,24 @@ function clampLevel(value) {
   return Math.max(0, Math.min(100, Math.round(parsed)));
 }
 
+function toArray(value) {
+  if (Array.isArray(value)) return value;
+  if (value == null) return [];
+  return [value];
+}
+
+function getXmlText(value) {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object' && typeof value._ === 'string') return value._;
+  return '';
+}
+
+function normalizeHeaderValue(value, fallback = '') {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const text = String(raw ?? fallback);
+  return text.trim() || fallback;
+}
+
 function parseCueNumber(rawCueNumber) {
   const source = String(rawCueNumber ?? '').trim();
   const match = source.match(/^(\d+)(?:\.(\d+))?$/);
@@ -358,28 +376,37 @@ function parseXmlSync(xmlContent) {
 }
 
 function buildSceneCache(result, fingerprint) {
-  const script = result.Script;
-  const scenes = script.Scene || [];
+  const script = result && typeof result === 'object' ? result.Script : null;
+  const scenes = toArray(script && typeof script === 'object' ? script.Scene : null);
 
   const pages = [];
 
   scenes.forEach(scene => {
-    const sceneId = scene.$.id;
-    const sceneStruck = scene.$.struck === 'true';
+    if (!scene || typeof scene !== 'object') return;
+
+    const sceneAttrs = scene.$ && typeof scene.$ === 'object' ? scene.$ : {};
+    const sceneId = String(sceneAttrs.id || '').trim();
+    if (!sceneId) return;
+
+    const sceneStruck = sceneAttrs.struck === 'true';
     const sceneMeta = {
       id: sceneId,
-      act: scene.$.act,
-      title: scene.$.title,
-      description: scene.$.description,
+      act: sceneAttrs.act,
+      title: sceneAttrs.title,
+      description: sceneAttrs.description,
       struck: sceneStruck
     };
 
-    const scenePages = scene.Page || [];
+    const scenePages = toArray(scene.Page);
     let isFirstPage = true;
 
     scenePages.forEach(page => {
-      const pageNum = parseInt(page.$.number, 10);
-      const pageAttrs = page.$ || {};
+      if (!page || typeof page !== 'object') return;
+
+      const pageAttrs = page.$ && typeof page.$ === 'object' ? page.$ : {};
+      const pageNum = parseInt(pageAttrs.number, 10);
+      if (!Number.isFinite(pageNum)) return;
+
       const pageStruck = pageAttrs.struck === 'true' || sceneStruck;
       const elements = [];
 
@@ -388,74 +415,71 @@ function buildSceneCache(result, fingerprint) {
       }
 
       // Process StageDirection elements — assign stable IDs
-      if (page.StageDirection) {
-        page.StageDirection.forEach((sd, sdIdx) => {
-          if (typeof sd === 'string') {
-            elements.push({
-              type: 'stage',
-              text: sd,
-              id: `${sceneId}_p${pageNum}_sd${sdIdx}`,
-              scene_id: sceneId,
-              page_num: pageNum,
-              struck: pageStruck
-            });
-          }
-        });
-      }
-
-      // Process DialogueBlock elements
-      if (page.DialogueBlock) {
-        page.DialogueBlock.forEach((block, blockIdx) => {
-          const blockAttrs = block.$ || {};
-          const speaker = block.Speaker ? (typeof block.Speaker[0] === 'string' ? block.Speaker[0] : '') : '';
-          const lines = [];
-          let inlineIdx = 0;
-
-          const blockStruck = blockAttrs.struck === 'true' || pageStruck;
-
-          if (block.Line) {
-            block.Line.forEach(line => {
-              let lineText = typeof line === 'string' ? line : (line._ || '');
-              const lineAttrs = line.$ || {};
-              lines.push({
-                type: 'line',
-                text: lineText,
-                struck: lineAttrs.struck === 'true' || blockStruck,
-                id: lineAttrs.id || null
-              });
-            });
-          }
-
-          if (block.InlineDirection) {
-            block.InlineDirection.forEach(id => {
-              if (typeof id === 'string') {
-                lines.push({
-                  type: 'inline',
-                  text: id,
-                  id: `${sceneId}_p${pageNum}_b${blockIdx}_il${inlineIdx++}`,
-                  struck: blockStruck
-                });
-              }
-            });
-          }
-
+      toArray(page.StageDirection).forEach((sd, sdIdx) => {
+        const text = getXmlText(sd).trim();
+        if (text) {
           elements.push({
-            type: 'dialogue',
-            speaker: speaker,
-            lines: lines,
+            type: 'stage',
+            text,
+            id: `${sceneId}_p${pageNum}_sd${sdIdx}`,
             scene_id: sceneId,
             page_num: pageNum,
-            block_struck: blockStruck
+            struck: pageStruck
           });
+        }
+      });
+
+      // Process DialogueBlock elements
+      toArray(page.DialogueBlock).forEach((block, blockIdx) => {
+        if (!block || typeof block !== 'object') return;
+
+        const blockAttrs = block.$ && typeof block.$ === 'object' ? block.$ : {};
+        const speaker = getXmlText(toArray(block.Speaker)[0]).trim();
+        const lines = [];
+        let inlineIdx = 0;
+
+        const blockStruck = blockAttrs.struck === 'true' || pageStruck;
+
+        toArray(block.Line).forEach(line => {
+          const lineText = getXmlText(line);
+          if (lineText) {
+            lines.push({
+              type: 'line',
+              text: lineText,
+              struck: (line && line.$ && line.$.struck === 'true') || blockStruck,
+              id: line && line.$ && line.$.id ? line.$.id : null
+            });
+          }
         });
-      }
+
+        toArray(block.InlineDirection).forEach(id => {
+          const text = getXmlText(id).trim();
+          if (text) {
+            lines.push({
+              type: 'inline',
+              text,
+              id: `${sceneId}_p${pageNum}_b${blockIdx}_il${inlineIdx++}`,
+              struck: blockStruck
+            });
+          }
+        });
+
+        elements.push({
+          type: 'dialogue',
+          speaker,
+          lines,
+          scene_id: sceneId,
+          page_num: pageNum,
+          block_struck: blockStruck
+        });
+      });
 
       pages.push({
         scene: isFirstPage ? sceneMeta : null,
         scene_id: sceneId,
         number: pageNum,
         struck: pageStruck,
-        elements: elements
+        elements
       });
 
       isFirstPage = false;
@@ -516,15 +540,29 @@ function buildSceneCache(result, fingerprint) {
 async function loadSceneIndex() {
   const fingerprint = getFileFingerprint(SCENES_FILE);
 
+  if (!fingerprint) {
+    if (sceneCache.fingerprint) {
+      return { pages: [...sceneCache.pages], tocActs: [...sceneCache.tocActs] };
+    }
+    return { pages: [], tocActs: [] };
+  }
+
   if (sceneCache.fingerprint &&
     sceneCache.fingerprint.mtime === fingerprint.mtime &&
     sceneCache.fingerprint.size === fingerprint.size) {
     return { pages: [...sceneCache.pages], tocActs: [...sceneCache.tocActs] };
   }
 
-  const xmlContent = readFileSync(SCENES_FILE, 'utf-8');
-  const result = await parseXmlSync(xmlContent);
-  buildSceneCache(result, fingerprint);
+  try {
+    const xmlContent = readFileSync(SCENES_FILE, 'utf-8');
+    const result = await parseXmlSync(xmlContent);
+    buildSceneCache(result, fingerprint);
+  } catch (err) {
+    console.error('Error loading scenes:', err.message);
+    if (!sceneCache.fingerprint) {
+      sceneCache = { fingerprint, pages: [], tocActs: [] };
+    }
+  }
 
   return { pages: [...sceneCache.pages], tocActs: [...sceneCache.tocActs] };
 }
@@ -693,7 +731,7 @@ app.get('/api/audio/list', (_req, res) => {
 
 // API: Upload and transcode audio file
 app.post('/api/audio/upload', uploadRawMiddleware, async (req, res) => {
-  const rawName = (req.headers['x-filename'] || 'upload.bin').replace(/\.\./g, '');
+  const rawName = normalizeHeaderValue(req.headers['x-filename'], 'upload.bin').replace(/\.\./g, '');
   const safe = basename(rawName).replace(/[^a-zA-Z0-9._\-]/g, '_');
   const ts = Date.now();
   const inputExt = extname(safe) || '.bin';
