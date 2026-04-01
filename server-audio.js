@@ -8,9 +8,33 @@ import ffmpegStatic from 'ffmpeg-static';
 const CLEANUP_GRACE_MS = 25;
 
 let _getConfigValue = () => undefined;
+let _configuredSampleRate = null;
 
 export function initAudioConfig(configService) {
     _getConfigValue = (path, fallback) => configService.getValue(path, fallback);
+    configService.onChange((bundle) => {
+        const newRate = Number(getByPath(bundle?.effective ?? {}, 'audio.buffer.sampleRate', 48000)) || 48000;
+        bufferCache.clear();
+        if (_configuredSampleRate != null && _configuredSampleRate !== newRate) {
+            stopAll();
+            if (_ctx && _ctx.state !== 'closed') {
+                try { _ctx.close(); } catch (_) { }
+                _ctx = null;
+                _masterGain = null;
+            }
+        }
+    });
+}
+
+function getByPath(obj, path, fallback) {
+    const parts = String(path).split('.');
+    let cur = obj;
+    for (const part of parts) {
+        if (cur == null || typeof cur !== 'object') return fallback;
+        if (!(part in cur)) return fallback;
+        cur = cur[part];
+    }
+    return cur;
 }
 
 let _ctx = null;
@@ -19,9 +43,14 @@ let _masterDb = 0;
 let _masterMuted = false;
 
 function getCtx() {
-    if (!_ctx || _ctx.state === 'closed') {
-        _ctx = new AudioContext({ latencyHint: 'playback' });
-        _masterGain = null; // reset when context recreated
+    const desiredRate = Number(_getConfigValue('audio.buffer.sampleRate', 48000)) || 48000;
+    if (!_ctx || _ctx.state === 'closed' || _configuredSampleRate !== desiredRate) {
+        if (_ctx && _ctx.state !== 'closed') {
+            try { _ctx.close(); } catch (_) { }
+        }
+        _ctx = new AudioContext({ latencyHint: 'playback', sampleRate: desiredRate });
+        _masterGain = null;
+        _configuredSampleRate = desiredRate;
     }
     return _ctx;
 }
