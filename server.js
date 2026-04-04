@@ -109,7 +109,7 @@ audioSetTriggerCallback((trigger) => {
       const level = clampLevel(trigger?.oscLevel);
       const transport = String(trigger?.oscTransport || 'auto').trim().toLowerCase();
       const resolvedTransport = transport === 'auto'
-        ? (action === 'back' ? 'remote' : (action === 'goto' ? 'remote' : 'osc'))
+        ? (action === 'back' ? 'remote' : 'osc')
         : transport;
 
       if (resolvedTransport !== 'osc' && resolvedTransport !== 'remote') {
@@ -177,8 +177,8 @@ function parseCueNumber(rawCueNumber) {
   const cueDecPadded = (cueDecSource + '00').slice(0, 2);
   const cueDec = Number(cueDecPadded);
 
-  if (!Number.isFinite(cueInt) || cueInt < 1 || cueInt > 65536) {
-    throw new Error(`Cue number integer part must be 1..65536 (got ${cueInt})`);
+  if (!Number.isFinite(cueInt) || cueInt < 0 || cueInt > 65536) {
+    throw new Error(`Cue number integer part must be 0..65536 (got ${cueInt})`);
   }
 
   if (!Number.isFinite(cueDec) || cueDec < 0 || cueDec > 99) {
@@ -278,8 +278,8 @@ cueExecutionEngine.registerHandler('oscDispatch', async (cue) => {
   const level = clampLevel(cue?.oscLevel);
   const transport = String(cue?.oscTransport || 'auto').trim().toLowerCase();
 
-  const resolvedTransport = transport === 'auto'
-    ? (action === 'back' ? 'remote' : (action === 'goto' ? 'remote' : 'osc'))
+   const resolvedTransport = transport === 'auto'
+    ? (action === 'back' ? 'remote' : 'osc')
     : transport;
 
   if (resolvedTransport !== 'osc' && resolvedTransport !== 'remote') {
