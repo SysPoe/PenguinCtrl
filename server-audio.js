@@ -449,9 +449,18 @@ async function playCue(cue) {
         loopStart = 0,
         loopEnd = null,
         loopXfade = 0,
+        oscStartTrigger = null,
     } = cue;
 
     if (!clip) throw new Error('playCue: clip is required');
+
+    if (oscStartTrigger) {
+        try {
+            triggerCallback?.(oscStartTrigger);
+        } catch (e) {
+            console.error('Unhandled error in sound start OSC trigger', e);
+        }
+    }
 
     if (playStyle === 'wait') {
         assertWaitingCuesNotCancelled(cueGeneration);

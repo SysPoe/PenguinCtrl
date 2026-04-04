@@ -215,6 +215,58 @@
             </div>
           </div>
 
+          <!-- Cue start OSC -->
+          <div class="ssg">
+            <div class="ssg-label">Cue start OSC</div>
+            <label class="toggle-row" style="gap: 8px; align-items: center;">
+              <span>Trigger on cue start</span>
+              <select id="p-start-osc" class="param-select" style="min-width: 140px;" onchange="syncSoundStartOscUi(this.value)">
+                <option value="none">None</option>
+                <option value="go">Go</option>
+                <option value="back">Back</option>
+                <option value="release">Release</option>
+                <option value="goto">Go To Cue</option>
+                <option value="level">Set Level</option>
+                <option value="flash">Flash</option>
+              </select>
+            </label>
+            <div class="prows" id="p-start-osc-rows" style="margin-top: 8px;">
+              <div class="prow" id="p-start-osc-playback-row">
+                <span class="plabel">Playback</span>
+                <div class="ptrack-wrap">
+                  <div class="ptrack-bg"><div class="ptrack-fill pf-trim" id="pf-start-osc-playback"></div></div>
+                  <input type="range" class="ptrack" id="ps-start-osc-playback" min="1" max="99" step="1" value="1"
+                    oninput="onParamChange('p-start-osc-playback','slider')">
+                </div>
+                <input type="number" class="pnum" id="p-start-osc-playback" min="1" step="1" value="1"
+                  oninput="onParamChange('p-start-osc-playback','number')">
+              </div>
+              <div class="prow" id="p-start-osc-cue-row">
+                <span class="plabel">Cue no.</span>
+                <input type="text" class="pnum" id="p-start-osc-cue" value="{cueNumber}" style="width: 120px;"
+                  oninput="onParamChange('p-start-osc-cue','number')">
+              </div>
+              <div class="prow" id="p-start-osc-level-row">
+                <span class="plabel">Level</span>
+                <div class="ptrack-wrap">
+                  <div class="ptrack-bg"><div class="ptrack-fill pf-vol" id="pf-start-osc-level"></div></div>
+                  <input type="range" class="ptrack" id="ps-start-osc-level" min="0" max="100" step="1" value="100"
+                    oninput="onParamChange('p-start-osc-level','slider')">
+                </div>
+                <input type="number" class="pnum" id="p-start-osc-level" min="0" max="100" step="1" value="100"
+                  oninput="onParamChange('p-start-osc-level','number')">
+              </div>
+              <div class="prow" id="p-start-osc-transport-row">
+                <span class="plabel">Transport</span>
+                <select id="p-start-osc-transport" class="param-select" style="min-width: 120px;" onchange="onParamChange('p-start-osc-transport','number')">
+                  <option value="auto">Auto</option>
+                  <option value="osc">OSC</option>
+                  <option value="remote">REMOTE</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
           <!-- Trim -->
           <div class="ssg">
             <div class="ssg-label">Trim</div>

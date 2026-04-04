@@ -85,6 +85,7 @@ let currentCueId = null; // null = adding new, string = editing existing
 // Sound modal state
 let currentSoundSubtype = 'play_once';
 let currentClipPath = null;
+let currentSoundStartOscAction = 'none';
 let waveformAudioBuffer = null;
 let waveformPeaks = null;
 let waveformRedrawTimer = null;
@@ -687,6 +688,12 @@ function getAllCuesSorted() {
 
         if (fullCue.oscCueNumber && isCueNumberTemplate(fullCue.oscCueNumber)) {
           fullCue.oscCueNumber = resolveCueNumberTemplate(fullCue.oscCueNumber, num);
+        }
+        if (fullCue.oscStartTrigger?.oscCueNumber && isCueNumberTemplate(fullCue.oscStartTrigger.oscCueNumber)) {
+          fullCue.oscStartTrigger = {
+            ...fullCue.oscStartTrigger,
+            oscCueNumber: resolveCueNumberTemplate(fullCue.oscStartTrigger.oscCueNumber, num),
+          };
         }
         if (Array.isArray(fullCue.oscTriggers)) {
           fullCue.oscTriggers = fullCue.oscTriggers.map(t => {
@@ -1910,9 +1917,99 @@ function selectSoundSubtype(subtype) {
   scheduleWaveformRedraw();
 }
 
+function normalizeSoundStartOscAction(action) {
+  const normalized = String(action || 'none').trim().toLowerCase();
+  return SOUND_START_OSC_ACTIONS[normalized] ? normalized : 'none';
+}
+
+function syncSoundStartOscUi(action) {
+  currentSoundStartOscAction = normalizeSoundStartOscAction(action);
+  const select = document.getElementById('p-start-osc');
+  if (select) select.value = currentSoundStartOscAction;
+  updateSoundStartOscUi();
+}
+
+function getSoundStartOscMeta(action = currentSoundStartOscAction) {
+  return SOUND_START_OSC_ACTIONS[normalizeSoundStartOscAction(action)] || SOUND_START_OSC_ACTIONS.none;
+}
+
+function updateSoundStartOscUi() {
+  const meta = getSoundStartOscMeta();
+  const showCue = !!meta.requiresCue;
+  const showLevel = !!meta.requiresLevel;
+
+  const playbackRow = document.getElementById('p-start-osc-playback-row');
+  const cueRow = document.getElementById('p-start-osc-cue-row');
+  const levelRow = document.getElementById('p-start-osc-level-row');
+  const transportRow = document.getElementById('p-start-osc-transport-row');
+
+  if (playbackRow) playbackRow.style.display = currentSoundStartOscAction === 'none' ? 'none' : 'flex';
+  if (cueRow) cueRow.style.display = showCue ? 'flex' : 'none';
+  if (levelRow) levelRow.style.display = showLevel ? 'flex' : 'none';
+  if (transportRow) transportRow.style.display = currentSoundStartOscAction === 'none' ? 'none' : 'flex';
+
+  const transportSelect = document.getElementById('p-start-osc-transport');
+  if (transportSelect) {
+    const allowed = new Set(meta.allowedTransports || ['osc', 'remote', 'auto']);
+    Array.from(transportSelect.options).forEach(option => {
+      option.disabled = !allowed.has(option.value);
+    });
+    if (!allowed.has(transportSelect.value)) {
+      transportSelect.value = meta.fixedTransport || Array.from(allowed.values())[0] || 'auto';
+    }
+  }
+}
+
 function selectPlayStyle(btn) {
   document.querySelectorAll('#play-style-control .seg-btn').forEach(b => b.classList.remove('selected'));
   btn.classList.add('selected');
+}
+
+function resetSoundClipFields(cueTypeId = getCurrentSoundCueTypeId()) {
+  const typeDefaults = deepMerge({
+    soundSubtype: 'play_once',
+    playStyle: 'alongside',
+    clipStart: 0,
+    clipEnd: null,
+    fadeIn: 0,
+    fadeOut: 0,
+    volume: 0,
+    manualFadeOutDuration: getDefaultManualFadeOutSeconds(),
+    allowMultipleInstances: true,
+    loopStart: 0,
+    loopEnd: null,
+    loopXfade: 0,
+    oscTriggers: [],
+  }, getCueTypePayloadDefaults(cueTypeId));
+
+  selectSoundSubtype(typeDefaults.soundSubtype || 'play_once');
+  syncSoundStartOscUi('none');
+  document.getElementById('p-start-osc-playback').value = '1';
+  document.getElementById('p-start-osc-cue').value = '{cueNumber}';
+  document.getElementById('p-start-osc-level').value = '100';
+  document.getElementById('p-start-osc-transport').value = 'auto';
+  currentOscTriggers = [];
+
+  document.querySelectorAll('#play-style-control .seg-btn').forEach(b => {
+    b.classList.toggle('selected', b.dataset.value === (typeDefaults.playStyle || 'alongside'));
+  });
+
+  document.getElementById('p-clip-start').value = typeDefaults.clipStart ?? 0;
+  document.getElementById('p-clip-end').value = '';
+  document.getElementById('p-fade-in').value = typeDefaults.fadeIn ?? 0;
+  document.getElementById('p-fade-out').value = typeDefaults.fadeOut ?? 0;
+  document.getElementById('p-volume').value = typeDefaults.volume ?? 0;
+  document.getElementById('p-manual-fo').value = typeDefaults.manualFadeOutDuration ?? getDefaultManualFadeOutSeconds();
+  document.getElementById('p-allow-multi').checked = !!typeDefaults.allowMultipleInstances;
+  document.getElementById('p-loop-start').value = typeDefaults.loopStart ?? 0;
+  document.getElementById('p-loop-end').value = '';
+  document.getElementById('p-loop-xfade').value = typeDefaults.loopXfade ?? 0;
+
+  updateAllSliderRanges();
+  syncAllSlidersFromInputs();
+  updateAllSliderRanges();
+  syncPreviewScrubberBounds();
+  scheduleWaveformRedraw();
 }
 
 const OSC_ACTIONS = {
@@ -1983,13 +2080,23 @@ const LIGHTING_ACTIONS = {
   flash: OSC_ACTIONS.flash,
 };
 
+const SOUND_START_OSC_ACTIONS = {
+  none: { label: 'None' },
+  go: OSC_ACTIONS.go,
+  back: OSC_ACTIONS.back,
+  release: OSC_ACTIONS.release,
+  goto: OSC_ACTIONS.goto,
+  level: OSC_ACTIONS.level,
+  flash: OSC_ACTIONS.flash,
+};
+
 function parseCueNumberOrNull(raw) {
   const source = String(raw || '').trim();
   if (!source) return null;
   const match = source.match(/^(\d+)(?:\.(\d+))?$/);
   if (!match) return null;
   const cueInt = Number(match[1]);
-  if (!Number.isFinite(cueInt) || cueInt < 1 || cueInt > 65536) return null;
+  if (!Number.isFinite(cueInt) || cueInt < 0 || cueInt > 65536) return null;
   const cueDecRaw = match[2] || '0';
   const cueDecPadded = (cueDecRaw + '00').slice(0, 2);
   const cueDec = Number(cueDecPadded);
@@ -2007,6 +2114,33 @@ function parseCueNumberOrTemplate(raw) {
   if (!source) return null;
   if (isCueNumberTemplate(source)) return source;
   return parseCueNumberOrNull(source);
+}
+
+function buildSoundStartOscTrigger(cueTypeId = getCurrentSoundCueTypeId()) {
+  const action = normalizeSoundStartOscAction(document.getElementById('p-start-osc')?.value ?? currentSoundStartOscAction);
+  if (action === 'none') return null;
+
+  const typeDefaults = deepMerge({
+    oscPlayback: 1,
+    oscCueNumber: '{cueNumber}',
+    oscLevel: 100,
+    oscTransport: 'auto',
+  }, getCueTypePayloadDefaults(cueTypeId));
+
+  const meta = getOscActionMeta(action);
+  const allowedTransports = meta.allowedTransports || ['osc', 'remote', 'auto'];
+  const playbackRaw = Number(document.getElementById('p-start-osc-playback')?.value ?? typeDefaults.oscPlayback ?? 1);
+  const levelRaw = Number(document.getElementById('p-start-osc-level')?.value ?? typeDefaults.oscLevel ?? 100);
+  const cueNumber = parseCueNumberOrTemplate(document.getElementById('p-start-osc-cue')?.value ?? typeDefaults.oscCueNumber ?? '{cueNumber}');
+  const transport = String(document.getElementById('p-start-osc-transport')?.value || typeDefaults.oscTransport || 'auto').trim().toLowerCase();
+
+  return {
+    oscAction: action,
+    oscPlayback: Number.isFinite(playbackRaw) && playbackRaw > 0 ? Math.max(1, Math.round(playbackRaw)) : 1,
+    oscCueNumber: cueNumber || '{cueNumber}',
+    oscLevel: Number.isFinite(levelRaw) ? Math.max(0, Math.min(100, Math.round(levelRaw))) : 100,
+    oscTransport: allowedTransports.includes(transport) ? transport : (allowedTransports[0] || 'auto'),
+  };
 }
 
 function resolveCueNumberTemplate(template, cueNumber) {
@@ -2248,6 +2382,8 @@ function getSoundData() {
     allowMultipleInstances: document.getElementById('p-allow-multi').checked,
     oscTriggers: currentOscTriggers,
   };
+  const startOscTrigger = buildSoundStartOscTrigger(soundTypeId);
+  if (startOscTrigger) data.oscStartTrigger = startOscTrigger;
   if (currentSoundSubtype === 'vamp') {
     const loopEndVal = document.getElementById('p-loop-end').value;
     data.loopStart = numVal('p-loop-start') ?? mergedDefaults.loopStart;
@@ -2276,6 +2412,11 @@ function initSoundForm(cueData, cueTypeId = getCurrentSoundCueTypeId()) {
 
   if (!cueData) {
     selectSoundSubtype(typeDefaults.soundSubtype || 'play_once');
+    syncSoundStartOscUi(typeDefaults.oscStartTrigger?.oscAction || 'none');
+    document.getElementById('p-start-osc-playback').value = String(typeDefaults.oscStartTrigger?.oscPlayback ?? 1);
+    document.getElementById('p-start-osc-cue').value = String(typeDefaults.oscStartTrigger?.oscCueNumber ?? '{cueNumber}');
+    document.getElementById('p-start-osc-level').value = String(typeDefaults.oscStartTrigger?.oscLevel ?? 100);
+    document.getElementById('p-start-osc-transport').value = String(typeDefaults.oscStartTrigger?.oscTransport ?? 'auto');
     currentClipPath = null;
     currentOscTriggers = [];
     document.getElementById('clip-name-text').textContent = 'No clip selected';
@@ -2300,6 +2441,11 @@ function initSoundForm(cueData, cueTypeId = getCurrentSoundCueTypeId()) {
   const merged = deepMerge(typeDefaults, cueData || {});
 
   selectSoundSubtype(merged.soundSubtype || 'play_once');
+  syncSoundStartOscUi(merged.oscStartTrigger?.oscAction || 'none');
+  document.getElementById('p-start-osc-playback').value = String(merged.oscStartTrigger?.oscPlayback ?? 1);
+  document.getElementById('p-start-osc-cue').value = String(merged.oscStartTrigger?.oscCueNumber ?? '{cueNumber}');
+  document.getElementById('p-start-osc-level').value = String(merged.oscStartTrigger?.oscLevel ?? 100);
+  document.getElementById('p-start-osc-transport').value = String(merged.oscStartTrigger?.oscTransport ?? 'auto');
 
   document.querySelectorAll('#play-style-control .seg-btn').forEach(b => {
     b.classList.toggle('selected', b.dataset.value === (merged.playStyle || 'alongside'));
@@ -2366,6 +2512,7 @@ function selectClip(path, filename) {
   currentClipPath = path;
   document.getElementById('clip-name-text').textContent = filename;
   document.getElementById('clip-browser').classList.remove('open');
+  resetSoundClipFields();
   loadWaveform(path);
 }
 
@@ -2391,6 +2538,7 @@ async function handleClipUpload(file) {
 
     currentClipPath = data.path;
     document.getElementById('clip-name-text').textContent = data.path.split('/').pop();
+    resetSoundClipFields();
     await loadWaveform(data.path);
   } catch (err) {
     console.error('Upload error:', err);
@@ -2403,6 +2551,8 @@ async function handleClipUpload(file) {
 }
 
 async function loadWaveform(url) {
+  previewSeekPosition = null;
+  previewPlayheadT = null;
   document.getElementById('waveform-empty').style.display = 'none';
   document.getElementById('waveform-canvas').style.display = 'none';
   document.getElementById('wf-handle-layer').style.display = 'none';
@@ -2452,6 +2602,7 @@ async function loadWaveform(url) {
       document.getElementById('p-loop-end').value = +dur.toFixed(3);
     }
 
+    updateAllSliderRanges();
     syncAllSlidersFromInputs();
     syncPreviewScrubberBounds();
     drawWaveform();
@@ -3131,6 +3282,8 @@ function previewStop() {
 
 function resetPreviewUI() {
   stopPlayheadAnimation();
+  previewPlayheadT = null;
+  previewSeekPosition = null;
   const btn = document.getElementById('preview-play-btn');
   if (btn) {
     btn.classList.remove('playing');
@@ -3140,6 +3293,7 @@ function resetPreviewUI() {
   if (devampBtn) devampBtn.style.display = 'none';
   const status = document.getElementById('preview-status');
   if (status) status.textContent = '';
+  drawWaveform();
 }
 
 async function persistAndRefresh() {

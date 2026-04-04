@@ -9,7 +9,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "remote"
+        "oscTransport": "auto"
       }
     ]
   },
