@@ -53,7 +53,7 @@
                   <xs:simpleContent>
                     <xs:extension base="xs:string">
                       <xs:attribute name="struck" type="xs:boolean" use="optional" />
-                      <xs:attribute name="id" type="xs:ID" use="optional" />
+                      <xs:attribute name="id" type="xs:string" use="optional" />
                     </xs:extension>
                   </xs:simpleContent>
                 </xs:complexType>
@@ -81,7 +81,7 @@
           <xs:simpleContent>
             <xs:extension base="xs:string">
               <xs:attribute name="struck" type="xs:boolean" use="optional" />
-              <xs:attribute name="id" type="xs:ID" use="optional" />
+              <xs:attribute name="id" type="xs:string" use="optional" />
             </xs:extension>
           </xs:simpleContent>
         </xs:complexType>
@@ -92,7 +92,7 @@
             <xs:simpleContent>
               <xs:extension base="xs:string">
                 <xs:attribute name="struck" type="xs:boolean" use="optional" />
-                <xs:attribute name="id" type="xs:ID" use="optional" />
+                <xs:attribute name="id" type="xs:string" use="optional" />
               </xs:extension>
             </xs:simpleContent>
           </xs:complexType>
@@ -102,7 +102,7 @@
             <xs:simpleContent>
               <xs:extension base="xs:string">
                 <xs:attribute name="struck" type="xs:boolean" use="optional" />
-                <xs:attribute name="id" type="xs:ID" use="optional" />
+                <xs:attribute name="id" type="xs:string" use="optional" />
               </xs:extension>
             </xs:simpleContent>
           </xs:complexType>
@@ -111,7 +111,7 @@
     </xs:sequence>
     <xs:attribute name="characterRef" type="xs:string" use="optional" />
     <xs:attribute name="struck" type="xs:boolean" use="optional" />
-    <xs:attribute name="id" type="xs:ID" use="optional" />
+    <xs:attribute name="id" type="xs:string" use="optional" />
   </xs:complexType>
 
   <xs:complexType name="StruckStringType">

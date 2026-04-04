@@ -4,7 +4,7 @@
   <Scene id="struck_00" sceneNumber="1000" pageStart="10" pageEnd="12"
     title="STORYTELLERS" struck="true">
     <Page number="10">
-      <StageDirection>Darkness. A fog has settled across the floor as STORYTELLERS appear onstage
+      <StageDirection id="f6eaf150-a13a-4b87-860f-d1db8f2bb210">Darkness. A fog has settled across the floor as STORYTELLERS appear onstage
         one by one, in very neat black suits, ties. All of them should all feel connected — like
         multiple parts of a kaleidoscope.</StageDirection>
       <DialogueBlock>
@@ -18,12 +18,12 @@
           now.</Line>
         <Line id="scene_1_1_line_5">If I take a step down into the deep with the ocean floor
           there...</Line>
-        <InlineDirection>They step forward.</InlineDirection>
+        <InlineDirection id="8fef9146-f618-45c1-9cb9-22b1e2698915">They step forward.</InlineDirection>
         <Line id="scene_1_1_line_6">The pressure builds. The water above pushes you down with
           gravity in a push and pull of nature.</Line>
         <Line id="scene_1_1_line_7">Among humans, the smart and the scared will only dive so far
           before the ocean collapses their lungs and squeezes their bodies.About here.</Line>
-        <InlineDirection>They take a smaller step.</InlineDirection>
+        <InlineDirection id="2820414c-f34e-4bad-9f55-816f4f8d8613">They take a smaller step.</InlineDirection>
         <Line id="scene_1_1_line_8">The rest below us is largely unknown. There isn't much for us
           there but the darkness and the creatures that drift in the great shadows.</Line>
         <Line id="scene_1_1_line_9">This is why you should fear the ocean. The things that go bump
@@ -51,7 +51,7 @@
   </Scene>
   <Scene id="prologue" sceneNumber="00" pageStart="12" pageEnd="13" title="Prologue: Dockworkers">
     <Page number="12">
-      <StageDirection>They disappear into the middle of the night at a shipyard. A DOCKWORKER is
+      <StageDirection id="184955c7-fa61-43fe-a914-f1e6d10bd85a">They disappear into the middle of the night at a shipyard. A DOCKWORKER is
         alone, in high vis and unloading crates from a forklift. There's a sound from the void. He
         stops, looks around and keeps on working. A shadow approaches, and grabs him from behind,
         screaming.</StageDirection>
@@ -66,7 +66,7 @@
         <Line id="scene_1_2_line_6">I dunno. Forms don't say much, I think they're from Russia. I
           can't tell. It all just looks like A's to me, Oi. You wanna try one?</Line>
       </DialogueBlock>
-      <StageDirection>He pries open a corner of the lid and pulls out two cans of energy drink.</StageDirection>
+      <StageDirection id="17f158e8-2267-463a-96e4-8eeb2751402b">He pries open a corner of the lid and pulls out two cans of energy drink.</StageDirection>
       <DialogueBlock>
         <Line id="scene_1_2_line_7">I dunno bruh. If they're being recalled wouldn't they be not
           good to drink?</Line>
@@ -80,24 +80,24 @@
         <Line id="scene_1_2_line_12">I want good vibes only.</Line>
         <Line id="scene_1_2_line_13">Yeah. Good vibes. Yew yew.</Line>
       </DialogueBlock>
-      <StageDirection>All DOCKWORKERS throw shakas.</StageDirection>
+      <StageDirection id="8206b5a3-f0df-4eac-8055-aff82afcd784">All DOCKWORKERS throw shakas.</StageDirection>
       <DialogueBlock>
         <Line id="scene_1_2_line_14">But man, we have to bust ourselves full-time for 72 thousand a
           year with comprehensive benefits. We should at least get something out of the deal. Sack
           up and get a drink up you.</Line>
       </DialogueBlock>
-      <StageDirection>He tosses a can of the stuff.</StageDirection>
+      <StageDirection id="f0d6bf86-0e78-45c9-9f80-e389de27ef0c">He tosses a can of the stuff.</StageDirection>
       <DialogueBlock>
         <Line id="scene_1_2_line_15">Fair point.</Line>
         <Line id="scene_1_2_line_16">See?</Line>
       </DialogueBlock>
-      <StageDirection>They take a long sip out of the cans. Suddenly, he starts choking. His friend
+      <StageDirection id="44f6136c-9ec8-46fc-b227-d264de933639">They take a long sip out of the cans. Suddenly, he starts choking. His friend
         starts panicking.</StageDirection>
       <DialogueBlock>
         <Line id="scene_1_2_line_17">Mate? You okay? Do I need to call someone? Oh no bruh. We're
           done. We are so done.</Line>
       </DialogueBlock>
-      <StageDirection>He continues to choke, but the choking eventually turns to laughter.</StageDirection>
+      <StageDirection id="d993d67f-1e0d-4717-91a2-8bfd61b97ed6">He continues to choke, but the choking eventually turns to laughter.</StageDirection>
     </Page>
     <Page number="13">
       <DialogueBlock>
@@ -115,11 +115,11 @@
         <Line id="scene_1_2_line_28">Too right.</Line>
         <Line id="scene_1_2_line_29">Not wrong.</Line>
       </DialogueBlock>
-      <StageDirection>They all laugh. And sigh.</StageDirection>
+      <StageDirection id="b248d07b-89e1-4e34-9f12-823b3d1a0c6c">They all laugh. And sigh.</StageDirection>
       <DialogueBlock>
         <Line id="scene_1_2_line_30">I'm actually pretty unhappy hey.</Line>
       </DialogueBlock>
-      <StageDirection>They both take another long sip and throw the cans over the edge of the dock.
+      <StageDirection id="015d1e9c-ee88-4cf3-9e43-af1f7f79f334">They both take another long sip and throw the cans over the edge of the dock.
         The cans sink to the bottom of the ocean, leaking energy drink as they go. The shadow of a
         small octopus swims into the light. He continues to swim up, rising, until he reaches the
         cans, He begins to shake violently, then comes to a stop. He swims now with much more
@@ -128,12 +128,12 @@
         sound, eerily close to laughter.</StageDirection>
     </Page>
     <Page number="14">
-      <StageDirection>A TITLE SEQUENCE of some sort.</StageDirection>
+      <StageDirection id="57b99c65-a2d6-4eb8-9ebb-02c7d8f4fbc4">A TITLE SEQUENCE of some sort.</StageDirection>
     </Page>
   </Scene>
   <Scene id="scene_1" sceneNumber="10" pageStart="14" pageEnd="23" title="Scene 1: First Day">
     <Page number="14">
-      <StageDirection>The middle of the school yard. The start of a new term, new year. STELLA is
+      <StageDirection id="04bd5b20-c26c-4683-a6a6-ce69aa38438f">The middle of the school yard. The start of a new term, new year. STELLA is
         sitting in the yard with TONY. TONY is eating M&amp;Ms.</StageDirection>
       <DialogueBlock>
         <Speaker>TONY</Speaker>
@@ -204,7 +204,7 @@
         <Speaker>TONY</Speaker>
         <Line id="scene_1_3_line_16">Well I did. Yew.</Line>
       </DialogueBlock>
-      <StageDirection>PRIYA runs in.</StageDirection>
+      <StageDirection id="dc510ea2-111d-460f-be8a-e50a74d787d5">PRIYA runs in.</StageDirection>
       <DialogueBlock>
         <Speaker>PRIYA</Speaker>
         <Line id="scene_1_3_line_17">You guys! Dakota said that Aaron Anderson just licked a seat in
@@ -295,12 +295,12 @@
           behaviour. Risk and reward. It's important for him to learn and reflect so he can change.
           And he'll lick pee so it's funny. Won't you?</Line>
       </DialogueBlock>
-      <StageDirection>TONY thinks about it.</StageDirection>
+      <StageDirection id="addb7699-d172-4ad8-a7b1-864c52bf2d37">TONY thinks about it.</StageDirection>
       <DialogueBlock>
         <Speaker>TONY</Speaker>
         <Line id="scene_1_3_line_36">Show me the dollar.</Line>
       </DialogueBlock>
-      <StageDirection>PRIYA does. TONY and her shake hands.</StageDirection>
+      <StageDirection id="5a120170-bf20-4da4-adb6-b627f4831c45">PRIYA does. TONY and her shake hands.</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_1_3_line_37">Tony, you're in Grade 10 now. We've gone through a lot of
@@ -324,7 +324,7 @@
         <Speaker>TONY</Speaker>
         <Line id="scene_1_3_line_41">This is going to be the best year ever!</Line>
       </DialogueBlock>
-      <StageDirection>TONY runs off to lick the toilet. TYSON skates in.</StageDirection>
+      <StageDirection id="b34083bd-5316-4f40-bec6-e150893af12e">TONY runs off to lick the toilet. TYSON skates in.</StageDirection>
     </Page>
     <Page number="17">
       <DialogueBlock>
@@ -360,7 +360,7 @@
           Watch out.</Line>
         <Line id="scene_1_3_line_49">Hey Priya.</Line>
       </DialogueBlock>
-      <StageDirection>PRIYA shrinks.</StageDirection>
+      <StageDirection id="c0baf9d6-e756-4e19-9960-1b9f4c431832">PRIYA shrinks.</StageDirection>
       <DialogueBlock>
         <Speaker>PRIYA</Speaker>
         <Line id="scene_1_3_line_50">UhyeahheyTyson.</Line>
@@ -393,7 +393,7 @@
         <Speaker>TYSON</Speaker>
         <Line id="scene_1_3_line_57">Sweet. Stay gold, big kids.</Line>
       </DialogueBlock>
-      <StageDirection>He skates away.</StageDirection>
+      <StageDirection id="55e318c4-6325-4b30-a4ea-19e3728fb792">He skates away.</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_1_3_line_58">Did my brother and your sister go on a date?</Line>
@@ -448,8 +448,8 @@
         <Line id="scene_1_3_line_69">Yeah, for sure. I think we'll be fine. This is going to be a
           big year.</Line>
       </DialogueBlock>
-      <StageDirection>KID [off] Oi Tonksie what're you doing? Tonksie!</StageDirection>
-      <StageDirection>Offstage, sounds of disgust and horror from near the toilet blocks. TONY
+      <StageDirection id="6f70b29c-631b-40b6-bdd6-a019f087bd06">KID [off] Oi Tonksie what're you doing? Tonksie!</StageDirection>
+      <StageDirection id="e5b2a0d1-7470-4f76-963c-aaa4806644a1">Offstage, sounds of disgust and horror from near the toilet blocks. TONY
         appears.</StageDirection>
       <DialogueBlock>
         <Speaker>TONY</Speaker>
@@ -459,7 +459,7 @@
         <Speaker>PRIYA</Speaker>
         <Line id="scene_1_3_line_71">That's not what Id call you.</Line>
       </DialogueBlock>
-      <StageDirection>She throws him the dollar. MISS DUANE, the Grade Ten Bio teacher, enters.</StageDirection>
+      <StageDirection id="695441c6-765d-4246-a58d-b8bb5c35e690">She throws him the dollar. MISS DUANE, the Grade Ten Bio teacher, enters.</StageDirection>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
         <Line id="scene_1_3_line_72">Tony Tonks, get over here now.</Line>
@@ -498,7 +498,7 @@
         <Speaker>TONY</Speaker>
         <Line id="scene_1_3_line_79">Miss!</Line>
       </DialogueBlock>
-      <StageDirection>MISS DUANE pulls out her detention slips.</StageDirection>
+      <StageDirection id="bf06b680-6cde-491e-ae5a-820ecf027d2f">MISS DUANE pulls out her detention slips.</StageDirection>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
         <Line id="scene_1_3_line_80">On the first day, too. That's a red hot record. Let's see...
@@ -553,7 +553,7 @@
       </DialogueBlock>
     </Page>
     <Page number="20">
-      <StageDirection>The school bell rings. It's a terrible song — something like Brave by Sara
+      <StageDirection id="35bcbea8-67d1-40a7-ad4b-918f1c4fafbb">The school bell rings. It's a terrible song — something like Brave by Sara
         Bareilles.</StageDirection>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
@@ -570,7 +570,7 @@
           off to assembly. And no more licking things. We haven't had a quarantine since the peanut
           outbreak at the school musical and I'm not going back there again. Assembly. Now.</Line>
       </DialogueBlock>
-      <StageDirection>MISS DUANE goes.</StageDirection>
+      <StageDirection id="ed33069e-17f5-4dea-855c-0ed32c495d4a">MISS DUANE goes.</StageDirection>
       <DialogueBlock>
         <Speaker>PRIYA</Speaker>
         <Line id="scene_1_3_line_93">Thanks a lot, you butt munch! You got me into trouble.</Line>
@@ -597,7 +597,7 @@
         <Line id="scene_1_3_line_98">Look, it's not a big deal. We'll just go to detention and
           that'll be it. At least we're doing it together.</Line>
       </DialogueBlock>
-      <StageDirection>MISS DUANE appears again as the other students scatter onstage to sit for
+      <StageDirection id="c8a4ee9f-cc4c-4bd8-b9ae-60612f9322bb">MISS DUANE appears again as the other students scatter onstage to sit for
         assembly.</StageDirection>
     </Page>
     <Page number="21">
@@ -606,7 +606,7 @@
         <Line id="scene_1_3_line_99">Guys. Thank you. Move. Jordan! Stop running. Straight lines
           please.</Line>
       </DialogueBlock>
-      <StageDirection>The bell rings again. Whatever song it is, stick with it for the rest of the
+      <StageDirection id="b5e6417b-ce5c-4917-b4a5-d89930cbbbf6">The bell rings again. Whatever song it is, stick with it for the rest of the
         show. We're in Assembly. MR FOWLER is addressing the students.</StageDirection>
       <DialogueBlock>
         <Speaker>FOWLER</Speaker>
@@ -614,7 +614,7 @@
           reminder that the demountables are out of bounds until the snake nests are dealt with. Do
           not approach the snakes. Also, I can't believe that I need to address this —</Line>
       </DialogueBlock>
-      <StageDirection>One of the kids is talking.</StageDirection>
+      <StageDirection id="18cede28-4490-47bd-b049-5df0bd518a60">One of the kids is talking.</StageDirection>
       <DialogueBlock>
         <Speaker>FOWLER</Speaker>
         <Line id="scene_1_4_line_2">I'll wait.</Line>
@@ -628,7 +628,7 @@
         <Line id="scene_1_4_line_4">I need to remind students not to make bets on licking toilets.
           Some of our Grade Tens who should know/ better</Line>
       </DialogueBlock>
-      <StageDirection>A KID</StageDirection>
+      <StageDirection id="267d7573-a1f1-496b-a90c-402a0a98f378">A KID</StageDirection>
       <DialogueBlock>
         <Speaker>KID</Speaker>
         <Line id="scene_1_4_line_5">Tonksie!</Line>
@@ -637,21 +637,21 @@
         <Speaker>FOWLER</Speaker>
         <Line id="scene_1_4_line_6">Than to be licking toilets.</Line>
       </DialogueBlock>
-      <StageDirection>Some laughter.</StageDirection>
+      <StageDirection id="43630843-cf9c-43ab-81a5-435ae63526b3">Some laughter.</StageDirection>
       <DialogueBlock>
         <Speaker>FOWLER</Speaker>
         <Line id="scene_1_4_line_7">Oh you all think that's funny? Getting on your knees and
           treating a toilet like a lollipop? In a 30 degree tin shed thats filthy with old urine?
           Hot porcelain? That's funny? Well laugh it up.</Line>
       </DialogueBlock>
-      <StageDirection>If the laughter continues:</StageDirection>
+      <StageDirection id="8ae45be5-197b-4e58-8340-528cfb294b9a">If the laughter continues:</StageDirection>
       <DialogueBlock>
         <Speaker>FOWLER</Speaker>
         <Line id="scene_1_4_line_8">I'll wait again. Your time, everyone. Not mine. Now I won't see
           it happen again. And now, I'd like to invite the SRC representatives, Madison, Maddison
           and Madyson who'll be giving a short reminder on the Year 10 pre-formal.</Line>
       </DialogueBlock>
-      <StageDirection>The SRC take the podium. Scattered applause. The girls are very polished
+      <StageDirection id="53f18ce7-96a6-4f8b-ae62-0647d3e7a044">The SRC take the podium. Scattered applause. The girls are very polished
         presenters.</StageDirection>
     </Page>
     <Page number="22">
@@ -661,7 +661,7 @@
           For those of you who don't know me, my name is Madison, and It's my pleasure to be serving
           as your President of the SRC!</Line>
       </DialogueBlock>
-      <StageDirection>She holds for an applause she'll never hear.</StageDirection>
+      <StageDirection id="94089b98-21f7-4964-ae64-d4ef0863dfd2">She holds for an applause she'll never hear.</StageDirection>
       <DialogueBlock>
         <Speaker>MADISON</Speaker>
         <Line id="scene_1_4_line_10">Also, this is Maddison and Madyson with a Y.</Line>
@@ -742,7 +742,7 @@
         <Speaker>FOWLER</Speaker>
         <Line id="scene_1_4_line_26">Okay, that's enough. Thank you girls.</Line>
       </DialogueBlock>
-      <StageDirection>More scattered applause.</StageDirection>
+      <StageDirection id="a0ef5c6e-3be0-4257-9f0a-e8345706b02b">More scattered applause.</StageDirection>
       <DialogueBlock>
         <Speaker>FOWLER</Speaker>
         <Line id="scene_1_4_line_27">Alright, thank you everyone, now off to your next period
@@ -752,7 +752,7 @@
   </Scene>
   <Scene id="scene_2" sceneNumber="20" pageStart="23" pageEnd="28" title="Scene 2: Detention">
     <Page number="23">
-      <StageDirection>Later in the day. School has ended, MISS DUANE is in the science lab with the
+      <StageDirection id="d27cc374-b947-4873-b232-edac96982e09">Later in the day. School has ended, MISS DUANE is in the science lab with the
         kids.</StageDirection>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
@@ -796,7 +796,7 @@
           much it. Not particularly exciting. Anyway, the curriculum has shifted a little again, so
           I thought we could try a new friend this year.</Line>
       </DialogueBlock>
-      <StageDirection>She lifts up a big fishbowl. Inside is a tiny octopus.</StageDirection>
+      <StageDirection id="b3f675c9-1b1b-4497-8b07-e0f58497ecb2">She lifts up a big fishbowl. Inside is a tiny octopus.</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_1_5_line_9">Wow, a squid!</Line>
@@ -815,7 +815,7 @@
         <Line id="scene_1_5_line_12">Clean the new tank, and then maybe we can decide on a name.
           I'll be outside.</Line>
       </DialogueBlock>
-      <StageDirection>She opens Tinder on her phone and leaves. PRIYA pulls out her Switch, and Tony
+      <StageDirection id="37277c53-d241-4c84-a201-a4d65f3d1d3a">She opens Tinder on her phone and leaves. PRIYA pulls out her Switch, and Tony
         starts eating a full packet of biscuits. STELLA starts tidying the tank.</StageDirection>
       <DialogueBlock>
         <Speaker>PRIYA</Speaker>
@@ -878,7 +878,7 @@
         <Line id="scene_1_5_line_25">Last night I went down this Youtube hole about the history of
           using/ bronze as ...</Line>
       </DialogueBlock>
-      <StageDirection>She's met with groans.</StageDirection>
+      <StageDirection id="5d06eb0c-8ef0-45f2-9a4a-d03617ee2f41">She's met with groans.</StageDirection>
       <DialogueBlock>
         <Speaker>TONY</Speaker>
         <Line id="scene_1_5_line_26">But that's not really fun though, is it? You have to live a
@@ -908,7 +908,7 @@
         <Speaker>STELLA</Speaker>
         <Line id="scene_1_5_line_31">I dort want to be icing.</Line>
       </DialogueBlock>
-      <StageDirection>She thinks for a minute for something to do, and then starts attempting to
+      <StageDirection id="a01596bc-633d-4de5-9d25-d4d7ebb53c80">She thinks for a minute for something to do, and then starts attempting to
         breakdance.</StageDirection>
       <DialogueBlock>
         <Speaker>PRIYA</Speaker>
@@ -924,7 +924,7 @@
       </DialogueBlock>
     </Page>
     <Page number="26">
-      <StageDirection>She attempts a floor routine, but bumps the fish tank, shaking it.</StageDirection>
+      <StageDirection id="f1fc15b1-7430-4d78-b134-68e92999a52a">She attempts a floor routine, but bumps the fish tank, shaking it.</StageDirection>
       <DialogueBlock>
         <Speaker>PRIYA</Speaker>
         <Line id="scene_1_5_line_35">Look out!</Line>
@@ -937,7 +937,7 @@
         <Speaker>TONY</Speaker>
         <Line id="scene_1_5_line_37">Is he okay? Poor little guy.</Line>
       </DialogueBlock>
-      <StageDirection>MISS DUANE returns, still on her phone.</StageDirection>
+      <StageDirection id="5f7bb439-b1a7-4e77-8433-57e394d75931">MISS DUANE returns, still on her phone.</StageDirection>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
         <Line id="scene_1_5_line_38">Are we done?</Line>
@@ -951,7 +951,7 @@
         <Line id="scene_1_5_line_40">Don't worry about it, the guy at the pet store said cleaning
           wasn't that big of a deal. I also got a bit of a vibe from him. So.</Line>
       </DialogueBlock>
-      <StageDirection>The kids stare blankly.</StageDirection>
+      <StageDirection id="eee8579b-bc62-4323-93bf-98151c97651c">The kids stare blankly.</StageDirection>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
         <Line id="scene_1_5_line_41">Let's think of a name for him and then we can go home.</Line>
@@ -1014,7 +1014,7 @@
         <Speaker>PRIYA</Speaker>
         <Line id="scene_1_5_line_55">It's okay, his attention span is pretty short.</Line>
       </DialogueBlock>
-      <StageDirection>TONY is eating again.</StageDirection>
+      <StageDirection id="be911003-6aa8-43cd-bf61-c5f580917343">TONY is eating again.</StageDirection>
       <DialogueBlock>
         <Speaker>TONY</Speaker>
         <Line id="scene_1_5_line_56">I'm wearing new socks today.</Line>
@@ -1023,12 +1023,12 @@
         <Speaker>DUANE</Speaker>
         <Line id="scene_1_5_line_57">Right then, home time. Let's go. Scoot. Out.</Line>
       </DialogueBlock>
-      <StageDirection>They all leave, STELLA is lagging behind.</StageDirection>
+      <StageDirection id="23208b69-38ec-450a-bdd4-af22c41b7129">They all leave, STELLA is lagging behind.</StageDirection>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
         <Line id="scene_1_5_line_58">That means you too, Stella.</Line>
       </DialogueBlock>
-      <StageDirection>MISS DUANE goes, STELLA goes back to the fish tank.</StageDirection>
+      <StageDirection id="e284a941-eedd-4491-873c-e3a6e7ed88c1">MISS DUANE goes, STELLA goes back to the fish tank.</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_1_5_line_59">It's lovely to meet you, Squish. My name is Stella Bunt. Is it
@@ -1046,7 +1046,7 @@
         <Line id="scene_1_5_line_61">I'm sorry, listen to me go on. I have to go. You're a good
           listener, buddy.</Line>
       </DialogueBlock>
-      <StageDirection>She turns to leave. Suddenly, a small pebble is thrown from the tank and hits
+      <StageDirection id="945bd7ee-d864-4096-bafd-5ecc7c4b8f15">She turns to leave. Suddenly, a small pebble is thrown from the tank and hits
         her in the back of the head, She picks up the pebble and leans in close to the tank. SQUISH
         slams against the glass, trying to reach STELLA. TONY and PRIYA return and SQUISH goes back
         to behaving normally.</StageDirection>
@@ -1093,13 +1093,13 @@
         <Speaker>PRIYA</Speaker>
         <Line id="scene_1_5_line_71">I'm just saying stuff like that isn't unusual.</Line>
       </DialogueBlock>
-      <StageDirection>The classroom lights turn off, and the kids leave.</StageDirection>
+      <StageDirection id="2cf468be-9f62-4cdf-8cdd-d8e28922fa8f">The classroom lights turn off, and the kids leave.</StageDirection>
     </Page>
   </Scene>
   <Scene id="scene_2_5" sceneNumber="25" pageStart="28" pageEnd="30"
     title="Scene 2.5: News/Stella's Home">
     <Page number="28">
-      <StageDirection>STELLA is now at home with TYSON, both on their laptops. The TV is on in the
+      <StageDirection id="64b7ad15-d735-4a46-9675-1a432ebabaea">STELLA is now at home with TYSON, both on their laptops. The TV is on in the
         background.</StageDirection>
       <DialogueBlock>
         <Speaker>TYSON</Speaker>
@@ -1167,7 +1167,7 @@
           awesome: We spoke to some of the men's colleagues earlier, before they too died
           suspiciously.</Line>
       </DialogueBlock>
-      <StageDirection>Some of the DOCKWORKERS from before being interviewed.</StageDirection>
+      <StageDirection id="c6810e47-c2cb-44dc-907f-25546648cc3d">Some of the DOCKWORKERS from before being interviewed.</StageDirection>
       <DialogueBlock>
         <Line id="scene_1_6_line_13">Just goes to show you never know when it's your time, hey?</Line>
         <Line id="scene_1_6_line_14">One minute you're drinking energy drink that so called experts
@@ -1177,7 +1177,7 @@
         <Line id="scene_1_6_line_16">But they died doing what they loved, you know?</Line>
         <Line id="scene_1_6_line_17">Geeing each other up.</Line>
       </DialogueBlock>
-      <StageDirection>They raise cans of the drinks to sip.</StageDirection>
+      <StageDirection id="dbcfa246-0cd1-4802-bf2e-2aef3c3fbd45">They raise cans of the drinks to sip.</StageDirection>
     </Page>
     <Page number="30">
       <DialogueBlock>
@@ -1195,7 +1195,7 @@
       <DialogueBlock>
         <Speaker>TYSON</Speaker>
         <Line id="scene_1_6_line_21">Ugh. Who watches the news on TV anymore?</Line>
-        <InlineDirection>He shuts it off.</InlineDirection>
+        <InlineDirection id="a7f3d76e-fbe5-4ac5-a320-225ad52f6dcc">He shuts it off.</InlineDirection>
       </DialogueBlock>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
@@ -1206,7 +1206,7 @@
         <Line id="scene_1_6_line_23">Stick to podcasts, you little weirdo. News is for boomers. Get
           to bed.</Line>
       </DialogueBlock>
-      <StageDirection>
+      <StageDirection id="2c32c5dd-a5e8-4091-9653-9d51f95e1bae">
         They leave. In the shadows, a silhouette of an octopus appears, crawling in the middle of a
         street. A can of energy drink lies at the side of the road. The octopus continues to crawl,
         until he touches some of the spilled liquid. Suddenly, he shakes and begins to grow larger
@@ -1216,7 +1216,7 @@
   <Scene id="scene_3" sceneNumber="30" pageStart="30" pageEnd="39"
     title="Scene 3: Meeting Greg/The SRC">
     <Page number="30">
-      <StageDirection>The kids
+      <StageDirection id="9a720897-8291-4048-8915-81e4860aa49e">The kids
       enter the science lab. They have the cleaning equipment ready to work.</StageDirection>
       <DialogueBlock>
         <Speaker>TONY</Speaker>
@@ -1294,7 +1294,7 @@
           there's no way he could
           have gotten out, so he must be here somewhere.</Line>
       </DialogueBlock>
-      <StageDirection>MISS DUANE enters, on her phone.</StageDirection>
+      <StageDirection id="51f391e7-72f7-47b5-91e0-92f86ffe50a9">MISS DUANE enters, on her phone.</StageDirection>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
         <Line id="scene_2_1_line_18">How's the cleaning coming along? Ready for afternoon tea?</Line>
@@ -1308,7 +1308,7 @@
         <Speaker>TONY</Speaker>
         <Line id="scene_2_1_line_21">And we're looking for Squish!</Line>
       </DialogueBlock>
-      <StageDirection>Death stares from the girls.</StageDirection>
+      <StageDirection id="8b8a89f2-e414-4759-ba99-c8d5639a562d">Death stares from the girls.</StageDirection>
       <DialogueBlock>
         <Speaker>TONY</Speaker>
         <Line id="scene_2_1_line_22">Sorry. Because we lost him.</Line>
@@ -1355,7 +1355,7 @@
         <Speaker>DUANE</Speaker>
         <Line id="scene_2_1_line_34">Excellent. Greg?</Line>
       </DialogueBlock>
-      <StageDirection>GREG enters. He is the octopus, now the size of a man, but is not so cleverly
+      <StageDirection id="03f44b25-76eb-40ab-8f47-86d1338a34c6">GREG enters. He is the octopus, now the size of a man, but is not so cleverly
         disguised as a little boy in school uniform. On his head is a giant, hideous paper mache
         head painted with a smiley face, with a hole for his mouth, full of teeth that are coated
         with vile black drool.</StageDirection>
@@ -1372,7 +1372,7 @@
         <Speaker>DUANE</Speaker>
         <Line id="scene_2_1_line_38">Have some afternoon tea and I'll be back to check on you.</Line>
       </DialogueBlock>
-      <StageDirection>They stare at each other, frozen.</StageDirection>
+      <StageDirection id="538b7a76-d8c4-4c20-8576-632a91c7e48c">They stare at each other, frozen.</StageDirection>
       <DialogueBlock>
         <Speaker>PRIYA</Speaker>
         <Line id="scene_2_1_line_39">My afternoon tea is outside.</Line>
@@ -1381,31 +1381,31 @@
         <Speaker>TONY</Speaker>
         <Line id="scene_2_1_line_40">I also have to go.</Line>
       </DialogueBlock>
-      <StageDirection>They leave quickly.</StageDirection>
+      <StageDirection id="46f02124-5d14-4988-bfdf-56f5e23391df">They leave quickly.</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_2_1_line_41">It's nice to meet you, Greg. I'm Stella Bunt. I know it must</Line>
         <Line id="scene_2_1_line_42">be hard having a new school. It's pretty easy to get lost</Line>
         <Line id="scene_2_1_line_43">here. Did anybody show you where anything is'</Line>
       </DialogueBlock>
-      <StageDirection>Silence.</StageDirection>
+      <StageDirection id="2fdb37e8-cda1-40e3-90f0-39050398d936">Silence.</StageDirection>
     </Page>
     <Page number="33">
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_2_1_line_44">Okay. Do you know anybody from this school?</Line>
       </DialogueBlock>
-      <StageDirection>Silence.</StageDirection>
+      <StageDirection id="66f763c5-4dd8-47ac-a53f-5da461146f65">Silence.</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_2_1_line_45">I mean. It's okay to be nervous. I don't bite.</Line>
       </DialogueBlock>
-      <StageDirection>GREG suddenly moves up in her face.</StageDirection>
+      <StageDirection id="6868e028-a536-4848-a163-e762f1dd8400">GREG suddenly moves up in her face.</StageDirection>
       <DialogueBlock>
         <Speaker>GREG</Speaker>
         <Line id="scene_2_1_line_46">I'm going to murder you.</Line>
       </DialogueBlock>
-      <StageDirection>He leaves as TONY and PRIYA re-enter.</StageDirection>
+      <StageDirection id="df398461-b128-40ca-8856-09ec5b8c94e4">He leaves as TONY and PRIYA re-enter.</StageDirection>
       <DialogueBlock>
         <Speaker>TONY</Speaker>
         <Line id="scene_2_1_line_47">So what's the new kid like?</Line>
@@ -1528,7 +1528,7 @@
           why can't you? Get
           others!</Line>
       </DialogueBlock>
-      <StageDirection>STELLA enters.</StageDirection>
+      <StageDirection id="340906c6-bcf5-48d0-a2c6-1618f290f5fa">STELLA enters.</StageDirection>
     </Page>
     <Page number="35">
       <DialogueBlock>
@@ -1560,7 +1560,7 @@
         <Speaker>STELLA</Speaker>
         <Line id="scene_2_2_line_9">Yeah. He's been giving me some trouble.</Line>
       </DialogueBlock>
-      <StageDirection>MADYSON and MADDISON drop everything and swarm in.</StageDirection>
+      <StageDirection id="79e95c62-faad-4c6a-a043-2906e6275aac">MADYSON and MADDISON drop everything and swarm in.</StageDirection>
       <DialogueBlock>
         <Speaker>MADYSON</Speaker>
         <Line id="scene_2_2_line_10">Shut the front door.</Line>
@@ -1663,10 +1663,10 @@
         <Line id="scene_2_2_line_31">Now youre getting it. We don't talk enough by the way. Let's do
           this again soon.</Line>
       </DialogueBlock>
-      <StageDirection>She hugs STELLA.</StageDirection>
+      <StageDirection id="f52f85ff-5b25-4007-bf0d-78baef54a5d4">She hugs STELLA.</StageDirection>
     </Page>
     <Page number="37" struck="true">
-      <StageDirection>Inside a group chat.</StageDirection>
+      <StageDirection id="ec06b76d-4914-491d-93d0-dcbed3461c49">Inside a group chat.</StageDirection>
       <DialogueBlock>
         <Speaker>ALL</Speaker>
         <Line id="scene_2_3_line_1">There's a new kid at the school.</Line>
@@ -1719,18 +1719,18 @@
           id="scene_2_3_line_20">I heard he applied for Australia's Got Talent and got through to
         the filmed bit.</Line>
       </DialogueBlock>
-      <StageDirection>Rumours continue to swirl as the voices get louder and each of the kids log
+      <StageDirection id="14c1eee3-6be5-4fa5-805e-5ca0e338ab79">Rumours continue to swirl as the voices get louder and each of the kids log
         off until the last one remains ...</StageDirection>
       <DialogueBlock>
         <Line id="scene_2_3_line_21">I posted a Baby Yoda meme.</Line>
       </DialogueBlock>
-      <StageDirection>Dramatic music.</StageDirection>
+      <StageDirection id="4f276dc5-75fb-4648-9ff0-3c13620db1ba">Dramatic music.</StageDirection>
     </Page>
   </Scene>
   <Scene id="scene_4" sceneNumber="40" pageStart="39" pageEnd="42" title="Scene 4: Dodgeball">
     <Page number="38">
-      <StageDirection>DODGEBALL</StageDirection>
-      <StageDirection>The sound of a whistle. MR RIDGE, the PE Teacher has gathered the kids into
+      <StageDirection id="d87b87f0-3cd5-4c5f-ab5e-a5eefd774296">DODGEBALL</StageDirection>
+      <StageDirection id="f53d2309-ac1f-4b64-91c9-0573114d6cb7">The sound of a whistle. MR RIDGE, the PE Teacher has gathered the kids into
         teams. They're lined up to play. STELLA and GREG are on the same team.</StageDirection>
       <DialogueBlock>
         <Speaker>RIDGE</Speaker>
@@ -1741,7 +1741,7 @@
           world than dodging balls in a game we like to call ... Dodgeball. The game is simple,
           everyone. Dodge the balls. You're hit, you're out. Work as a team. You ready?</Line>
       </DialogueBlock>
-      <StageDirection>He blows the whistle. Music pumps, it's extreme. The team quickly gets
+      <StageDirection id="79cca949-ac6a-4005-a4b4-0eb2e0705094">He blows the whistle. Music pumps, it's extreme. The team quickly gets
         whittled down until STELLA and GREG are the only two left on their team. GREG suddenly
         throws a ball at STELLA, hard.</StageDirection>
       <DialogueBlock>
@@ -1764,7 +1764,7 @@
           you're out.</Line>
         <Line id="scene_2_4_line_6">Wouldn't be the first time balls hit her in the face.</Line>
       </DialogueBlock>
-      <StageDirection>Snickers from some of the boys.</StageDirection>
+      <StageDirection id="6d7bb1b5-5624-43c5-af8c-0bd62784d019">Snickers from some of the boys.</StageDirection>
       <DialogueBlock>
         <Speaker>PRIYA</Speaker>
         <Line id="scene_2_4_line_7">Hey! Six, you have to do something.</Line>
@@ -1775,7 +1775,7 @@
           game is fair. Sit down,
           Stella. You're out.</Line>
       </DialogueBlock>
-      <StageDirection>STELLA sighs and leaves the court. GREG beats the other team effortlessly. We
+      <StageDirection id="11481506-f2f0-49ab-bb25-b3b9e1215e5a">STELLA sighs and leaves the court. GREG beats the other team effortlessly. We
         should see a bit more of his vicious streak here.</StageDirection>
       <DialogueBlock>
         <Speaker>RIDGE</Speaker>
@@ -1783,7 +1783,7 @@
           and changed before
           next period. Stella. A word please.</Line>
       </DialogueBlock>
-      <StageDirection>The other kids leave.</StageDirection>
+      <StageDirection id="00915991-a6ef-4aa4-9d7f-bf6d6b89ebff">The other kids leave.</StageDirection>
       <DialogueBlock>
         <Speaker>RIDGE</Speaker>
         <Line id="scene_2_4_line_10">I hope you realise that I don't find it fun to have to stick to
@@ -1804,7 +1804,7 @@
       </DialogueBlock>
     </Page>
     <Page number="39" struck="true">
-      <StageDirection>The boys' locker room. GREG is drinking another of the energy drinks.</StageDirection>
+      <StageDirection id="7b44bd56-1f57-4f5c-a69a-a0987c586252">The boys' locker room. GREG is drinking another of the energy drinks.</StageDirection>
       <DialogueBlock struck="true">
         <Speaker>ALL</Speaker>
         <Line id="scene_2_5_line_1">Okay, what about Madyson with a Y?</Line>
@@ -1835,7 +1835,7 @@
         <Line id="scene_2_5_line_12">What if they gave you numbers?</Line>
         <Line id="scene_2_5_line_13">I wouldn't care. I'd be like a 9.</Line>
       </DialogueBlock>
-      <StageDirection struck="true">He burps.</StageDirection>
+      <StageDirection struck="true" id="919e7e96-29bc-49d4-8cec-71efedb54dc6">He burps.</StageDirection>
       <DialogueBlock struck="true">
         <Line id="scene_2_5_line_14">At least.</Line>
       </DialogueBlock>
@@ -1843,7 +1843,7 @@
         <Speaker>TONY</Speaker>
         <Line id="scene_2_5_line_15">I just think itd be best if we didn't.</Line>
       </DialogueBlock>
-      <StageDirection struck="true">GREG senses weakness.</StageDirection>
+      <StageDirection struck="true" id="31773673-3283-495c-8a4e-2ef1018537d7">GREG senses weakness.</StageDirection>
       <DialogueBlock struck="true">
         <Speaker>GREG</Speaker>
         <Line id="scene_2_5_line_16">You would.</Line>
@@ -1869,14 +1869,14 @@
         <Speaker>GREG</Speaker>
         <Line id="scene_2_5_line_23">Oh, so you wouldn't mind if I had a crack then?</Line>
       </DialogueBlock>
-      <StageDirection struck="true">TONY picks up his bag to leave. All other boys are leaving.</StageDirection>
+      <StageDirection struck="true" id="2c33c70c-9c4e-436a-9738-b0a8d2939f51">TONY picks up his bag to leave. All other boys are leaving.</StageDirection>
       <DialogueBlock struck="true">
         <Speaker>GREG</Speaker>
         <Line id="scene_2_5_line_24">Oh, it's just a joke Tonksie. You're not going to say anything
           are you?</Line>
         <Line id="scene_2_5_line_25">He's not going to say a thing if he knows what's good for him.</Line>
       </DialogueBlock>
-      <StageDirection struck="true">This is a test for TONY. He fails and he knows it.</StageDirection>
+      <StageDirection struck="true" id="313bc858-9147-4f5c-9fb8-4ade1378873a">This is a test for TONY. He fails and he knows it.</StageDirection>
       <DialogueBlock struck="true">
         <Speaker>TONY</Speaker>
         <Line id="scene_2_5_line_26">I won't.</Line>
@@ -1885,7 +1885,7 @@
         <Speaker>GREG</Speaker>
         <Line id="scene_2_5_line_27">Good boy. Now get out.</Line>
       </DialogueBlock>
-      <StageDirection>He does. GREG is alone and starts to change. STELLA enters and sees GREG in
+      <StageDirection id="1a7765b9-0f03-4fe8-b8b3-d1adca49f1b2">He does. GREG is alone and starts to change. STELLA enters and sees GREG in
         octopus form.</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
@@ -1903,7 +1903,7 @@
         <Speaker>GREG</Speaker>
         <Line id="scene_2_5_line_31">Get out of here! NOW!</Line>
       </DialogueBlock>
-      <StageDirection>STELLA doesn't move.</StageDirection>
+      <StageDirection id="b3619f6a-d485-4049-8f79-2e3f53501166">STELLA doesn't move.</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_2_5_line_32">Your legs.</Line>
@@ -1956,7 +1956,7 @@
         <Speaker>GREG</Speaker>
         <Line id="scene_2_5_line_45">Now!</Line>
       </DialogueBlock>
-      <StageDirection>STELLA quickly takes off her shoes and hands them to GREG.</StageDirection>
+      <StageDirection id="d381f232-2f36-4098-9dfb-2cc0078de05e">STELLA quickly takes off her shoes and hands them to GREG.</StageDirection>
       <DialogueBlock>
         <Speaker>GREG</Speaker>
         <Line id="scene_2_5_line_46">Get out.</Line>
@@ -1966,7 +1966,7 @@
   <Scene id="scene_5" sceneNumber="50" pageStart="42" pageEnd="52"
     title="Scene 5: Grade 7's vs Tony vs Greg">
     <Page number="42">
-      <StageDirection>MISS DUANE is on playground duty.</StageDirection>
+      <StageDirection id="3bcfc563-5024-4cca-9b10-03a65b990562">MISS DUANE is on playground duty.</StageDirection>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
         <Line id="scene_2_6_line_1">Stella, where are your shoes?</Line>
@@ -2069,7 +2069,7 @@
           into this job. Treat em
           mean, Stella. Meeeeeaaaan.</Line>
       </DialogueBlock>
-      <StageDirection>She leaves.</StageDirection>
+      <StageDirection id="cc10c17f-4333-4986-9c78-95b97a6bf4ea">She leaves.</StageDirection>
       <DialogueBlock>
         <Speaker>PRIYA</Speaker>
         <Line id="scene_2_6_line_22">Are you okay?</Line>
@@ -2080,7 +2080,7 @@
           not cool? Are other
           kids doing it?</Line>
       </DialogueBlock>
-      <StageDirection>TONY rips off his shoes.</StageDirection>
+      <StageDirection id="a6976db6-7491-427b-90e3-9106391e4f27">TONY rips off his shoes.</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_2_6_line_24">Greg took them.</Line>
@@ -2179,7 +2179,7 @@
           teachers, and the SRC. I don't
           know what to do.</Line>
       </DialogueBlock>
-      <StageDirection>TONY and PRIYA look at each other.</StageDirection>
+      <StageDirection id="b2df9a78-13e5-4eef-965c-e738d092dc42">TONY and PRIYA look at each other.</StageDirection>
       <DialogueBlock>
         <Speaker>PRIYA</Speaker>
         <Line id="scene_2_6_line_44">Look, Stella, there is another way.</Line>
@@ -2257,7 +2257,7 @@
       </DialogueBlock>
     </Page>
     <Page number="46">
-      <StageDirection>TONY is alone behind the sheds, terrified. There is fast movement in the
+      <StageDirection id="a1a13810-9d22-4493-968e-0e7046314347">TONY is alone behind the sheds, terrified. There is fast movement in the
         shadows, eerie giggling. It's very spooky</StageDirection>
       <DialogueBlock>
         <Line id="scene_3_1_line_1">You're a long way from home, Grade 10er. Heeeeheeeheee.</Line>
@@ -2278,7 +2278,7 @@
       <DialogueBlock>
         <Line id="scene_3_1_line_7">We don't bargain. We demand.</Line>
       </DialogueBlock>
-      <StageDirection>THE GRADE 7s emerge from the shadows in formation on scooters. They
+      <StageDirection id="f42e6459-f26b-4cad-9784-1bfeaa008b1b">THE GRADE 7s emerge from the shadows in formation on scooters. They
         possibly have weapons</StageDirection>
       <DialogueBlock>
         <Speaker>TONY</Speaker>
@@ -2300,7 +2300,7 @@
         <Speaker>TONY</Speaker>
         <Line id="scene_3_1_line_14">I know. I brought one.</Line>
       </DialogueBlock>
-      <StageDirection>One of the kids scoots forward and snatches it. She checks it with her
+      <StageDirection id="7b6d199e-2e91-44b8-8ded-e9269c85cc3e">One of the kids scoots forward and snatches it. She checks it with her
         phone. </StageDirection>
       <DialogueBlock>
         <Line id="scene_3_1_line_15">Gimme that.</Line>
@@ -2365,8 +2365,8 @@
         <Speaker>TONY</Speaker>
         <Line id="scene_3_1_line_32">Yeahokaythankyou.</Line>
       </DialogueBlock>
-      <StageDirection>TONY runs.</StageDirection>
-      <StageDirection>MR FOWLER is sitting with GREG.</StageDirection>
+      <StageDirection id="3c9d770a-fee2-49e6-b0a2-c54b6036ab6d">TONY runs.</StageDirection>
+      <StageDirection id="0921cda1-fc87-4825-9321-f08f8ccd522d">MR FOWLER is sitting with GREG.</StageDirection>
     </Page>
     <Page number="48">
       <DialogueBlock>
@@ -2375,7 +2375,7 @@
           trouble. I know some of the students freak out a bit when they get called into my office.
           Freak out. Do kids still say that? Am I saying that right?</Line>
       </DialogueBlock>
-      <StageDirection>Silence.</StageDirection>
+      <StageDirection id="29d5b708-2ea6-48ee-938c-b259812ce444">Silence.</StageDirection>
       <DialogueBlock>
         <Speaker>FOWLER</Speaker>
         <Line id="scene_3_2_line_2">Matey, this is just a check in to see how youre fitting in with
@@ -2399,13 +2399,13 @@
         <Speaker>FOWLER</Speaker>
         <Line id="scene_3_2_line_6">Alright then, on your way buddy. My door is always open.</Line>
       </DialogueBlock>
-      <StageDirection>GREG leaves, and is alone. He sniffs the air. The sound of rattling chains.
+      <StageDirection id="f1c7da90-1f69-4da4-bfb7-9ab0db528b3f">GREG leaves, and is alone. He sniffs the air. The sound of rattling chains.
         Something is near.</StageDirection>
 
       <DialogueBlock>
         <Line id="scene_3_3_line_1">We've heard a lot about you, Grade 10er.</Line>
       </DialogueBlock>
-      <StageDirection>THE GRADE 7s emerge on their scooters, armed to the teeth.</StageDirection>
+      <StageDirection id="43315840-e577-45d8-b03d-aa0e56743cc8">THE GRADE 7s emerge on their scooters, armed to the teeth.</StageDirection>
       <DialogueBlock>
         <Line id="scene_3_3_line_2">We've gotta admit it, we kind of admire you.</Line>
         <Line id="scene_3_3_line_3">This isn't personal, you know.</Line>
@@ -2423,14 +2423,14 @@
       </DialogueBlock>
     </Page>
     <Page number="49">
-      <StageDirection>GREG laughs.</StageDirection>
+      <StageDirection id="fa2d2a68-5da5-4a42-85f9-e9904efe0366">GREG laughs.</StageDirection>
       <DialogueBlock>
         <Speaker>GREG</Speaker>
         <Line id="scene_3_3_line_10">Finally.</Line>
       </DialogueBlock>
-      <StageDirection>They run at each other as the stage goes dark.</StageDirection>
+      <StageDirection id="aa88f406-3fac-4c65-ac47-28fca1b21b05">They run at each other as the stage goes dark.</StageDirection>
 
-      <StageDirection>The bells marks the next day at assembly. The students are all gathered,</StageDirection>
+      <StageDirection id="ba1a2ea4-3883-4a6f-b728-4b72d7b19bdd">The bells marks the next day at assembly. The students are all gathered,</StageDirection>
       <DialogueBlock>
         <Speaker>FOWLER</Speaker>
         <Line id="scene_3_4_line_1">I have a good mind to cancel the Pre-Formal entirely! At this
@@ -2439,7 +2439,7 @@
           problems with violence! We have half of the Grade 7 cohort in hospital right now! One has
           a scooter inserted into their bottom!</Line>
       </DialogueBlock>
-      <StageDirection>Laughter from the students.</StageDirection>
+      <StageDirection id="937d8233-042e-42a2-9917-389fbbd8ef17">Laughter from the students.</StageDirection>
       <DialogueBlock>
         <Speaker>PRIYA</Speaker>
         <Line id="scene_3_4_line_2">We're so dead.</Line>
@@ -2460,26 +2460,26 @@
           the hospital being suspended from the ceiling with their bare rear end in the air! Where
           everyone can see it? That's funny to you?</Line>
       </DialogueBlock>
-      <StageDirection>More laughter.</StageDirection>
+      <StageDirection id="b2e4ba2d-c0bb-40ad-a3db-428662cb734f">More laughter.</StageDirection>
       <DialogueBlock>
         <Speaker>FOWLER</Speaker>
         <Line id="scene_3_4_line_6">I'll wait.</Line>
       </DialogueBlock>
-      <StageDirection>He does.</StageDirection>
+      <StageDirection id="f99ebb3e-6933-4634-b80b-f7b7ac34e57a">He does.</StageDirection>
       <DialogueBlock>
         <Speaker>FOWLER</Speaker>
         <Line id="scene_3_4_line_7">The dance will go ahead tonight, and only because the deposits
           are non-refundable. But mark my words. If there is any trouble, any at all. I will come
           down on you. Hard. And fast.</Line>
       </DialogueBlock>
-      <StageDirection>More laughter.</StageDirection>
+      <StageDirection id="90e81d8a-32b5-4369-8e6b-159ef122d35f">More laughter.</StageDirection>
       <DialogueBlock>
         <Speaker>FOWLER</Speaker>
         <Line id="scene_3_4_line_8">Your time, guys, not mine.</Line>
       </DialogueBlock>
     </Page>
     <Page number="50">
-      <StageDirection>MR RIDGE whispers.</StageDirection>
+      <StageDirection id="2a1783f7-c7c4-4c4a-9006-793e35508505">MR RIDGE whispers.</StageDirection>
       <DialogueBlock>
         <Speaker>RIDGE</Speaker>
         <Line id="scene_3_4_line_9">Pick up the pace Terry. This is our lunch too.</Line>
@@ -2488,9 +2488,9 @@
         <Speaker>FOWLER</Speaker>
         <Line id="scene_3_4_line_10">Good point. On your way now. Dismissed.</Line>
       </DialogueBlock>
-      <StageDirection>The bells sounds again as the students scatter.</StageDirection>
+      <StageDirection id="0f51f676-a503-4f90-a8eb-e3e4750178af">The bells sounds again as the students scatter.</StageDirection>
 
-      <StageDirection>SQUISH slowly makes his way to TONY, flanked by some of the boys.</StageDirection>
+      <StageDirection id="1bc8c1fb-835c-43ce-95c6-12b3b437b2c8">SQUISH slowly makes his way to TONY, flanked by some of the boys.</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_3_5_line_1">Oh no.</Line>
@@ -2515,8 +2515,8 @@
         <Speaker>TONY</Speaker>
         <Line id="scene_3_5_line_6">Gol.</Line>
       </DialogueBlock>
-      <StageDirection>of his</StageDirection>
-      <StageDirection>STELLA and PRIYA leave. TONY pulls a Redskin out pocket and nervously eats it.
+      <StageDirection id="0d0a4bad-10f4-4a66-96bf-e5c1a5ea1a6e">of his</StageDirection>
+      <StageDirection id="33c495c7-549f-475f-a3a9-4b27199bddb6">STELLA and PRIYA leave. TONY pulls a Redskin out pocket and nervously eats it.
         GREG appears.</StageDirection>
       <DialogueBlock>
         <Speaker>TONY</Speaker>
@@ -2597,7 +2597,7 @@
         <Line id="scene_3_5_line_26">He licks toilets, you know Greg.</Line>
         <Line id="scene_3_5_line_27">Maybe he'll drink from one. Let's find out.</Line>
       </DialogueBlock>
-      <StageDirection>GREG goes to hit TONY.</StageDirection>
+      <StageDirection id="11e60eb4-777f-4fb8-bded-cce83afd3b97">GREG goes to hit TONY.</StageDirection>
       <DialogueBlock>
         <Speaker>TONY</Speaker>
         <Line id="scene_3_5_line_28">Around the corner from the pet shop! That's all 'm saying.</Line>
@@ -2631,12 +2631,12 @@
         <Speaker>GREG</Speaker>
         <Line id="scene_3_5_line_35">I'm getting them either way, bruh.</Line>
       </DialogueBlock>
-      <StageDirection>TONY is close to tears.</StageDirection>
+      <StageDirection id="64aafde7-3123-4019-84e5-a1899204aa91">TONY is close to tears.</StageDirection>
       <DialogueBlock>
         <Speaker>GREG</Speaker>
         <Line id="scene_3_5_line_36">Guess were doing it the fun way</Line>
       </DialogueBlock>
-      <StageDirection>As GREG prepares to hit TONY, the lights go wild. There's smoke. A figure
+      <StageDirection id="64a8b47f-9085-48c4-a6cd-08042da7eac1">As GREG prepares to hit TONY, the lights go wild. There's smoke. A figure
         flies out from the shadows, jumping on a BMX bike. She is disguised similarly to GREG,
         although more put together. She skids to a stop between GREG and TONY and throws down a
         small string of fireworks that explode, blinding GREG.</StageDirection>
@@ -2652,12 +2652,12 @@
         <Speaker>FRANCINE</Speaker>
         <Line id="scene_3_5_line_39">No time! I'll explain later!</Line>
       </DialogueBlock>
-      <StageDirection>He stands on the back pegs as she pedals away.</StageDirection>
+      <StageDirection id="cedb948a-bf53-4a59-8dde-9cdeb9cef102">He stands on the back pegs as she pedals away.</StageDirection>
     </Page>
   </Scene>
   <Scene id="scene_6" sceneNumber="60" pageStart="52" pageEnd="55" title="Scene 6: The Dance">
     <Page number="52">
-      <StageDirection>It's going off in the hall as the Formal is in full swing. MISS DUANE is
+      <StageDirection id="a4c80331-6505-4f90-9569-46071a989667">It's going off in the hall as the Formal is in full swing. MISS DUANE is
         playing the music from her phone. Everyone is dancing is formation. PRIYA is sitting on the
         side.</StageDirection>
       <DialogueBlock>
@@ -2671,7 +2671,7 @@
         <Speaker>PRIYA</Speaker>
         <Line id="scene_4_1_line_2">I hope not.</Line>
       </DialogueBlock>
-      <StageDirection>STELLA enters.</StageDirection>
+      <StageDirection id="1c64a040-a3c1-4a04-9e4a-1db9dd23291c">STELLA enters.</StageDirection>
       <DialogueBlock>
         <Speaker>PRIYA</Speaker>
         <Line id="scene_4_1_line_3">Have you seen TOny?</Line>
@@ -2695,12 +2695,12 @@
         <Line id="scene_4_1_line_7">I'll go and look for him. Stay here in case he turns up, okay?
           Text me if you need me.</Line>
       </DialogueBlock>
-      <StageDirection>She leaves.</StageDirection>
+      <StageDirection id="b48743c2-eb3a-45cf-a338-86b2e856bce4">She leaves.</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_4_1_line_8">No wait! I'll come with you!</Line>
       </DialogueBlock>
-      <StageDirection>She is stopped by MADYSON.</StageDirection>
+      <StageDirection id="16cbbe8b-181e-442b-b02c-b25bdb97b44c">She is stopped by MADYSON.</StageDirection>
       <DialogueBlock>
         <Speaker>MADYSON</Speaker>
         <Line id="scene_4_1_line_9">Everybody on the D floor now! That means you!</Line>
@@ -2709,13 +2709,13 @@
         <Speaker>STELLA</Speaker>
         <Line id="scene_4_1_line_10">No, I have to go!</Line>
       </DialogueBlock>
-      <StageDirection>MISS DUANE takes the mic</StageDirection>
+      <StageDirection id="de15c406-74f9-4c0c-9f6d-ee100d052d56">MISS DUANE takes the mic</StageDirection>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
         <Line id="scene_4_1_line_11">Make the most of tonight, everyone, it's all uphill from here.
           One day you might DJ a school dance. But for now, here's a song you might remember. </Line>
       </DialogueBlock>
-      <StageDirection>The Cha Cha Slide. STELLA tries to escape, but has no choice but to dance with
+      <StageDirection id="8a6786ec-6d53-493e-96f2-c59792a246ed">The Cha Cha Slide. STELLA tries to escape, but has no choice but to dance with
         everybody else. As the song continues, it gets more sinister as GREG appears in the
         darkness, With each strobe flash, each criss cross, he inches closer and closer to STELLA as
         she senses with horror that he is near. He ends the song right behind her. Everybody cheers
@@ -2791,14 +2791,14 @@
         <Speaker>STELLA</Speaker>
         <Line id="scene_4_1_line_26">Leave me alone!</Line>
       </DialogueBlock>
-      <StageDirection>She shoves him as the music cuts. Everyone stares as GREG calculates his next
+      <StageDirection id="fb2c7b72-c313-4753-94e6-2efa52f726b6">She shoves him as the music cuts. Everyone stares as GREG calculates his next
         move... and runs away. Everyone at the dance looks at STELLA with disgust as the dance melts
         away.</StageDirection>
     </Page>
   </Scene>
   <Scene id="scene_7" sceneNumber="70" pageStart="51" pageEnd="61" title="Scene 7: Returning Home">
     <Page number="55">
-      <StageDirection>At home, STELLA is lying alone in the dark in her bed. Thunder and lightning.
+      <StageDirection id="27c6e458-ce83-4bef-b9c7-0c2909117a4c">At home, STELLA is lying alone in the dark in her bed. Thunder and lightning.
         A loud boom of thunder and a flash of lightning shows SQUISH standing at the door. He is
         closer to his original form, and his teeth are long and sharp, poking out from his 'little
         boy head'. With each flash of lightning and thunder, he is closer and closer, until his face
@@ -2807,14 +2807,14 @@
         <Speaker>STELLA [whispering]</Speaker>
         <Line id="scene_4_2_line_1">Mum?</Line>
       </DialogueBlock>
-      <StageDirection>SQUISH creeps closer. STELLA dares not look.</StageDirection>
+      <StageDirection id="ee7eba5b-71da-4020-8e7c-a739801e251c">SQUISH creeps closer. STELLA dares not look.</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_4_2_line_2">Mum?</Line>
-        <InlineDirection>Closer still.</InlineDirection>
+        <InlineDirection id="e6da5b37-28a0-4fa0-90df-4cf3c57f88a1">Closer still.</InlineDirection>
         <Line id="scene_4_2_line_3">MUM!</Line>
       </DialogueBlock>
-      <StageDirection>As soon as TYSON enters, SQUISH flattens against the wall, camouflaging
+      <StageDirection id="2aa8aa5f-b8ea-4e70-9c52-e9360b720d27">As soon as TYSON enters, SQUISH flattens against the wall, camouflaging
         himself against the pattern of the wallpaper. He is invisible.</StageDirection>
       <DialogueBlock>
         <Speaker>TYSON</Speaker>
@@ -2844,7 +2844,7 @@
       <DialogueBlock>
         <Speaker>TYSON</Speaker>
         <Line id="scene_4_2_line_10">Fine.</Line>
-        <InlineDirection>He halfheartedly looks around.</InlineDirection>
+        <InlineDirection id="29575e40-049c-4681-a2b4-1d25875a49fb">He halfheartedly looks around.</InlineDirection>
         <Line id="scene_4_2_line_11">Nope, nothing. You're probably just dreaming or something.</Line>
       </DialogueBlock>
     </Page>
@@ -2865,21 +2865,21 @@
         <Speaker>TYSON</Speaker>
         <Line id="scene_4_2_line_15">And neither should you be. Maybe put headphones on. Goodnight.</Line>
       </DialogueBlock>
-      <StageDirection>He turns off the light and closes the door, leaving the light on. SQUISH leans
+      <StageDirection id="e06191c1-5ada-4e11-8bb8-64cf3af8cab7">He turns off the light and closes the door, leaving the light on. SQUISH leans
         in close to STELLA.</StageDirection>
       <DialogueBlock>
         <Speaker>SQUISH</Speaker>
         <Line id="scene_4_2_line_16">Goodnight, friend.</Line>
       </DialogueBlock>
-      <StageDirection>Another flash of lightning and he is gone.</StageDirection>
+      <StageDirection id="6dc568ec-fbb7-4ced-b50e-65f0f3414601">Another flash of lightning and he is gone.</StageDirection>
 
-      <StageDirection>TONY's room. FRANCINE and TONY enter.</StageDirection>
+      <StageDirection id="be44d941-2cc3-4983-bdc5-fa6147575289">TONY's room. FRANCINE and TONY enter.</StageDirection>
       <DialogueBlock>
         <Speaker>FRANCINE</Speaker>
         <Line id="scene_4_3_line_1">Close the door. Has he been to your house? Does he know where
           you live?</Line>
       </DialogueBlock>
-      <StageDirection>TONY is frozen.</StageDirection>
+      <StageDirection id="4dba1c09-a082-4a96-a64f-4174c8788e24">TONY is frozen.</StageDirection>
       <DialogueBlock>
         <Speaker>FRANCINE</Speaker>
         <Line id="scene_4_3_line_2">Tony?</Line>
@@ -2933,7 +2933,7 @@
       <DialogueBlock>
         <Speaker>TONY</Speaker>
         <Line id="scene_4_3_line_13">I know what you mean.</Line>
-        <InlineDirection>He got held back a grade.</InlineDirection>
+        <InlineDirection id="e8dd87b3-9adb-487f-b725-f31de6e18c80">He got held back a grade.</InlineDirection>
       </DialogueBlock>
       <DialogueBlock>
         <Speaker>FRANCINE</Speaker>
@@ -2980,9 +2980,9 @@
         <Speaker>TONY</Speaker>
         <Line id="scene_4_3_line_23">Check this out.</Line>
       </DialogueBlock>
-      <StageDirection>He turns on music and he starts dancing.</StageDirection>
+      <StageDirection id="eb525dbc-6ea5-4d6b-bcdc-5f405be75180">He turns on music and he starts dancing.</StageDirection>
 
-      <StageDirection>Back in STELLA' room. STELLA is now hiding in her sleeping bag. She FaceTimes
+      <StageDirection id="03d976eb-60bc-40bb-95ae-de073bbdd03b">Back in STELLA' room. STELLA is now hiding in her sleeping bag. She FaceTimes
         PRIYA, who is up playing video games.</StageDirection>
     </Page>
     <Page number="58">
@@ -3058,13 +3058,13 @@
       </DialogueBlock>
     </Page>
     <Page number="59">
-      <StageDirection>She hangs up.</StageDirection>
-      <StageDirection>TONY is still popping and locking. FRANCINE is sitting on the bed watching.</StageDirection>
+      <StageDirection id="23926e1c-372b-4fda-b81c-506892caf2a0">She hangs up.</StageDirection>
+      <StageDirection id="ffd9c7b3-693a-4c99-aa43-164d8c97c306">TONY is still popping and locking. FRANCINE is sitting on the bed watching.</StageDirection>
       <DialogueBlock>
         <Speaker>FRANCINE</Speaker>
         <Line id="scene_4_4_line_16">Tony, we don't have time.</Line>
       </DialogueBlock>
-      <StageDirection>TONY keeps dancing. FRANCINE turns off the music.</StageDirection>
+      <StageDirection id="9978cfdb-452a-4520-9c42-817c10cf18e7">TONY keeps dancing. FRANCINE turns off the music.</StageDirection>
       <DialogueBlock>
         <Speaker>TONY</Speaker>
         <Line id="scene_4_4_line_17">My tunes!</Line>
@@ -3122,7 +3122,7 @@
         <Speaker>TONY</Speaker>
         <Line id="scene_4_4_line_29">I'm sorry!</Line>
       </DialogueBlock>
-      <StageDirection>TONY flinches as if he expects to be hit.</StageDirection>
+      <StageDirection id="b0fdd2a7-825f-4f7d-bd32-9f3fbc274cd8">TONY flinches as if he expects to be hit.</StageDirection>
       <DialogueBlock>
         <Speaker>FRANCINE</Speaker>
         <Line id="scene_4_4_line_30">I'm not going to hurt you.</Line>
@@ -3199,7 +3199,7 @@
   </Scene>
   <Scene id="scene_8" sceneNumber="80" pageStart="61" pageEnd="66" title="Scene 8: Intervention">
     <Page number="61">
-      <StageDirection>STELLA appears in the classroom, where MISS DUANE and MR FOWLER are waiting.</StageDirection>
+      <StageDirection id="57a543d5-c7f6-4aec-93f0-a30b12a67408">STELLA appears in the classroom, where MISS DUANE and MR FOWLER are waiting.</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_5_1_line_1">You wanted to see me?</Line>
@@ -3253,8 +3253,8 @@
         <Line id="scene_5_1_line_12">It's time to get everything out in the open. Sit down. I'm
           bring the others in.</Line>
       </DialogueBlock>
-      <StageDirection>Come in please, everyone.</StageDirection>
-      <StageDirection>The class enters, followed by a sheepish GREG. GREG is sniffling like he's
+      <StageDirection id="80cbd97f-2389-4c79-9787-0689bd836995">Come in please, everyone.</StageDirection>
+      <StageDirection id="da97f206-6c6c-4850-9b84-a3e2bf5e0684">The class enters, followed by a sheepish GREG. GREG is sniffling like he's
         been crying. MISS DUANE produces a small totem.</StageDirection>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
@@ -3282,7 +3282,7 @@
           things to say, but we need to respect the feelings of everyone else. Now, Greg, would you
           like to start? We want you to begin whatever you say with “I feel.”</Line>
       </DialogueBlock>
-      <StageDirection>She hands the totem to GREG. As this progresses, the totem is passed to
+      <StageDirection id="2167699c-57fc-460c-8e63-6acb4336915e">She hands the totem to GREG. As this progresses, the totem is passed to
         whoever talks.</StageDirection>
       <DialogueBlock>
         <Speaker>GREG</Speaker>
@@ -3293,7 +3293,7 @@
       </DialogueBlock>
     </Page>
     <Page number="63">
-      <StageDirection>He cries.</StageDirection>
+      <StageDirection id="9342e97e-e32c-4f78-8783-5437667b4876">He cries.</StageDirection>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
         <Line id="scene_5_1_line_19">Thank you, Greg. That was really, really brave, buddy.</Line>
@@ -3325,7 +3325,7 @@
         <Line id="scene_5_1_line_24">This is a school that is founded on respect and trust, Stella.
           Lead by example.</Line>
       </DialogueBlock>
-      <StageDirection>PRIYA takes the talking totem.</StageDirection>
+      <StageDirection id="21d7eade-459e-4a76-9392-cd1a04faa00f">PRIYA takes the talking totem.</StageDirection>
       <DialogueBlock>
         <Speaker>PRIYA</Speaker>
         <Line id="scene_5_1_line_25">Just ... remember what we talked about.</Line>
@@ -3366,7 +3366,7 @@
         <Speaker>DUANE</Speaker>
         <Line id="scene_5_1_line_33">Let's turn it down, we're upsetting Greg.</Line>
       </DialogueBlock>
-      <StageDirection>STELLA jumps up and screams. She's had enough.</StageDirection>
+      <StageDirection id="733d355a-4056-47ba-b3dd-064df586602f">STELLA jumps up and screams. She's had enough.</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_5_1_line_34">Upsetting Greg?! You're all worried about Greg?! Ever since he
@@ -3378,25 +3378,25 @@
           I've done something wrong, she leaves me. I feel like nothing. You have made me nothing!
           And why would anybody listen to nothing? Why won't you listen?!</Line>
       </DialogueBlock>
-      <StageDirection>Long beat.</StageDirection>
+      <StageDirection id="970d50b4-fd79-4289-8496-67ecc2f0aba3">Long beat.</StageDirection>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
         <Line id="scene_5_1_line_35">Someone wasn't holding the Talking Totem. I'm going to give it
           to you, Stella, but I won't have any more tantrums, okay? Now, what would you like to say
           to Greg?</Line>
       </DialogueBlock>
-      <StageDirection>STELLA is broken. The other kids are unsettled for the first time.</StageDirection>
+      <StageDirection id="6274c9f1-176b-4522-92a0-a78b26d2e0fa">STELLA is broken. The other kids are unsettled for the first time.</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_5_1_line_36">I'm sorry.</Line>
       </DialogueBlock>
-      <StageDirection>MISS DUANE applauds.</StageDirection>
+      <StageDirection id="5baa91df-1cb5-4903-b789-a31ac09cc65b">MISS DUANE applauds.</StageDirection>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
         <Line id="scene_5_1_line_37">Oh my God, that's the first time that's worked! Yaaaaaay!
           You're friends again. Now, I need to be on hat duty. You guys go and hang out, okay?</Line>
       </DialogueBlock>
-      <StageDirection>DUANE and PRIYA exit. A gravelly laugh from GREG.</StageDirection>
+      <StageDirection id="f1ce8484-4c94-4e7d-b96e-5fb36e8dd2bc">DUANE and PRIYA exit. A gravelly laugh from GREG.</StageDirection>
 
     </Page>
     <Page number="65">
@@ -3422,7 +3422,7 @@
           sustains the creatures of the ocean. The fish will feed on your eyes, your tongue, your
           skin. Even your bones will be given to the ocean. And there's nothing you can do.</Line>
       </DialogueBlock>
-      <StageDirection>STELLA takes a deep breath. With no confidence:</StageDirection>
+      <StageDirection id="47bf0969-76eb-4855-bca5-32afd67038fa">STELLA takes a deep breath. With no confidence:</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_5_2_line_6">I'll fight you.</Line>
@@ -3435,7 +3435,7 @@
         <Speaker>STELLA</Speaker>
         <Line id="scene_5_2_line_8">If I have to fight you, that's what I'll do.</Line>
       </DialogueBlock>
-      <StageDirection>GREG advances on her.</StageDirection>
+      <StageDirection id="910c231c-7312-4cb2-bb5f-0a3f20d3812c">GREG advances on her.</StageDirection>
       <DialogueBlock>
         <Speaker>GREG</Speaker>
         <Line id="scene_5_2_line_9">Good.</Line>
@@ -3451,7 +3451,7 @@
           are and we'll fight anyway. And trust me — you don't want that to happen. What's that on
           your shirt?</Line>
       </DialogueBlock>
-      <StageDirection>STELLA looks down and GREG punches her, hard in the stomach. She is winded.
+      <StageDirection id="94e00099-cc2e-418f-929c-4c2cab58f75b">STELLA looks down and GREG punches her, hard in the stomach. She is winded.
         GREG is laughing. All of the kids see this and do nothing.</StageDirection>
       <DialogueBlock>
         <Speaker>GREG</Speaker>
@@ -3466,13 +3466,13 @@
         <Line id="scene_5_2_line_13">Enjoy your last night on earth. Tomorrow, 3 o'clock, flagpole.
           That's where you die.</Line>
       </DialogueBlock>
-      <StageDirection>He leaves. STELLA starts sobbing. MISS DUANE enters.</StageDirection>
+      <StageDirection id="e8c070c6-02b1-40d6-89a5-7c3a143b279c">He leaves. STELLA starts sobbing. MISS DUANE enters.</StageDirection>
     </Page>
   </Scene>
   <Scene id="scene_9" sceneNumber="90" pageStart="66" pageEnd="75"
     title="Scene 9: The Training Montage">
     <Page number="66">
-      <StageDirection>STELLA is crying on the ground, alone.</StageDirection>
+      <StageDirection id="86fb1c43-2534-4ef1-aefd-160ebb54e26e">STELLA is crying on the ground, alone.</StageDirection>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
         <Line id="scene_5_3_line_1">Stella? What's wrong?</Line>
@@ -3531,15 +3531,15 @@
           more tears. I'll see you tomorrow. [To herself] You're doing it, Ellie. You're reaching
           them.</Line>
       </DialogueBlock>
-      <StageDirection>She leaves.</StageDirection>
-      <StageDirection>STELLA is crying on the ground, alone.</StageDirection>
+      <StageDirection id="f87d2432-ad9c-41e0-94d4-9ce91bd49706">She leaves.</StageDirection>
+      <StageDirection id="69fedeeb-6af9-40d2-80eb-c34ade735cb4">STELLA is crying on the ground, alone.</StageDirection>
     </Page>
     <Page number="67">
       <DialogueBlock>
         <Speaker>TYSON</Speaker>
         <Line id="scene_5_3_line_14">Oi gronk. Mum gave me her card, What do you want for dinner?</Line>
       </DialogueBlock>
-      <StageDirection>STELLA doesn't respond.</StageDirection>
+      <StageDirection id="af376220-0c47-4c02-a71f-1c78221f266a">STELLA doesn't respond.</StageDirection>
       <DialogueBlock>
         <Speaker>TYSON</Speaker>
         <Line id="scene_5_3_line_15">Alright. We're having tacos.</Line>
@@ -3620,7 +3620,7 @@
         <Speaker>TYSON</Speaker>
         <Line id="scene_5_3_line_33">Oh, he's that type, is he?</Line>
       </DialogueBlock>
-      <StageDirection>Beat.</StageDirection>
+      <StageDirection id="7190baf2-318f-48c2-9e68-025ba9e5d46f">Beat.</StageDirection>
       <DialogueBlock>
         <Speaker>TYSON</Speaker>
         <Line id="scene_5_3_line_34">Alright, stand up.</Line>
@@ -3635,7 +3635,7 @@
         <Line id="scene_5_3_line_37">How do you move? Don't stand still, you're dead if you do. I'm
           coming for you.</Line>
       </DialogueBlock>
-      <StageDirection>He starts trying to spar with STELLA.</StageDirection>
+      <StageDirection id="0c2418c7-e89b-4df0-b411-3ea5b84b795e">He starts trying to spar with STELLA.</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_5_3_line_38">You don't know how to fight.</Line>
@@ -3662,7 +3662,7 @@
         <Line id="scene_5_3_line_43">Don't cross your feet. Side step. Don't let them cross. I can
           push you over real easy if you do, see?</Line>
       </DialogueBlock>
-      <StageDirection>He does.</StageDirection>
+      <StageDirection id="c90be47f-bca1-481d-b191-5a90a8b30348">He does.</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_5_3_line_44">Ow! Don't trip me!</Line>
@@ -3680,7 +3680,7 @@
         <Line id="scene_5_3_line_47">Oh, is that how you stop a fight? Just say stop? Come on. Side
           step.</Line>
       </DialogueBlock>
-      <StageDirection>She does, awkwardly.</StageDirection>
+      <StageDirection id="1f9b8c7d-e45c-4950-aebf-f837d344fb47">She does, awkwardly.</StageDirection>
     </Page>
     <Page number="69">
       <DialogueBlock>
@@ -3722,7 +3722,7 @@
           you but the world doesn't need anyone else not caring. Look at me.</Line>
         <Line id="scene_5_3_line_56">Stella.</Line>
       </DialogueBlock>
-      <StageDirection>Their eyes meet.</StageDirection>
+      <StageDirection id="e6006ac3-3c8a-43e6-a27c-91922509cb4e">Their eyes meet.</StageDirection>
       <DialogueBlock>
         <Speaker>TYSON</Speaker>
         <Line id="scene_5_3_line_57">You can take the high road. But that only works if the other
@@ -3766,13 +3766,13 @@
           tomorrow. But I also know this is your fight. This is your time to say that enough is
           enough, Stella. I know you can say it loud enough.</Line>
       </DialogueBlock>
-      <StageDirection>He places a hand on her shoulder.</StageDirection>
+      <StageDirection id="e5a68950-2336-499d-a5ef-c3f65e38bf57">He places a hand on her shoulder.</StageDirection>
       <DialogueBlock>
         <Speaker>TYSON</Speaker>
         <Line id="scene_5_3_line_65">You can do this. Footwork is half the battle. The battle is the
           other half.</Line>
       </DialogueBlock>
-      <StageDirection>He leaves. PRIYA and TONY dive through the window.</StageDirection>
+      <StageDirection id="58481a54-b208-49d3-8d79-0b4085a70663">He leaves. PRIYA and TONY dive through the window.</StageDirection>
 
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
@@ -3814,7 +3814,7 @@
         <Line id="scene_5_4_line_9">Thanks. Seriously though. I was a chode. We're running out of
           time. I think Greg made a shank in art class today.</Line>
       </DialogueBlock>
-      <StageDirection>SQUISH is making a paper mache knife in Art. MISS DUANE is walking past, on
+      <StageDirection id="1a43c099-1bbf-42e2-86be-1fa9e16c0449">SQUISH is making a paper mache knife in Art. MISS DUANE is walking past, on
         her phone.</StageDirection>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
@@ -3830,13 +3830,13 @@
         <Line id="scene_5_4_line_12">Well, look, it's not what I asked you to make, so I can't give
           you a gold star. This will have to do.</Line>
       </DialogueBlock>
-      <StageDirection>She puts a happy rainbow sticker on his fake head.</StageDirection>
+      <StageDirection id="fc8d9a47-e8f3-453f-a5f2-de2d43f760d8">She puts a happy rainbow sticker on his fake head.</StageDirection>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
         <Line id="scene_5_4_line_13">Now put it away or it'll be mine. [off] Jordan. Head out of the
           kiln now buddy. I won't say it again.</Line>
       </DialogueBlock>
-      <StageDirection>Back to the kids.</StageDirection>
+      <StageDirection id="f24509b7-31e6-4b16-a602-102ed82b22e9">Back to the kids.</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_5_4_line_14">Thanks you guys. I just wish it wasn't me.</Line>
@@ -3846,7 +3846,7 @@
         <Line id="scene_5_4_line_15">So do we. But you know what? It is. And there's nothing you can
           do about it but fight back. You're in control here. Look at me.</Line>
       </DialogueBlock>
-      <StageDirection>Their eyes meet.</StageDirection>
+      <StageDirection id="1d6e7fb8-e8b7-4ad6-8bcd-2f1cea543fa3">Their eyes meet.</StageDirection>
       <DialogueBlock>
         <Speaker>PRIYA</Speaker>
         <Line id="scene_5_4_line_16">You're going to fight that butthole tomorrow. And we're going
@@ -3859,7 +3859,7 @@
       </DialogueBlock>
     </Page>
     <Page number="72">
-      <StageDirection>PRIYA sets up her easel and drawing pad. She flips through her research as she
+      <StageDirection id="8f4fc677-4e34-4f9e-91b7-c29a187fbdd9">PRIYA sets up her easel and drawing pad. She flips through her research as she
         continues. Old oil paintings of whaling ships being attacked by giant squids. A photo of an
         octopus eating a bird. Giant Krakens, squids, Cthulhu, the octopus that predicted the World
         Cup.</StageDirection>
@@ -3909,10 +3909,10 @@
         <Speaker>TONY</Speaker>
         <Line id="scene_5_4_line_28">I have a life outside of you guys.</Line>
       </DialogueBlock>
-      <StageDirection>We found this on YouTube. Some Grade Five kid in Russia took it, it was a
+      <StageDirection id="6970b079-d78b-4ed4-9d00-ea0e39299bac">We found this on YouTube. Some Grade Five kid in Russia took it, it was a
         fight at his school. The bigger kid kind of looks like Greg.</StageDirection>
-      <StageDirection>He shows STELLA the video. We hear kids yelling in Russian, scuffling.</StageDirection>
-      <StageDirection>We thought it was just another fight, but then ...</StageDirection>
+      <StageDirection id="9b1d969b-773f-419c-9594-b3d029f4a0e2">He shows STELLA the video. We hear kids yelling in Russian, scuffling.</StageDirection>
+      <StageDirection id="7d0e0737-9e10-428d-bd35-bff0bb04ddf6">We thought it was just another fight, but then ...</StageDirection>
     </Page>
     <Page number="73">
       <DialogueBlock>
@@ -3934,7 +3934,7 @@
         <Line id="scene_5_4_line_32">You're still on this? It doesn't matter why. It is you, yeah,
           but if it wasn't you, it would be somebody else.</Line>
       </DialogueBlock>
-      <StageDirection>As PRIYA continues, a horrifying vision of multiple GREGS appear all around
+      <StageDirection id="6d149ee7-03c4-4d83-b186-9efd031e58fb">As PRIYA continues, a horrifying vision of multiple GREGS appear all around
         them in the darkness.</StageDirection>
       <DialogueBlock>
         <Speaker>PRIYA</Speaker>
@@ -3945,7 +3945,7 @@
           anymore, and then our mums and dads and brothers and sisters will all be in trouble. We're
           not going to let that happen.</Line>
       </DialogueBlock>
-      <StageDirection>TONY puts his hand to his ear and makes a 'ring ring' sound.</StageDirection>
+      <StageDirection id="58ad140d-cff6-4773-934e-c7829ab425aa">TONY puts his hand to his ear and makes a 'ring ring' sound.</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_5_4_line_34">Tony, what are you doing?</Line>
@@ -3955,7 +3955,7 @@
         <Line id="scene_5_4_line_35">Just a second. Hello? [answering his fake phone] it's Destiny
           calling. [listens and then hands her his imaginary phone] It's for you.</Line>
       </DialogueBlock>
-      <StageDirection>STELLA sighs.</StageDirection>
+      <StageDirection id="9531a6d7-dc93-4442-9378-cb5b756b5565">STELLA sighs.</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_5_4_line_36">I don't know how I can win on my own.</Line>
@@ -3966,7 +3966,7 @@
       </DialogueBlock>
     </Page>
     <Page number="74">
-      <StageDirection>PRIYA</StageDirection>
+      <StageDirection id="d72e0c58-b767-4d65-8d26-8909774482b6">PRIYA</StageDirection>
       <DialogueBlock>
         <Speaker>PRIYA</Speaker>
         <Line id="scene_5_4_line_38">I've got an idea to help you, it'll take a lot of luck and
@@ -3981,7 +3981,7 @@
         <Line id="scene_5_4_line_40">We'll need them. It's going to be a long night.</Line>
       </DialogueBlock>
 
-      <StageDirection>Power Montage Music. PRIYA' plan is displayed. There's mechanical drawings and
+      <StageDirection id="034fe5ea-b26a-429b-8577-7722e45abecd">Power Montage Music. PRIYA' plan is displayed. There's mechanical drawings and
         blueprints. Treadmills. TONY has a stack of books on marine life, and is reading The Old Man
         and the Sea.</StageDirection>
       <DialogueBlock>
@@ -3992,7 +3992,7 @@
         <Speaker>TONY</Speaker>
         <Line id="scene_5_5_line_2">The fish is a metaphor.</Line>
       </DialogueBlock>
-      <StageDirection>More training/ building. Some spot welding. The music stops and TYSON enters.</StageDirection>
+      <StageDirection id="228d2c03-b255-4795-9d20-94e34fbdb5a0">More training/ building. Some spot welding. The music stops and TYSON enters.</StageDirection>
       <DialogueBlock>
         <Speaker>TYSON</Speaker>
         <Line id="scene_5_5_line_3">We didn't make a decision earlier. Do you want tacos?</Line>
@@ -4006,10 +4006,10 @@
         <Speaker>TYSON</Speaker>
         <Line id="scene_5_5_line_6">You guys are weird.</Line>
       </DialogueBlock>
-      <StageDirection>He closes the door and training continues.</StageDirection>
-      <StageDirection>Elsewhere, SQUISH is bench pressing a terrified preschooler. He drops them,
+      <StageDirection id="da780f73-eb59-4869-8b97-186884968c46">He closes the door and training continues.</StageDirection>
+      <StageDirection id="7bacf88b-f65c-4cda-95f0-3e8fb850a543">Elsewhere, SQUISH is bench pressing a terrified preschooler. He drops them,
         drinks more energy drink and roars.</StageDirection>
-      <StageDirection>PRIYA is working on the armour and attaching the pieces to STELLA. TONY is
+      <StageDirection id="b6983ee8-7fea-4544-95e3-af53aba2264c">PRIYA is working on the armour and attaching the pieces to STELLA. TONY is
         eating Killer Pythons and quizzing her.</StageDirection>
       <DialogueBlock>
         <Speaker>TONY</Speaker>
@@ -4049,7 +4049,7 @@
         <Speaker>TONY</Speaker>
         <Line id="scene_5_5_line_15">How many souls?</Line>
       </DialogueBlock>
-      <StageDirection>STELLA slams down her helmet.</StageDirection>
+      <StageDirection id="9fa3baf4-d457-40d2-a3e3-c28a19231651">STELLA slams down her helmet.</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_5_5_line_16">NONE.</Line>
@@ -4062,7 +4062,7 @@
   </Scene>
   <Scene id="scene_10" sceneNumber="100" pageStart="75" pageEnd="82" title="The Fight">
     <Page number="75">
-      <StageDirection>FRIDAY, 2:55PM The flagpole. SQUISH is punching a brick wall. All of the kids
+      <StageDirection id="8a4f4033-b51f-45d8-a8a6-73d4914094b7">FRIDAY, 2:55PM The flagpole. SQUISH is punching a brick wall. All of the kids
         are gathered. Suddenly, the lights dim. Everything is highly stylised from this point.
         Smoke, flashing lights. It is STELLA. She is fitted in armour fashioned from random sports
         goods, kitchen wear, and other household items, but it looks rad. She has a small bumbag
@@ -4083,7 +4083,7 @@
           And I'm going to show
           you right now why. </Line>
       </DialogueBlock>
-      <StageDirection>He pulls two long, neon pink whips out of his backpack. He begins swinging
+      <StageDirection id="fef2bfbc-b662-425d-9638-016854fc3524">He pulls two long, neon pink whips out of his backpack. He begins swinging
         them around. </StageDirection>
       <DialogueBlock>
         <Speaker>TONY</Speaker>
@@ -4095,17 +4095,17 @@
           swimming by this morning
           just for you. </Line>
       </DialogueBlock>
-      <StageDirection>OCTOPUSES ACTUALLY DO THIS. IT'S MESSED UP. Ready?</StageDirection>
+      <StageDirection id="95791fc3-4fee-4bd8-ae93-8e27ac7d8592">OCTOPUSES ACTUALLY DO THIS. IT'S MESSED UP. Ready?</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_5_6_line_6">Ready. </Line>
       </DialogueBlock>
-      <StageDirection>The school bell rings. It's three o'clock. </StageDirection>
+      <StageDirection id="0172a22d-7c51-4958-bac2-f5c9d7fae725">The school bell rings. It's three o'clock. </StageDirection>
       <DialogueBlock>
         <Speaker>ALL</Speaker>
         <Line id="scene_5_6_line_7">FILIMIGGGGGHHHHHTTTT!</Line>
       </DialogueBlock>
-      <StageDirection>They run straight at each other. SQUISH's whips wrap around STELLA' armour,
+      <StageDirection id="57f8134f-9084-43dc-93ef-798cbfdd05e0">They run straight at each other. SQUISH's whips wrap around STELLA' armour,
         tangling her. SQUISH begins hauling her toward him, but as he is in reach, she headbutts
         him. He lets go, and she frees herself. It's a vicious scuffle, trading punches and kicks.
         It's like a Kaiju film — lots of grappling between two titans. STELLA lands a solid punch on
@@ -4118,13 +4118,13 @@
         <Speaker>PRIYA</Speaker>
         <Line id="scene_5_6_line_9">I told you not to eat sugar!</Line>
       </DialogueBlock>
-      <StageDirection>SQUISH retreats to his backpack and grabs a water bomb filled with a dark
+      <StageDirection id="2dde0791-3e7b-4ce8-a2e8-6a63558d4bf6">SQUISH retreats to his backpack and grabs a water bomb filled with a dark
         liquid. </StageDirection>
       <DialogueBlock>
         <Speaker>SQUISH</Speaker>
         <Line id="scene_5_6_line_10">Get some ink up ya!</Line>
       </DialogueBlock>
-      <StageDirection>SQUISH throws the balloon. Ink splatters across STELLA' helmet, blinding her.
+      <StageDirection id="b7cecd79-1e6c-43c0-8f4e-e8096685c8cb">SQUISH throws the balloon. Ink splatters across STELLA' helmet, blinding her.
         SQUISH jumps on her back and latches on. She tries to shake him off, but his suckers have
         attached to her. STELLA runs back into the pole. It bends, SQUISH falls off, STELLA rips off
         her helmet. She can see again. She turns around and SQUISH lands a punch straight to the
@@ -4149,7 +4149,7 @@
         <Speaker>TONY</Speaker>
         <Line id="scene_5_6_line_14">So... much ... sugar. </Line>
       </DialogueBlock>
-      <StageDirection>SQUISH readies the knockout punch. TONY takes another bite of the Killer
+      <StageDirection id="a779fa4e-6e8e-490f-9c8d-454856e3c4fd">SQUISH readies the knockout punch. TONY takes another bite of the Killer
         Python. He shakes violently. FRANCINE suddenly appears on her bike. </StageDirection>
       <DialogueBlock>
         <Speaker>FRANCINE</Speaker>
@@ -4163,7 +4163,7 @@
         <Speaker>FRANCINE</Speaker>
         <Line id="scene_5_6_line_17">You have to! I believe in you! Do it!</Line>
       </DialogueBlock>
-      <StageDirection>TONY eats the last part of the Killer Python. He seizures. -PRIYA Tony!</StageDirection>
+      <StageDirection id="bf041078-e62c-4e6e-a677-10139881f73e">TONY eats the last part of the Killer Python. He seizures. -PRIYA Tony!</StageDirection>
       <DialogueBlock>
         <Speaker>TONY</Speaker>
         <Line id="scene_5_6_line_18">That was my name once. Now I am eternal. </Line>
@@ -4172,7 +4172,7 @@
         <Speaker>PRIYA</Speaker>
         <Line id="scene_5_6_line_19">What?</Line>
       </DialogueBlock>
-      <StageDirection>TONY shakes more violently as a booming sound rumbles in a crescendo to
+      <StageDirection id="cf39096f-4061-4426-9f63-f14d0cc24f8c">TONY shakes more violently as a booming sound rumbles in a crescendo to
         silence. Everything is beautiful, time slows almost to a stop around TONY. There is peaceful
         music. He gently brushes the hair out of STELLAS face. He wipes the ink off STELLA' helmet
         and places it back on her head. </StageDirection>
@@ -4237,7 +4237,7 @@
         <Speaker>TONY</Speaker>
         <Line id="scene_5_6_line_33">It's just like every other day. And nobody knows. </Line>
       </DialogueBlock>
-      <StageDirection>Everything moves back to normal. SQUISH swings at TONY, landing a thunderous
+      <StageDirection id="bdc13a2f-e70a-41bb-8527-9965e8740988">Everything moves back to normal. SQUISH swings at TONY, landing a thunderous
         blow to his stomach. </StageDirection>
       <DialogueBlock>
         <Speaker>SQUISH</Speaker>
@@ -4247,7 +4247,7 @@
         <Speaker>PRIYA</Speaker>
         <Line id="scene_5_6_line_35">What just happened? Tony!</Line>
       </DialogueBlock>
-      <StageDirection>SQUISH laughs and takes out his phone to take photos. </StageDirection>
+      <StageDirection id="01bd2eb8-b44a-464a-a088-cb86487d4749">SQUISH laughs and takes out his phone to take photos. </StageDirection>
     </Page>
     <Page number="79">
       <DialogueBlock>
@@ -4268,10 +4268,10 @@
           the rage in private
           schools. </Line>
       </DialogueBlock>
-      <StageDirection>SQUISH stands over TONY's face with his phone, ready to humiliate him. STELLA
+      <StageDirection id="32a88e82-3315-48f0-8c55-26a8969b41d6">SQUISH stands over TONY's face with his phone, ready to humiliate him. STELLA
         is struggling to get up. </StageDirection>
-      <StageDirection>This'll be awesome when it's mailed to the TikTok or whatever you do. </StageDirection>
-      <StageDirection>STELLA is furious, She ties her hair up and back. </StageDirection>
+      <StageDirection id="97c818c5-41f0-4ef7-9c97-7aeb55fabb67">This'll be awesome when it's mailed to the TikTok or whatever you do. </StageDirection>
+      <StageDirection id="84e8546b-5ccb-4ad6-9a91-1912b9cd5a7b">STELLA is furious, She ties her hair up and back. </StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_5_6_line_40">Hey!</Line>
@@ -4280,12 +4280,12 @@
         <Speaker>SQUISH</Speaker>
         <Line id="scene_5_6_line_41">You're dead. </Line>
       </DialogueBlock>
-      <StageDirection>She spits blood on the floor. With a gutteral venom</StageDirection>
+      <StageDirection id="5150a27e-20b2-449f-a621-6056a66cf099">She spits blood on the floor. With a gutteral venom</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_5_6_line_42">I know you are. But what am I?</Line>
       </DialogueBlock>
-      <StageDirection>SQUISH throws his phone down and takes a swing, he misses. STELLA unleashes
+      <StageDirection id="e4326126-a754-431b-b7bc-8d2048322be9">SQUISH throws his phone down and takes a swing, he misses. STELLA unleashes
         hell on him, landing punch after punch. They continue to fight as the action crosses to
         THREE KIDS with a large scale model of a city. </StageDirection>
       <DialogueBlock>
@@ -4304,14 +4304,14 @@
           Tokyo district, complete
           with the iconic Shibuya Crossing!</Line>
       </DialogueBlock>
-      <StageDirection>It lights up. </StageDirection>
+      <StageDirection id="2083f133-afb9-47e4-ae0c-76d64766ed31">It lights up. </StageDirection>
     </Page>
     <Page number="80">
       <DialogueBlock>
         <Speaker>ALL</Speaker>
         <Line id="scene_5_6_line_46">Building a better tomorrow — today!</Line>
       </DialogueBlock>
-      <StageDirection>STELLA and SQUISH suddenly crash through the model as they continue scuffling.
+      <StageDirection id="3543c615-2312-4857-9439-40e87c0c7dda">STELLA and SQUISH suddenly crash through the model as they continue scuffling.
         The KIDS scatter, screaming. More fighting as the rest of the kids join the fight. THE GRADE
         7s appear, and attack. STELLA manages to rip off SQUISH® disguise, revealing a gross, giant
         octopus head. He looks terrifying. He roars. </StageDirection>
@@ -4323,20 +4323,20 @@
         <Speaker>STELLA</Speaker>
         <Line id="scene_5_6_line_48">I'll never stay down!</Line>
       </DialogueBlock>
-      <StageDirection>STELLA reaches into the bum bag and pulls out firecrackers. She throws them on
+      <StageDirection id="efa49eb8-97c3-40cb-b972-ba6cb6b7ceb6">STELLA reaches into the bum bag and pulls out firecrackers. She throws them on
         the ground, and they pop and flash. SQUISH screams. STELLA lands a punch square on SQUISHS
         face. Somehow in all of this, the entire cohort gets their hits in, including THE GRADE 7s.
         They overwhelm SQUISH as he is weakened. </StageDirection>
-      <StageDirection>STELLA and SQUISH are at a standstill, ready to finish this. SQUISH tries to
+      <StageDirection id="88f6430b-eb27-46db-8a8d-9297f69601a6">STELLA and SQUISH are at a standstill, ready to finish this. SQUISH tries to
         punch her, but STELLA goes low and grabs him around the waist. She lifts with all of her
         might. SQUISH goes high in the air, and STELLA holds him for a frozen moment. </StageDirection>
-      <StageDirection>PRIYA is stunned. TONY is in a sugar coma. MISS DUANE is vaping at the school
+      <StageDirection id="5840f7f5-35d8-4093-95c3-afea4fccf755">PRIYA is stunned. TONY is in a sugar coma. MISS DUANE is vaping at the school
         fence on the other side of the block, on her phone. </StageDirection>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
         <Line id="scene_5_6_line_49">Jordan, hat on buddy. Won't say it again. </Line>
       </DialogueBlock>
-      <StageDirection>Back to our action as STELLA slams SQUISH down to the ground. Flashing lights
+      <StageDirection id="b7dbc53d-f165-48eb-a59a-f09a9bad8bc4">Back to our action as STELLA slams SQUISH down to the ground. Flashing lights
         and stuff. SQUISH is flattened on the floor. STELLA is lying face down. She's not moving. </StageDirection>
     </Page>
     <Page number="81">
@@ -4344,7 +4344,7 @@
         <Speaker>TONY</Speaker>
         <Line id="scene_5_6_line_50">Oooooh we are in so much trouble. </Line>
       </DialogueBlock>
-      <StageDirection>STELLA slowly picks herself up. The kids run over to her, shouting over the
+      <StageDirection id="112220a8-5d99-484b-a01c-3aa45caf9d48">STELLA slowly picks herself up. The kids run over to her, shouting over the
         top of each other about how awesome the fight was. TONY catches a glimpse of FRANCINE, and
         goes over to her. </StageDirection>
       <DialogueBlock>
@@ -4390,7 +4390,7 @@
           Tonks. Please remember
           that. I believe in you. </Line>
       </DialogueBlock>
-      <StageDirection>She kisses him on the cheek and rides away on her bike. </StageDirection>
+      <StageDirection id="84639b2c-fa0e-46c1-aae0-60b078fad328">She kisses him on the cheek and rides away on her bike. </StageDirection>
       <DialogueBlock>
         <Speaker>TONY</Speaker>
         <Line id="scene_5_6_line_60">How can we ever repay you?</Line>
@@ -4399,14 +4399,14 @@
         <Speaker>FRANCINE</Speaker>
         <Line id="scene_5_6_line_61">Stop throwing things in the ocean!</Line>
       </DialogueBlock>
-      <StageDirection>She is gone. MISS DUANE enters. </StageDirection>
+      <StageDirection id="77b31cd4-01c5-47d9-adc1-d921f5e1e691">She is gone. MISS DUANE enters. </StageDirection>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
         <Line id="scene_5_6_line_62">WHAT IS GOING ON?! Greg, you need to get up right now. </Line>
       </DialogueBlock>
     </Page>
     <Page number="82">
-      <StageDirection>SQUISH doesn't move. She pokes him with her foot. </StageDirection>
+      <StageDirection id="c01bafe8-7378-4181-b6c9-8a0753e8b761">SQUISH doesn't move. She pokes him with her foot. </StageDirection>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
         <Line id="scene_5_6_line_63">Greg?</Line>
@@ -4423,7 +4423,7 @@
         <Speaker>PRIYA</Speaker>
         <Line id="scene_5_6_line_66">Look at his face. </Line>
       </DialogueBlock>
-      <StageDirection>She pushes his body with her foot, looking at his true face. </StageDirection>
+      <StageDirection id="c55528e4-8f2d-4f3a-9b55-851df522d44b">She pushes his body with her foot, looking at his true face. </StageDirection>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
         <Line id="scene_5_6_line_67">Oh god, it's like a bag of wet bread rolls. What is it?</Line>
@@ -4438,15 +4438,15 @@
           nobody else needs to know.
           None of us were here. I'm not losing my job over another body. </Line>
       </DialogueBlock>
-      <StageDirection>Stella Bunt, I am so disappointed in you. I'd expect violent outbursts from
+      <StageDirection id="5d08561f-ca37-487b-ae85-3c20b2b9784a">Stella Bunt, I am so disappointed in you. I'd expect violent outbursts from
         her and pretty much anything from him, but from you? What do you have to say for yourself?</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_5_6_line_70">Grade 10 is a big year. </Line>
       </DialogueBlock>
-      <StageDirection>The STORYTELLERS from the prologue enter once more. </StageDirection>
+      <StageDirection id="b723d4b1-6b37-49df-ba57-295f516a0bdd">The STORYTELLERS from the prologue enter once more. </StageDirection>
 
-      <StageDirection>The STORYTELLERS from the prologue enter once more.</StageDirection>
+      <StageDirection id="a008d9e2-ceba-4d51-aa4b-60e4f712d10d">The STORYTELLERS from the prologue enter once more.</StageDirection>
       <DialogueBlock>
         <Speaker>STORYTELLERS</Speaker>
         <Line id="scene_6_1_line_1">The victory at the flagpole marked the turning point in the
@@ -4485,7 +4485,7 @@
           you let them.</Line>
         <Line id="scene_6_1_line_18">And after that day, none of us ever did.</Line>
       </DialogueBlock>
-      <StageDirection>STELLA gets up, puts on her backpack, and strides home. The End.</StageDirection>
+      <StageDirection id="b66727e1-510e-4582-850a-ab71fd2bcc8e">STELLA gets up, puts on her backpack, and strides home. The End.</StageDirection>
     </Page>
   </Scene>
 </Script>
