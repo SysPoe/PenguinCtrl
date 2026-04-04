@@ -933,7 +933,8 @@ function calculateCueOrder() {
 
   function nextSceneCueNumber(sceneId) {
     if (!sceneId) {
-      return ++(sceneCounters.__global || (sceneCounters.__global = 0));
+      sceneCounters.__global = (sceneCounters.__global || 0) + 1;
+      return sceneCounters.__global;
     }
     const sceneNum = sceneNumberMap[sceneId] || '0';
     const count = (sceneCounters[sceneId] || 0) + 1;
@@ -1743,7 +1744,7 @@ async function saveCue() {
       cueList.push(nextCue);
     }
   } else {
-    const nextCue = { id: generateId(), title, description, ...cuePayload };
+    const nextCue = { id: crypto.randomUUID(), title, description, ...cuePayload };
     if (isLightingCueType(currentCueType) && currentLightingAction === 'none') {
       delete nextCue.oscAction;
       delete nextCue.oscPlayback;

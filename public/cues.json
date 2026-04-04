@@ -1,5 +1,5 @@
 {
-  "scene_1_2_p12_sd4_w12": {
+  "44f6136c-9ec8-46fc-b227-d264de933639_w12": {
     "lighting": [
       {
         "id": "lq_01_starts_choking",
@@ -13,7 +13,7 @@
       }
     ]
   },
-  "scene_1_2_p13_sd1_w21": {
+  "015d1e9c-ee88-4cf3-9e43-af1f7f79f334_w21": {
     "lighting": [
       {
         "id": "lq_02_sink_to_bottom",
@@ -27,7 +27,7 @@
       }
     ]
   },
-  "scene_1_2_p14_sd0_w5": {
+  "57b99c65-a2d6-4eb8-9ebb-02c7d8f4fbc4_w5": {
     "lighting": [
       {
         "id": "lq_03_blackout_title",
@@ -41,7 +41,7 @@
       }
     ]
   },
-  "scene_1_3_p14_sd0_w5": {
+  "04bd5b20-c26c-4683-a6a6-ce69aa38438f_w5": {
     "lighting": [
       {
         "id": "lq_04_school_yard_warm",
@@ -55,7 +55,7 @@
       }
     ]
   },
-  "scene_1_4_p21_sd0_w2": {
+  "b5e6417b-ce5c-4917-b4a5-d89930cbbbf6_w2": {
     "lighting": [
       {
         "id": "lq_05_assembly_bell",
@@ -83,7 +83,7 @@
       }
     ]
   },
-  "scene_1_5_p23_sd0_w13": {
+  "d27cc374-b947-4873-b232-edac96982e09_w13": {
     "lighting": [
       {
         "id": "lq_07_science_lab_detention",
@@ -97,7 +97,7 @@
       }
     ]
   },
-  "scene_1_5_p25_sd1_w1": {
+  "a01596bc-633d-4de5-9d25-d4d7ebb53c80_w1": {
     "lighting": [
       {
         "id": "lq_08_breakdance_burst",
@@ -111,7 +111,7 @@
       }
     ]
   },
-  "scene_1_5_p26_sd1_w2": {
+  "5f7bb439-b1a7-4e77-8433-57e394d75931_w2": {
     "lighting": [
       {
         "id": "lq_09_back_to_normal",
@@ -125,7 +125,7 @@
       }
     ]
   },
-  "scene_1_5_p27_sd1_w2": {
+  "23208b69-38ec-450a-bdd4-af22c41b7129_w2": {
     "lighting": [
       {
         "id": "lq_10_lab_closes_in",
@@ -139,7 +139,7 @@
       }
     ]
   },
-  "scene_1_5_p28_sd0_w4": {
+  "2cf468be-9f62-4cdf-8cdd-d8e28922fa8f_w4": {
     "lighting": [
       {
         "id": "lq_11_classroom_lights_out",
@@ -153,7 +153,7 @@
       }
     ]
   },
-  "scene_1_6_p28_sd0_w1": {
+  "64b7ad15-d735-4a46-9675-1a432ebabaea_w1": {
     "lighting": [
       {
         "id": "lq_12_stella_home_fade_in",
@@ -167,7 +167,7 @@
       }
     ]
   },
-  "scene_1_6_p30_sd0_w1": {
+  "2c32c5dd-a5e8-4091-9653-9d51f95e1bae_w1": {
     "lighting": [
       {
         "id": "lq_13_squish_transforms",
@@ -181,7 +181,7 @@
       }
     ]
   },
-  "scene_2_1_p30_sd0_w5": {
+  "9a720897-8291-4048-8915-81e4860aa49e_w5": {
     "lighting": [
       {
         "id": "lq_14_science_lab_entry",
@@ -195,7 +195,7 @@
       }
     ]
   },
-  "scene_2_1_p32_sd0_w1": {
+  "03f44b25-76eb-40ab-8f47-86d1338a34c6_w1": {
     "lighting": [
       {
         "id": "lq_15_greg_enters",
@@ -209,7 +209,7 @@
       }
     ]
   },
-  "scene_2_1_p32_sd2_w1": {
+  "46f02124-5d14-4988-bfdf-56f5e23391df_w1": {
     "lighting": [
       {
         "id": "lq_16_everyone_leaves",
@@ -223,7 +223,7 @@
       }
     ]
   },
-  "scene_2_1_p33_sd2_w1": {
+  "df398461-b128-40ca-8856-09ec5b8c94e4_w1": {
     "lighting": [
       {
         "id": "lq_17_reentry_reset",
@@ -237,7 +237,7 @@
       }
     ]
   },
-  "scene_2_2_p34_sd0_w1": {
+  "1c64a040-a3c1-4a04-9e4a-1db9dd23291c_w1": {
     "lighting": [
       {
         "id": "lq_18_student_council",
@@ -251,7 +251,7 @@
       }
     ]
   },
-  "scene_2_3_p37_sd0_w1": {
+  "ec06b76d-4914-491d-93d0-dcbed3461c49_w1": {
     "lighting": [
       {
         "id": "lq_19_group_chat_dim",
@@ -265,7 +265,7 @@
       }
     ]
   },
-  "scene_2_4_p38_sd2_w1": {
+  "79cca949-ac6a-4005-a4b4-0eb2e0705094_w1": {
     "lighting": [
       {
         "id": "lq_21_dodgeball",
@@ -279,7 +279,7 @@
       }
     ]
   },
-  "scene_2_4_p39_sd1_w5": {
+  "11481506-f2f0-49ab-bb25-b3b9e1215e5a_w5": {
     "lighting": [
       {
         "id": "lq_22_court_cools",
@@ -293,7 +293,7 @@
       }
     ]
   },
-  "scene_2_5_p39_sd0_w3": {
+  "7b44bd56-1f57-4f5c-a69a-a0987c586252_w3": {
     "lighting": [
       {
         "id": "lq_23_locker_room_harsh",
@@ -321,7 +321,7 @@
       }
     ]
   },
-  "scene_2_6_p42_sd0_w3": {
+  "3bcfc563-5024-4cca-9b10-03a65b990562_w3": {
     "lighting": [
       {
         "id": "lq_25_playground_light",
@@ -335,7 +335,7 @@
       }
     ]
   },
-  "scene_3_1_p46_sd1_w2": {
+  "f42e6459-f26b-4cad-9784-1bfeaa008b1b_w2": {
     "lighting": [
       {
         "id": "lq_26_behind_the_sheds",
@@ -349,7 +349,7 @@
       }
     ]
   },
-  "scene_3_2_p47_sd0_w5": {
+  "0921cda1-fc87-4825-9321-f08f8ccd522d_w5": {
     "lighting": [
       {
         "id": "lq_27_principals_office",
@@ -363,7 +363,7 @@
       }
     ]
   },
-  "scene_3_3_p49_sd1_w9": {
+  "aa88f406-3fac-4c65-ac47-28fca1b21b05_w9": {
     "lighting": [
       {
         "id": "lq_28_stage_goes_dark",
@@ -377,7 +377,7 @@
       }
     ]
   },
-  "scene_3_5_p50_sd2_w3": {
+  "33c495c7-549f-475f-a3a9-4b27199bddb6_w3": {
     "lighting": [
       {
         "id": "lq_29_stella_priya_exit",
@@ -391,7 +391,7 @@
       }
     ]
   },
-  "scene_3_5_p52_sd1_w1": {
+  "64a8b47f-9085-48c4-a6cd-08042da7eac1_w1": {
     "lighting": [
       {
         "id": "lq_30_flashbang",
@@ -405,7 +405,7 @@
       }
     ]
   },
-  "scene_4_1_p52_sd0_w4": {
+  "a4c80331-6505-4f90-9569-46071a989667_w4": {
     "lighting": [
       {
         "id": "lq_31_dance_party",
@@ -419,7 +419,7 @@
       }
     ]
   },
-  "scene_4_1_p53_sd3_w3": {
+  "8a6786ec-6d53-493e-96f2-c59792a246ed_w3": {
     "lighting": [
       {
         "id": "lq_32_cha_cha_slide",
@@ -433,7 +433,7 @@
       }
     ]
   },
-  "scene_4_1_p54_sd0_w31": {
+  "fb2c7b72-c313-4753-94e6-2efa52f726b6_w31": {
     "lighting": [
       {
         "id": "lq_33_stormy_end",
@@ -447,7 +447,7 @@
       }
     ]
   },
-  "scene_4_2_p55_sd0_w1": {
+  "27c6e458-ce83-4bef-b9c7-0c2909117a4c_w1": {
     "lighting": [
       {
         "id": "lq_34_tyson_enters",
@@ -461,7 +461,7 @@
       }
     ]
   },
-  "scene_4_2_p56_sd0_w9": {
+  "e06191c1-5ada-4e11-8bb8-64cf3af8cab7_w9": {
     "lighting": [
       {
         "id": "lq_35_tyson_leaves",
@@ -475,7 +475,7 @@
       }
     ]
   },
-  "scene_4_3_p56_sd0_w1": {
+  "be44d941-2cc3-4983-bdc5-fa6147575289_w1": {
     "lighting": [
       {
         "id": "lq_36_tonys_room",
@@ -489,7 +489,7 @@
       }
     ]
   },
-  "scene_4_3_p57_sd0_w1": {
+  "eb525dbc-6ea5-4d6b-bcdc-5f405be75180_w1": {
     "lighting": [
       {
         "id": "lq_37_tony_dances",
@@ -503,7 +503,7 @@
       }
     ]
   },
-  "scene_4_4_p57_sd0_w3": {
+  "03d976eb-60bc-40bb-95ae-de073bbdd03b_w3": {
     "lighting": [
       {
         "id": "lq_38_stellas_room",
@@ -517,7 +517,7 @@
       }
     ]
   },
-  "scene_4_4_p59_sd2_w7": {
+  "9978cfdb-452a-4520-9c42-817c10cf18e7_w7": {
     "lighting": [
       {
         "id": "lq_40_music_cut",
@@ -545,7 +545,7 @@
       }
     ]
   },
-  "scene_5_1_p61_sd0_w4": {
+  "57a543d5-c7f6-4aec-93f0-a30b12a67408_w4": {
     "lighting": [
       {
         "id": "lq_42_classroom",
@@ -559,7 +559,7 @@
       }
     ]
   },
-  "scene_5_1_p64_sd4_w3": {
+  "f1ce8484-4c94-4e7d-b96e-5fb36e8dd2bc_w3": {
     "lighting": [
       {
         "id": "lq_43_everyone_exits",
@@ -587,7 +587,7 @@
       }
     ]
   },
-  "scene_5_4_p71_sd0_w8": {
+  "1a43c099-1bbf-42e2-86be-1fa9e16c0449_w8": {
     "lighting": [
       {
         "id": "lq_45_paper_mache_knife",
@@ -601,7 +601,7 @@
       }
     ]
   },
-  "scene_5_4_p71_sd2_w3": {
+  "f24509b7-31e6-4b16-a602-102ed82b22e9_w3": {
     "lighting": [
       {
         "id": "lq_46_back_to_the_kids",
@@ -615,7 +615,7 @@
       }
     ]
   },
-  "scene_5_4_p73_sd0_w8": {
+  "6d149ee7-03c4-4d83-b186-9efd031e58fb_w8": {
     "lighting": [
       {
         "id": "lq_47_vision_of_gregs",
@@ -629,7 +629,7 @@
       }
     ]
   },
-  "scene_5_5_p74_sd0_w1": {
+  "034fe5ea-b26a-429b-8577-7722e45abecd_w1": {
     "lighting": [
       {
         "id": "lq_48_training_montage",
@@ -643,7 +643,7 @@
       }
     ]
   },
-  "scene_5_5_p74_sd1_w5": {
+  "228d2c03-b255-4795-9d20-94e34fbdb5a0_w5": {
     "lighting": [
       {
         "id": "lq_49_spot_welding",
@@ -657,7 +657,7 @@
       }
     ]
   },
-  "scene_5_5_p75_sd0_w1": {
+  "9fa3baf4-d457-40d2-a3e3-c28a19231651_w1": {
     "lighting": [
       {
         "id": "lq_50_friday_255",
@@ -671,7 +671,7 @@
       }
     ]
   },
-  "scene_5_6_p76_sd3_w1": {
+  "57f8134f-9084-43dc-93ef-798cbfdd05e0_w1": {
     "lighting": [
       {
         "id": "lq_51_fight_scene",
@@ -685,7 +685,7 @@
       }
     ]
   },
-  "scene_5_6_p77_sd2_w3": {
+  "cf39096f-4061-4426-9f63-f14d0cc24f8c_w3": {
     "lighting": [
       {
         "id": "lq_52_tony_peaceful",
@@ -713,7 +713,7 @@
       }
     ]
   },
-  "scene_5_6_p80_sd0_w4": {
+  "3543c615-2312-4857-9439-40e87c0c7dda_w4": {
     "lighting": [
       {
         "id": "lq_54_as_they_crash",
@@ -727,7 +727,7 @@
       }
     ]
   },
-  "scene_5_6_p80_sd1_w5": {
+  "efa49eb8-97c3-40cb-b972-ba6cb6b7ceb6_w5": {
     "lighting": [
       {
         "id": "lq_55_firecrackers",
@@ -741,7 +741,7 @@
       }
     ]
   },
-  "scene_5_6_p80_sd2_w6": {
+  "88f6430b-eb27-46db-8a8d-9297f69601a6_w6": {
     "lighting": [
       {
         "id": "lq_56_standstill",
@@ -755,7 +755,7 @@
       }
     ]
   },
-  "scene_5_6_p80_sd4_w3": {
+  "b7dbc53d-f165-48eb-a59a-f09a9bad8bc4_w3": {
     "lighting": [
       {
         "id": "lq_57_back_to_action",
@@ -769,7 +769,7 @@
       }
     ]
   },
-  "scene_5_6_p82_sd0_w0": {
+  "c01bafe8-7378-4181-b6c9-8a0753e8b761_w0": {
     "lighting": [
       {
         "id": "lq_58_squish_dead",
@@ -783,7 +783,7 @@
       }
     ]
   },
-  "scene_6_1_p82_sd0_w1": {
+  "a008d9e2-ceba-4d51-aa4b-60e4f712d10d_w1": {
     "lighting": [
       {
         "id": "lq_59_storytellers_return",
@@ -797,7 +797,7 @@
       }
     ]
   },
-  "scene_6_1_p83_sd0_w2": {
+  "b66727e1-510e-4582-850a-ab71fd2bcc8e_w2": {
     "lighting": [
       {
         "id": "lq_60_stella_gets_up",
@@ -825,7 +825,7 @@
       }
     ]
   },
-  "scene_4_2_p55_sd0_w26": {
+  "27c6e458-ce83-4bef-b9c7-0c2909117a4c_w26": {
     "lighting": [
       {
         "id": "mnflrz8p5wjy6",
@@ -867,7 +867,7 @@
       }
     ]
   },
-  "scene_4_4_p59_sd0_w2": {
+  "23926e1c-372b-4fda-b81c-506892caf2a0_w2": {
     "lighting": [
       {
         "id": "mnflwu8lt0qnz",
@@ -881,7 +881,7 @@
       }
     ]
   },
-  "scene_4_4_p59_sd1_w0": {
+  "ffd9c7b3-693a-4c99-aa43-164d8c97c306_w0": {
     "lighting": [
       {
         "id": "mnflxltkg2ayj",
