@@ -228,6 +228,18 @@ body {
   margin: 0 0 20px 0;
 }
 
+.location-row .text-column {
+  padding-top: 6px;
+  padding-bottom: 4px;
+  font-size: 1.5rem;
+}
+
+.location-direction {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
 /* ── Dialogue Layout ── */
 
 .dialogue-block {

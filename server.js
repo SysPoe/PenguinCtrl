@@ -396,6 +396,7 @@ function buildSceneCache(result, fingerprint) {
       act: sceneAttrs.act,
       title: sceneAttrs.title,
       description: sceneAttrs.description,
+      location: sceneAttrs.location,
       struck: sceneStruck
     };
 
@@ -415,6 +416,20 @@ function buildSceneCache(result, fingerprint) {
       if (isFirstPage) {
         elements.push({ type: 'scene_meta', meta: sceneMeta });
       }
+
+      toArray(page.Location).forEach((loc, locIdx) => {
+        const text = getXmlText(loc).trim();
+        if (text) {
+          elements.push({
+            type: 'location',
+            text,
+            id: (loc && loc.$ && loc.$.id) || `${sceneId}_p${pageNum}_loc${locIdx}`,
+            scene_id: sceneId,
+            page_num: pageNum,
+            struck: pageStruck
+          });
+        }
+      });
 
       // Process StageDirection elements — assign stable IDs
       toArray(page.StageDirection).forEach((sd, sdIdx) => {
