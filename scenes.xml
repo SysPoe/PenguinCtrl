@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Script>
-  <Scene id="scene_1_1" pageStart="10" pageEnd="12" act="Act 1: The Inciting Incident"
-    title="Prologue" description="Introduction of the STORYTELLERS and the ocean" struck="true">
+<Script xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:noNamespaceSchemaLocation="schema.xsd">
+  <Scene id="struck_00" sceneNumber="1000" pageStart="10" pageEnd="12"
+    title="STORYTELLERS" struck="true">
     <Page number="10">
       <StageDirection>Darkness. A fog has settled across the floor as STORYTELLERS appear onstage
         one by one, in very neat black suits, ties. All of them should all feel connected — like
@@ -48,8 +49,7 @@
       </DialogueBlock>
     </Page>
   </Scene>
-  <Scene id="scene_1_2" pageStart="12" pageEnd="14" act="Act 1: The Inciting Incident"
-    title="The Shipyard" description="Dockworkers drink recalled energy drinks; Squish rises">
+  <Scene id="prologue" sceneNumber="00" pageStart="12" pageEnd="13" title="Prologue: Dockworkers">
     <Page number="12">
       <StageDirection>They disappear into the middle of the night at a shipyard. A DOCKWORKER is
         alone, in high vis and unloading crates from a forklift. There's a sound from the void. He
@@ -131,8 +131,7 @@
       <StageDirection>A TITLE SEQUENCE of some sort.</StageDirection>
     </Page>
   </Scene>
-  <Scene id="scene_1_3" pageStart="14" pageEnd="21" act="Act 1: The Inciting Incident"
-    title="The Quad" description="Stella, Tony, and Priya discuss holidays and toilet licking">
+  <Scene id="scene_1" sceneNumber="10" pageStart="14" pageEnd="23" title="Scene 1: First Day">
     <Page number="14">
       <StageDirection>The middle of the school yard. The start of a new term, new year. STELLA is
         sitting in the yard with TONY. TONY is eating M&amp;Ms.</StageDirection>
@@ -607,11 +606,6 @@
         <Line id="scene_1_3_line_99">Guys. Thank you. Move. Jordan! Stop running. Straight lines
           please.</Line>
       </DialogueBlock>
-    </Page>
-  </Scene>
-  <Scene id="scene_1_4" pageStart="21" pageEnd="23" act="Act 1: The Inciting Incident"
-    title="Assembly" description="Mr. Fowler addresses the school; SRC discusses the Pre-formal">
-    <Page number="21">
       <StageDirection>The bell rings again. Whatever song it is, stick with it for the rest of the
         show. We're in Assembly. MR FOWLER is addressing the students.</StageDirection>
       <DialogueBlock>
@@ -756,8 +750,7 @@
       </DialogueBlock>
     </Page>
   </Scene>
-  <Scene id="scene_1_5" pageStart="23" pageEnd="30" act="Act 1: The Inciting Incident"
-    title="Science Lab" description="Detention begins; Miss Duane introduces Squish the octopus">
+  <Scene id="scene_2" sceneNumber="20" pageStart="23" pageEnd="28" title="Scene 2: Detention">
     <Page number="23">
       <StageDirection>Later in the day. School has ended, MISS DUANE is in the science lab with the
         kids.</StageDirection>
@@ -1103,8 +1096,8 @@
       <StageDirection>The classroom lights turn off, and the kids leave.</StageDirection>
     </Page>
   </Scene>
-  <Scene id="scene_1_6" pageStart="28" pageEnd="30" act="Act 1: The Inciting Incident"
-    title="Stella's Home" description="Stella and Tyson watch a news report on the dockworkers">
+  <Scene id="scene_2_5" sceneNumber="25" pageStart="28" pageEnd="30"
+    title="Scene 2.5: News/Stella's Home">
     <Page number="28">
       <StageDirection>STELLA is now at home with TYSON, both on their laptops. The TV is on in the
         background.</StageDirection>
@@ -1220,13 +1213,10 @@
         and more muscular, until he is the size of a fully grown man. He raises his arms and roars.</StageDirection>
     </Page>
   </Scene>
-  <Scene id="scene_2_1" pageStart="30" pageEnd="34" act="Act 2: The Rising Threat"
-    title="Science Lab"
-    description="Squish is missing; Greg (the &quot;New Kid&quot;) is introduced">
+  <Scene id="scene_3" sceneNumber="30" pageStart="30" pageEnd="39"
+    title="Scene 3: Meeting Greg/The SRC">
     <Page number="30">
-      <SceneHeading>Science Lab</SceneHeading> PRIYA You know when you talk? Sometimes you just
-      shouldn't. STELLA Um ... Guys? TONY Friends share stories, Priya! STELLA Guys? PRIYA I tell
-      you about fun things, not fungal infections! STELLA Guys! PRIYA What? <StageDirection>The kids
+      <StageDirection>The kids
       enter the science lab. They have the cleaning equipment ready to work.</StageDirection>
       <DialogueBlock>
         <Speaker>TONY</Speaker>
@@ -1258,7 +1248,7 @@
         <Speaker>STELLA</Speaker>
         <Line id="scene_2_1_line_7">Guys!</Line>
       </DialogueBlock>
-    <DialogueBlock>
+      <DialogueBlock>
         <Speaker>PRIYA</Speaker>
         <Line id="scene_2_1_line_8">What?</Line>
       </DialogueBlock>
@@ -1523,12 +1513,7 @@
         <Speaker>PRIYA</Speaker>
         <Line id="scene_2_1_line_77">Text me if you need anything, okay?</Line>
       </DialogueBlock>
-    </Page>
-  </Scene>
-  <Scene id="scene_2_2" pageStart="34" pageEnd="36" act="Act 2: The Rising Threat" title="The Hall"
-    description="Stella tries to report Greg's threats to the SRC">
-    <Page number="34">
-      <SceneHeading>The Hall</SceneHeading>
+
       <DialogueBlock>
         <Speaker>MADISON</Speaker>
         <Line id="scene_2_2_line_1">No, Madyson, the streamers are supposed to be festive!</Line>
@@ -1680,10 +1665,7 @@
       </DialogueBlock>
       <StageDirection>She hugs STELLA.</StageDirection>
     </Page>
-  </Scene>
-  <Scene id="scene_2_3" pageStart="37" pageEnd="38" act="Act 2: The Rising Threat" title="New Kid"
-    description="A group chat reveals rumors and hype about Greg">
-    <Page number="37">
+    <Page number="37" struck="true">
       <StageDirection>Inside a group chat.</StageDirection>
       <DialogueBlock>
         <Speaker>ALL</Speaker>
@@ -1727,10 +1709,9 @@
         <Line id="scene_2_3_line_16">I'm not good at using my words.</Line>
       </DialogueBlock>
     </Page>
-    <Page number="38">
+    <Page number="38" struck="true">
       <DialogueBlock>
         <Line id="scene_2_3_line_17">I heard his dad's in prison for breaking his mum out of prison</Line>
-        .
         <Line id="scene_2_3_line_18">I heard he burned a pet store down.</Line>
         <Line
           id="scene_2_3_line_19">I heard he used to be Tumblr famous.</Line>
@@ -1746,10 +1727,8 @@
       <StageDirection>Dramatic music.</StageDirection>
     </Page>
   </Scene>
-  <Scene id="scene_2_4" pageStart="38" pageEnd="39" act="Act 2: The Rising Threat" title="PE Class"
-    description="A vicious game of Dodgeball highlighting Greg's aggression">
+  <Scene id="scene_4" sceneNumber="40" pageStart="39" pageEnd="42" title="Scene 4: Dodgeball">
     <Page number="38">
-      <SceneHeading>PE Class</SceneHeading>
       <StageDirection>DODGEBALL</StageDirection>
       <StageDirection>The sound of a whistle. MR RIDGE, the PE Teacher has gathered the kids into
         teams. They're lined up to play. STELLA and GREG are on the same team.</StageDirection>
@@ -1824,10 +1803,7 @@
           love.</Line>
       </DialogueBlock>
     </Page>
-  </Scene>
-  <Scene id="scene_2_5" pageStart="39" pageEnd="42" act="Act 2: The Rising Threat"
-    title="Locker Room" description="Greg confronts Tony and steals Stella's shoes">
-    <Page number="39">
+    <Page number="39" struck="true">
       <StageDirection>The boys' locker room. GREG is drinking another of the energy drinks.</StageDirection>
       <DialogueBlock struck="true">
         <Speaker>ALL</Speaker>
@@ -1882,9 +1858,9 @@
       <DialogueBlock struck="true">
         <Speaker>ALL BOYS</Speaker>
         <Line id="scene_2_5_line_21">Ooooooooooh.</Line>
-        <Speaker>TONY</Speaker>
       </DialogueBlock>
       <DialogueBlock struck="true">
+        <Speaker>TONY</Speaker>
         <Line id="scene_2_5_line_22">We're friends.</Line>
       </DialogueBlock>
     </Page>
@@ -1987,11 +1963,9 @@
       </DialogueBlock>
     </Page>
   </Scene>
-  <Scene id="scene_2_6" pageStart="42" pageEnd="45" act="Act 2: The Rising Threat"
-    title="Playground"
-    description="Miss Duane uses &quot;crush logic&quot; to dismiss Greg's bullying">
+  <Scene id="scene_5" sceneNumber="50" pageStart="42" pageEnd="52"
+    title="Scene 5: Grade 7's vs Tony vs Greg">
     <Page number="42">
-      <SceneHeading>Playground</SceneHeading>
       <StageDirection>MISS DUANE is on playground duty.</StageDirection>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
@@ -2282,11 +2256,7 @@
         <Line id="scene_2_6_line_61">Oh boy.</Line>
       </DialogueBlock>
     </Page>
-  </Scene>
-  <Scene id="scene_3_1" pageStart="46" pageEnd="47" act="Act 3: Desperate Measures"
-    title="Behind the Sheds" description="Tony bargains with the Grade 7 scooter gang">
     <Page number="46">
-      <SceneHeading>Behind the Sheds</SceneHeading>
       <StageDirection>TONY is alone behind the sheds, terrified. There is fast movement in the
         shadows, eerie giggling. It's very spooky</StageDirection>
       <DialogueBlock>
@@ -2396,12 +2366,6 @@
         <Line id="scene_3_1_line_32">Yeahokaythankyou.</Line>
       </DialogueBlock>
       <StageDirection>TONY runs.</StageDirection>
-    </Page>
-  </Scene>
-  <Scene id="scene_3_2" pageStart="47" pageEnd="48" act="Act 3: Desperate Measures"
-    title="Principal's Office" description="Mr. Fowler checks in on Greg">
-    <Page number="47">
-      <SceneHeading>Principal's Office</SceneHeading>
       <StageDirection>MR FOWLER is sitting with GREG.</StageDirection>
     </Page>
     <Page number="48">
@@ -2437,12 +2401,7 @@
       </DialogueBlock>
       <StageDirection>GREG leaves, and is alone. He sniffs the air. The sound of rattling chains.
         Something is near.</StageDirection>
-    </Page>
-  </Scene>
-  <Scene id="scene_3_3" pageStart="48" pageEnd="49" act="Act 3: Desperate Measures"
-    title="The Ambush" description="The Grade 7s attack Greg but are brutally defeated">
-    <Page number="48">
-      <SceneHeading>The Ambush</SceneHeading>
+
       <DialogueBlock>
         <Line id="scene_3_3_line_1">We've heard a lot about you, Grade 10er.</Line>
       </DialogueBlock>
@@ -2470,12 +2429,7 @@
         <Line id="scene_3_3_line_10">Finally.</Line>
       </DialogueBlock>
       <StageDirection>They run at each other as the stage goes dark.</StageDirection>
-    </Page>
-  </Scene>
-  <Scene id="scene_3_4" pageStart="49" pageEnd="49" act="Act 3: Desperate Measures" title="Assembly"
-    description="Mr. Fowler discusses the &quot;scooter-related&quot; hospitalizations">
-    <Page number="49">
-      <SceneHeading>Assembly</SceneHeading>
+
       <StageDirection>The bells marks the next day at assembly. The students are all gathered,</StageDirection>
       <DialogueBlock>
         <Speaker>FOWLER</Speaker>
@@ -2535,11 +2489,7 @@
         <Line id="scene_3_4_line_10">Good point. On your way now. Dismissed.</Line>
       </DialogueBlock>
       <StageDirection>The bells sounds again as the students scatter.</StageDirection>
-    </Page>
-  </Scene>
-  <Scene id="scene_3_5" pageStart="50" pageEnd="52" act="Act 3: Desperate Measures" title="The Quad"
-    description="Greg threatens Tony; Francine rescues Tony on a BMX">
-    <Page number="50">
+
       <StageDirection>SQUISH slowly makes his way to TONY, flanked by some of the boys.</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
@@ -2705,10 +2655,9 @@
       <StageDirection>He stands on the back pegs as she pedals away.</StageDirection>
     </Page>
   </Scene>
-  <Scene id="scene_4_1" pageStart="52" pageEnd="54" act="Act 4: The Darkest Night" title="The Dance"
-    description="Greg stalks and threatens Stella during the Cha Cha Slide">
+  <Scene id="scene_6" sceneNumber="60" pageStart="52" pageEnd="55" title="Scene 6: The Dance">
     <Page number="52">
-      <StageDirection>It’s going off in the hall as the Formal is in full swing. MISS DUANE is
+      <StageDirection>It's going off in the hall as the Formal is in full swing. MISS DUANE is
         playing the music from her phone. Everyone is dancing is formation. PRIYA is sitting on the
         side.</StageDirection>
       <DialogueBlock>
@@ -2763,7 +2712,7 @@
       <StageDirection>MISS DUANE takes the mic</StageDirection>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
-        <Line id="scene_4_1_line_11">Make the most of tonight, everyone, it’s all uphill from here.
+        <Line id="scene_4_1_line_11">Make the most of tonight, everyone, it's all uphill from here.
           One day you might DJ a school dance. But for now, here's a song you might remember. </Line>
       </DialogueBlock>
       <StageDirection>The Cha Cha Slide. STELLA tries to escape, but has no choice but to dance with
@@ -2847,8 +2796,7 @@
         away.</StageDirection>
     </Page>
   </Scene>
-  <Scene id="scene_4_2" pageStart="55" pageEnd="56" act="Act 4: The Darkest Night"
-    title="Stella's Bedroom" description="Squish/Greg lurks in the shadows; Tyson ignores her">
+  <Scene id="scene_7" sceneNumber="70" pageStart="51" pageEnd="61" title="Scene 7: Returning Home">
     <Page number="55">
       <StageDirection>At home, STELLA is lying alone in the dark in her bed. Thunder and lightning.
         A loud boom of thunder and a flash of lightning shows SQUISH standing at the door. He is
@@ -2924,11 +2872,7 @@
         <Line id="scene_4_2_line_16">Goodnight, friend.</Line>
       </DialogueBlock>
       <StageDirection>Another flash of lightning and he is gone.</StageDirection>
-    </Page>
-  </Scene>
-  <Scene id="scene_4_3" pageStart="56" pageEnd="57" act="Act 4: The Darkest Night"
-    title="Tony's Bedroom" description="Francine explains Greg is an octopus and they must fight">
-    <Page number="56">
+
       <StageDirection>TONY's room. FRANCINE and TONY enter.</StageDirection>
       <DialogueBlock>
         <Speaker>FRANCINE</Speaker>
@@ -3037,11 +2981,7 @@
         <Line id="scene_4_3_line_23">Check this out.</Line>
       </DialogueBlock>
       <StageDirection>He turns on music and he starts dancing.</StageDirection>
-    </Page>
-  </Scene>
-  <Scene id="scene_4_4" pageStart="57" pageEnd="59" act="Act 4: The Darkest Night" title="FaceTime"
-    description="Priya tells Stella she can't help">
-    <Page number="57">
+
       <StageDirection>Back in STELLA' room. STELLA is now hiding in her sleeping bag. She FaceTimes
         PRIYA, who is up playing video games.</StageDirection>
     </Page>
@@ -3149,7 +3089,7 @@
         <Speaker>FRANCINE</Speaker>
         <Line id="scene_4_4_line_22">He'll keep learning, Tony. All octopuses learn from their
           surroundings. If he sees it,
-          he'll copy it. If he hears it, he'll use it. We adapt. That’s how we survive. Have you
+          he'll copy it. If he hears it, he'll use it. We adapt. That's how we survive. Have you
           told him anything?</Line>
       </DialogueBlock>
       <DialogueBlock>
@@ -3200,7 +3140,7 @@
       </DialogueBlock>
       <DialogueBlock>
         <Speaker>TONY</Speaker>
-        <Line id="scene_4_4_line_33">Everyone always says I’m just an idiot.</Line>
+        <Line id="scene_4_4_line_33">Everyone always says I'm just an idiot.</Line>
       </DialogueBlock>
       <DialogueBlock>
         <Speaker>FRANCINE</Speaker>
@@ -3257,10 +3197,8 @@
       </DialogueBlock>
     </Page>
   </Scene>
-  <Scene id="scene_5_1" pageStart="61" pageEnd="64" act="Act 5: The Showdown" title="The Classroom"
-    description="A failed &quot;Talking Totem&quot; intervention">
+  <Scene id="scene_8" sceneNumber="80" pageStart="61" pageEnd="66" title="Scene 8: Intervention">
     <Page number="61">
-      <SceneHeading>The Classroom</SceneHeading>
       <StageDirection>STELLA appears in the classroom, where MISS DUANE and MR FOWLER are waiting.</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
@@ -3459,12 +3397,7 @@
           You're friends again. Now, I need to be on hat duty. You guys go and hang out, okay?</Line>
       </DialogueBlock>
       <StageDirection>DUANE and PRIYA exit. A gravelly laugh from GREG.</StageDirection>
-    </Page>
-  </Scene>
-  <Scene id="scene_5_2" pageStart="64" pageEnd="66" act="Act 5: The Showdown" title="The Quad"
-    description="Greg challenges Stella to a fight at the flagpole">
-    <Page number="64">
-      <SceneHeading>The Quad</SceneHeading>
+
     </Page>
     <Page number="65">
       <DialogueBlock>
@@ -3536,10 +3469,9 @@
       <StageDirection>He leaves. STELLA starts sobbing. MISS DUANE enters.</StageDirection>
     </Page>
   </Scene>
-  <Scene id="scene_5_3" pageStart="66" pageEnd="70" act="Act 5: The Showdown" title="Stella's House"
-    description="Tyson teaches Stella how to &quot;throw hands&quot;">
+  <Scene id="scene_9" sceneNumber="90" pageStart="66" pageEnd="75"
+    title="Scene 9: The Training Montage">
     <Page number="66">
-      <SceneHeading>Stella's House</SceneHeading>
       <StageDirection>STELLA is crying on the ground, alone.</StageDirection>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
@@ -3841,12 +3773,7 @@
           other half.</Line>
       </DialogueBlock>
       <StageDirection>He leaves. PRIYA and TONY dive through the window.</StageDirection>
-    </Page>
-  </Scene>
-  <Scene id="scene_5_4" pageStart="70" pageEnd="74" act="Act 5: The Showdown" title="Resistance"
-    description="Priya and Tony return to help Stella research octopus weaknesses">
-    <Page number="70">
-      <SceneHeading>Resistance</SceneHeading>
+
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_5_4_line_1">What are you doing here? Tony! You're okay!</Line>
@@ -4053,12 +3980,7 @@
         <Speaker>PRIYA</Speaker>
         <Line id="scene_5_4_line_40">We'll need them. It's going to be a long night.</Line>
       </DialogueBlock>
-    </Page>
-  </Scene>
-  <Scene id="scene_5_5" pageStart="74" pageEnd="75" act="Act 5: The Showdown"
-    title="Training Montage" description="The trio builds armor and prepares for battle">
-    <Page number="74">
-      <SceneHeading>Training Montage</SceneHeading>
+
       <StageDirection>Power Montage Music. PRIYA' plan is displayed. There's mechanical drawings and
         blueprints. Treadmills. TONY has a stack of books on marine life, and is reading The Old Man
         and the Sea.</StageDirection>
@@ -4138,10 +4060,8 @@
       </DialogueBlock>
     </Page>
   </Scene>
-  <Scene id="scene_5_6" pageStart="75" pageEnd="82" act="Act 5: The Showdown" title="The Flagpole"
-    description="The final battle between Stella and Squish">
+  <Scene id="scene_10" sceneNumber="100" pageStart="75" pageEnd="82" title="The Fight">
     <Page number="75">
-      <SceneHeading>The Flagpole</SceneHeading>
       <StageDirection>FRIDAY, 2:55PM The flagpole. SQUISH is punching a brick wall. All of the kids
         are gathered. Suddenly, the lights dim. Everything is highly stylised from this point.
         Smoke, flashing lights. It is STELLA. She is fitted in armour fashioned from random sports
@@ -4525,11 +4445,7 @@
         <Line id="scene_5_6_line_70">Grade 10 is a big year. </Line>
       </DialogueBlock>
       <StageDirection>The STORYTELLERS from the prologue enter once more. </StageDirection>
-    </Page>
-  </Scene>
-  <Scene id="scene_6_1" pageStart="82" pageEnd="83" act="Act 6: Resolution" title="Epilogue"
-    description="The Storytellers recount the aftermath and Stella's victory">
-    <Page number="82">
+
       <StageDirection>The STORYTELLERS from the prologue enter once more.</StageDirection>
       <DialogueBlock>
         <Speaker>STORYTELLERS</Speaker>
