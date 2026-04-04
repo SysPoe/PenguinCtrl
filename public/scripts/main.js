@@ -846,35 +846,17 @@ window.addEventListener('message', (event) => {
 
 // === UTILITIES ===
 
-function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-}
-
 function escapeHtml(text) {
   if (!text) return '';
   const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
   return String(text).replace(/[&<>"']/g, m => map[m]);
 }
 
-function hashStable(seed) {
-  let h = 5381;
-  for (let i = 0; i < seed.length; i++) h = ((h << 5) + h + seed.charCodeAt(i)) | 0;
-  return Math.abs(h).toString(36);
-}
-
-function normalizeCueEntry(rawEntry, typeId, idx, legacySingle = false) {
+function normalizeCueEntry(rawEntry, typeId, idx) {
   const entry = isObject(rawEntry) ? { ...rawEntry } : {};
 
   if (!entry.id) {
-    const stableSeed = [
-      typeId,
-      entry.title || '',
-      entry.description || '',
-      entry.clip || '',
-      entry.soundSubtype || '',
-      String(idx),
-    ].join('\u0000');
-    entry.id = legacySingle ? `l${hashStable(stableSeed)}` : `${typeId}_${hashStable(stableSeed)}`;
+    entry.id = crypto.randomUUID();
   }
 
   if (entry.title == null) entry.title = '';
@@ -888,7 +870,7 @@ function normalizeCueList(val, typeId = 'cue') {
   if (Array.isArray(val)) {
     return val.map((entry, idx) => normalizeCueEntry(entry, typeId, idx));
   }
-  return [normalizeCueEntry(val, typeId, 0, true)];
+  return [normalizeCueEntry(val, typeId, 0)];
 }
 
 function buildExecutableCue(typeId, cueData) {

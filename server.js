@@ -389,8 +389,10 @@ function buildSceneCache(result, fingerprint) {
     if (!sceneId) return;
 
     const sceneStruck = sceneAttrs.struck === 'true';
+    const sceneNumber = sceneAttrs.sceneNumber != null ? String(sceneAttrs.sceneNumber).trim() : '';
     const sceneMeta = {
       id: sceneId,
+      sceneNumber,
       act: sceneAttrs.act,
       title: sceneAttrs.title,
       description: sceneAttrs.description,
@@ -421,7 +423,7 @@ function buildSceneCache(result, fingerprint) {
           elements.push({
             type: 'stage',
             text,
-            id: `${sceneId}_p${pageNum}_sd${sdIdx}`,
+            id: (sd && sd.$ && sd.$.id) || `${sceneId}_p${pageNum}_sd${sdIdx}`,
             scene_id: sceneId,
             page_num: pageNum,
             struck: pageStruck
@@ -452,13 +454,13 @@ function buildSceneCache(result, fingerprint) {
           }
         });
 
-        toArray(block.InlineDirection).forEach(id => {
-          const text = getXmlText(id).trim();
+        toArray(block.InlineDirection).forEach(inlineEl => {
+          const text = getXmlText(inlineEl).trim();
           if (text) {
             lines.push({
               type: 'inline',
               text,
-              id: `${sceneId}_p${pageNum}_b${blockIdx}_il${inlineIdx++}`,
+              id: (inlineEl && inlineEl.$ && inlineEl.$.id) || `${sceneId}_p${pageNum}_b${blockIdx}_il${inlineIdx++}`,
               struck: blockStruck
             });
           }
