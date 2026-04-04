@@ -1132,6 +1132,7 @@ function renderPageElement(index) {
 
   function elIsStruck(el) {
     if (el.type === 'scene_meta') return el.meta.struck === true;
+    if (el.type === 'location') return el.struck === true;
     if (el.type === 'stage') return el.struck === true;
     if (el.type === 'dialogue') return el.block_struck === true;
     return false;
@@ -1160,6 +1161,14 @@ function renderPageElement(index) {
       html += '<div class="speaker-column"></div>';
       html += '<div class="cue-column" data-cue-column="true"></div>';
       html += `<div class="text-column stage-direction">${sid ? renderWordSpans(el.text, sid) : escapeHtml(el.text)}</div>`;
+      html += '</div>';
+    } else if (el.type === 'location') {
+      lastSpeaker = null;
+      const lid = el.id || '';
+      html += `<div class="dialogue-line-container location-row${el.struck ? ' struck-text' : ''}" data-line-id="${escapeHtml(lid)}">`;
+      html += '<div class="speaker-column"></div>';
+      html += '<div class="cue-column" data-cue-column="true"></div>';
+      html += `<div class="text-column location-direction">${lid ? renderWordSpans(el.text, lid) : escapeHtml(el.text)}</div>`;
       html += '</div>';
     } else if (el.type === 'dialogue') {
       const speaker = el.speaker || '';

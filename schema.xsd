@@ -46,8 +46,17 @@
       <xs:element name="Page" maxOccurs="unbounded">
         <xs:complexType>
           <xs:sequence>
-            <xs:element name="SceneHeading" type="StruckStringType" minOccurs="0" />
             <xs:choice minOccurs="0" maxOccurs="unbounded">
+              <xs:element name="Location">
+                <xs:complexType>
+                  <xs:simpleContent>
+                    <xs:extension base="xs:string">
+                      <xs:attribute name="struck" type="xs:boolean" use="optional" />
+                      <xs:attribute name="id" type="xs:string" use="optional" />
+                    </xs:extension>
+                  </xs:simpleContent>
+                </xs:complexType>
+              </xs:element>
               <xs:element name="StageDirection">
                 <xs:complexType>
                   <xs:simpleContent>

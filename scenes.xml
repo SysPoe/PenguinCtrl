@@ -4,6 +4,7 @@
   <Scene id="struck_00" sceneNumber="1000" pageStart="10" pageEnd="12"
     title="STORYTELLERS" struck="true">
     <Page number="10">
+      <Location id="struck_00_loc_1">The ocean.</Location>
       <StageDirection id="f6eaf150-a13a-4b87-860f-d1db8f2bb210">Darkness. A fog has settled across the floor as STORYTELLERS appear onstage
         one by one, in very neat black suits, ties. All of them should all feel connected — like
         multiple parts of a kaleidoscope.</StageDirection>
@@ -51,6 +52,7 @@
   </Scene>
   <Scene id="prologue" sceneNumber="00" pageStart="12" pageEnd="13" title="Prologue: Dockworkers">
     <Page number="12">
+      <Location id="prologue_loc_1">Shipyard.</Location>
       <StageDirection id="184955c7-fa61-43fe-a914-f1e6d10bd85a">They disappear into the middle of the night at a shipyard. A DOCKWORKER is
         alone, in high vis and unloading crates from a forklift. There's a sound from the void. He
         stops, looks around and keeps on working. A shadow approaches, and grabs him from behind,
@@ -133,6 +135,7 @@
   </Scene>
   <Scene id="scene_1" sceneNumber="10" pageStart="14" pageEnd="23" title="Scene 1: First Day">
     <Page number="14">
+      <Location id="scene_1_loc_1">School yard.</Location>
       <StageDirection id="04bd5b20-c26c-4683-a6a6-ce69aa38438f">The middle of the school yard. The start of a new term, new year. STELLA is
         sitting in the yard with TONY. TONY is eating M&amp;Ms.</StageDirection>
       <DialogueBlock>
@@ -601,6 +604,7 @@
         assembly.</StageDirection>
     </Page>
     <Page number="21">
+      <Location id="scene_1_loc_2">Assembly.</Location>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
         <Line id="scene_1_3_line_99">Guys. Thank you. Move. Jordan! Stop running. Straight lines
@@ -752,6 +756,7 @@
   </Scene>
   <Scene id="scene_2" sceneNumber="20" pageStart="23" pageEnd="28" title="Scene 2: Detention">
     <Page number="23">
+      <Location id="scene_2_loc_1">Science lab.</Location>
       <StageDirection id="d27cc374-b947-4873-b232-edac96982e09">Later in the day. School has ended, MISS DUANE is in the science lab with the
         kids.</StageDirection>
       <DialogueBlock>
@@ -782,6 +787,7 @@
       </DialogueBlock>
     </Page>
     <Page number="24">
+      <Location id="scene_2_loc_2">Fish tank.</Location>
       <DialogueBlock>
         <Speaker>PRIYA</Speaker>
         <Line id="scene_1_5_line_6">DUANE</Line>
@@ -1052,6 +1058,7 @@
         to behaving normally.</StageDirection>
     </Page>
     <Page number="28">
+      <Location id="scene_2_loc_3">Home.</Location>
       <DialogueBlock>
         <Speaker>PRIYA</Speaker>
         <Line id="scene_1_5_line_62">Stella? Let's go already.</Line>
@@ -1099,6 +1106,7 @@
   <Scene id="scene_2_5" sceneNumber="25" pageStart="28" pageEnd="30"
     title="Scene 2.5: News/Stella's Home">
     <Page number="28">
+      <Location id="scene_2_5_loc_1">Stella's home.</Location>
       <StageDirection id="64b7ad15-d735-4a46-9675-1a432ebabaea">STELLA is now at home with TYSON, both on their laptops. The TV is on in the
         background.</StageDirection>
       <DialogueBlock>
@@ -1124,6 +1132,7 @@
       </DialogueBlock>
     </Page>
     <Page number="29">
+      <Location id="scene_2_5_loc_2">Dockworkers interview.</Location>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
         <Line id="scene_1_6_line_6"> Shut up. Miss Duane said that I should have stood up and said
@@ -1180,6 +1189,7 @@
       <StageDirection id="dbcfa246-0cd1-4802-bf2e-2aef3c3fbd45">They raise cans of the drinks to sip.</StageDirection>
     </Page>
     <Page number="30">
+      <Location id="scene_2_5_loc_3">Street.</Location>
       <DialogueBlock>
         <Speaker>REPORTER</Speaker>
         <Line id="scene_1_6_line_18">Aren't those the same drinks?</Line>
@@ -1216,6 +1226,7 @@
   <Scene id="scene_3" sceneNumber="30" pageStart="30" pageEnd="39"
     title="Scene 3: Meeting Greg/The SRC">
     <Page number="30">
+      <Location id="scene_3_loc_1">Science lab.</Location>
       <StageDirection id="9a720897-8291-4048-8915-81e4860aa49e">The kids
       enter the science lab. They have the cleaning equipment ready to work.</StageDirection>
       <DialogueBlock>
@@ -1666,6 +1677,7 @@
       <StageDirection id="f52f85ff-5b25-4007-bf0d-78baef54a5d4">She hugs STELLA.</StageDirection>
     </Page>
     <Page number="37" struck="true">
+      <Location id="scene_3_loc_2">Group chat.</Location>
       <StageDirection id="ec06b76d-4914-491d-93d0-dcbed3461c49">Inside a group chat.</StageDirection>
       <DialogueBlock>
         <Speaker>ALL</Speaker>
@@ -1710,6 +1722,7 @@
       </DialogueBlock>
     </Page>
     <Page number="38" struck="true">
+      <Location id="scene_3_loc_3">Dodgeball court.</Location>
       <DialogueBlock>
         <Line id="scene_2_3_line_17">I heard his dad's in prison for breaking his mum out of prison</Line>
         <Line id="scene_2_3_line_18">I heard he burned a pet store down.</Line>
@@ -1729,6 +1742,7 @@
   </Scene>
   <Scene id="scene_4" sceneNumber="40" pageStart="39" pageEnd="42" title="Scene 4: Dodgeball">
     <Page number="38">
+      <Location id="scene_4_loc_1">Dodgeball.</Location>
       <StageDirection id="d87b87f0-3cd5-4c5f-ab5e-a5eefd774296">DODGEBALL</StageDirection>
       <StageDirection id="f53d2309-ac1f-4b64-91c9-0573114d6cb7">The sound of a whistle. MR RIDGE, the PE Teacher has gathered the kids into
         teams. They're lined up to play. STELLA and GREG are on the same team.</StageDirection>
@@ -1750,6 +1764,7 @@
       </DialogueBlock>
     </Page>
     <Page number="39">
+      <Location id="scene_3_loc_4">Boys' locker room.</Location>
       <DialogueBlock>
         <Speaker>RIDGE</Speaker>
         <Line id="scene_2_4_line_3">Stella. You're out. Let's go mate. Quickly now!</Line>
@@ -1966,6 +1981,7 @@
   <Scene id="scene_5" sceneNumber="50" pageStart="42" pageEnd="52"
     title="Scene 5: Grade 7's vs Tony vs Greg">
     <Page number="42">
+      <Location id="scene_5_loc_1">Playground.</Location>
       <StageDirection id="3bcfc563-5024-4cca-9b10-03a65b990562">MISS DUANE is on playground duty.</StageDirection>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
@@ -2257,6 +2273,7 @@
       </DialogueBlock>
     </Page>
     <Page number="46">
+      <Location id="scene_5_loc_2">Behind the sheds.</Location>
       <StageDirection id="a1a13810-9d22-4493-968e-0e7046314347">TONY is alone behind the sheds, terrified. There is fast movement in the
         shadows, eerie giggling. It's very spooky</StageDirection>
       <DialogueBlock>
@@ -2627,6 +2644,7 @@
       </DialogueBlock>
     </Page>
     <Page number="52">
+      <Location id="scene_5_loc_3">Bike racks.</Location>
       <DialogueBlock>
         <Speaker>GREG</Speaker>
         <Line id="scene_3_5_line_35">I'm getting them either way, bruh.</Line>
@@ -2657,6 +2675,7 @@
   </Scene>
   <Scene id="scene_6" sceneNumber="60" pageStart="52" pageEnd="55" title="Scene 6: The Dance">
     <Page number="52">
+      <Location id="scene_6_loc_1">Hall.</Location>
       <StageDirection id="a4c80331-6505-4f90-9569-46071a989667">It's going off in the hall as the Formal is in full swing. MISS DUANE is
         playing the music from her phone. Everyone is dancing is formation. PRIYA is sitting on the
         side.</StageDirection>
@@ -2798,6 +2817,7 @@
   </Scene>
   <Scene id="scene_7" sceneNumber="70" pageStart="51" pageEnd="61" title="Scene 7: Returning Home">
     <Page number="55">
+      <Location id="scene_7_loc_1">Stella's room.</Location>
       <StageDirection id="27c6e458-ce83-4bef-b9c7-0c2909117a4c">At home, STELLA is lying alone in the dark in her bed. Thunder and lightning.
         A loud boom of thunder and a flash of lightning shows SQUISH standing at the door. He is
         closer to his original form, and his teeth are long and sharp, poking out from his 'little
@@ -2872,6 +2892,8 @@
         <Line id="scene_4_2_line_16">Goodnight, friend.</Line>
       </DialogueBlock>
       <StageDirection id="6dc568ec-fbb7-4ced-b50e-65f0f3414601">Another flash of lightning and he is gone.</StageDirection>
+
+      <Location id="scene_7_loc_2">Tony's room.</Location>
 
       <StageDirection id="be44d941-2cc3-4983-bdc5-fa6147575289">TONY's room. FRANCINE and TONY enter.</StageDirection>
       <DialogueBlock>
@@ -3199,6 +3221,7 @@
   </Scene>
   <Scene id="scene_8" sceneNumber="80" pageStart="61" pageEnd="66" title="Scene 8: Intervention">
     <Page number="61">
+      <Location id="scene_8_loc_1">Classroom.</Location>
       <StageDirection id="57a543d5-c7f6-4aec-93f0-a30b12a67408">STELLA appears in the classroom, where MISS DUANE and MR FOWLER are waiting.</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
@@ -3461,6 +3484,7 @@
       </DialogueBlock>
     </Page>
     <Page number="66">
+      <Location id="scene_9_loc_1">Home.</Location>
       <DialogueBlock>
         <Speaker>GREG</Speaker>
         <Line id="scene_5_2_line_13">Enjoy your last night on earth. Tomorrow, 3 o'clock, flagpole.
@@ -3535,6 +3559,7 @@
       <StageDirection id="69fedeeb-6af9-40d2-80eb-c34ade735cb4">STELLA is crying on the ground, alone.</StageDirection>
     </Page>
     <Page number="67">
+      <Location id="scene_9_loc_2">Home.</Location>
       <DialogueBlock>
         <Speaker>TYSON</Speaker>
         <Line id="scene_5_3_line_14">Oi gronk. Mum gave me her card, What do you want for dinner?</Line>
@@ -3736,6 +3761,7 @@
       </DialogueBlock>
     </Page>
     <Page number="70">
+      <Location id="scene_9_loc_3">Window.</Location>
       <DialogueBlock>
         <Speaker>TYSON</Speaker>
         <Line id="scene_5_3_line_59">Oh Batman? Do you know how messed up it is that Batman lets so
@@ -3797,6 +3823,7 @@
       </DialogueBlock>
     </Page>
     <Page number="71">
+      <Location id="scene_9_loc_4">Art room.</Location>
       <DialogueBlock>
         <Speaker>TONY</Speaker>
         <Line id="scene_5_4_line_6">He's an octopus.</Line>
@@ -4021,6 +4048,7 @@
       </DialogueBlock>
     </Page>
     <Page number="75">
+      <Location id="scene_9_loc_5">Flagpole.</Location>
       <DialogueBlock>
         <Speaker>TONY</Speaker>
         <Line id="scene_5_5_line_9">Primary movement mechanism?</Line>
@@ -4062,6 +4090,7 @@
   </Scene>
   <Scene id="scene_10" sceneNumber="100" pageStart="75" pageEnd="82" title="Scene 10: The Fight">
     <Page number="75">
+      <Location id="scene_10_loc_1">Flagpole.</Location>
       <StageDirection id="8a4f4033-b51f-45d8-a8a6-73d4914094b7">FRIDAY, 2:55PM The flagpole. SQUISH is punching a brick wall. All of the kids
         are gathered. Suddenly, the lights dim. Everything is highly stylised from this point.
         Smoke, flashing lights. It is STELLA. She is fitted in armour fashioned from random sports
