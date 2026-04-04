@@ -705,6 +705,7 @@ function getAllCuesSorted() {
           cueTypeShortLabel: type.shortLabel,
           cueTypeColor: type.color,
           number: num,
+          cueNum: parseFloat(num) || 0,
           title: raw.title || 'Untitled',
           description: raw.description || '',
           position: getCuePosition(targetId),
@@ -728,7 +729,7 @@ function getAllCuesSorted() {
       return cueTypeSortIndex(a.cueType) - cueTypeSortIndex(b.cueType);
     }
 
-    return a.number - b.number;
+    return (a.cueNum || 0) - (b.cueNum || 0);
   });
 }
 
@@ -914,11 +915,33 @@ function saveState() {
 
 // === CUE NUMBERING ===
 
+function buildSceneNumberMap() {
+  const map = {};
+  for (const page of pages) {
+    const metas = page.scenes_meta || [];
+    for (const m of metas) {
+      if (m.id && m.sceneNumber) map[m.id] = m.sceneNumber;
+    }
+  }
+  return map;
+}
+
 function calculateCueOrder() {
   const result = {};
-  let globalCount = 0;
+  const sceneNumberMap = buildSceneNumberMap();
+  const sceneCounters = {};
 
-  function assignTargetCueNumbers(targetId) {
+  function nextSceneCueNumber(sceneId) {
+    if (!sceneId) {
+      return ++(sceneCounters.__global || (sceneCounters.__global = 0));
+    }
+    const sceneNum = sceneNumberMap[sceneId] || '0';
+    const count = (sceneCounters[sceneId] || 0) + 1;
+    sceneCounters[sceneId] = count;
+    return `${sceneNum}.${String(count).padStart(2, '0')}`;
+  }
+
+  function assignTargetCueNumbers(targetId, sceneId) {
     const targetCues = cues[targetId];
     if (!targetCues) return;
 
@@ -926,7 +949,7 @@ function calculateCueOrder() {
     cueTypes.forEach(type => {
       const arr = normalizeCueList(targetCues[type.id], type.id);
       if (!arr.length) return;
-      bucket[type.id] = arr.map(() => ++globalCount);
+      bucket[type.id] = arr.map(() => nextSceneCueNumber(sceneId));
     });
 
     if (Object.keys(bucket).length > 0) {
@@ -934,28 +957,27 @@ function calculateCueOrder() {
     }
   }
 
-  function processTarget(targetId, text) {
-    // Word-level cues first (in word order within the text)
+  function processTarget(targetId, text, sceneId) {
     if (text) {
       const words = text.trim().split(/\s+/).filter(Boolean);
       words.forEach((_, wordIdx) => {
         const wId = targetId + '_w' + wordIdx;
-        assignTargetCueNumbers(wId);
+        assignTargetCueNumbers(wId, sceneId);
       });
     }
 
-    // Then target-level cues
-    assignTargetCueNumbers(targetId);
+    assignTargetCueNumbers(targetId, sceneId);
   }
 
   pages.forEach(page => {
     page.elements.forEach(el => {
+      const sceneId = el.scene_id || page.scene_id || null;
       if (el.type === 'stage' && el.id) {
-        processTarget(el.id, el.text);
+        processTarget(el.id, el.text, sceneId);
       } else if (el.type === 'dialogue') {
         el.lines.forEach(line => {
           if (line.id) {
-            processTarget(line.id, line.text);
+            processTarget(line.id, line.text, sceneId);
           }
         });
       }
