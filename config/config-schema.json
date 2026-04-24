@@ -176,7 +176,7 @@
           "type": "json",
           "default": [{"ip":"127.0.0.1","oscPort":8000,"remotePort":6553}],
           "multiline": true,
-          "help": "JSON array of targets. Each entry: {\"ip\":\"...\",\"oscPort\":8000,\"remotePort\":6553}. Commands are sent to ALL targets."
+          "help": "JSON array of targets. Each entry: {\"ip\":\"...\",\"oscPort\":8000,\"remotePort\":6553}. Set remotePort to -1 to use OSC for that target when transport is Auto. Commands are sent to ALL targets."
         }
       ]
     }

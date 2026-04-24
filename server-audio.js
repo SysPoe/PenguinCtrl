@@ -7,6 +7,7 @@ import { readFile } from 'fs/promises';
 import ffmpegStatic from 'ffmpeg-static';
 
 const CLEANUP_GRACE_MS = 25;
+const FAR_AHEAD_WEIGHT = 0.01;
 
 let _getConfigValue = () => undefined;
 let _configuredSampleRate = null;
@@ -93,13 +94,91 @@ function dbToLinear(db) {
 
 // LRU buffer cache (keyed by filesystem path)
 const bufferCache = new Map();
+const cacheHints = new Map();
+let cacheCurrentOrder = 0;
+
+function normalizeCueIds(cueIds) {
+    if (!Array.isArray(cueIds)) return new Set();
+    return new Set(cueIds.filter(Boolean).map(String));
+}
+
+function getCacheHint(filePath) {
+    return cacheHints.get(filePath) || {
+        cueIds: new Set(),
+        orders: [],
+        cueOrders: [],
+        playedCueIds: new Set(),
+        lastUsedAt: 0,
+    };
+}
+
+function setCacheHint(filePath, patch) {
+    if (!filePath) return;
+    const prev = getCacheHint(filePath);
+    const next = {
+        ...prev,
+        ...patch,
+        cueIds: patch.cueIds instanceof Set ? patch.cueIds : prev.cueIds,
+        playedCueIds: patch.playedCueIds instanceof Set ? patch.playedCueIds : prev.playedCueIds,
+        orders: Array.isArray(patch.orders) ? patch.orders : prev.orders,
+        cueOrders: Array.isArray(patch.cueOrders) ? patch.cueOrders : prev.cueOrders,
+    };
+    cacheHints.set(filePath, next);
+}
+
+function isClipActive(filePath) {
+    for (const inst of activeInstances.values()) {
+        if (inst.clip === filePath) return true;
+    }
+    return false;
+}
+
+function getEvictionScore(filePath, currentOrder) {
+    if (isClipActive(filePath)) return Number.NEGATIVE_INFINITY;
+
+    const hint = getCacheHint(filePath);
+    const orders = hint.orders.filter(Number.isFinite);
+    const cueOrders = hint.cueOrders.filter(item => item?.id && Number.isFinite(item.order));
+    const cueIds = cueOrders.length ? cueOrders.map(item => item.id) : [...hint.cueIds];
+    const allKnownCuesPlayed = cueIds.length > 0 && cueIds.every(id => hint.playedCueIds.has(id));
+    const lastOrder = orders.length ? Math.max(...orders) : Number.POSITIVE_INFINITY;
+    const nextOrder = cueOrders.length
+        ? cueOrders
+            .filter(item => !hint.playedCueIds.has(item.id) && item.order >= currentOrder)
+            .map(item => item.order)
+            .sort((a, b) => a - b)[0]
+        : orders.filter(order => order >= currentOrder).sort((a, b) => a - b)[0];
+    const lastUsedPenalty = Math.max(0, Date.now() - (hint.lastUsedAt || 0)) / 1e12;
+
+    if (allKnownCuesPlayed || lastOrder < currentOrder) {
+        return 1_000_000 + Math.max(0, currentOrder - lastOrder) + lastUsedPenalty;
+    }
+
+    if (Number.isFinite(nextOrder)) {
+        return Math.max(0, nextOrder - currentOrder) * FAR_AHEAD_WEIGHT + lastUsedPenalty;
+    }
+
+    return 10_000 + lastUsedPenalty;
+}
 
 function evictBufferCache() {
     const maxCached = Number(_getConfigValue('audio.buffer.maxCached', 0));
     if (maxCached <= 0) return;
     while (bufferCache.size > maxCached) {
-        const oldest = bufferCache.keys().next().value;
-        bufferCache.delete(oldest);
+        const currentOrder = cacheCurrentOrder;
+        let victim = null;
+        let victimScore = Number.NEGATIVE_INFINITY;
+
+        for (const filePath of bufferCache.keys()) {
+            const score = getEvictionScore(filePath, currentOrder);
+            if (score > victimScore) {
+                victim = filePath;
+                victimScore = score;
+            }
+        }
+
+        if (!victim || victimScore === Number.NEGATIVE_INFINITY) return;
+        bufferCache.delete(victim);
     }
 }
 
@@ -108,6 +187,7 @@ async function loadBuffer(filePath) {
         const cached = bufferCache.get(filePath);
         bufferCache.delete(filePath);
         bufferCache.set(filePath, cached);
+        setCacheHint(filePath, { lastUsedAt: Date.now() });
         return cached;
     }
 
@@ -117,6 +197,7 @@ async function loadBuffer(filePath) {
     const wavBuffer = await tryLoadWavBuffer(filePath, sampleRate, channels);
     if (wavBuffer) {
         bufferCache.set(filePath, wavBuffer);
+        setCacheHint(filePath, { lastUsedAt: Date.now() });
         evictBufferCache();
         return wavBuffer;
     }
@@ -145,8 +226,72 @@ async function loadBuffer(filePath) {
     }
 
     bufferCache.set(filePath, audioBuffer);
+    setCacheHint(filePath, { lastUsedAt: Date.now() });
     evictBufferCache();
     return audioBuffer;
+}
+
+function updateCacheHints(entries = []) {
+    const nextPaths = new Set();
+
+    entries.forEach(entry => {
+        if (!entry?.clip) return;
+        nextPaths.add(entry.clip);
+        const cueIds = normalizeCueIds(entry.cueIds);
+        const orders = Array.isArray(entry.orders)
+            ? entry.orders.map(Number).filter(Number.isFinite).sort((a, b) => a - b)
+            : [];
+        const cueOrders = Array.isArray(entry.cueOrders)
+            ? entry.cueOrders
+                .map(item => ({ id: String(item?.id || ''), order: Number(item?.order) }))
+                .filter(item => item.id && Number.isFinite(item.order))
+                .sort((a, b) => a.order - b.order)
+            : [];
+        const prev = getCacheHint(entry.clip);
+        setCacheHint(entry.clip, {
+            cueIds,
+            orders,
+            cueOrders,
+            playedCueIds: prev.playedCueIds,
+            lastUsedAt: prev.lastUsedAt,
+        });
+    });
+
+    for (const filePath of cacheHints.keys()) {
+        if (!nextPaths.has(filePath) && !bufferCache.has(filePath)) {
+            cacheHints.delete(filePath);
+        }
+    }
+
+    evictBufferCache();
+}
+
+function markCuePlayed(cueId) {
+    if (!cueId) return;
+    const id = String(cueId);
+    for (const [filePath, hint] of cacheHints.entries()) {
+        if (!hint.cueIds.has(id)) continue;
+        const playedCueIds = new Set(hint.playedCueIds);
+        playedCueIds.add(id);
+        setCacheHint(filePath, { playedCueIds });
+    }
+    evictBufferCache();
+}
+
+function clearPlayedCacheHints() {
+    for (const [filePath, hint] of cacheHints.entries()) {
+        if (hint.playedCueIds.size > 0) {
+            setCacheHint(filePath, { playedCueIds: new Set() });
+        }
+    }
+    cacheCurrentOrder = 0;
+    evictBufferCache();
+}
+
+function setCacheCurrentOrder(order) {
+    const parsed = Number(order);
+    if (Number.isFinite(parsed)) cacheCurrentOrder = Math.max(cacheCurrentOrder, parsed);
+    evictBufferCache();
 }
 
 async function tryLoadWavBuffer(filePath, expectedSampleRate, expectedChannels) {
@@ -846,7 +991,7 @@ function cancelDevamp(instanceId) {
     }
 }
 
-export { playCue, fadeOut, stop, stopAll, fadeOutAll, devamp, cancelDevamp, listActive, setVolume, setMuted, toggleMute, masterVolume, setMasterMuted, toggleMasterMute, isMasterMuted, pause, resume, seek, setTriggerCallback, cancelWaitingCues, preloadBuffer };
+export { playCue, fadeOut, stop, stopAll, fadeOutAll, devamp, cancelDevamp, listActive, setVolume, setMuted, toggleMute, masterVolume, setMasterMuted, toggleMasterMute, isMasterMuted, pause, resume, seek, setTriggerCallback, cancelWaitingCues, preloadBuffer, updateCacheHints, markCuePlayed, clearPlayedCacheHints, setCacheCurrentOrder };
 
 async function preloadBuffer(filePath) {
     if (!filePath) return;

@@ -9,7 +9,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "remote"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -23,7 +23,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -37,7 +37,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -51,7 +51,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -65,7 +65,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -79,7 +79,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -93,7 +93,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -107,7 +107,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -121,7 +121,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -135,7 +135,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -149,7 +149,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -163,7 +163,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -177,7 +177,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -191,7 +191,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -205,7 +205,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -219,7 +219,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -233,7 +233,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -247,7 +247,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -261,7 +261,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -275,7 +275,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -289,7 +289,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -303,7 +303,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -317,7 +317,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -331,7 +331,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -345,7 +345,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -359,7 +359,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -373,7 +373,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -387,7 +387,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -401,7 +401,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -415,7 +415,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -429,7 +429,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -443,7 +443,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -457,7 +457,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -471,7 +471,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -485,7 +485,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -499,7 +499,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -513,7 +513,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -527,7 +527,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -541,7 +541,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -555,7 +555,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -569,7 +569,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -583,7 +583,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -597,7 +597,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -611,7 +611,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -625,7 +625,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -639,7 +639,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -653,7 +653,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -667,7 +667,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -681,7 +681,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -695,7 +695,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -709,7 +709,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -723,7 +723,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -737,7 +737,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -751,7 +751,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -765,7 +765,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -779,7 +779,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -793,7 +793,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -807,7 +807,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -821,7 +821,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -835,7 +835,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -849,7 +849,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -863,7 +863,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -877,7 +877,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -891,7 +891,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
