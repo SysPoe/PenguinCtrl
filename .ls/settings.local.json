@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l /c/Users/pandd/OneDrive - Department of Education/projects/PenguinCtrl/*.js /c/Users/pandd/OneDrive - Department of Education/projects/PenguinCtrl/public/scripts/*.js)",
+      "Bash(node:*)"
+    ]
+  }
+}

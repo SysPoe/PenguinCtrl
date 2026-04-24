@@ -9,7 +9,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "auto"
+        "oscTransport": "remote"
       }
     ]
   },
@@ -892,6 +892,52 @@
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
         "oscTransport": "osc"
+      }
+    ]
+  },
+  "35bcbea8-67d1-40a7-ad4b-918f1c4fafbb_w3": {
+    "sound": [
+      {
+        "id": "a164400a-de21-4304-a3bb-6f33da060e18",
+        "title": "bell INC",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 17.11,
+        "clipEnd": 211.441,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscTriggers": [],
+        "clip": "/audio/who-let-the-dogs-out_1776736467209.webm"
+      }
+    ]
+  },
+  "79cca949-ac6a-4005-a4b4-0eb2e0705094_w5": {
+    "sound": [
+      {
+        "id": "76206c8a-a7d3-4753-a708-9b90df0b6d3a",
+        "title": "mr wick",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 0,
+        "clipEnd": 185.04,
+        "fadeIn": 0,
+        "fadeOut": 10,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscTriggers": [],
+        "clip": "/audio/john-wick_1776736886470.webm"
       }
     ]
   }
