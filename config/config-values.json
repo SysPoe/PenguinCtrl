@@ -6,7 +6,7 @@
     "buffer": {
       "sampleRate": 48000,
       "channels": 2,
-      "maxCached": 8
+      "maxCached": 0
     },
     "masterVolume": {
       "defaultDb": 0,

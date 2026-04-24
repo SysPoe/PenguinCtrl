@@ -594,6 +594,36 @@ function loadCues() {
   return cuesCache;
 }
 
+function resolvePublicAudioPath(clip) {
+  if (typeof clip !== 'string' || !clip.trim()) return null;
+  if (clip.startsWith('/')) return join(__dirname, 'public', clip.replace(/^\//, ''));
+  return clip;
+}
+
+function collectCueAudioPaths(value, paths = new Set()) {
+  if (!value || typeof value !== 'object') return paths;
+  if (Array.isArray(value)) {
+    value.forEach(item => collectCueAudioPaths(item, paths));
+    return paths;
+  }
+  if (typeof value.clip === 'string') {
+    const resolved = resolvePublicAudioPath(value.clip);
+    if (resolved && existsSync(resolved)) paths.add(resolved);
+  }
+  Object.values(value).forEach(item => collectCueAudioPaths(item, paths));
+  return paths;
+}
+
+async function preloadCueAudio() {
+  const audioPaths = [...collectCueAudioPaths(loadCues())];
+  for (const audioPath of audioPaths) {
+    await audioPreloadBuffer(audioPath);
+  }
+  if (audioPaths.length > 0) {
+    console.log(`Preloaded ${audioPaths.length} cue audio file${audioPaths.length === 1 ? '' : 's'}`);
+  }
+}
+
 function mergeCuesWithPages(pages, cues) {
   return pages.map(page => ({
     ...page,
@@ -753,8 +783,10 @@ app.post('/api/audio/upload', uploadRawMiddleware, async (req, res) => {
   const ts = Date.now();
   const inputExt = extname(safe) || '.bin';
   const inputPath = join(AUDIO_DIR, `tmp_${ts}${inputExt}`);
-  const outputName = safe.replace(/\.[^.]+$/, '') + `_${ts}.webm`;
+  const outputName = safe.replace(/\.[^.]+$/, '') + `_${ts}.wav`;
   const outputPath = join(AUDIO_DIR, outputName);
+  const sampleRate = Number(configService.getValue('audio.buffer.sampleRate', 48000)) || 48000;
+  const channels = Number(configService.getValue('audio.buffer.channels', 2)) || 2;
 
   try {
     writeFileSync(inputPath, req.body);
@@ -762,7 +794,11 @@ app.post('/api/audio/upload', uploadRawMiddleware, async (req, res) => {
     await new Promise((resolve, reject) => {
       execFile(ffmpegStatic, [
         '-y', '-i', inputPath,
-        '-c:a', 'libopus', '-b:a', '128k', '-vn',
+        '-vn',
+        '-ar', String(sampleRate),
+        '-ac', String(channels),
+        '-c:a', 'pcm_s16le',
+        '-f', 'wav',
         outputPath,
       ], (_err, _stdout, stderr) => {
         if (_err) reject(new Error(stderr || _err.message));
@@ -771,6 +807,7 @@ app.post('/api/audio/upload', uploadRawMiddleware, async (req, res) => {
     });
 
     try { unlinkSync(inputPath); } catch (_) { }
+    await audioPreloadBuffer(outputPath);
     res.json({ path: '/audio/' + outputName, filename: outputName });
   } catch (err) {
     try { unlinkSync(inputPath); } catch (_) { }
@@ -885,9 +922,7 @@ wss.on('connection', (ws) => {
 
       } else if (msg.type === 'preload') {
         if (msg.clip) {
-          const resolved = typeof msg.clip === 'string' && msg.clip.startsWith('/')
-            ? join(__dirname, 'public', msg.clip.replace(/^\//, ''))
-            : msg.clip;
+          const resolved = resolvePublicAudioPath(msg.clip);
           audioPreloadBuffer(resolved);
         }
 
@@ -981,8 +1016,10 @@ wss.on('connection', (ws) => {
   });
 });
 
-// Start server
+// Start server after warming caches used during show playback.
+await loadSceneIndex().catch(e => console.error('Error loading scenes:', e.message));
+await preloadCueAudio().catch(e => console.error('Error preloading cue audio:', e.message));
+
 httpServer.listen(PORT, () => {
-  loadSceneIndex().catch(e => console.error('Error loading scenes:', e.message));
   console.log(`Script Viewer running at http://localhost:${PORT}`);
 });

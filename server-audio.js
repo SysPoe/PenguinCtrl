@@ -3,6 +3,7 @@
 
 import { AudioContext } from 'node-web-audio-api';
 import { execFile } from 'child_process';
+import { readFile } from 'fs/promises';
 import ffmpegStatic from 'ffmpeg-static';
 
 const CLEANUP_GRACE_MS = 25;
@@ -113,6 +114,13 @@ async function loadBuffer(filePath) {
     const sampleRate = Number(_getConfigValue('audio.buffer.sampleRate', 48000)) || 48000;
     const channels = Number(_getConfigValue('audio.buffer.channels', 2)) || 2;
 
+    const wavBuffer = await tryLoadWavBuffer(filePath, sampleRate, channels);
+    if (wavBuffer) {
+        bufferCache.set(filePath, wavBuffer);
+        evictBufferCache();
+        return wavBuffer;
+    }
+
     const pcmBuf = await new Promise((resolve, reject) => {
         execFile(ffmpegStatic, [
             '-i', filePath,
@@ -139,6 +147,75 @@ async function loadBuffer(filePath) {
     bufferCache.set(filePath, audioBuffer);
     evictBufferCache();
     return audioBuffer;
+}
+
+async function tryLoadWavBuffer(filePath, expectedSampleRate, expectedChannels) {
+    if (!String(filePath).toLowerCase().endsWith('.wav')) return null;
+
+    const file = await readFile(filePath);
+    const parsed = parsePcmWav(file);
+    if (!parsed) return null;
+
+    const { sampleRate, channels, bitsPerSample, format, dataOffset, dataSize } = parsed;
+    if (sampleRate !== expectedSampleRate || channels !== expectedChannels) return null;
+
+    const bytesPerSample = bitsPerSample / 8;
+    const frameCount = Math.floor(dataSize / (bytesPerSample * channels));
+    const ctx = getCtx();
+    const audioBuffer = ctx.createBuffer(channels, frameCount, sampleRate);
+
+    for (let c = 0; c < channels; c++) {
+        const channelData = audioBuffer.getChannelData(c);
+        for (let i = 0; i < frameCount; i++) {
+            const offset = dataOffset + ((i * channels + c) * bytesPerSample);
+            channelData[i] = readWavSample(file, offset, bitsPerSample, format);
+        }
+    }
+
+    return audioBuffer;
+}
+
+function parsePcmWav(file) {
+    if (file.length < 44) return null;
+    if (file.toString('ascii', 0, 4) !== 'RIFF' || file.toString('ascii', 8, 12) !== 'WAVE') return null;
+
+    let pos = 12;
+    let fmt = null;
+    let data = null;
+    while (pos + 8 <= file.length) {
+        const id = file.toString('ascii', pos, pos + 4);
+        const size = file.readUInt32LE(pos + 4);
+        const body = pos + 8;
+        if (body + size > file.length) break;
+
+        if (id === 'fmt ') {
+            if (size < 16) return null;
+            fmt = {
+                format: file.readUInt16LE(body),
+                channels: file.readUInt16LE(body + 2),
+                sampleRate: file.readUInt32LE(body + 4),
+                bitsPerSample: file.readUInt16LE(body + 14),
+            };
+        } else if (id === 'data') {
+            data = { dataOffset: body, dataSize: size };
+        }
+
+        pos = body + size + (size % 2);
+    }
+
+    if (!fmt || !data) return null;
+    const isSupported = (fmt.format === 1 && (fmt.bitsPerSample === 16 || fmt.bitsPerSample === 24 || fmt.bitsPerSample === 32))
+        || (fmt.format === 3 && fmt.bitsPerSample === 32);
+    if (!isSupported || fmt.channels < 1) return null;
+    return { ...fmt, ...data };
+}
+
+function readWavSample(file, offset, bitsPerSample, format) {
+    if (format === 3 && bitsPerSample === 32) return file.readFloatLE(offset);
+    if (bitsPerSample === 16) return file.readInt16LE(offset) / 32768;
+    if (bitsPerSample === 24) return file.readIntLE(offset, 3) / 8388608;
+    if (bitsPerSample === 32) return file.readInt32LE(offset) / 2147483648;
+    return 0;
 }
 
 function makeGain(ctx, vol, fadeIn, destination = getMasterGain()) {
