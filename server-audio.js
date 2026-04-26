@@ -2,8 +2,10 @@
 // NOTE: run via `pw-jack bun server.js`
 
 import { AudioContext } from 'node-web-audio-api';
-import { spawn } from 'child_process';
-import { readFile } from 'fs/promises';
+import { execFile } from 'child_process';
+import { mkdtemp, readFile, rm, unlink } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import ffmpegStatic from 'ffmpeg-static';
 
 const CLEANUP_GRACE_MS = 25;
@@ -222,46 +224,31 @@ async function loadBuffer(filePath) {
 }
 
 function decodeToPcmBuffer(filePath, sampleRate, channels) {
-    return new Promise((resolve, reject) => {
-        const child = spawn(ffmpegStatic, [
-            '-i', filePath,
-            '-f', 'f32le', '-acodec', 'pcm_f32le',
-            '-ar', String(sampleRate), '-ac', String(channels),
-            'pipe:1',
-        ], { stdio: ['ignore', 'pipe', 'pipe'] });
+    return mkdtemp(join(tmpdir(), 'cusus-pcm-')).then(async dir => {
+        const outputPath = join(dir, 'audio.f32le');
+        try {
+            await new Promise((resolve, reject) => {
+                execFile(ffmpegStatic, [
+                    '-y',
+                    '-i', filePath,
+                    '-f', 'f32le', '-acodec', 'pcm_f32le',
+                    '-ar', String(sampleRate), '-ac', String(channels),
+                    outputPath,
+                ], { encoding: 'buffer', maxBuffer: 1024 * 1024 }, (err, _stdout, stderr) => {
+                    if (err) {
+                        const detail = stderr?.toString() || err.message;
+                        reject(new Error(detail));
+                    } else {
+                        resolve();
+                    }
+                });
+            });
 
-        const stdout = [];
-        const stderr = [];
-        let stdoutBytes = 0;
-        let stderrBytes = 0;
-        let spawnError = null;
-
-        child.stdout.on('data', chunk => {
-            stdout.push(chunk);
-            stdoutBytes += chunk.byteLength;
-        });
-
-        child.stderr.on('data', chunk => {
-            stderr.push(chunk);
-            stderrBytes += chunk.byteLength;
-        });
-
-        child.on('error', err => {
-            spawnError = err;
-        });
-
-        child.on('close', code => {
-            const stderrText = Buffer.concat(stderr, stderrBytes).toString();
-            if (spawnError) {
-                reject(new Error(stderrText || spawnError.message));
-                return;
-            }
-            if (code !== 0) {
-                reject(new Error(stderrText || `ffmpeg exited with code ${code}`));
-                return;
-            }
-            resolve(Buffer.concat(stdout, stdoutBytes));
-        });
+            return await readFile(outputPath);
+        } finally {
+            await unlink(outputPath).catch(() => {});
+            await rm(dir, { recursive: true, force: true }).catch(() => {});
+        }
     });
 }
 
