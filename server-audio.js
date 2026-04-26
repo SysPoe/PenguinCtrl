@@ -3,7 +3,7 @@
 
 import { AudioContext } from 'node-web-audio-api';
 import { execFile } from 'child_process';
-import { mkdtemp, readFile, rm, unlink } from 'fs/promises';
+import { readFile, unlink } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import ffmpegStatic from 'ffmpeg-static';
@@ -224,8 +224,10 @@ async function loadBuffer(filePath) {
 }
 
 function decodeToPcmBuffer(filePath, sampleRate, channels) {
-    return mkdtemp(join(tmpdir(), 'cusus-pcm-')).then(async dir => {
-        const outputPath = join(dir, 'audio.f32le');
+    const safeName = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.f32le`;
+    const outputPath = join(tmpdir(), `cusus-pcm-${safeName}`);
+
+    return (async () => {
         try {
             await new Promise((resolve, reject) => {
                 execFile(ffmpegStatic, [
@@ -247,9 +249,8 @@ function decodeToPcmBuffer(filePath, sampleRate, channels) {
             return await readFile(outputPath);
         } finally {
             await unlink(outputPath).catch(() => {});
-            await rm(dir, { recursive: true, force: true }).catch(() => {});
         }
-    });
+    })();
 }
 
 function updateCacheHints(entries = []) {
