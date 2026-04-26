@@ -30,6 +30,34 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+function isAudioBackendClientError(err) {
+  const message = String(err?.message || err || '');
+  return message.includes('SERVER_FAILED')
+    || message.includes('Failed to open client')
+    || (err?.code === 'ECONNREFUSED' && message.includes('recv'));
+}
+
+function logAudioBackendHint(err) {
+  console.error('Audio backend error:', err?.message || err);
+  console.error('On Raspberry Pi/PipeWire, start with ./start.sh or: WEB_AUDIO_LATENCY=playback pw-jack bun server.js');
+}
+
+process.on('uncaughtException', (err) => {
+  if (isAudioBackendClientError(err)) {
+    logAudioBackendHint(err);
+    return;
+  }
+  throw err;
+});
+
+process.on('unhandledRejection', (reason) => {
+  if (isAudioBackendClientError(reason)) {
+    logAudioBackendHint(reason);
+    return;
+  }
+  console.error('Unhandled rejection:', reason);
+});
+
 // Config
 const SCENES_FILE = join(__dirname, 'scenes.xml');
 const CUES_FILE = join(__dirname, 'public', 'cues.json');
