@@ -9,6 +9,7 @@ let activeCueCounts = new Map();
 let pendingCueCounts = new Map();
 let pendingCueTotal = 0;
 let masterMuted = false;
+let cueRequestToken = 0;
 
 const DEFAULT_META = {
     config: {
@@ -204,13 +205,32 @@ function showCueModeError(message) {
 
 // ── Cue data ───────────────────────────────────────────────────────────────
 function requestCues() {
+    const token = ++cueRequestToken;
     if (window.opener && window.opener.postMessage) {
         window.opener.postMessage({ type: 'requestCues' }, '*');
+        setTimeout(() => {
+            if (token === cueRequestToken && cuesData.length === 0) fetchCuesFromServer();
+        }, 500);
+    } else {
+        fetchCuesFromServer();
+    }
+}
+
+async function fetchCuesFromServer() {
+    try {
+        const res = await fetch('/api/cue-list', { cache: 'no-store' });
+        if (!res.ok) throw new Error(`Failed to load cues (${res.status})`);
+        const payload = await res.json();
+        cuesData = Array.isArray(payload.cues) ? payload.cues : [];
+        renderCues();
+    } catch (err) {
+        showCueModeError(err.message || 'Failed to load cues');
     }
 }
 
 window.addEventListener('message', (e) => {
     if (e.data && e.data.type === 'cueData') {
+        cueRequestToken++;
         cuesData = e.data.cues || [];
         renderCues();
     }

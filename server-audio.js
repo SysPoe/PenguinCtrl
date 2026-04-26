@@ -2,7 +2,7 @@
 // NOTE: run via `pw-jack bun server.js`
 
 import { AudioContext } from 'node-web-audio-api';
-import { execFile } from 'child_process';
+import { spawn } from 'child_process';
 import { readFile } from 'fs/promises';
 import ffmpegStatic from 'ffmpeg-static';
 
@@ -202,17 +202,7 @@ async function loadBuffer(filePath) {
         return wavBuffer;
     }
 
-    const pcmBuf = await new Promise((resolve, reject) => {
-        execFile(ffmpegStatic, [
-            '-i', filePath,
-            '-f', 'f32le', '-acodec', 'pcm_f32le',
-            '-ar', String(sampleRate), '-ac', String(channels),
-            'pipe:1',
-        ], { encoding: 'buffer', maxBuffer: 256 * 1024 * 1024 }, (err, stdout, stderr) => {
-            if (err) reject(new Error(stderr?.toString() || err.message));
-            else resolve(stdout);
-        });
-    });
+    const pcmBuf = await decodeToPcmBuffer(filePath, sampleRate, channels);
 
     const ctx = getCtx();
     const frameCount = pcmBuf.byteLength / (4 * channels);
@@ -229,6 +219,50 @@ async function loadBuffer(filePath) {
     setCacheHint(filePath, { lastUsedAt: Date.now() });
     evictBufferCache();
     return audioBuffer;
+}
+
+function decodeToPcmBuffer(filePath, sampleRate, channels) {
+    return new Promise((resolve, reject) => {
+        const child = spawn(ffmpegStatic, [
+            '-i', filePath,
+            '-f', 'f32le', '-acodec', 'pcm_f32le',
+            '-ar', String(sampleRate), '-ac', String(channels),
+            'pipe:1',
+        ], { stdio: ['ignore', 'pipe', 'pipe'] });
+
+        const stdout = [];
+        const stderr = [];
+        let stdoutBytes = 0;
+        let stderrBytes = 0;
+        let spawnError = null;
+
+        child.stdout.on('data', chunk => {
+            stdout.push(chunk);
+            stdoutBytes += chunk.byteLength;
+        });
+
+        child.stderr.on('data', chunk => {
+            stderr.push(chunk);
+            stderrBytes += chunk.byteLength;
+        });
+
+        child.on('error', err => {
+            spawnError = err;
+        });
+
+        child.on('close', code => {
+            const stderrText = Buffer.concat(stderr, stderrBytes).toString();
+            if (spawnError) {
+                reject(new Error(stderrText || spawnError.message));
+                return;
+            }
+            if (code !== 0) {
+                reject(new Error(stderrText || `ffmpeg exited with code ${code}`));
+                return;
+            }
+            resolve(Buffer.concat(stdout, stdoutBytes));
+        });
+    });
 }
 
 function updateCacheHints(entries = []) {
@@ -994,12 +1028,14 @@ function cancelDevamp(instanceId) {
 export { playCue, fadeOut, stop, stopAll, fadeOutAll, devamp, cancelDevamp, listActive, setVolume, setMuted, toggleMute, masterVolume, setMasterMuted, toggleMasterMute, isMasterMuted, pause, resume, seek, setTriggerCallback, cancelWaitingCues, preloadBuffer, updateCacheHints, markCuePlayed, clearPlayedCacheHints, setCacheCurrentOrder };
 
 async function preloadBuffer(filePath) {
-    if (!filePath) return;
+    if (!filePath) return false;
     try {
         await loadBuffer(filePath);
         console.log("Preload successful for", filePath);
+        return true;
     } catch (e) {
         console.error(`preloadBuffer failed for ${filePath}:`, e.message);
+        return false;
     }
 }
 

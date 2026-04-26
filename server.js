@@ -701,6 +701,135 @@ function normalizeCueListForType(value) {
   return [];
 }
 
+function deepMerge(base, patch) {
+  if (!base || typeof base !== 'object' || Array.isArray(base)) {
+    return structuredClone(patch);
+  }
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+    return structuredClone(base);
+  }
+
+  const out = structuredClone(base);
+  Object.entries(patch).forEach(([key, value]) => {
+    if (
+      value && typeof value === 'object' && !Array.isArray(value)
+      && out[key] && typeof out[key] === 'object' && !Array.isArray(out[key])
+    ) {
+      out[key] = deepMerge(out[key], value);
+    } else {
+      out[key] = structuredClone(value);
+    }
+  });
+  return out;
+}
+
+function buildSceneNumberMap(pages) {
+  const map = {};
+  pages.forEach(page => {
+    (page.scenes_meta || []).forEach(meta => {
+      if (meta?.id && meta?.sceneNumber) map[meta.id] = meta.sceneNumber;
+    });
+  });
+  return map;
+}
+
+function buildCueListPayload(pages, cues) {
+  const sceneNumberMap = buildSceneNumberMap(pages);
+  const sceneCounters = {};
+  const cueTypes = cueTypeRegistry.listTypes();
+  const out = [];
+  let sortIndex = 0;
+
+  function nextSceneCueNumber(sceneId) {
+    if (!sceneId) {
+      sceneCounters.__global = (sceneCounters.__global || 0) + 1;
+      return sceneCounters.__global;
+    }
+    const sceneNum = sceneNumberMap[sceneId] || '0';
+    const count = (sceneCounters[sceneId] || 0) + 1;
+    sceneCounters[sceneId] = count;
+    return `${sceneNum}.${String(count).padStart(2, '0')}`;
+  }
+
+  function addTargetCues(targetId, sceneId, position, targetSortIndex) {
+    const targetCues = cues?.[targetId];
+    if (!targetCues || typeof targetCues !== 'object') return;
+
+    cueTypes.forEach(type => {
+      normalizeCueListForType(targetCues[type.id]).forEach(raw => {
+        const number = nextSceneCueNumber(sceneId);
+        const fullCue = deepMerge(type.payloadDefaults || {}, raw);
+        fullCue.cueType = type.id;
+        out.push({
+          id: `${targetId}_${type.id}_${raw.id || number}`,
+          targetId,
+          cueType: type.id,
+          cueTypeLabel: type.label,
+          cueTypeShortLabel: type.shortLabel,
+          cueTypeColor: type.color,
+          number,
+          cueNum: parseFloat(number) || 0,
+          title: raw.title || 'Untitled',
+          description: raw.description || '',
+          position,
+          sortIndex: targetSortIndex,
+          duration: deriveCueDurationSeconds(fullCue),
+          subtype: raw.soundSubtype || raw.subtype || null,
+          isAudio: !!fullCue.clip,
+          liveVoices: null,
+          fullCue,
+        });
+      });
+    });
+  }
+
+  function processTarget(targetId, text, sceneId, position) {
+    if (!targetId) return;
+    if (text) {
+      String(text).trim().split(/\s+/).filter(Boolean).forEach((_, wordIdx) => {
+        addTargetCues(`${targetId}_w${wordIdx}`, sceneId, `${position} (word)`, sortIndex + wordIdx * 0.001);
+      });
+    }
+    addTargetCues(targetId, sceneId, position, sortIndex);
+    sortIndex += 1;
+  }
+
+  pages.forEach(page => {
+    page.elements.forEach(el => {
+      const sceneId = el.scene_id || page.scene_id || null;
+      if ((el.type === 'stage' || el.type === 'location') && el.id) {
+        processTarget(el.id, el.text, sceneId, `Page ${page.number} - Stage Direction`);
+      } else if (el.type === 'dialogue') {
+        el.lines.forEach(line => {
+          if (line.id) processTarget(line.id, line.text, sceneId, `Page ${page.number} - ${el.speaker || 'Unknown'}`);
+        });
+      }
+    });
+  });
+
+  return out.sort((a, b) => {
+    if (a.sortIndex !== b.sortIndex) return a.sortIndex - b.sortIndex;
+    if (a.cueType !== b.cueType) {
+      const aType = cueTypes.find(type => type.id === a.cueType);
+      const bType = cueTypes.find(type => type.id === b.cueType);
+      return (aType?.order || 0) - (bType?.order || 0);
+    }
+    return (a.cueNum || 0) - (b.cueNum || 0);
+  });
+}
+
+function deriveCueDurationSeconds(cue) {
+  const explicit = Number(cue?.duration);
+  if (Number.isFinite(explicit) && explicit > 0) return explicit;
+
+  const start = Number(cue?.clipStart ?? 0);
+  const end = Number(cue?.clipEnd);
+  if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+    return end - start;
+  }
+  return null;
+}
+
 function addCueCacheEntry(entriesByClip, cue, order, cueIds = [], orderCueId = null) {
   if (!cue || typeof cue !== 'object' || typeof cue.clip !== 'string') return;
   const resolved = resolvePublicAudioPath(cue.clip);
@@ -795,12 +924,13 @@ async function preloadCueAudio() {
   ];
   const preloadPaths = maxCached > 0 ? audioPaths.slice(0, maxCached) : audioPaths;
 
+  let preloadedCount = 0;
   for (const audioPath of preloadPaths) {
-    await audioPreloadBuffer(audioPath);
+    if (await audioPreloadBuffer(audioPath)) preloadedCount += 1;
   }
   if (preloadPaths.length > 0) {
     const capped = preloadPaths.length < audioPaths.length ? ` (${audioPaths.length - preloadPaths.length} deferred by cache cap)` : '';
-    console.log(`Preloaded ${preloadPaths.length} cue audio file${preloadPaths.length === 1 ? '' : 's'}${capped}`);
+    console.log(`Preloaded ${preloadedCount}/${preloadPaths.length} cue audio file${preloadPaths.length === 1 ? '' : 's'}${capped}`);
   }
 }
 
@@ -902,6 +1032,17 @@ app.get('/api/cues', async (req, res) => {
     res.json({ cues: cuesCache });
   } catch (e) {
     res.json({ cues: {} });
+  }
+});
+
+app.get('/api/cue-list', async (req, res) => {
+  try {
+    const { pages } = await loadSceneIndex();
+    const cues = loadCues();
+    refreshAudioCacheHints();
+    res.json({ cues: buildCueListPayload(pages, cues) });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 
