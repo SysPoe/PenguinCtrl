@@ -42,6 +42,12 @@ function logAudioBackendHint(err) {
   console.error('On Raspberry Pi/PipeWire, start with ./start.sh or: WEB_AUDIO_LATENCY=playback pw-jack bun server.js');
 }
 
+function ffmpegEnv() {
+  const env = { ...process.env };
+  delete env.LD_LIBRARY_PATH;
+  return env;
+}
+
 process.on('uncaughtException', (err) => {
   if (isAudioBackendClientError(err)) {
     logAudioBackendHint(err);
@@ -1123,7 +1129,7 @@ app.post('/api/audio/upload', uploadRawMiddleware, async (req, res) => {
         '-c:a', 'pcm_s16le',
         '-f', 'wav',
         outputPath,
-      ], (_err, _stdout, stderr) => {
+      ], { env: ffmpegEnv() }, (_err, _stdout, stderr) => {
         if (_err) reject(new Error(stderr || _err.message));
         else resolve();
       });

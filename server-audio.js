@@ -11,6 +11,12 @@ import ffmpegStatic from 'ffmpeg-static';
 const CLEANUP_GRACE_MS = 25;
 const FAR_AHEAD_WEIGHT = 0.01;
 
+function ffmpegEnv() {
+    const env = { ...process.env };
+    delete env.LD_LIBRARY_PATH;
+    return env;
+}
+
 let _getConfigValue = () => undefined;
 let _configuredSampleRate = null;
 
@@ -232,11 +238,13 @@ function decodeToPcmBuffer(filePath, sampleRate, channels) {
             await new Promise((resolve, reject) => {
                 execFile(ffmpegStatic, [
                     '-y',
+                    '-v', 'error',
+                    '-nostats',
                     '-i', filePath,
                     '-f', 'f32le', '-acodec', 'pcm_f32le',
                     '-ar', String(sampleRate), '-ac', String(channels),
                     outputPath,
-                ], { encoding: 'buffer', maxBuffer: 1024 * 1024 }, (err, _stdout, stderr) => {
+                ], { encoding: 'buffer', env: ffmpegEnv(), maxBuffer: 1024 * 1024 }, (err, _stdout, stderr) => {
                     if (err) {
                         const detail = stderr?.toString() || err.message;
                         reject(new Error(detail));
