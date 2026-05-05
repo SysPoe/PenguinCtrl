@@ -787,7 +787,6 @@
       </DialogueBlock>
     </Page>
     <Page number="24">
-      <Location id="scene_2_loc_2">Fish tank.</Location>
       <DialogueBlock>
         <Speaker>PRIYA</Speaker>
         <Line id="scene_1_5_line_6">DUANE</Line>
