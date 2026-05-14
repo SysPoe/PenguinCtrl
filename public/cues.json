@@ -9,7 +9,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "remote"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -23,7 +23,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -37,7 +37,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -51,7 +51,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -65,21 +65,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
-      }
-    ]
-  },
-  "scene_1_4_line_9_w1": {
-    "lighting": [
-      {
-        "id": "lq_06_maddison_speaks",
-        "title": "Maddison's start speaking",
-        "description": "Microphone feedback from when Maddison's start speaking at assembly",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -93,21 +79,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
-      }
-    ]
-  },
-  "a01596bc-633d-4de5-9d25-d4d7ebb53c80_w1": {
-    "lighting": [
-      {
-        "id": "lq_08_breakdance_burst",
-        "title": "Break dance",
-        "description": "Quick break with rainbow lights, movers",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -121,7 +93,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -135,7 +107,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -149,7 +121,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -163,7 +135,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -177,7 +149,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -191,7 +163,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -205,7 +177,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -219,7 +191,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -233,7 +205,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -247,7 +219,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -261,7 +233,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -275,7 +247,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -289,7 +261,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -303,7 +275,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -317,7 +289,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -331,7 +303,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -345,7 +317,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -359,7 +331,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -373,7 +345,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -387,7 +359,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -401,7 +373,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -415,7 +387,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -429,7 +401,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -443,7 +415,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -457,7 +429,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -471,7 +443,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -485,7 +457,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -499,7 +471,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -513,7 +485,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -527,7 +499,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -541,7 +513,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -555,7 +527,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -569,7 +541,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -583,7 +555,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -597,7 +569,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -611,7 +583,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -625,7 +597,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -639,7 +611,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -653,7 +625,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -667,7 +639,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -681,7 +653,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -695,7 +667,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -709,7 +681,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -723,7 +695,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -737,7 +709,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -751,7 +723,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -765,7 +737,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -779,7 +751,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -793,7 +765,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -807,7 +779,7 @@
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -821,7 +793,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -835,7 +807,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -849,7 +821,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -863,7 +835,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -877,7 +849,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -891,7 +863,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -938,6 +910,71 @@
         "loopXfade": 0,
         "oscTriggers": [],
         "clip": "/audio/john-wick_1776736886470.webm"
+      }
+    ]
+  },
+  "184955c7-fa61-43fe-a914-f1e6d10bd85a_w10": {
+    "lighting": [
+      {
+        "id": "b2251791-f36f-4fe2-b0dd-3acad8d722b0",
+        "title": "Shipyard lights",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "remote"
+      }
+    ]
+  },
+  "d993d67f-1e0d-4717-91a2-8bfd61b97ed6_w10": {
+    "lighting": [
+      {
+        "id": "2755509b-ddda-4b04-ae6a-65fce1fc19f7",
+        "title": "Fade out of strobe as choking changes to laughter",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "osc"
+      }
+    ]
+  },
+  "scene_1_4_line_9_w0": {
+    "sound": [
+      {
+        "id": "d95daca1-48d0-4493-b713-cf45ebf1438d",
+        "title": "Micophone feedback when Madison starts speaking",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 0,
+        "clipEnd": 4,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscTriggers": [],
+        "clip": "/audio/Microphone_Feedback_Sound_Effect_1777963997601.wav"
+      }
+    ]
+  },
+  "a01596bc-633d-4de5-9d25-d4d7ebb53c80_w14": {
+    "lighting": [
+      {
+        "id": "a9cd6a36-1e34-4056-8cd7-643608765b0e",
+        "title": "Break dance",
+        "description": "Quick break with rainbow lights, movers",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   }

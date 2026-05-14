@@ -50,7 +50,7 @@
       </DialogueBlock>
     </Page>
   </Scene>
-  <Scene id="prologue" sceneNumber="00" pageStart="12" pageEnd="13" title="Prologue: Dockworkers">
+  <Scene id="prologue" sceneNumber="0" pageStart="12" pageEnd="13" title="Prologue: Dockworkers">
     <Page number="12">
       <Location id="prologue_loc_1">Shipyard.</Location>
       <StageDirection id="184955c7-fa61-43fe-a914-f1e6d10bd85a">They disappear into the middle of the night at a shipyard. A DOCKWORKER is
@@ -787,7 +787,6 @@
       </DialogueBlock>
     </Page>
     <Page number="24">
-      <Location id="scene_2_loc_2">Fish tank.</Location>
       <DialogueBlock>
         <Speaker>PRIYA</Speaker>
         <Line id="scene_1_5_line_6">DUANE</Line>

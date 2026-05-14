@@ -3,9 +3,19 @@
 
 import { AudioContext } from 'node-web-audio-api';
 import { execFile } from 'child_process';
+import { readFile, unlink } from 'fs/promises';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import ffmpegStatic from 'ffmpeg-static';
 
 const CLEANUP_GRACE_MS = 25;
+const FAR_AHEAD_WEIGHT = 0.01;
+
+function ffmpegEnv() {
+    const env = { ...process.env };
+    delete env.LD_LIBRARY_PATH;
+    return env;
+}
 
 let _getConfigValue = () => undefined;
 let _configuredSampleRate = null;
@@ -92,13 +102,91 @@ function dbToLinear(db) {
 
 // LRU buffer cache (keyed by filesystem path)
 const bufferCache = new Map();
+const cacheHints = new Map();
+let cacheCurrentOrder = 0;
+
+function normalizeCueIds(cueIds) {
+    if (!Array.isArray(cueIds)) return new Set();
+    return new Set(cueIds.filter(Boolean).map(String));
+}
+
+function getCacheHint(filePath) {
+    return cacheHints.get(filePath) || {
+        cueIds: new Set(),
+        orders: [],
+        cueOrders: [],
+        playedCueIds: new Set(),
+        lastUsedAt: 0,
+    };
+}
+
+function setCacheHint(filePath, patch) {
+    if (!filePath) return;
+    const prev = getCacheHint(filePath);
+    const next = {
+        ...prev,
+        ...patch,
+        cueIds: patch.cueIds instanceof Set ? patch.cueIds : prev.cueIds,
+        playedCueIds: patch.playedCueIds instanceof Set ? patch.playedCueIds : prev.playedCueIds,
+        orders: Array.isArray(patch.orders) ? patch.orders : prev.orders,
+        cueOrders: Array.isArray(patch.cueOrders) ? patch.cueOrders : prev.cueOrders,
+    };
+    cacheHints.set(filePath, next);
+}
+
+function isClipActive(filePath) {
+    for (const inst of activeInstances.values()) {
+        if (inst.clip === filePath) return true;
+    }
+    return false;
+}
+
+function getEvictionScore(filePath, currentOrder) {
+    if (isClipActive(filePath)) return Number.NEGATIVE_INFINITY;
+
+    const hint = getCacheHint(filePath);
+    const orders = hint.orders.filter(Number.isFinite);
+    const cueOrders = hint.cueOrders.filter(item => item?.id && Number.isFinite(item.order));
+    const cueIds = cueOrders.length ? cueOrders.map(item => item.id) : [...hint.cueIds];
+    const allKnownCuesPlayed = cueIds.length > 0 && cueIds.every(id => hint.playedCueIds.has(id));
+    const lastOrder = orders.length ? Math.max(...orders) : Number.POSITIVE_INFINITY;
+    const nextOrder = cueOrders.length
+        ? cueOrders
+            .filter(item => !hint.playedCueIds.has(item.id) && item.order >= currentOrder)
+            .map(item => item.order)
+            .sort((a, b) => a - b)[0]
+        : orders.filter(order => order >= currentOrder).sort((a, b) => a - b)[0];
+    const lastUsedPenalty = Math.max(0, Date.now() - (hint.lastUsedAt || 0)) / 1e12;
+
+    if (allKnownCuesPlayed || lastOrder < currentOrder) {
+        return 1_000_000 + Math.max(0, currentOrder - lastOrder) + lastUsedPenalty;
+    }
+
+    if (Number.isFinite(nextOrder)) {
+        return Math.max(0, nextOrder - currentOrder) * FAR_AHEAD_WEIGHT + lastUsedPenalty;
+    }
+
+    return 10_000 + lastUsedPenalty;
+}
 
 function evictBufferCache() {
     const maxCached = Number(_getConfigValue('audio.buffer.maxCached', 0));
     if (maxCached <= 0) return;
     while (bufferCache.size > maxCached) {
-        const oldest = bufferCache.keys().next().value;
-        bufferCache.delete(oldest);
+        const currentOrder = cacheCurrentOrder;
+        let victim = null;
+        let victimScore = Number.NEGATIVE_INFINITY;
+
+        for (const filePath of bufferCache.keys()) {
+            const score = getEvictionScore(filePath, currentOrder);
+            if (score > victimScore) {
+                victim = filePath;
+                victimScore = score;
+            }
+        }
+
+        if (!victim || victimScore === Number.NEGATIVE_INFINITY) return;
+        bufferCache.delete(victim);
     }
 }
 
@@ -107,23 +195,22 @@ async function loadBuffer(filePath) {
         const cached = bufferCache.get(filePath);
         bufferCache.delete(filePath);
         bufferCache.set(filePath, cached);
+        setCacheHint(filePath, { lastUsedAt: Date.now() });
         return cached;
     }
 
     const sampleRate = Number(_getConfigValue('audio.buffer.sampleRate', 48000)) || 48000;
     const channels = Number(_getConfigValue('audio.buffer.channels', 2)) || 2;
 
-    const pcmBuf = await new Promise((resolve, reject) => {
-        execFile(ffmpegStatic, [
-            '-i', filePath,
-            '-f', 'f32le', '-acodec', 'pcm_f32le',
-            '-ar', String(sampleRate), '-ac', String(channels),
-            'pipe:1',
-        ], { encoding: 'buffer', maxBuffer: 256 * 1024 * 1024 }, (err, stdout, stderr) => {
-            if (err) reject(new Error(stderr?.toString() || err.message));
-            else resolve(stdout);
-        });
-    });
+    const wavBuffer = await tryLoadWavBuffer(filePath, sampleRate, channels);
+    if (wavBuffer) {
+        bufferCache.set(filePath, wavBuffer);
+        setCacheHint(filePath, { lastUsedAt: Date.now() });
+        evictBufferCache();
+        return wavBuffer;
+    }
+
+    const pcmBuf = await decodeToPcmBuffer(filePath, sampleRate, channels);
 
     const ctx = getCtx();
     const frameCount = pcmBuf.byteLength / (4 * channels);
@@ -137,8 +224,173 @@ async function loadBuffer(filePath) {
     }
 
     bufferCache.set(filePath, audioBuffer);
+    setCacheHint(filePath, { lastUsedAt: Date.now() });
     evictBufferCache();
     return audioBuffer;
+}
+
+function decodeToPcmBuffer(filePath, sampleRate, channels) {
+    const safeName = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.f32le`;
+    const outputPath = join(tmpdir(), `cusus-pcm-${safeName}`);
+
+    return (async () => {
+        try {
+            await new Promise((resolve, reject) => {
+                execFile(ffmpegStatic, [
+                    '-y',
+                    '-v', 'error',
+                    '-nostats',
+                    '-i', filePath,
+                    '-f', 'f32le', '-acodec', 'pcm_f32le',
+                    '-ar', String(sampleRate), '-ac', String(channels),
+                    outputPath,
+                ], { encoding: 'buffer', env: ffmpegEnv(), maxBuffer: 1024 * 1024 }, (err, _stdout, stderr) => {
+                    if (err) {
+                        const detail = stderr?.toString() || err.message;
+                        reject(new Error(detail));
+                    } else {
+                        resolve();
+                    }
+                });
+            });
+
+            return await readFile(outputPath);
+        } finally {
+            await unlink(outputPath).catch(() => {});
+        }
+    })();
+}
+
+function updateCacheHints(entries = []) {
+    const nextPaths = new Set();
+
+    entries.forEach(entry => {
+        if (!entry?.clip) return;
+        nextPaths.add(entry.clip);
+        const cueIds = normalizeCueIds(entry.cueIds);
+        const orders = Array.isArray(entry.orders)
+            ? entry.orders.map(Number).filter(Number.isFinite).sort((a, b) => a - b)
+            : [];
+        const cueOrders = Array.isArray(entry.cueOrders)
+            ? entry.cueOrders
+                .map(item => ({ id: String(item?.id || ''), order: Number(item?.order) }))
+                .filter(item => item.id && Number.isFinite(item.order))
+                .sort((a, b) => a.order - b.order)
+            : [];
+        const prev = getCacheHint(entry.clip);
+        setCacheHint(entry.clip, {
+            cueIds,
+            orders,
+            cueOrders,
+            playedCueIds: prev.playedCueIds,
+            lastUsedAt: prev.lastUsedAt,
+        });
+    });
+
+    for (const filePath of cacheHints.keys()) {
+        if (!nextPaths.has(filePath) && !bufferCache.has(filePath)) {
+            cacheHints.delete(filePath);
+        }
+    }
+
+    evictBufferCache();
+}
+
+function markCuePlayed(cueId) {
+    if (!cueId) return;
+    const id = String(cueId);
+    for (const [filePath, hint] of cacheHints.entries()) {
+        if (!hint.cueIds.has(id)) continue;
+        const playedCueIds = new Set(hint.playedCueIds);
+        playedCueIds.add(id);
+        setCacheHint(filePath, { playedCueIds });
+    }
+    evictBufferCache();
+}
+
+function clearPlayedCacheHints() {
+    for (const [filePath, hint] of cacheHints.entries()) {
+        if (hint.playedCueIds.size > 0) {
+            setCacheHint(filePath, { playedCueIds: new Set() });
+        }
+    }
+    cacheCurrentOrder = 0;
+    evictBufferCache();
+}
+
+function setCacheCurrentOrder(order) {
+    const parsed = Number(order);
+    if (Number.isFinite(parsed)) cacheCurrentOrder = Math.max(cacheCurrentOrder, parsed);
+    evictBufferCache();
+}
+
+async function tryLoadWavBuffer(filePath, expectedSampleRate, expectedChannels) {
+    if (!String(filePath).toLowerCase().endsWith('.wav')) return null;
+
+    const file = await readFile(filePath);
+    const parsed = parsePcmWav(file);
+    if (!parsed) return null;
+
+    const { sampleRate, channels, bitsPerSample, format, dataOffset, dataSize } = parsed;
+    if (sampleRate !== expectedSampleRate || channels !== expectedChannels) return null;
+
+    const bytesPerSample = bitsPerSample / 8;
+    const frameCount = Math.floor(dataSize / (bytesPerSample * channels));
+    const ctx = getCtx();
+    const audioBuffer = ctx.createBuffer(channels, frameCount, sampleRate);
+
+    for (let c = 0; c < channels; c++) {
+        const channelData = audioBuffer.getChannelData(c);
+        for (let i = 0; i < frameCount; i++) {
+            const offset = dataOffset + ((i * channels + c) * bytesPerSample);
+            channelData[i] = readWavSample(file, offset, bitsPerSample, format);
+        }
+    }
+
+    return audioBuffer;
+}
+
+function parsePcmWav(file) {
+    if (file.length < 44) return null;
+    if (file.toString('ascii', 0, 4) !== 'RIFF' || file.toString('ascii', 8, 12) !== 'WAVE') return null;
+
+    let pos = 12;
+    let fmt = null;
+    let data = null;
+    while (pos + 8 <= file.length) {
+        const id = file.toString('ascii', pos, pos + 4);
+        const size = file.readUInt32LE(pos + 4);
+        const body = pos + 8;
+        if (body + size > file.length) break;
+
+        if (id === 'fmt ') {
+            if (size < 16) return null;
+            fmt = {
+                format: file.readUInt16LE(body),
+                channels: file.readUInt16LE(body + 2),
+                sampleRate: file.readUInt32LE(body + 4),
+                bitsPerSample: file.readUInt16LE(body + 14),
+            };
+        } else if (id === 'data') {
+            data = { dataOffset: body, dataSize: size };
+        }
+
+        pos = body + size + (size % 2);
+    }
+
+    if (!fmt || !data) return null;
+    const isSupported = (fmt.format === 1 && (fmt.bitsPerSample === 16 || fmt.bitsPerSample === 24 || fmt.bitsPerSample === 32))
+        || (fmt.format === 3 && fmt.bitsPerSample === 32);
+    if (!isSupported || fmt.channels < 1) return null;
+    return { ...fmt, ...data };
+}
+
+function readWavSample(file, offset, bitsPerSample, format) {
+    if (format === 3 && bitsPerSample === 32) return file.readFloatLE(offset);
+    if (bitsPerSample === 16) return file.readInt16LE(offset) / 32768;
+    if (bitsPerSample === 24) return file.readIntLE(offset, 3) / 8388608;
+    if (bitsPerSample === 32) return file.readInt32LE(offset) / 2147483648;
+    return 0;
 }
 
 function makeGain(ctx, vol, fadeIn, destination = getMasterGain()) {
@@ -769,15 +1021,17 @@ function cancelDevamp(instanceId) {
     }
 }
 
-export { playCue, fadeOut, stop, stopAll, fadeOutAll, devamp, cancelDevamp, listActive, setVolume, setMuted, toggleMute, masterVolume, setMasterMuted, toggleMasterMute, isMasterMuted, pause, resume, seek, setTriggerCallback, cancelWaitingCues, preloadBuffer };
+export { playCue, fadeOut, stop, stopAll, fadeOutAll, devamp, cancelDevamp, listActive, setVolume, setMuted, toggleMute, masterVolume, setMasterMuted, toggleMasterMute, isMasterMuted, pause, resume, seek, setTriggerCallback, cancelWaitingCues, preloadBuffer, updateCacheHints, markCuePlayed, clearPlayedCacheHints, setCacheCurrentOrder };
 
 async function preloadBuffer(filePath) {
-    if (!filePath) return;
+    if (!filePath) return false;
     try {
         await loadBuffer(filePath);
         console.log("Preload successful for", filePath);
+        return true;
     } catch (e) {
         console.error(`preloadBuffer failed for ${filePath}:`, e.message);
+        return false;
     }
 }
 
