@@ -74,9 +74,11 @@ function getOscTargets() {
 function dispatchToAllTargets(payload, transport, overrides = {}) {
   const targets = getOscTargets();
   const promises = targets.map(target => {
-    if (transport === 'osc') {
+    if (transport === 'osc' || !overrides.remotePort || overrides.remotePort === -1) {
+      console.log("Sending OSC", payload.toString('hex'), "to", target.ip, "port", overrides.oscPort ?? target.oscPort);
       return sendUdpPacket(payload, { host: target.ip, port: overrides.oscPort ?? target.oscPort });
     }
+    console.log("Sending remote command", payload.toString('ascii'), "to", target.ip, "port", overrides.remotePort ?? target.remotePort);
     return sendUdpPacket(payload, { host: target.ip, port: overrides.remotePort ?? target.remotePort });
   });
   return Promise.allSettled(promises).then(results => {
