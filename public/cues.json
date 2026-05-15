@@ -392,16 +392,32 @@
     ]
   },
   "8a6786ec-6d53-493e-96f2-c59792a246ed_w3": {
-    "lighting": [
+    "sound": [
       {
         "id": "lq_32_cha_cha_slide",
         "title": "The cha cha slide",
         "description": "Cha Cha Slide and romantic slow dance song",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 0,
+        "clipEnd": 387.518,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscTriggers": [],
+        "clip": "/audio/Cha_Cha_Slide__Original_Live_Platinum_Band_Mix__1778812329670.wav",
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        }
       }
     ]
   },
@@ -975,6 +991,36 @@
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
         "oscTransport": "osc"
+      }
+    ]
+  },
+  "scene_6_1_line_18_w8": {
+    "sound": [
+      {
+        "id": "82a2bb81-526c-4928-92d1-4dce04c39062",
+        "title": "Bows",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 0,
+        "clipEnd": 251.506,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscTriggers": [],
+        "clip": "/audio/Everybody_Wants_To_Rule_The_World_1778812376869.wav",
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        }
       }
     ]
   }

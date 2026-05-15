@@ -73,6 +73,13 @@ function fallbackTypes() {
         loopStart: 0,
         loopEnd: null,
         loopXfade: 0,
+        oscStartTrigger: {
+          oscAction: 'goto',
+          oscPlayback: 1,
+          oscCueNumber: '{cueNumber}',
+          oscLevel: 100,
+          oscTransport: 'auto',
+        },
       },
     },
   ];

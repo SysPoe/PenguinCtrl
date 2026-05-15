@@ -60,6 +60,13 @@ const DEFAULT_CUE_TYPES = [
       loopStart: 0,
       loopEnd: null,
       loopXfade: 0,
+      oscStartTrigger: {
+        oscAction: 'goto',
+        oscPlayback: 1,
+        oscCueNumber: '{cueNumber}',
+        oscLevel: 100,
+        oscTransport: 'auto',
+      },
     },
   },
 ];
@@ -2367,6 +2374,13 @@ function getSoundData() {
     loopStart: 0,
     loopEnd: null,
     loopXfade: 0,
+    oscStartTrigger: {
+      oscAction: 'goto',
+      oscPlayback: 1,
+      oscCueNumber: '{cueNumber}',
+      oscLevel: 100,
+      oscTransport: 'auto',
+    },
   }, typeDefaults);
 
   const data = {
