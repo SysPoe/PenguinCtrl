@@ -113,17 +113,24 @@ function getOscTargets() {
 function dispatchToAllTargets(payload, transport, overrides = {}) {
   const targets = getOscTargets();
   const promises = targets.map(target => {
-    if (transport === 'osc' || !overrides.remotePort || overrides.remotePort === -1) {
-      console.log("Sending OSC", payload.toString('hex'), "to", target.ip, "port", overrides.oscPort ?? target.oscPort);
-      return sendUdpPacket(payload, { host: target.ip, port: overrides.oscPort ?? target.oscPort });
+    const remotePort = overrides.remotePort ?? target.remotePort;
+    const oscPort = overrides.oscPort ?? target.oscPort;
+    if (transport === 'osc' || !hasUsablePort(remotePort)) {
+      const port = hasUsablePort(oscPort) ? oscPort : remotePort;
+      console.log("Sending OSC", payload.toString('hex'), "to", target.ip, "port", port);
+      return sendUdpPacket(payload, { host: target.ip, port });
     }
-    console.log("Sending remote command", payload.toString('ascii'), "to", target.ip, "port", overrides.remotePort ?? target.remotePort);
-    return sendUdpPacket(payload, { host: target.ip, port: overrides.remotePort ?? target.remotePort });
+    const port = remotePort;
+    console.log("Sending remote command", payload.toString('ascii'), "to", target.ip, "port", port);
+    return sendUdpPacket(payload, { host: target.ip, port });
   });
   return Promise.allSettled(promises).then(results => {
     results.forEach((r, i) => {
       if (r.status === 'rejected') {
-        console.error(`Failed to dispatch to ${targets[i].ip}:${transport === 'osc' ? (overrides.oscPort ?? targets[i].oscPort) : (overrides.remotePort ?? targets[i].remotePort)}:`, r.reason);
+        const remotePort = overrides.remotePort ?? targets[i].remotePort;
+        const oscPort = overrides.oscPort ?? targets[i].oscPort;
+        const port = transport === 'osc' || !hasUsablePort(remotePort) ? oscPort : remotePort;
+        console.error(`Failed to dispatch to ${targets[i].ip}:${port}:`, r.reason);
       }
     });
   });
@@ -175,6 +182,19 @@ function clampRemotePort(value, fallback) {
   const parsed = Number(value);
   if (parsed === -1) return -1;
   return clampPort(value, fallback);
+}
+
+function hasUsablePort(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 1 && parsed <= 65535;
+}
+
+function hasRemotePort(target) {
+  return hasUsablePort(target?.remotePort);
+}
+
+function hasOscPort(target) {
+  return hasUsablePort(target?.oscPort);
 }
 
 function clampLevel(value) {
@@ -324,17 +344,20 @@ function buildCuePayload({ action, playback, cueNumber, level, transport }) {
 }
 
 function resolveTargetTransport(target, requestedTransport, action) {
-  if (requestedTransport === 'osc') return 'osc';
+  if (requestedTransport === 'osc') {
+    if (hasOscPort(target) && canSendOscAction(action)) return 'osc';
+    if (hasRemotePort(target) && canSendRemoteAction(action)) return 'remote';
+    throw new Error(`OSC transport cannot send action "${action}" to ${target.ip} without an oscPort or fallback remotePort`);
+  }
   if (requestedTransport === 'remote') {
-    if (target.remotePort === -1) {
-      throw new Error(`Target ${target.ip} has remotePort -1 and cannot use forced remote transport`);
-    }
-    return 'remote';
+    if (hasRemotePort(target) && canSendRemoteAction(action)) return 'remote';
+    if (hasOscPort(target) && canSendOscAction(action)) return 'osc';
+    throw new Error(`Remote transport cannot send action "${action}" to ${target.ip} without a remotePort or fallback oscPort`);
   }
 
-  if (target.remotePort !== -1 && canSendRemoteAction(action)) return 'remote';
-  if (canSendOscAction(action)) return 'osc';
-  throw new Error(`Auto transport cannot send action "${action}" to ${target.ip} without a remotePort`);
+  if (hasRemotePort(target) && canSendRemoteAction(action)) return 'remote';
+  if (hasOscPort(target) && canSendOscAction(action)) return 'osc';
+  throw new Error(`Auto transport cannot send action "${action}" to ${target.ip} without a usable remotePort or oscPort`);
 }
 
 function dispatchCueCommandToTargets({ action, playback, cueNumber, level, transport }) {
