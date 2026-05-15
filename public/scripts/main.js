@@ -947,11 +947,11 @@ function calculateCueOrder() {
 
   function nextSceneCueNumber(sceneId) {
     if (!sceneId) {
-      sceneCounters.__global = (sceneCounters.__global || 0) + 1;
+      sceneCounters.__global = sceneCounters.__global == null ? 1 : sceneCounters.__global + 3;
       return sceneCounters.__global;
     }
     const sceneNum = sceneNumberMap[sceneId] || '0';
-    const count = (sceneCounters[sceneId] || 0) + 1;
+    const count = sceneCounters[sceneId] == null ? 1 : sceneCounters[sceneId] + 3;
     sceneCounters[sceneId] = count;
     return `${sceneNum}.${String(count).padStart(2, '0')}`;
   }
