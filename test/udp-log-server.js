@@ -1,7 +1,7 @@
 import dgram from 'node:dgram';
 
 const host = process.env.HOST || '0.0.0.0';
-const oscPort = Number(process.env.OSC_PORT || 8000);
+const oscPort = Number(process.env.OSC_PORT || 8001);
 const udpPort = Number(process.env.UDP_PORT || 6553);
 
 function align4(offset) {

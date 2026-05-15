@@ -41,7 +41,7 @@
       },
       {
         "ip": "127.0.0.1",
-        "oscPort": 8000,
+        "oscPort": 8001,
         "remotePort": -1
       },
       {
