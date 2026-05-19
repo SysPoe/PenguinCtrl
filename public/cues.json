@@ -39,6 +39,34 @@
         "oscLevel": 100,
         "oscTransport": "auto"
       }
+    ],
+    "sound": [
+      {
+        "id": "lq_03_blackout_title",
+        "title": "Scene over",
+        "description": "Blackout for title sequence",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 0,
+        "clipEnd": 251.506,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "clip": "/audio/Everybody_Wants_To_Rule_The_World_1778812376869.wav"
+      }
     ]
   },
   "04bd5b20-c26c-4683-a6a6-ce69aa38438f_w5": {
@@ -215,20 +243,6 @@
         "id": "lq_18_student_council",
         "title": "Student council",
         "description": "Lighting change to student council",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
-  "ec06b76d-4914-491d-93d0-dcbed3461c49_w1": {
-    "lighting": [
-      {
-        "id": "lq_19_group_chat_dim",
-        "title": "New kid scene",
-        "description": "Group chat lighting?? Maybe off or very dim washers",
         "oscAction": "goto",
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
@@ -439,13 +453,50 @@
     "lighting": [
       {
         "id": "lq_34_tyson_enters",
-        "title": "Tyson enters, dark blue / night. Spot",
+        "title": "Stella's house at night",
         "description": "Fade to Stella's House / stella. Night, blue",
         "oscAction": "goto",
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
         "oscLevel": 100,
         "oscTransport": "auto"
+      }
+    ],
+    "sound": [
+      {
+        "id": "lq_34_tyson_enters",
+        "title": "Stella's house at night",
+        "description": "Fade to Stella's House / stella. Night, blue",
+        "soundSubtype": "play_once",
+        "playStyle": "fade_all",
+        "clipStart": 0.5,
+        "clipEnd": 7.158,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 0.1,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "70.7",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [
+          {
+            "timeMs": 580.3429054054054,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "70.4",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ],
+        "clip": "/audio/thunder-clap_1779186115692.wav"
       }
     ]
   },
@@ -561,62 +612,6 @@
       }
     ]
   },
-  "scene_5_3_line_14_w1": {
-    "lighting": [
-      {
-        "id": "lq_44_tyson_enters_home",
-        "title": "Tyson enters",
-        "description": "Fade to Stella's house / stella",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
-  "1a43c099-1bbf-42e2-86be-1fa9e16c0449_w8": {
-    "lighting": [
-      {
-        "id": "lq_45_paper_mache_knife",
-        "title": "Squish is making a paper mache knife art",
-        "description": "Half n' half deal. Half with Classroom / squish, half with Stella's house / stella.",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
-  "f24509b7-31e6-4b16-a602-102ed82b22e9_w3": {
-    "lighting": [
-      {
-        "id": "lq_46_back_to_the_kids",
-        "title": "Back to the kids",
-        "description": "Fade to Stella's house / stella",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
-  "6d149ee7-03c4-4d83-b186-9efd031e58fb_w8": {
-    "lighting": [
-      {
-        "id": "lq_47_vision_of_gregs",
-        "title": "Priya's vision multiple Gregs",
-        "description": "Intense darkness lighting. Stella's house / squish (xdeep).",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
   "034fe5ea-b26a-429b-8577-7722e45abecd_w1": {
     "lighting": [
       {
@@ -628,6 +623,34 @@
         "oscPlayback": 1,
         "oscLevel": 100,
         "oscTransport": "auto"
+      }
+    ],
+    "sound": [
+      {
+        "id": "lq_48_training_montage",
+        "title": "Training montage",
+        "description": "Montage music",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 2,
+        "clipEnd": 284.331,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "clip": "/audio/Bonnie_Tyler_-_Holding_Out_For_A_Hero_1779228927121.wav"
       }
     ]
   },
@@ -685,6 +708,34 @@
         "oscLevel": 100,
         "oscTransport": "auto"
       }
+    ],
+    "sound": [
+      {
+        "id": "lq_52_tony_peaceful",
+        "title": "Tony shakes more violently",
+        "description": "Beautiful flowing, nice and peaceful lighting. Bright and rainbows.",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 2,
+        "clipEnd": 370.149,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "clip": "/audio/Morning_Wood_1779229250763.wav"
+      }
     ]
   },
   "scene_5_6_p79_line_43_w9": {
@@ -707,34 +758,6 @@
         "id": "lq_54_as_they_crash",
         "title": "As they crash",
         "description": "Crazy fight lights",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
-  "efa49eb8-97c3-40cb-b972-ba6cb6b7ceb6_w5": {
-    "lighting": [
-      {
-        "id": "lq_55_firecrackers",
-        "title": "Stella reaches into the bum bag",
-        "description": "Lights flashing for firecrackers",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
-  "88f6430b-eb27-46db-8a8d-9297f69601a6_w6": {
-    "lighting": [
-      {
-        "id": "lq_56_standstill",
-        "title": "Standstill",
-        "description": "Chiller lights for the standstill",
         "oscAction": "goto",
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
@@ -804,34 +827,6 @@
       {
         "id": "mnflle5sajw9u",
         "title": "Blackout",
-        "description": "",
-        "oscAction": "goto",
-        "oscPlayback": 1,
-        "oscCueNumber": "{cueNumber}",
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
-  "27c6e458-ce83-4bef-b9c7-0c2909117a4c_w26": {
-    "lighting": [
-      {
-        "id": "mnflrz8p5wjy6",
-        "title": "Lightning flash?",
-        "description": "",
-        "oscAction": "goto",
-        "oscPlayback": 1,
-        "oscCueNumber": "{cueNumber}",
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
-  "scene_4_2_line_16_w1": {
-    "lighting": [
-      {
-        "id": "mnfltafoe6b3n",
-        "title": "Thunder flash to blackout",
         "description": "",
         "oscAction": "goto",
         "oscPlayback": 1,
@@ -965,10 +960,10 @@
         "description": "",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
-        "clipStart": 0,
-        "clipEnd": 4,
+        "clipStart": 0.499,
+        "clipEnd": 2.25,
         "fadeIn": 0,
-        "fadeOut": 0,
+        "fadeOut": 0.5,
         "volume": 0,
         "manualFadeOutDuration": 2,
         "allowMultipleInstances": false,
@@ -976,7 +971,14 @@
         "loopEnd": null,
         "loopXfade": 0,
         "oscTriggers": [],
-        "clip": "/audio/Microphone_Feedback_Sound_Effect_1777963997601.wav"
+        "clip": "/audio/Microphone Feedback.mp3",
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        }
       }
     ]
   },
@@ -1021,6 +1023,426 @@
           "oscLevel": 100,
           "oscTransport": "auto"
         }
+      }
+    ]
+  },
+  "scene_1_4_line_27": {
+    "sound": [
+      {
+        "id": "07abe1bf-a78c-4b96-a38e-0e30e3838d49",
+        "title": "Bell",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 17.11,
+        "clipEnd": 211.441,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "clip": "/audio/who-let-the-dogs-out_1776736467209.webm"
+      }
+    ]
+  },
+  "64b7ad15-d735-4a46-9675-1a432ebabaea": {
+    "sound": [
+      {
+        "id": "741aaac9-c7ff-41de-93fa-c75f9cf86039",
+        "title": "News jingle",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 0,
+        "clipEnd": 4,
+        "fadeIn": 0,
+        "fadeOut": 0.5,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "clip": "/audio/ABC_News_theme_music__Version_1__2017-___1779089700517.wav"
+      }
+    ]
+  },
+  "a7f3d76e-fbe5-4ac5-a320-225ad52f6dcc": {
+    "lighting": [
+      {
+        "id": "0376b3f0-a4b9-4353-a703-8a24ed2e4da1",
+        "title": "Mover on reporter cuts out",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "osc"
+      }
+    ]
+  },
+  "scene_2_2_line_1": {
+    "lighting": [
+      {
+        "id": "b534ea81-c9e5-434c-9fbe-af144bcacd8d",
+        "title": "Student council lighting",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "osc"
+      }
+    ]
+  },
+  "8a6786ec-6d53-493e-96f2-c59792a246ed_w72": {
+    "sound": [
+      {
+        "id": "9c1c536f-91b0-4c19-8880-095b741b7ce4",
+        "title": "Slow dance",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "fade_all",
+        "clipStart": 0,
+        "clipEnd": 225.233,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 0.1,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "clip": "/audio/Elvis_Presley_-_Can_t_Help_Falling_in_Love__Instrumental__1779090731863.wav"
+      }
+    ]
+  },
+  "fb2c7b72-c313-4753-94e6-2efa52f726b6_w6": {
+    "sound": [
+      {
+        "id": "51d4a595-8283-43f0-a3a0-f10305ac6258",
+        "title": "Music cuts",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "fade_all",
+        "clipStart": 22,
+        "clipEnd": 22.001,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 10.5,
+        "manualFadeOutDuration": 0.1,
+        "allowMultipleInstances": true,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "clip": "/audio/Microphone Feedback.mp3"
+      }
+    ]
+  },
+  "27c6e458-ce83-4bef-b9c7-0c2909117a4c_w17": {
+    "sound": [
+      {
+        "id": "8ce8e905-cdc6-404a-b063-998cc3412755",
+        "title": "Boom of thunder",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 0.5,
+        "clipEnd": 7.158,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "70.7",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [
+          {
+            "timeMs": 580.3429054054054,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "70.4",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ],
+        "clip": "/audio/thunder-clap_1779186115692.wav"
+      }
+    ]
+  },
+  "27c6e458-ce83-4bef-b9c7-0c2909117a4c_w61": {
+    "sound": [
+      {
+        "id": "ddfa7954-3764-4f49-97ea-e6f03f9358f1",
+        "title": "Thunder boom",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 0.5,
+        "clipEnd": 7.158,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "70.7",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [
+          {
+            "timeMs": 612.584177927928,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "70.4",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ],
+        "clip": "/audio/thunder-clap_1779186115692.wav"
+      }
+    ]
+  },
+  "ee7eba5b-71da-4020-8e7c-a739801e251c_w2": {
+    "sound": [
+      {
+        "id": "b6bad18a-e930-463e-8369-448ea3e1d646",
+        "title": "Thunder boom",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 0.5,
+        "clipEnd": 7.158,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "70.7",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [
+          {
+            "timeMs": 591.0899962462463,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "70.4",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ],
+        "clip": "/audio/thunder-clap_1779186115692.wav"
+      }
+    ]
+  },
+  "2aa8aa5f-b8ea-4e70-9c52-e9360b720d27": {
+    "lighting": [
+      {
+        "id": "efd4ed8e-584f-4464-9c48-dd4a5b43567f",
+        "title": "Tyson enters",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "osc"
+      }
+    ]
+  },
+  "6dc568ec-fbb7-4ced-b50e-65f0f3414601_w1": {
+    "sound": [
+      {
+        "id": "b6e23289-0eca-4058-a418-fffc7ed16ad6",
+        "title": "Thunder boom",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 0.5,
+        "clipEnd": 7.158,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "70.7",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [
+          {
+            "timeMs": 580.3429054054054,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "70.4",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ],
+        "clip": "/audio/thunder-clap_1779186115692.wav"
+      }
+    ]
+  },
+  "015d1e9c-ee88-4cf3-9e43-af1f7f79f334_w7": {
+    "sound": [
+      {
+        "id": "1b26d219-b01e-46f1-9211-63642484ac78",
+        "title": "Splash as cans enter water",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 1.7,
+        "clipEnd": 2.98,
+        "fadeIn": 0,
+        "fadeOut": 1.28,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "clip": "/audio/wilhelm-splash_1779228717410.wav"
+      }
+    ]
+  },
+  "86fb1c43-2534-4ef1-aefd-160ebb54e26e": {
+    "lighting": [
+      {
+        "id": "5d7c4a4e-c533-4d83-8c45-e471077aa200",
+        "title": "Lighting change again?",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "osc"
+      }
+    ]
+  },
+  "scene_5_3_line_14": {
+    "lighting": [
+      {
+        "id": "bf58cd7b-79e8-43a9-8b19-150f6d13758b",
+        "title": "Tyson enters",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "osc"
+      }
+    ]
+  },
+  "0172a22d-7c51-4958-bac2-f5c9d7fae725_w2": {
+    "sound": [
+      {
+        "id": "116a9faa-377e-471f-86ef-5a4cfb15bee1",
+        "title": "School bell",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 17.11,
+        "clipEnd": 211.441,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "clip": "/audio/who-let-the-dogs-out_1776736467209.webm"
+      }
+    ]
+  },
+  "bdc13a2f-e70a-41bb-8527-9965e8740988_w4": {
+    "lighting": [
+      {
+        "id": "1764fd26-1602-43ab-baf7-060307057981",
+        "title": "Normal",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "osc"
       }
     ]
   }
