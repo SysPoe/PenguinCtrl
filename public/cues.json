@@ -686,7 +686,7 @@
           "oscTransport": "auto"
         },
         "oscTriggers": [],
-        "clip": "/audio/Morning_Wood_1779229250763.wav"
+        "clip": "/audio/Morning_Wood_1779229197499.wav"
       }
     ]
   },
@@ -838,7 +838,7 @@
         "description": "",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
-        "clipStart": 17.11,
+        "clipStart": 0,
         "clipEnd": 211.441,
         "fadeIn": 0,
         "fadeOut": 0,
@@ -849,7 +849,14 @@
         "loopEnd": null,
         "loopXfade": 0,
         "oscTriggers": [],
-        "clip": "/audio/who-let-the-dogs-out_1776736467209.webm"
+        "clip": "/audio/who-let-the-dogs-out_1779242818220.wav",
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        }
       }
     ]
   },
@@ -864,7 +871,7 @@
         "clipStart": 0,
         "clipEnd": 185.04,
         "fadeIn": 0,
-        "fadeOut": 10,
+        "fadeOut": 0,
         "volume": 0,
         "manualFadeOutDuration": 2,
         "allowMultipleInstances": false,
@@ -872,7 +879,14 @@
         "loopEnd": null,
         "loopXfade": 0,
         "oscTriggers": [],
-        "clip": "/audio/john-wick_1776736886470.webm"
+        "clip": "/audio/john-wick_1779242878387.wav",
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        }
       }
     ]
   },
