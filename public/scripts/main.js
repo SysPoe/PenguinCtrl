@@ -3060,12 +3060,17 @@ function setWaveformZoom(z, anchor = null) {
 function renderOscTriggers() {
   const list = document.getElementById('osc-triggers-list');
   if (!list) return;
+  normalizeAndSortOscTriggers();
   list.innerHTML = '';
   currentOscTriggers.forEach((t, i) => {
-    const trigger = normalizeOscTrigger(t);
-    currentOscTriggers[i] = { ...t, ...trigger };
+    const trigger = t;
     const row = document.createElement('div');
-    row.className = 'osc-trigger-item';
+    row.className = 'osc-trigger-item' + (selectedOscTriggerIndexes.has(i) ? ' selected' : '');
+    row.dataset.triggerIndex = String(i);
+    row.addEventListener('click', e => {
+      if (e.target.closest('input, select, button')) return;
+      selectOscTrigger(i);
+    });
 
     const header = document.createElement('div');
     header.className = 'osc-trigger-header';
@@ -3180,6 +3185,24 @@ function renderOscTriggers() {
   drawOscTriggersOnWaveform();
 }
 
+function normalizeAndSortOscTriggers() {
+  const selectedOriginalIndexes = new Set(selectedOscTriggerIndexes);
+  const entries = currentOscTriggers.map((trigger, originalIndex) => ({
+    originalIndex,
+    trigger: { ...trigger, ...normalizeOscTrigger(trigger) },
+  }));
+  entries.sort((a, b) => {
+    const timeDiff = a.trigger.timeMs - b.trigger.timeMs;
+    return timeDiff || a.originalIndex - b.originalIndex;
+  });
+  currentOscTriggers = entries.map(entry => entry.trigger);
+  const nextSelected = [];
+  entries.forEach((entry, sortedIndex) => {
+    if (selectedOriginalIndexes.has(entry.originalIndex)) nextSelected.push(sortedIndex);
+  });
+  setSelectedOscTriggers(nextSelected, false);
+}
+
 function updateOscTrigger(index, field, value) {
   if (currentOscTriggers[index]) {
     const trigger = currentOscTriggers[index];
@@ -3274,12 +3297,14 @@ function setSelectedOscTriggers(indexes, redraw = true) {
     : null;
   if (redraw) {
     drawOscTriggersOnWaveform();
+    updateOscListSelectionClasses();
     return;
   }
   document.querySelectorAll('.osc-trigger-marker').forEach((marker, markerIndex) => {
     const triggerIndex = Number(marker.dataset.triggerIndex ?? markerIndex);
     marker.classList.toggle('selected', selectedOscTriggerIndexes.has(triggerIndex));
   });
+  updateOscListSelectionClasses();
 }
 
 function selectOscTrigger(index, redraw = true) {
@@ -3294,6 +3319,13 @@ function selectOscTriggersInRange(startMs, endMs) {
     .filter(({ trigger }) => trigger.timeMs >= minMs && trigger.timeMs <= maxMs)
     .map(({ index }) => index);
   setSelectedOscTriggers(indexes, false);
+}
+
+function updateOscListSelectionClasses() {
+  document.querySelectorAll('.osc-trigger-item').forEach((row, rowIndex) => {
+    const triggerIndex = Number(row.dataset.triggerIndex ?? rowIndex);
+    row.classList.toggle('selected', selectedOscTriggerIndexes.has(triggerIndex));
+  });
 }
 
 function copySelectedOscTrigger() {
