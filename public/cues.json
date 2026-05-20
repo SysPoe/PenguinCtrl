@@ -28,22 +28,10 @@
     ]
   },
   "57b99c65-a2d6-4eb8-9ebb-02c7d8f4fbc4_w5": {
-    "lighting": [
-      {
-        "id": "lq_03_blackout_title",
-        "title": "Scene over",
-        "description": "Blackout for title sequence",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ],
     "sound": [
       {
         "id": "lq_03_blackout_title",
-        "title": "Scene over",
+        "title": "B/O / Everybode wants to Rule",
         "description": "Blackout for title sequence",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
@@ -450,18 +438,6 @@
     ]
   },
   "27c6e458-ce83-4bef-b9c7-0c2909117a4c_w1": {
-    "lighting": [
-      {
-        "id": "lq_34_tyson_enters",
-        "title": "Stella's house at night",
-        "description": "Fade to Stella's House / stella. Night, blue",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ],
     "sound": [
       {
         "id": "lq_34_tyson_enters",
@@ -613,18 +589,6 @@
     ]
   },
   "034fe5ea-b26a-429b-8577-7722e45abecd_w1": {
-    "lighting": [
-      {
-        "id": "lq_48_training_montage",
-        "title": "Training montage",
-        "description": "Montage music",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ],
     "sound": [
       {
         "id": "lq_48_training_montage",
@@ -697,18 +661,6 @@
     ]
   },
   "cf39096f-4061-4426-9f63-f14d0cc24f8c_w3": {
-    "lighting": [
-      {
-        "id": "lq_52_tony_peaceful",
-        "title": "Tony shakes more violently",
-        "description": "Beautiful flowing, nice and peaceful lighting. Bright and rainbows.",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ],
     "sound": [
       {
         "id": "lq_52_tony_peaceful",
