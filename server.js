@@ -1367,7 +1367,9 @@ wss.on('connection', (ws) => {
       } else if (msg.type === 'preload') {
         if (msg.clip) {
           const resolved = resolvePublicAudioPath(msg.clip);
-          audioPreloadBuffer(resolved);
+          if (resolved && existsSync(resolved)) {
+            audioPreloadBuffer(resolved);
+          }
         }
 
       } else if (msg.type === 'resetPlayed') {
