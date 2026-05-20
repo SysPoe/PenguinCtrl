@@ -311,45 +311,6 @@
       }
     ]
   },
-  "27c6e458-ce83-4bef-b9c7-0c2909117a4c_w1": {
-    "sound": [
-      {
-        "id": "lq_34_tyson_enters",
-        "title": "Stella's house at night",
-        "description": "Fade to Stella's House / stella. Night, blue",
-        "soundSubtype": "play_once",
-        "playStyle": "fade_all",
-        "clipStart": 0.5,
-        "clipEnd": 7.158,
-        "fadeIn": 5,
-        "fadeOut": 0,
-        "volume": 0,
-        "manualFadeOutDuration": 0.1,
-        "allowMultipleInstances": false,
-        "loopStart": 0,
-        "loopEnd": null,
-        "loopXfade": 0,
-        "oscStartTrigger": {
-          "oscAction": "goto",
-          "oscPlayback": 1,
-          "oscCueNumber": "70.7",
-          "oscLevel": 100,
-          "oscTransport": "auto"
-        },
-        "oscTriggers": [
-          {
-            "timeMs": 580.3429054054054,
-            "oscAction": "goto",
-            "oscPlayback": 1,
-            "oscCueNumber": "70.4",
-            "oscLevel": 100,
-            "oscTransport": "auto"
-          }
-        ],
-        "clip": "/audio/thunder-clap_1779186115692.wav"
-      }
-    ]
-  },
   "eb525dbc-6ea5-4d6b-bcdc-5f405be75180_w1": {
     "lighting": [
       {
