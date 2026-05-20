@@ -115,10 +115,21 @@ function dispatchToAllTargets(payload, transport, overrides = {}) {
   const promises = targets.map(target => {
     const remotePort = overrides.remotePort ?? target.remotePort;
     const oscPort = overrides.oscPort ?? target.oscPort;
-    if (transport === 'osc' || !hasUsablePort(remotePort)) {
-      const port = hasUsablePort(oscPort) ? oscPort : remotePort;
-      console.log("Sending OSC", payload.toString('hex'), "to", target.ip, "port", port);
-      return sendUdpPacket(payload, { host: target.ip, port });
+    if (transport === 'osc') {
+      if (!hasUsablePort(oscPort)) {
+        console.warn(`Skipping OSC dispatch to ${target.ip}: no usable oscPort configured`);
+        return Promise.resolve();
+      }
+      console.log("Sending OSC", payload.toString('hex'), "to", target.ip, "port", oscPort);
+      return sendUdpPacket(payload, { host: target.ip, port: oscPort });
+    }
+    if (!hasUsablePort(remotePort)) {
+      if (!hasUsablePort(oscPort)) {
+        console.warn(`Skipping remote dispatch to ${target.ip}: no usable remotePort or oscPort configured`);
+        return Promise.resolve();
+      }
+      console.log("Sending remote command", payload.toString('ascii'), "to", target.ip, "port", oscPort, "(OSC fallback)");
+      return sendUdpPacket(payload, { host: target.ip, port: oscPort });
     }
     const port = remotePort;
     console.log("Sending remote command", payload.toString('ascii'), "to", target.ip, "port", port);
@@ -129,7 +140,9 @@ function dispatchToAllTargets(payload, transport, overrides = {}) {
       if (r.status === 'rejected') {
         const remotePort = overrides.remotePort ?? targets[i].remotePort;
         const oscPort = overrides.oscPort ?? targets[i].oscPort;
-        const port = transport === 'osc' || !hasUsablePort(remotePort) ? oscPort : remotePort;
+        const port = transport === 'osc'
+          ? oscPort
+          : (hasUsablePort(remotePort) ? remotePort : oscPort);
         console.error(`Failed to dispatch to ${targets[i].ip}:${port}:`, r.reason);
       }
     });
