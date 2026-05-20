@@ -597,16 +597,16 @@
       }
     ]
   },
-  "79cca949-ac6a-4005-a4b4-0eb2e0705094_w5": {
+  "scene_2_4_line_1_w1": {
     "sound": [
       {
-        "id": "76206c8a-a7d3-4753-a708-9b90df0b6d3a",
-        "title": "mr wick after 2ND WHISTLE",
+        "id": "4cb3c377-2f3d-4359-8bb8-601d8498ab73",
+        "title": "mr wick AFTER 2nd WHISTLE",
         "description": "",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
         "clipStart": 0,
-        "clipEnd": 185.04,
+        "clipEnd": 185.003,
         "fadeIn": 0,
         "fadeOut": 0,
         "volume": 0,
@@ -615,15 +615,2128 @@
         "loopStart": 0,
         "loopEnd": null,
         "loopXfade": 0,
-        "oscTriggers": [],
-        "clip": "/audio/john-wick-mode.wav",
         "oscStartTrigger": {
           "oscAction": "goto",
           "oscPlayback": 1,
           "oscCueNumber": "{cueNumber}",
           "oscLevel": 100,
           "oscTransport": "auto"
-        }
+        },
+        "oscTriggers": [
+          {
+            "timeMs": 706,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 978,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.02}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 4556.6485207100595,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 4885,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.02}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 8402,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 8623,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.02}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 12281,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 12493,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.02}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 16131,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 16615,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 17086,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 17591,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 18075,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 18559,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 19030,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 19535,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 20006,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 20490,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 20961,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 21466,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 21950,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 22434,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 22905,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 23410,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 23866,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 24350,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 24821,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 25326,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 25810,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 26294,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 26765,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 27270,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 27741,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 28225,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 28696,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 29201,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 29685,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 30169,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 30640,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 31145,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 31623,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 32107,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 32578,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 33083,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 33567,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 34051,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 34522,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 35027,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 35498,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 35982,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 36453,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 36958,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 37442,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 37926,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 38397,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 38902,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 39358,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 39842,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 40313,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 40818,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 41302,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 41786,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 42257,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 42762,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 43233,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 43717,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 44188,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 44693,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 45177,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 45661,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 46132,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 46637,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 47098,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 47582,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 48053,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 48558,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 49042,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 49526,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 49997,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 50502,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 50973,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 51457,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 51928,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 52433,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 52917,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 53401,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 53872,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 54377,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 54833,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 55317,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 55788,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 56293,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 56777,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 57261,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 57732,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 58237,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 58708,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 59192,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 59663,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 60168,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 60652,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 61136,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 61607,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 62112,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 62590,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 63074,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 63545,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 64050,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 64534,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 65018,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 65489,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 65994,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 66465,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 66949,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 67420,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 67925,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 68409,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 68893,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 69364,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 69869,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 70325,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 70809,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 71280,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 71785,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 72269,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 72753,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 73224,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 73729,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 74200,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 74684,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 75155,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 75660,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 76144,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 76628,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 77099,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 77604,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 78136,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 78620,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 79091,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 79596,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 80080,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 80564,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 81035,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 81540,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 82011,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 82495,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 82966,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 83471,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 83955,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 84439,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 84910,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 85415,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 85871,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 86355,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 86826,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 87331,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 87815,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 88299,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 88770,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 89275,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 89746,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 90230,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 90701,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 91206,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 91690,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 92174,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 92645,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 93150,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 93628,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 94112,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 94583,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 95088,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 95572,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 96056,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 96527,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 97032,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 97503,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 97987,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 98458,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 98963,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 99447,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 99931,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 100402,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 100907,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 101363,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 101847,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 102318,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 102823,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 103307,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 103791,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 104262,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 104767,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 105238,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 105722,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 106193,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 106698,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 107182,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 107666,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 108137,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 108642,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 109103,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 109587,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 110058,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 110563,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 111047,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 111531,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 112002,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 112507,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 112978,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 113462,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 113933,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 114438,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 114922,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 115406,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 115877,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 116382,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 116838,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 117322,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 117793,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 118298,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 118782,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 119266,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 119737,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 120242,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 120713,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 121197,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 121668,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 122173,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 122657,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 123141,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 123612,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 124117,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 124595,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 125079,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 125550,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 126055,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 126539,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 127023,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 127494,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 127999,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 128470,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 128954,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 129425,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 129930,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 130414,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 130898,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 131369,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 131874,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 132330,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 132814,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 133285,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 133790,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 134274,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 134758,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 135229,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 135734,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 136205,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 136689,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 137160,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 137665,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 138149,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 138633,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 139104,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "timeMs": 139609,
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber+0.01}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ],
+        "clip": "/audio/john-wick-mode.wav"
       }
     ]
   },
@@ -1138,16 +3251,16 @@
       }
     ]
   },
-  "scene_2_4_line_1_w1": {
+  "79cca949-ac6a-4005-a4b4-0eb2e0705094_w5": {
     "sound": [
       {
-        "id": "4cb3c377-2f3d-4359-8bb8-601d8498ab73",
+        "id": "76206c8a-a7d3-4753-a708-9b90df0b6d3a",
         "title": "dogs AFTER 1ST WHISTLE",
         "description": "",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
-        "clipStart": 17,
-        "clipEnd": 211.441,
+        "clipStart": 17.001,
+        "clipEnd": 211.302,
         "fadeIn": 0,
         "fadeOut": 0,
         "volume": 0,
@@ -1156,15 +3269,15 @@
         "loopStart": 0,
         "loopEnd": null,
         "loopXfade": 0,
+        "oscTriggers": [],
+        "clip": "/audio/who-let-the-dogs-out.wav",
         "oscStartTrigger": {
           "oscAction": "goto",
           "oscPlayback": 1,
           "oscCueNumber": "{cueNumber}",
           "oscLevel": 100,
           "oscTransport": "auto"
-        },
-        "oscTriggers": [],
-        "clip": "/audio/who-let-the-dogs-out.wav"
+        }
       }
     ]
   },
@@ -1251,7 +3364,7 @@
         "soundSubtype": "play_once",
         "playStyle": "alongside",
         "clipStart": 0,
-        "clipEnd": null,
+        "clipEnd": 161.88,
         "fadeIn": 0,
         "fadeOut": 0,
         "volume": 0,
@@ -1268,7 +3381,7 @@
           "oscTransport": "auto"
         },
         "oscTriggers": [],
-        "clip": null
+        "clip": "/audio/morning-mood-trap-remix.wav"
       }
     ]
   },
@@ -1320,7 +3433,7 @@
     "sound": [
       {
         "id": "7e34fec2-60ed-4365-8e10-911cabe8548d",
-        "title": "FREEZE (in the msic) just spotlight on G & S MUSIC OFF WHEN EXIT",
+        "title": "FREEZE (in the music) just spotlight on G & S MUSIC OFF WHEN EXIT",
         "description": "",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
@@ -1341,8 +3454,7 @@
           "oscLevel": 100,
           "oscTransport": "auto"
         },
-        "oscTriggers": [],
-        "clip": "/audio/Elvis_Presley_-_Can_t_Help_Falling_in_Love__Instrumental__1779090731863.wav"
+        "oscTriggers": []
       }
     ]
   },
