@@ -56,7 +56,7 @@ const DEFAULT_CUE_TYPES = [
       fadeOut: 0,
       volume: 0,
       manualFadeOutDuration: 2,
-      allowMultipleInstances: true,
+      allowMultipleInstances: false,
       loopStart: 0,
       loopEnd: null,
       loopXfade: 0,
@@ -67,6 +67,7 @@ const DEFAULT_CUE_TYPES = [
         oscLevel: 100,
         oscTransport: 'auto',
       },
+      oscTriggers: [],
     },
   },
 ];

@@ -1,0 +1,54 @@
+function deepClone(value) {
+  if (value === undefined) return undefined;
+  return JSON.parse(JSON.stringify(value));
+}
+
+const BASE_CUE_TYPES = [
+  {
+    id: 'lighting',
+    label: 'Lighting',
+    shortLabel: 'L',
+    description: 'Non-audio cue used for operator tracking.',
+    editor: 'basic',
+    handler: 'trackOnly',
+    color: '#f59e0b',
+    order: 10,
+    payloadDefaults: {},
+  },
+  {
+    id: 'sound',
+    label: 'Sound',
+    shortLabel: 'S',
+    description: 'Audio cue played by the server audio engine.',
+    editor: 'sound',
+    handler: 'audioPlay',
+    color: '#10b981',
+    order: 20,
+    payloadDefaults: {
+      soundSubtype: 'play_once',
+      playStyle: 'alongside',
+      clipStart: 0,
+      clipEnd: null,
+      fadeIn: 0,
+      fadeOut: 0,
+      volume: 0,
+      manualFadeOutDuration: 2,
+      allowMultipleInstances: false,
+      loopStart: 0,
+      loopEnd: null,
+      loopXfade: 0,
+      oscStartTrigger: {
+        oscAction: 'goto',
+        oscPlayback: 1,
+        oscCueNumber: '{cueNumber}',
+        oscLevel: 100,
+        oscTransport: 'auto',
+      },
+      oscTriggers: [],
+    },
+  },
+];
+
+export function getDefaultCueTypes() {
+  return deepClone(BASE_CUE_TYPES);
+}

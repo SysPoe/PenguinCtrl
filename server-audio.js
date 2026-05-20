@@ -708,7 +708,7 @@ async function playCue(cue) {
 
     if (oscStartTrigger) {
         try {
-            triggerCallback?.(oscStartTrigger);
+            triggerCallback?.(oscStartTrigger, cue);
         } catch (e) {
             console.error('Unhandled error in sound start OSC trigger', e);
         }
@@ -1052,7 +1052,7 @@ setInterval(() => {
             const timeS = (trigger.timeMs || 0) / 1000;
             if (pos >= timeS && !inst.firedTriggers.has(idx)) {
                 inst.firedTriggers.add(idx);
-                try { triggerCallback(trigger); } catch (e) { console.error("Unhandled error in triggerCallback", e); }
+                try { triggerCallback(trigger, inst.cue); } catch (e) { console.error("Unhandled error in triggerCallback", e); }
             }
         });
     }

@@ -1,4 +1,5 @@
 import { readFileSync, statSync } from 'fs';
+import { getDefaultCueTypes } from './cue-type-defaults.js';
 
 function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -38,58 +39,11 @@ function normalizeType(rawType, index) {
   };
 }
 
-function fallbackTypes() {
-  return [
-    {
-      id: 'lighting',
-      label: 'Lighting',
-      shortLabel: 'L',
-      description: 'Non-audio cue used for operator tracking.',
-      editor: 'basic',
-      handler: 'trackOnly',
-      color: '#f59e0b',
-      order: 10,
-      payloadDefaults: {},
-    },
-    {
-      id: 'sound',
-      label: 'Sound',
-      shortLabel: 'S',
-      description: 'Audio cue played by the server audio engine.',
-      editor: 'sound',
-      handler: 'audioPlay',
-      color: '#10b981',
-      order: 20,
-      payloadDefaults: {
-        soundSubtype: 'play_once',
-        playStyle: 'alongside',
-        clipStart: 0,
-        clipEnd: null,
-        fadeIn: 0,
-        fadeOut: 0,
-        volume: 0,
-        manualFadeOutDuration: 2,
-        allowMultipleInstances: false,
-        loopStart: 0,
-        loopEnd: null,
-        loopXfade: 0,
-        oscStartTrigger: {
-          oscAction: 'goto',
-          oscPlayback: 1,
-          oscCueNumber: '{cueNumber}',
-          oscLevel: 100,
-          oscTransport: 'auto',
-        },
-      },
-    },
-  ];
-}
-
 export function createCueTypeRegistry({ filePath }) {
   const state = {
-    fingerprint: null,
+    fingerprint: '__uninitialized__',
     version: 1,
-    types: fallbackTypes(),
+    types: getDefaultCueTypes(),
     byId: new Map(),
   };
 
@@ -97,11 +51,11 @@ export function createCueTypeRegistry({ filePath }) {
     const fingerprint = getFingerprint(filePath);
     if (state.fingerprint === fingerprint) return;
 
-    let raw = { version: 1, types: fallbackTypes() };
+    let raw = { version: 1, types: getDefaultCueTypes() };
     try {
       raw = JSON.parse(readFileSync(filePath, 'utf-8'));
     } catch {
-      raw = { version: 1, types: fallbackTypes() };
+      raw = { version: 1, types: getDefaultCueTypes() };
     }
 
     const rawTypes = Array.isArray(raw.types) ? raw.types : [];
@@ -117,7 +71,7 @@ export function createCueTypeRegistry({ filePath }) {
     }
 
     if (normalized.length === 0) {
-      normalized.push(...fallbackTypes());
+      normalized.push(...getDefaultCueTypes());
     }
 
     normalized.sort((a, b) => a.order - b.order);
