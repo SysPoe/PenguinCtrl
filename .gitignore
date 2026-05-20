@@ -3,7 +3,5 @@ bun.lock
 .claude
 package-lock.json
 yarn.lock
-.dual-graph/
-.dual-graph-context/
 CODEX.md
 .cursor

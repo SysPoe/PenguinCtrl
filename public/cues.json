@@ -290,8 +290,8 @@
         "soundSubtype": "play_once",
         "playStyle": "alongside",
         "clipStart": 130,
-        "clipEnd": 387.518,
-        "fadeIn": 0,
+        "clipEnd": 150.529,
+        "fadeIn": 0.735,
         "fadeOut": 0,
         "volume": 0,
         "manualFadeOutDuration": 2,
@@ -439,34 +439,6 @@
       }
     ]
   },
-  "3543c615-2312-4857-9439-40e87c0c7dda_w4": {
-    "lighting": [
-      {
-        "id": "lq_54_as_they_crash",
-        "title": "As they crash",
-        "description": "Crazy fight lights",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
-  "b7dbc53d-f165-48eb-a59a-f09a9bad8bc4_w3": {
-    "lighting": [
-      {
-        "id": "lq_57_back_to_action",
-        "title": "Back to the action",
-        "description": "Flashing lights and stuff as Stella delivers a finishing blow",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
   "c01bafe8-7378-4181-b6c9-8a0753e8b761_w0": {
     "lighting": [
       {
@@ -513,7 +485,7 @@
     "sound": [
       {
         "id": "mnflle5sajw9u",
-        "title": "Blackout",
+        "title": "DOGS Blackout",
         "description": "",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
@@ -571,7 +543,7 @@
     "sound": [
       {
         "id": "a164400a-de21-4304-a3bb-6f33da060e18",
-        "title": "bell INC",
+        "title": "DOGS Bell",
         "description": "",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
@@ -604,7 +576,7 @@
         "title": "mr wick AFTER 2nd WHISTLE",
         "description": "",
         "soundSubtype": "play_once",
-        "playStyle": "alongside",
+        "playStyle": "xfade",
         "clipStart": 0,
         "clipEnd": 185.003,
         "fadeIn": 0,
@@ -2832,7 +2804,7 @@
     "sound": [
       {
         "id": "07abe1bf-a78c-4b96-a38e-0e30e3838d49",
-        "title": "Bell",
+        "title": "DOGS Bell",
         "description": "",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
@@ -2879,13 +2851,13 @@
         "title": "Slow dance",
         "description": "",
         "soundSubtype": "play_once",
-        "playStyle": "fade_all",
+        "playStyle": "alongside",
         "clipStart": 0,
         "clipEnd": 225.233,
         "fadeIn": 0,
         "fadeOut": 0,
         "volume": 0,
-        "manualFadeOutDuration": 0.1,
+        "manualFadeOutDuration": 5,
         "allowMultipleInstances": false,
         "loopStart": 0,
         "loopEnd": null,
@@ -3188,9 +3160,9 @@
         "soundSubtype": "play_once",
         "playStyle": "alongside",
         "clipStart": 0,
-        "clipEnd": 5,
+        "clipEnd": 9.425,
         "fadeIn": 0,
-        "fadeOut": 3,
+        "fadeOut": 5.908,
         "volume": 0,
         "manualFadeOutDuration": 2,
         "allowMultipleInstances": false,
@@ -3255,7 +3227,7 @@
     "sound": [
       {
         "id": "76206c8a-a7d3-4753-a708-9b90df0b6d3a",
-        "title": "dogs AFTER 1ST WHISTLE",
+        "title": "DOGS AFTER 1ST WHISTLE",
         "description": "",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
@@ -3285,14 +3257,14 @@
     "sound": [
       {
         "id": "e073ba22-350c-49b8-bb71-37a74c0b91fb",
-        "title": "Dogs Playground Transition",
+        "title": "Playground DOGS",
         "description": "",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
         "clipStart": 17,
-        "clipEnd": 60,
+        "clipEnd": 211.301,
         "fadeIn": 0,
-        "fadeOut": 10,
+        "fadeOut": 0,
         "volume": 0,
         "manualFadeOutDuration": 2,
         "allowMultipleInstances": false,
@@ -3329,7 +3301,7 @@
     "sound": [
       {
         "id": "f82e236f-7e70-4906-8320-2b3b82be832d",
-        "title": "Assembly",
+        "title": "Assembly DOGS",
         "description": "",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
