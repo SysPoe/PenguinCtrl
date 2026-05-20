@@ -238,7 +238,7 @@ window.addEventListener('message', (e) => {
 
 // ── Formatting ─────────────────────────────────────────────────────────────
 function fmtDur(s) {
-    if (!s || s <= 0) return '—';
+    if (!s || s <= 0) return '-';
     const m = Math.floor(s / 60), sec = Math.floor(s % 60);
     return `${m}:${sec.toString().padStart(2, '0')}`;
 }
@@ -343,7 +343,7 @@ function updateVoicesHeader() {
 }
 function renderCueStatusBadges(cueId) {
     const parts = getCueStatusParts(cueId);
-    if (!parts.length) return '<span class="cue-state empty">—</span>';
+    if (!parts.length) return '<span class="cue-state empty">-</span>';
     return parts.map(part => `<span class="cue-state ${part.kind}">${escHtml(part.text)}</span>`).join('');
 }
 
@@ -396,7 +396,7 @@ function renderCues() {
       <td class="cue-title-cell">${escHtml(cue.title)}</td>
       <td class="col-type">${badge}</td>
             <td class="col-state"><div class="cue-state-cell">${renderCueStatusBadges(cue.id)}</div></td>
-      <td class="col-len len">${cue.fullCue?.clip ? fmtDur(cue.duration) : '—'}</td>
+      <td class="col-len len">${cue.fullCue?.clip ? fmtDur(cue.duration) : '-'}</td>
     </tr>`;
     }).join('');
 

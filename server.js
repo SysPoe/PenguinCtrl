@@ -543,7 +543,7 @@ function buildSceneCache(result, fingerprint) {
         }
       });
 
-      // Process StageDirection elements — assign stable IDs
+      // Process StageDirection elements - assign stable IDs
       toArray(page.StageDirection).forEach((sd, sdIdx) => {
         const text = getXmlText(sd).trim();
         if (text) {

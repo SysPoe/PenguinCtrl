@@ -258,7 +258,7 @@
       {
         "id": "lq_22_court_cools",
         "title": "Stella leaves court",
-        "description": "Switch lighting to cooler as Stella leaves and Greg is remaining?? – HPE / Squish",
+        "description": "Switch lighting to cooler as Stella leaves and Greg is remaining?? - HPE / Squish",
         "oscAction": "goto",
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,

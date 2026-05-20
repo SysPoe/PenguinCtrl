@@ -96,7 +96,7 @@ let currentSoundStartOscAction = 'none';
 let waveformAudioBuffer = null;
 let waveformPeaks = null;
 let waveformRedrawTimer = null;
-let waveformDrag = null; // { handle, inputId, duration, type }
+let waveformDrag = null; // { handle, inputId, triggerIndex, duration, type }
 let waveformScrubDrag = false;
 let waveformRafId = null;
 let waveformZoom = 1;
@@ -1110,7 +1110,7 @@ function getTargetContext(targetId) {
         const widx = parseInt(targetId.slice(el.id.length + 2));
         const words = (el.text || '').trim().split(/\s+/);
         const word = words[widx] || '';
-        return `"${word}" — word ${widx + 1}`;
+        return `"${word}" - word ${widx + 1}`;
       }
       if (el.type === 'dialogue') {
         for (const line of el.lines) {
@@ -1124,7 +1124,7 @@ function getTargetContext(targetId) {
             const widx = parseInt(targetId.slice(line.id.length + 2));
             const words = (line.text || '').trim().split(/\s+/);
             const word = words[widx] || '';
-            return `"${word}" — word ${widx + 1}`;
+            return `"${word}" - word ${widx + 1}`;
           }
         }
       }
@@ -1339,24 +1339,13 @@ function scrollToPage(index) {
   }
 }
 
-// Zoom while keeping the visual center of the viewport fixed.
-// With transform: scale(s) from top, scrollTop T shows content positions T/s..(T+H)/s.
-// To preserve the center content position when changing from s1 to s2:
-//   T_new = (T_old + H/2) * (s2/s1) - H/2
 function zoomTo(newZoom) {
   const container = document.getElementById('scroll-container');
-  const s1 = currentZoom / 100;
-  const s2 = newZoom / 100;
-  const T = container.scrollTop;
-  const H = container.clientHeight;
-
+  const scrollTop = container ? container.scrollTop : 0;
   currentZoom = newZoom;
   applyZoom();
-
-  requestAnimationFrame(() => {
-    container.scrollTop = Math.max(0, (T + H / 2) * (s2 / s1) - H / 2);
-    saveState();
-  });
+  if (container) container.scrollTop = scrollTop;
+  saveState();
 }
 
 function zoomIn() { zoomTo(Math.min(getZoomMax(), currentZoom + getZoomStep())); }
@@ -1403,7 +1392,7 @@ document.addEventListener('pointermove', (e) => {
   }
 
   if (!waveformDrag) return;
-  const { handle, inputId, duration } = waveformDrag;
+  const { handle, inputId, triggerIndex, duration, type } = waveformDrag;
 
   const layer = document.getElementById('wf-handle-layer');
   if (!layer) return;
@@ -1412,6 +1401,15 @@ document.addEventListener('pointermove', (e) => {
 
   const x = Math.max(0, Math.min(cWidth, e.clientX - rect.left));
   let t = (x / cWidth) * duration;
+
+  if (type === 'osc-trigger') {
+    t = Math.max(0, Math.min(duration, t));
+    if (currentOscTriggers[triggerIndex]) {
+      currentOscTriggers[triggerIndex].timeMs = Math.round(t * 1000);
+      handle.style.left = ((t / duration) * 100).toFixed(3) + '%';
+    }
+    return;
+  }
 
   const bounds = getParamBounds();
   if (bounds[inputId]) {
@@ -1436,6 +1434,12 @@ document.addEventListener('pointerup', () => {
   }
 
   if (!waveformDrag) return;
+  const wasOscTriggerDrag = waveformDrag.type === 'osc-trigger';
+  waveformDrag = null;
+  if (wasOscTriggerDrag) {
+    renderOscTriggers();
+    return;
+  }
   drawWaveform();
   updateWaveformHandles();
 });
@@ -1900,11 +1904,20 @@ function onParamChange(id, source) {
   } else {
     syncSliderToNumber(id);
   }
-  applyConstraints();
+  if (source !== 'number') {
+    applyConstraints();
+  }
   updateAllSliderRanges();
   syncPreviewScrubberBounds();
   scheduleWaveformRedraw();
 }
+
+document.addEventListener('change', event => {
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement) || !input.classList.contains('pnum')) return;
+  if (!input.id || input.type !== 'number') return;
+  onParamChange(input.id, 'number-commit');
+});
 
 function syncAllSlidersFromInputs() {
   for (const id of SLIDER_IDS) syncSliderToNumber(id);
@@ -2112,14 +2125,43 @@ function parseCueNumberOrNull(raw) {
   return cueDecText ? `${cueInt}.${cueDecText}` : `${cueInt}`;
 }
 
+function cueNumberToCenti(raw) {
+  const normalized = parseCueNumberOrNull(raw);
+  if (!normalized) return null;
+  const [intText, decText = ''] = normalized.split('.');
+  const cueInt = Number(intText);
+  const cueDec = Number((decText + '00').slice(0, 2));
+  if (!Number.isFinite(cueInt) || !Number.isFinite(cueDec)) return null;
+  return cueInt * 100 + cueDec;
+}
+
+function centiToCueNumber(value) {
+  const safe = Math.max(100, Math.round(Number(value) || 0));
+  const cueInt = Math.floor(safe / 100);
+  const cueDec = safe % 100;
+  return cueDec ? `${cueInt}.${String(cueDec).padStart(2, '0').replace(/0+$/, '')}` : `${cueInt}`;
+}
+
+function parseCueNumberOffset(raw) {
+  const source = String(raw || '').trim();
+  const match = source.match(/^([+-])(\d+)(?:\.(\d{1,2}))?$/);
+  if (!match) return null;
+  const sign = match[1] === '-' ? -1 : 1;
+  const intPart = Number(match[2]);
+  const decPart = Number(((match[3] || '') + '00').slice(0, 2));
+  if (!Number.isFinite(intPart) || !Number.isFinite(decPart)) return null;
+  return sign * ((intPart * 100) + decPart);
+}
+
 function isCueNumberTemplate(value) {
-  return typeof value === 'string' && value.includes('{cueNumber}');
+  return typeof value === 'string' && /\{cueNumber(?:[+-]\d+(?:\.\d{1,2})?)?\}/.test(value);
 }
 
 function parseCueNumberOrTemplate(raw) {
   const source = String(raw || '').trim();
   if (!source) return null;
-  if (isCueNumberTemplate(source)) return source;
+  const expressionTemplate = /^\{cueNumber(?:[+-]\d+(?:\.\d{1,2})?)?\}(?:[+-]\d+(?:\.\d{1,2})?)?$/;
+  if (expressionTemplate.test(source)) return source;
   return parseCueNumberOrNull(source);
 }
 
@@ -2155,23 +2197,21 @@ function resolveCueNumberTemplate(template, cueNumber) {
   const str = String(template).trim();
   if (!isCueNumberTemplate(str)) return str;
 
-  let resolved = str.replace(/\{cueNumber\}/g, String(cueNumber));
+  let resolved = str.replace(/\{cueNumber([+-]\d+(?:\.\d{1,2})?)?\}/g, (_match, offsetText = '') => {
+    const base = cueNumberToCenti(cueNumber);
+    if (base == null) return String(cueNumber);
+    const offset = offsetText ? parseCueNumberOffset(offsetText) : 0;
+    if (offset == null) return String(cueNumber);
+    return centiToCueNumber(base + offset);
+  });
 
-  const arithDecMatch = resolved.match(/^(\d+)([+-])(\d+)\.(\d+)$/);
-  if (arithDecMatch) {
-    const base = Number(arithDecMatch[1]);
-    const op = arithDecMatch[2];
-    const offset = Number(arithDecMatch[3]);
-    const dec = arithDecMatch[4];
-    const result = op === '+' ? base + offset : base - offset;
-    return `${Math.max(1, result)}.${dec}`;
-  }
-
-  const arithMatch = resolved.match(/^(\d+)([+-])(\d+)$/);
-  if (arithMatch) {
-    const base = Number(arithMatch[1]);
-    const result = arithMatch[2] === '+' ? base + Number(arithMatch[3]) : base - Number(arithMatch[3]);
-    return String(Math.max(1, result));
+  const legacyMatch = resolved.match(/^(\d+(?:\.\d{1,2})?)([+-]\d+(?:\.\d{1,2})?)$/);
+  if (legacyMatch) {
+    const base = cueNumberToCenti(legacyMatch[1]);
+    const offset = parseCueNumberOffset(legacyMatch[2]);
+    if (base != null && offset != null) {
+      resolved = centiToCueNumber(base + offset);
+    }
   }
 
   return resolved;
@@ -2285,7 +2325,7 @@ function parseLightingActionForm(cueTypeId = getCurrentLightingCueTypeId()) {
   if (meta.requiresCue && !cueNumber) {
     cueField?.classList.add('input-error');
     cueField?.focus();
-    throw new Error('Cue number must be like 5, 5.1, or {cueNumber}');
+    throw new Error('Cue number must be like 5, 5.1, {cueNumber}, or {cueNumber+0.01}');
   }
 
   return {
@@ -2565,6 +2605,8 @@ async function handleClipUpload(file) {
 }
 
 async function loadWaveform(url) {
+  clearWaveformDisplay();
+  setWaveformEmptyText('No audio loaded');
   previewSeekPosition = null;
   previewPlayheadT = null;
   document.getElementById('waveform-empty').style.display = 'none';
@@ -2625,6 +2667,7 @@ async function loadWaveform(url) {
     console.error('Waveform load error:', err);
     document.getElementById('waveform-loading').style.display = 'none';
     document.getElementById('waveform-empty').style.display = 'flex';
+    setWaveformEmptyText('Audio loaded - waveform unavailable');
   }
 }
 
@@ -2651,14 +2694,43 @@ function clearWaveformDisplay() {
   waveformPeaks = null;
   previewSeekPosition = null;
   previewPlayheadT = null;
+  setWaveformEmptyText('No audio loaded');
   document.getElementById('waveform-empty').style.display = 'flex';
   document.getElementById('waveform-canvas').style.display = 'none';
   document.getElementById('wf-handle-layer').style.display = 'none';
+  document.getElementById('wf-trigger-layer').style.display = 'none';
   document.getElementById('preview-bar').style.display = 'none';
   const scrub = document.getElementById('preview-scrub');
   if (scrub) scrub.style.display = 'none';
+  const zoomControls = document.getElementById('wf-zoom-controls');
+  if (zoomControls) zoomControls.style.display = 'none';
+  const triggersSection = document.getElementById('osc-triggers-section');
+  if (triggersSection) triggersSection.style.display = 'none';
+  const container = document.getElementById('waveform-container');
+  if (container) container.scrollLeft = 0;
+  const inner = document.getElementById('waveform-inner');
+  if (inner) inner.style.width = '';
+  const canvas = document.getElementById('waveform-canvas');
+  if (canvas) {
+    canvas.width = 0;
+    canvas.height = 0;
+    canvas.style.width = '';
+  }
   document.getElementById('wf-handle-layer').innerHTML = '';
+  document.getElementById('wf-trigger-layer').innerHTML = '';
   document.getElementById('waveform-loading').style.display = 'none';
+}
+
+function setWaveformEmptyText(text) {
+  const empty = document.getElementById('waveform-empty');
+  if (!empty) return;
+  let label = empty.querySelector('.waveform-empty-text');
+  if (!label) {
+    label = document.createElement('span');
+    label.className = 'waveform-empty-text';
+    empty.appendChild(label);
+  }
+  label.textContent = text;
 }
 
 function scheduleWaveformRedraw() {
@@ -2729,7 +2801,7 @@ function drawWaveform() {
   if (clipStart > 0) { ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, tx(clipStart), H); }
   if (clipEnd < dur) { ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(tx(clipEnd), 0, W - tx(clipEnd), H); }
 
-  // Fade-in — amber diagonal hatching
+  // Fade-in - amber diagonal hatching
   if (fadeIn > 0 && clipStart + fadeIn <= clipEnd) {
     const x0 = tx(clipStart), x1 = tx(clipStart + fadeIn), w = x1 - x0;
     if (w > 0) {
@@ -2747,7 +2819,7 @@ function drawWaveform() {
     }
   }
 
-  // Fade-out — amber diagonal hatching
+  // Fade-out - amber diagonal hatching
   if (fadeOut > 0 && clipEnd - fadeOut >= clipStart) {
     const x0 = tx(clipEnd - fadeOut), x1 = tx(clipEnd), w = x1 - x0;
     if (w > 0) {
@@ -2952,7 +3024,7 @@ function renderOscTriggers() {
     cueField.innerHTML = '<span>Cue Number</span>';
     const cueInput = document.createElement('input');
     cueInput.type = 'text';
-    cueInput.placeholder = 'e.g. 5, 5.1, or {cueNumber}';
+    cueInput.placeholder = 'e.g. 5, 5.1, {cueNumber}, or {cueNumber+0.01}';
     cueInput.value = trigger.oscCueNumber;
     cueInput.addEventListener('change', () => updateOscTrigger(i, 'oscCueNumber', cueInput.value));
     cueField.appendChild(cueInput);
@@ -3061,12 +3133,18 @@ function drawOscTriggersOnWaveform() {
   if (!layer || !waveformAudioBuffer) return;
   layer.innerHTML = '';
   const dur = waveformAudioBuffer.duration;
-  currentOscTriggers.forEach(t => {
+  currentOscTriggers.forEach((t, index) => {
     const div = document.createElement('div');
     div.className = 'osc-trigger-marker';
     const posX = ((t.timeMs / 1000) / dur) * 100;
     if (posX >= 0 && posX <= 100) {
       div.style.left = posX + '%';
+      div.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        div.setPointerCapture(e.pointerId);
+        waveformDrag = { handle: div, triggerIndex: index, duration: dur, type: 'osc-trigger' };
+      });
       layer.appendChild(div);
     }
   });
@@ -3075,6 +3153,7 @@ function drawOscTriggersOnWaveform() {
 function onWaveformScrubStart(e) {
   // If clicking on a handle, don't scrub
   if (e.target.closest('.wf-handle')) return;
+  if (e.target.closest('.osc-trigger-marker')) return;
   if (!waveformAudioBuffer) return;
   e.preventDefault();
   waveformScrubDrag = true;

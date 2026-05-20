@@ -6,7 +6,7 @@
     <Page number="10">
       <Location id="struck_00_loc_1">The ocean.</Location>
       <StageDirection id="f6eaf150-a13a-4b87-860f-d1db8f2bb210">Darkness. A fog has settled across the floor as STORYTELLERS appear onstage
-        one by one, in very neat black suits, ties. All of them should all feel connected — like
+        one by one, in very neat black suits, ties. All of them should all feel connected - like
         multiple parts of a kaleidoscope.</StageDirection>
       <DialogueBlock>
         <Speaker>STORYTELLERS</Speaker>
@@ -542,7 +542,7 @@
       </DialogueBlock>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
-        <Line id="scene_1_3_line_88">I tried to tell him —</Line>
+        <Line id="scene_1_3_line_88">I tried to tell him -</Line>
       </DialogueBlock>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
@@ -556,7 +556,7 @@
       </DialogueBlock>
     </Page>
     <Page number="20">
-      <StageDirection id="35bcbea8-67d1-40a7-ad4b-918f1c4fafbb">The school bell rings. It's a terrible song — something like Brave by Sara
+      <StageDirection id="35bcbea8-67d1-40a7-ad4b-918f1c4fafbb">The school bell rings. It's a terrible song - something like Brave by Sara
         Bareilles.</StageDirection>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
@@ -614,9 +614,9 @@
         show. We're in Assembly. MR FOWLER is addressing the students.</StageDirection>
       <DialogueBlock>
         <Speaker>FOWLER</Speaker>
-        <Line id="scene_1_4_line_1">— and as we welcome all of you back for another exciting year, a
+        <Line id="scene_1_4_line_1">- and as we welcome all of you back for another exciting year, a
           reminder that the demountables are out of bounds until the snake nests are dealt with. Do
-          not approach the snakes. Also, I can't believe that I need to address this —</Line>
+          not approach the snakes. Also, I can't believe that I need to address this -</Line>
       </DialogueBlock>
       <StageDirection id="18cede28-4490-47bd-b049-5df0bd518a60">One of the kids is talking.</StageDirection>
       <DialogueBlock>
@@ -1292,7 +1292,7 @@
       </DialogueBlock>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
-        <Line id="scene_2_1_line_15">Okay, well —</Line>
+        <Line id="scene_2_1_line_15">Okay, well -</Line>
       </DialogueBlock>
       <DialogueBlock>
         <Speaker>TONY</Speaker>
@@ -2009,7 +2009,7 @@
       </DialogueBlock>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
-        <Line id="scene_2_6_line_6">Not really —</Line>
+        <Line id="scene_2_6_line_6">Not really -</Line>
       </DialogueBlock>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
@@ -2821,7 +2821,7 @@
         A loud boom of thunder and a flash of lightning shows SQUISH standing at the door. He is
         closer to his original form, and his teeth are long and sharp, poking out from his 'little
         boy head'. With each flash of lightning and thunder, he is closer and closer, until his face
-        is right next to STELLAS. She is paralysed by fear. She should be — it's pretty terrifying.</StageDirection>
+        is right next to STELLAS. She is paralysed by fear. She should be - it's pretty terrifying.</StageDirection>
       <DialogueBlock>
         <Speaker>STELLA [whispering]</Speaker>
         <Line id="scene_4_2_line_1">Mum?</Line>
@@ -3268,7 +3268,7 @@
       </DialogueBlock>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
-        <Line id="scene_5_1_line_11">I'm not —</Line>
+        <Line id="scene_5_1_line_11">I'm not -</Line>
       </DialogueBlock>
       <DialogueBlock>
         <Speaker>DUANE</Speaker>
@@ -3470,7 +3470,7 @@
       <DialogueBlock>
         <Speaker>GREG</Speaker>
         <Line id="scene_5_2_line_11">You better show up. If you don't, I'll find you wherever you
-          are and we'll fight anyway. And trust me — you don't want that to happen. What's that on
+          are and we'll fight anyway. And trust me - you don't want that to happen. What's that on
           your shirt?</Line>
       </DialogueBlock>
       <StageDirection id="94e00099-cc2e-418f-929c-4c2cab58f75b">STELLA looks down and GREG punches her, hard in the stomach. She is winded.
@@ -3727,7 +3727,7 @@
       </DialogueBlock>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
-        <Line id="scene_5_3_line_52">But —</Line>
+        <Line id="scene_5_3_line_52">But -</Line>
       </DialogueBlock>
       <DialogueBlock>
         <Speaker>TYSON</Speaker>
@@ -3735,7 +3735,7 @@
       </DialogueBlock>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
-        <Line id="scene_5_3_line_54">I just — if I fight him, I'm no better than he is.</Line>
+        <Line id="scene_5_3_line_54">I just - if I fight him, I'm no better than he is.</Line>
       </DialogueBlock>
       <DialogueBlock>
         <Speaker>TYSON</Speaker>
@@ -3891,7 +3891,7 @@
         Cup.</StageDirection>
       <DialogueBlock>
         <Speaker>PRIYA</Speaker>
-        <Line id="scene_5_4_line_18">I've gone to the library and did some research —</Line>
+        <Line id="scene_5_4_line_18">I've gone to the library and did some research -</Line>
       </DialogueBlock>
       <DialogueBlock>
         <Speaker>TONY</Speaker>
@@ -3900,7 +3900,7 @@
       </DialogueBlock>
       <DialogueBlock>
         <Speaker>PRIYA</Speaker>
-        <Line id="scene_5_4_line_21">— And everything that has been happening actually makes sense.
+        <Line id="scene_5_4_line_21">- And everything that has been happening actually makes sense.
           This isn't the first time that somebody's been victimised by octopuses. There's a really
           long history of it. Ships being overturned by sea monsters. Whales disappearing. Entire
           cults devoted to them. They can fit through cracks. They camouflage. They use tools. What
@@ -3917,7 +3917,7 @@
       </DialogueBlock>
       <DialogueBlock>
         <Speaker>TONY</Speaker>
-        <Line id="scene_5_4_line_24">We did some research —</Line>
+        <Line id="scene_5_4_line_24">We did some research -</Line>
       </DialogueBlock>
       <DialogueBlock>
         <Speaker>STELLA</Speaker>
@@ -4136,7 +4136,7 @@
       <StageDirection id="57f8134f-9084-43dc-93ef-798cbfdd05e0">They run straight at each other. SQUISH's whips wrap around STELLA' armour,
         tangling her. SQUISH begins hauling her toward him, but as he is in reach, she headbutts
         him. He lets go, and she frees herself. It's a vicious scuffle, trading punches and kicks.
-        It's like a Kaiju film — lots of grappling between two titans. STELLA lands a solid punch on
+        It's like a Kaiju film - lots of grappling between two titans. STELLA lands a solid punch on
         SQUISH 's face, and sends him back. </StageDirection>
       <DialogueBlock>
         <Speaker>TONY</Speaker>
@@ -4167,7 +4167,7 @@
       </DialogueBlock>
       <DialogueBlock>
         <Speaker>TONY</Speaker>
-        <Line id="scene_5_6_line_12">Um ... I don't know —</Line>
+        <Line id="scene_5_6_line_12">Um ... I don't know -</Line>
       </DialogueBlock>
       <DialogueBlock>
         <Speaker>PRIYA</Speaker>
@@ -4286,7 +4286,7 @@
       </DialogueBlock>
       <DialogueBlock>
         <Speaker>TONY</Speaker>
-        <Line id="scene_5_6_line_37">But I don't swim —</Line>
+        <Line id="scene_5_6_line_37">But I don't swim -</Line>
       </DialogueBlock>
       <DialogueBlock>
         <Speaker>SQUISH</Speaker>
@@ -4337,7 +4337,7 @@
     <Page number="80">
       <DialogueBlock>
         <Speaker>ALL</Speaker>
-        <Line id="scene_5_6_line_46">Building a better tomorrow — today!</Line>
+        <Line id="scene_5_6_line_46">Building a better tomorrow - today!</Line>
       </DialogueBlock>
       <StageDirection id="3543c615-2312-4857-9439-40e87c0c7dda">STELLA and SQUISH suddenly crash through the model as they continue scuffling.
         The KIDS scatter, screaming. More fighting as the rest of the kids join the fight. THE GRADE
@@ -4509,7 +4509,7 @@
         <Line id="scene_6_1_line_15">Things may still be tough in the outside world, but she made
           the playground safer again.</Line>
         <Line id="scene_6_1_line_16">She taught us all the best lesson.</Line>
-        <Line id="scene_6_1_line_17">That people — or octopuses — can only make you feel small if
+        <Line id="scene_6_1_line_17">That people - or octopuses - can only make you feel small if
           you let them.</Line>
         <Line id="scene_6_1_line_18">And after that day, none of us ever did.</Line>
       </DialogueBlock>

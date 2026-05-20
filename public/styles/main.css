@@ -422,7 +422,7 @@ body {
   border-radius: 2px;
 }
 
-/* Words with existing cues — colored underline */
+/* Words with existing cues - colored underline */
 .script-word.has-lighting {
   border-bottom: 2px solid var(--lighting-color);
 }
@@ -1890,17 +1890,29 @@ body {
   position: absolute;
   top: 0;
   bottom: 0;
+  width: 14px;
+  transform: translateX(-50%);
+  background: transparent;
+  pointer-events: auto;
+  cursor: ew-resize;
+  z-index: 10;
+}
+
+.osc-trigger-marker::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 6px;
   width: 2px;
   background: #38bdf8;
-  pointer-events: none;
-  z-index: 10;
 }
 
 .osc-trigger-marker::after {
   content: '';
   position: absolute;
   top: -4px;
-  left: -3px;
+  left: 3px;
   width: 8px;
   height: 8px;
   background: #38bdf8;
