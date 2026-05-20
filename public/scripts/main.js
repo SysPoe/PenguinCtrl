@@ -102,9 +102,17 @@ let waveformScrubDrag = false;
 let waveformRafId = null;
 let waveformZoom = 1;
 let currentOscTriggers = [];
+let selectedOscTriggerIndex = null;
+let selectedOscTriggerIndexes = new Set();
+let copiedOscTriggers = [];
+let waveformHoverTimeMs = null;
+let isWaveformHovered = false;
+let waveformPanDrag = null; // { container, startX, startScrollLeft }
+let waveformSelectionDrag = null; // { startMs, currentMs }
 
 // OSC modal state
 let currentLightingAction = 'none';
+let cueModalMaximized = false;
 
 // Runtime websocket (errors + meta updates)
 let runtimeWs = null;
@@ -1370,7 +1378,36 @@ document.getElementById('scroll-container').addEventListener('wheel', (e) => {
   }
 }, { passive: false });
 
+document.getElementById('waveform-container')?.addEventListener('wheel', (e) => {
+  if (!e.altKey || !waveformAudioBuffer) return;
+  e.preventDefault();
+  const zoomStep = e.deltaY < 0 ? 1.2 : 1 / 1.2;
+  setWaveformZoom(waveformZoom * zoomStep, { clientX: e.clientX });
+}, { passive: false });
+
+document.getElementById('waveform-container')?.addEventListener('auxclick', (e) => {
+  if (e.button === 1) e.preventDefault();
+});
+
 document.addEventListener('pointermove', (e) => {
+  updateWaveformHoverTime(e);
+
+  if (waveformPanDrag) {
+    e.preventDefault();
+    waveformPanDrag.container.scrollLeft = waveformPanDrag.startScrollLeft - (e.clientX - waveformPanDrag.startX);
+    return;
+  }
+
+  if (waveformSelectionDrag && waveformAudioBuffer) {
+    e.preventDefault();
+    const timeMs = getWaveformTimeMsFromClientX(e.clientX);
+    if (timeMs == null) return;
+    waveformSelectionDrag.currentMs = timeMs;
+    selectOscTriggersInRange(waveformSelectionDrag.startMs, waveformSelectionDrag.currentMs);
+    updateOscSelectionOverlay();
+    return;
+  }
+
   if (waveformScrubDrag && waveformAudioBuffer) {
     const layer = document.getElementById('wf-handle-layer');
     if (!layer) return;
@@ -1392,7 +1429,7 @@ document.addEventListener('pointermove', (e) => {
   }
 
   if (!waveformDrag) return;
-  const { handle, inputId, triggerIndex, duration, type } = waveformDrag;
+  const { handle, inputId, triggerIndex, duration, type, startTimes } = waveformDrag;
 
   const layer = document.getElementById('wf-handle-layer');
   if (!layer) return;
@@ -1405,8 +1442,27 @@ document.addEventListener('pointermove', (e) => {
   if (type === 'osc-trigger') {
     t = Math.max(0, Math.min(duration, t));
     if (currentOscTriggers[triggerIndex]) {
-      currentOscTriggers[triggerIndex].timeMs = Math.round(t * 1000);
-      handle.style.left = ((t / duration) * 100).toFixed(3) + '%';
+      const targetMs = Math.round(t * 1000);
+      if (startTimes && startTimes.length) {
+        const anchor = startTimes.find(item => item.index === triggerIndex);
+        const anchorStartMs = anchor ? anchor.timeMs : currentOscTriggers[triggerIndex].timeMs;
+        const durationMs = Math.round(duration * 1000);
+        const minStart = Math.min(...startTimes.map(item => item.timeMs));
+        const maxStart = Math.max(...startTimes.map(item => item.timeMs));
+        const minDelta = -minStart;
+        const maxDelta = durationMs - maxStart;
+        const delta = Math.max(minDelta, Math.min(maxDelta, targetMs - anchorStartMs));
+        startTimes.forEach(({ index, timeMs }) => {
+          if (!currentOscTriggers[index]) return;
+          const nextMs = Math.max(0, Math.min(durationMs, timeMs + delta));
+          currentOscTriggers[index].timeMs = nextMs;
+          const marker = document.querySelector(`.osc-trigger-marker[data-trigger-index="${index}"]`);
+          if (marker) marker.style.left = ((nextMs / durationMs) * 100).toFixed(3) + '%';
+        });
+      } else {
+        currentOscTriggers[triggerIndex].timeMs = targetMs;
+        handle.style.left = ((t / duration) * 100).toFixed(3) + '%';
+      }
     }
     return;
   }
@@ -1426,6 +1482,15 @@ document.addEventListener('pointermove', (e) => {
 });
 
 document.addEventListener('pointerup', () => {
+  if (waveformPanDrag) {
+    waveformPanDrag = null;
+  }
+
+  if (waveformSelectionDrag) {
+    waveformSelectionDrag = null;
+    updateOscSelectionOverlay();
+  }
+
   if (waveformScrubDrag) {
     waveformScrubDrag = false;
     if (previewInstanceId !== null && previewPlayheadT !== null) {
@@ -1457,7 +1522,13 @@ document.addEventListener('keydown', (e) => {
   const container = document.getElementById('scroll-container');
   const pageHeight = container.clientHeight * 0.8;
 
-  if (e.key === 'Escape') {
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'c' && copySelectedOscTrigger()) {
+    e.preventDefault();
+  } else if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'v' && pasteCopiedOscTriggerAtHover()) {
+    e.preventDefault();
+  } else if (!e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey && (e.key === ' ' || e.code === 'Space') && toggleWaveformPreviewIfHovered()) {
+    e.preventDefault();
+  } else if (e.key === 'Escape') {
     closeCueModal();
   } else if (e.key === 'g' || e.key === 'G') {
     e.preventDefault();
@@ -1537,6 +1608,7 @@ function openCueModal(targetId) {
   currentCueId = null;
   currentClipPath = null;
   currentLightingAction = 'goto';
+  cueModalMaximized = false;
 
   document.getElementById('cue-modal-title').textContent = 'Add Cue';
   document.getElementById('cue-modal-context').textContent = getTargetContext(targetId);
@@ -1549,7 +1621,7 @@ function openCueModal(targetId) {
 
   document.getElementById('sound-section').style.display = 'none';
   document.getElementById('lighting-section').style.display = 'none';
-  document.querySelector('.cue-modal').classList.remove('modal-wide');
+  syncCueModalWindowState();
 
   const primarySoundType = getPrimarySoundCueType();
   if (primarySoundType) {
@@ -1568,6 +1640,7 @@ function openCueModalEdit(targetId, type, cueId) {
   currentTargetId = targetId;
   currentCueType = type;
   currentCueId = cueId;
+  cueModalMaximized = false;
 
   document.getElementById('cue-modal-title').textContent = 'Edit Cue';
   document.getElementById('cue-modal-context').textContent = getTargetContext(targetId);
@@ -1586,22 +1659,19 @@ function openCueModalEdit(targetId, type, cueId) {
 
   const soundSection = document.getElementById('sound-section');
   const lightingSection = document.getElementById('lighting-section');
-  const modal = document.querySelector('.cue-modal');
   if (isSoundCueType(type)) {
     soundSection.style.display = 'block';
     lightingSection.style.display = 'none';
-    modal.classList.add('modal-wide');
     initSoundForm(cueData, type);
   } else if (isLightingCueType(type)) {
     soundSection.style.display = 'none';
     lightingSection.style.display = 'block';
-    modal.classList.add('modal-wide');
     initLightingActionForm(cueData, type);
   } else {
     soundSection.style.display = 'none';
     lightingSection.style.display = 'none';
-    modal.classList.remove('modal-wide');
   }
+  syncCueModalWindowState();
 
   updateExistingCuesList(targetId);
 
@@ -1659,14 +1729,20 @@ function updateExistingCuesList(targetId) {
   list.innerHTML = html;
 }
 
+function teardownCueModal() {
+  previewStop();
+  document.getElementById('cue-modal-overlay').classList.remove('visible');
+  currentTargetId = null;
+  currentCueType = null;
+  currentCueId = null;
+  currentLightingAction = 'none';
+  cueModalMaximized = false;
+  syncCueModalWindowState();
+}
+
 function closeCueModal(event) {
   if (!event || event.target === document.getElementById('cue-modal-overlay')) {
-    previewStop();
-    document.getElementById('cue-modal-overlay').classList.remove('visible');
-    currentTargetId = null;
-    currentCueType = null;
-    currentCueId = null;
-    currentLightingAction = 'none';
+    teardownCueModal();
   }
 }
 
@@ -1678,22 +1754,38 @@ function selectCueType(type) {
 
   const soundSection = document.getElementById('sound-section');
   const lightingSection = document.getElementById('lighting-section');
-  const modal = document.querySelector('.cue-modal');
   if (isSoundCueType(type)) {
     soundSection.style.display = 'block';
     lightingSection.style.display = 'none';
-    modal.classList.add('modal-wide');
     if (!currentCueId) initSoundForm(null, type);
   } else if (isLightingCueType(type)) {
     soundSection.style.display = 'none';
     lightingSection.style.display = 'block';
-    modal.classList.add('modal-wide');
     if (!currentCueId) initLightingActionForm(null, type);
   } else {
     soundSection.style.display = 'none';
     lightingSection.style.display = 'none';
-    modal.classList.remove('modal-wide');
   }
+  syncCueModalWindowState();
+}
+
+function toggleCueModalMaximize() {
+  cueModalMaximized = !cueModalMaximized;
+  syncCueModalWindowState();
+}
+
+function syncCueModalWindowState() {
+  const modal = document.querySelector('.cue-modal');
+  const maximizeBtn = document.getElementById('cue-modal-maximize');
+  if (!modal || !maximizeBtn) return;
+
+  const shouldBeWide = isSoundCueType(currentCueType) || isLightingCueType(currentCueType);
+  modal.classList.toggle('modal-wide', shouldBeWide);
+  modal.classList.toggle('modal-maximized', cueModalMaximized);
+
+  maximizeBtn.textContent = cueModalMaximized ? '❐' : '□';
+  maximizeBtn.setAttribute('aria-label', cueModalMaximized ? 'Restore cue editor size' : 'Maximise cue editor');
+  maximizeBtn.title = cueModalMaximized ? 'Restore cue editor size' : 'Maximise cue editor';
 }
 
 function handleCueModalKeydown(event) {
@@ -2380,7 +2472,7 @@ function getOscTransportOptions(action) {
 
 function normalizeOscTrigger(trigger = {}) {
   const action = String(trigger.oscAction || '').trim().toLowerCase();
-  const normalizedAction = OSC_ACTIONS[action] ? action : 'go';
+  const normalizedAction = OSC_ACTIONS[action] ? action : 'goto';
   const allowedTransports = getOscTransportOptions(normalizedAction);
   const transportValue = String(trigger.oscTransport || 'auto').trim().toLowerCase();
   const playbackValue = Number(trigger.oscPlayback);
@@ -2390,7 +2482,7 @@ function normalizeOscTrigger(trigger = {}) {
     timeMs: Number(trigger.timeMs) || 0,
     oscAction: normalizedAction,
     oscPlayback: Number.isFinite(playbackValue) && playbackValue > 0 ? Math.max(1, Math.round(playbackValue)) : 1,
-    oscCueNumber: parseCueNumberOrTemplate(trigger.oscCueNumber ?? '1') || '1',
+    oscCueNumber: parseCueNumberOrTemplate(trigger.oscCueNumber ?? '{cueNumber}') || '{cueNumber}',
     oscLevel: Number.isFinite(levelValue) ? Math.max(0, Math.min(100, Math.round(levelValue))) : 100,
     oscTransport: allowedTransports.includes(transportValue) ? transportValue : (allowedTransports[0] || 'auto'),
   };
@@ -2930,7 +3022,7 @@ function updateWaveformHandles() {
   });
 }
 
-function setWaveformZoom(z) {
+function setWaveformZoom(z, anchor = null) {
   let val = Number(z);
   if (!Number.isFinite(val)) val = 1;
   waveformZoom = Math.max(0.1, val);
@@ -2940,6 +3032,11 @@ function setWaveformZoom(z) {
   if (currentClipPath) {
     // fast re-render wrapper
     const container = document.getElementById('waveform-container');
+    const oldInnerWidth = document.getElementById('waveform-inner')?.getBoundingClientRect().width || container.clientWidth;
+    const anchorOffsetX = anchor ? Math.max(0, Math.min(container.clientWidth, anchor.clientX - container.getBoundingClientRect().left)) : null;
+    const anchorRatio = anchorOffsetX == null || oldInnerWidth <= 0
+      ? null
+      : Math.max(0, Math.min(1, (container.scrollLeft + anchorOffsetX) / oldInnerWidth));
     const W = container.clientWidth * waveformZoom;
     const inner = document.getElementById('waveform-inner');
     if (inner) inner.style.width = W + 'px';
@@ -2952,6 +3049,10 @@ function setWaveformZoom(z) {
       drawWaveform();
       updateWaveformHandles();
       drawOscTriggersOnWaveform();
+      if (anchorRatio != null && anchorOffsetX != null) {
+        container.scrollLeft = Math.max(0, (W * anchorRatio) - anchorOffsetX);
+        waveformHoverTimeMs = Math.round(anchorRatio * waveformAudioBuffer.duration * 1000);
+      }
     }
   }
 }
@@ -3094,7 +3195,7 @@ function updateOscTrigger(index, field, value) {
       const playback = Number(value);
       trigger.oscPlayback = Number.isFinite(playback) && playback > 0 ? Math.max(1, Math.round(playback)) : 1;
     } else if (field === 'oscCueNumber') {
-      trigger.oscCueNumber = parseCueNumberOrTemplate(value) || '1';
+      trigger.oscCueNumber = parseCueNumberOrTemplate(value) || '{cueNumber}';
     } else if (field === 'oscLevel') {
       const level = Number(value);
       trigger.oscLevel = Number.isFinite(level) ? Math.max(0, Math.min(100, Math.round(level))) : 100;
@@ -3112,6 +3213,12 @@ function updateOscTrigger(index, field, value) {
 
 function removeOscTrigger(index) {
   currentOscTriggers.splice(index, 1);
+  const nextSelected = [];
+  selectedOscTriggerIndexes.forEach(selectedIndex => {
+    if (selectedIndex < index) nextSelected.push(selectedIndex);
+    if (selectedIndex > index) nextSelected.push(selectedIndex - 1);
+  });
+  setSelectedOscTriggers(nextSelected);
   renderOscTriggers();
 }
 
@@ -3119,13 +3226,125 @@ function addOscTrigger() {
   const timeMs = previewPlayheadT !== null ? previewPlayheadT * 1000 : 0;
   currentOscTriggers.push({
     timeMs,
-    oscAction: 'go',
+    oscAction: 'goto',
     oscPlayback: 1,
-    oscCueNumber: '1',
+    oscCueNumber: '{cueNumber}',
     oscLevel: 100,
     oscTransport: 'auto',
   });
+  setSelectedOscTriggers([currentOscTriggers.length - 1], false);
   renderOscTriggers();
+}
+
+function getWaveformTimeMsFromClientX(clientX) {
+  if (!waveformAudioBuffer) return null;
+  const layer = document.getElementById('wf-handle-layer') || document.getElementById('waveform-inner');
+  if (!layer) return null;
+  const rect = layer.getBoundingClientRect();
+  if (!rect.width) return null;
+  const x = Math.max(0, Math.min(rect.width, clientX - rect.left));
+  return Math.round((x / rect.width) * waveformAudioBuffer.duration * 1000);
+}
+
+function updateWaveformHoverTime(e) {
+  if (!waveformAudioBuffer) {
+    waveformHoverTimeMs = null;
+    isWaveformHovered = false;
+    return;
+  }
+  const waveformInner = document.getElementById('waveform-inner');
+  if (!waveformInner || !waveformInner.contains(e.target)) {
+    isWaveformHovered = false;
+    return;
+  }
+  isWaveformHovered = true;
+  waveformHoverTimeMs = getWaveformTimeMsFromClientX(e.clientX);
+}
+
+function toggleWaveformPreviewIfHovered() {
+  if (!isWaveformHovered || !currentClipPath) return false;
+  previewToggle();
+  return true;
+}
+
+function setSelectedOscTriggers(indexes, redraw = true) {
+  selectedOscTriggerIndexes = new Set(indexes.filter(index => currentOscTriggers[index]));
+  selectedOscTriggerIndex = selectedOscTriggerIndexes.size
+    ? Array.from(selectedOscTriggerIndexes).sort((a, b) => a - b)[0]
+    : null;
+  if (redraw) {
+    drawOscTriggersOnWaveform();
+    return;
+  }
+  document.querySelectorAll('.osc-trigger-marker').forEach((marker, markerIndex) => {
+    const triggerIndex = Number(marker.dataset.triggerIndex ?? markerIndex);
+    marker.classList.toggle('selected', selectedOscTriggerIndexes.has(triggerIndex));
+  });
+}
+
+function selectOscTrigger(index, redraw = true) {
+  setSelectedOscTriggers(currentOscTriggers[index] ? [index] : [], redraw);
+}
+
+function selectOscTriggersInRange(startMs, endMs) {
+  const minMs = Math.min(startMs, endMs);
+  const maxMs = Math.max(startMs, endMs);
+  const indexes = currentOscTriggers
+    .map((trigger, index) => ({ trigger, index }))
+    .filter(({ trigger }) => trigger.timeMs >= minMs && trigger.timeMs <= maxMs)
+    .map(({ index }) => index);
+  setSelectedOscTriggers(indexes, false);
+}
+
+function copySelectedOscTrigger() {
+  const selected = Array.from(selectedOscTriggerIndexes)
+    .filter(index => currentOscTriggers[index])
+    .sort((a, b) => currentOscTriggers[a].timeMs - currentOscTriggers[b].timeMs);
+  if (!selected.length) return false;
+  const baseTimeMs = currentOscTriggers[selected[0]].timeMs;
+  copiedOscTriggers = selected.map(index => ({
+    trigger: { ...normalizeOscTrigger(currentOscTriggers[index]) },
+    offsetMs: currentOscTriggers[index].timeMs - baseTimeMs,
+  }));
+  return true;
+}
+
+function pasteCopiedOscTriggerAtHover() {
+  if (!copiedOscTriggers.length || waveformHoverTimeMs == null || !waveformAudioBuffer) return false;
+  const durationMs = Math.round(waveformAudioBuffer.duration * 1000);
+  const maxOffsetMs = Math.max(...copiedOscTriggers.map(item => item.offsetMs));
+  const pasteStartMs = Math.max(0, Math.min(durationMs - maxOffsetMs, waveformHoverTimeMs));
+  const newIndexes = [];
+  copiedOscTriggers.forEach(({ trigger, offsetMs }) => {
+    currentOscTriggers.push({
+      ...trigger,
+      timeMs: Math.max(0, Math.min(durationMs, pasteStartMs + offsetMs)),
+    });
+    newIndexes.push(currentOscTriggers.length - 1);
+  });
+  setSelectedOscTriggers(newIndexes, false);
+  renderOscTriggers();
+  return true;
+}
+
+function updateOscSelectionOverlay() {
+  const layer = document.getElementById('wf-trigger-layer');
+  if (!layer) return;
+  let overlay = layer.querySelector('.osc-selection-range');
+  if (!waveformSelectionDrag || !waveformAudioBuffer) {
+    overlay?.remove();
+    return;
+  }
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'osc-selection-range';
+    layer.appendChild(overlay);
+  }
+  const durationMs = waveformAudioBuffer.duration * 1000;
+  const startPct = (Math.min(waveformSelectionDrag.startMs, waveformSelectionDrag.currentMs) / durationMs) * 100;
+  const endPct = (Math.max(waveformSelectionDrag.startMs, waveformSelectionDrag.currentMs) / durationMs) * 100;
+  overlay.style.left = `${Math.max(0, Math.min(100, startPct))}%`;
+  overlay.style.width = `${Math.max(0, Math.min(100, endPct) - Math.max(0, Math.min(100, startPct)))}%`;
 }
 
 function drawOscTriggersOnWaveform() {
@@ -3135,15 +3354,36 @@ function drawOscTriggersOnWaveform() {
   const dur = waveformAudioBuffer.duration;
   currentOscTriggers.forEach((t, index) => {
     const div = document.createElement('div');
-    div.className = 'osc-trigger-marker';
+    div.className = 'osc-trigger-marker' + (selectedOscTriggerIndexes.has(index) ? ' selected' : '');
+    div.dataset.triggerIndex = String(index);
     const posX = ((t.timeMs / 1000) / dur) * 100;
     if (posX >= 0 && posX <= 100) {
       div.style.left = posX + '%';
       div.addEventListener('pointerdown', e => {
         e.preventDefault();
         e.stopPropagation();
+        if (e.shiftKey) {
+          const next = new Set(selectedOscTriggerIndexes);
+          if (next.has(index)) next.delete(index);
+          else next.add(index);
+          setSelectedOscTriggers(Array.from(next), false);
+        } else if (!selectedOscTriggerIndexes.has(index)) {
+          selectOscTrigger(index, false);
+        }
         div.setPointerCapture(e.pointerId);
-        waveformDrag = { handle: div, triggerIndex: index, duration: dur, type: 'osc-trigger' };
+        const dragIndexes = selectedOscTriggerIndexes.has(index)
+          ? Array.from(selectedOscTriggerIndexes)
+          : [index];
+        waveformDrag = {
+          handle: div,
+          triggerIndex: index,
+          duration: dur,
+          type: 'osc-trigger',
+          startTimes: dragIndexes.map(dragIndex => ({
+            index: dragIndex,
+            timeMs: currentOscTriggers[dragIndex]?.timeMs ?? 0,
+          })),
+        };
       });
       layer.appendChild(div);
     }
@@ -3155,6 +3395,28 @@ function onWaveformScrubStart(e) {
   if (e.target.closest('.wf-handle')) return;
   if (e.target.closest('.osc-trigger-marker')) return;
   if (!waveformAudioBuffer) return;
+  if (e.button === 1) {
+    e.preventDefault();
+    e.stopPropagation();
+    const container = document.getElementById('waveform-container');
+    if (!container) return;
+    waveformPanDrag = {
+      container,
+      startX: e.clientX,
+      startScrollLeft: container.scrollLeft,
+    };
+    return;
+  }
+  if (e.button !== 0) return;
+  if (e.shiftKey) {
+    e.preventDefault();
+    const startMs = getWaveformTimeMsFromClientX(e.clientX);
+    if (startMs == null) return;
+    waveformSelectionDrag = { startMs, currentMs: startMs };
+    selectOscTriggersInRange(startMs, startMs);
+    updateOscSelectionOverlay();
+    return;
+  }
   e.preventDefault();
   waveformScrubDrag = true;
 
@@ -3190,6 +3452,7 @@ function onWaveformScrubStart(e) {
 let previewInstanceId = null;
 let previewPlayheadT = null;
 let playheadRafId = null;
+let previewRequestToken = 0;
 
 function getPreviewRange() {
   const dur = waveformAudioBuffer ? waveformAudioBuffer.duration : 0;
@@ -3244,6 +3507,7 @@ async function restartPreviewAt(position) {
   const cueData = getSoundData();
   cueData.playStyle = 'alongside';
   cueData.clipStart = position;
+  const requestToken = ++previewRequestToken;
 
   const oldId = previewInstanceId;
   previewInstanceId = null;
@@ -3254,7 +3518,13 @@ async function restartPreviewAt(position) {
   if (status) status.textContent = 'seeking…';
 
   try {
-    previewInstanceId = await PreviewEngine.playCue(cueData);
+    const nextInstanceId = await PreviewEngine.playCue(cueData);
+    if (requestToken !== previewRequestToken) {
+      if (nextInstanceId !== null) PreviewEngine.stop(nextInstanceId);
+      return;
+    }
+    previewInstanceId = nextInstanceId;
+    if (previewInstanceId === null) throw new Error('Preview failed to start');
     if (status) status.textContent = cueData.soundSubtype === 'vamp' ? 'vamping…' : 'playing…';
     startPlayheadAnimation();
     if (cueData.soundSubtype === 'vamp') {
@@ -3269,18 +3539,21 @@ async function restartPreviewAt(position) {
 
 function startPlayheadAnimation() {
   if (playheadRafId) cancelAnimationFrame(playheadRafId);
-  if (previewInstanceId === null) {
+  const tick = () => {
+    if (previewInstanceId === null) {
+      drawWaveform();
+      playheadRafId = null;
+      return;
+    }
+    const pos = PreviewEngine.getPosition(previewInstanceId);
+    if (pos !== null && pos !== previewPlayheadT) {
+      previewPlayheadT = pos;
+      updatePreviewScrubberValue(pos);
+    }
     drawWaveform();
-    playheadRafId = null;
-    return;
-  }
-  const pos = PreviewEngine.getPosition(previewInstanceId);
-  if (pos !== null && pos !== previewPlayheadT) {
-    previewPlayheadT = pos;
-    updatePreviewScrubberValue(pos);
-  }
-  drawWaveform();
-  playheadRafId = null;
+    playheadRafId = requestAnimationFrame(tick);
+  };
+  tick();
 }
 
 function stopPlayheadAnimation() {
@@ -3317,6 +3590,7 @@ async function previewToggle() {
   if (previewInstanceId !== null) {
     const oldId = previewInstanceId;
     previewInstanceId = null;
+    previewRequestToken++;
     PreviewEngine.stop(oldId);
     resetPreviewUI();
     return;
@@ -3325,6 +3599,7 @@ async function previewToggle() {
   if (!currentClipPath) return;
 
   const cueData = getSoundData();
+  const requestToken = ++previewRequestToken;
   // Always preview in 'alongside' mode regardless of saved play style
   cueData.playStyle = 'alongside';
   cueData.clipStart = previewSeekPosition ?? cueData.clipStart ?? 0;
@@ -3339,7 +3614,13 @@ async function previewToggle() {
   document.getElementById('preview-status').textContent = 'loading…';
 
   try {
-    previewInstanceId = await PreviewEngine.playCue(cueData);
+    const nextInstanceId = await PreviewEngine.playCue(cueData);
+    if (requestToken !== previewRequestToken) {
+      if (nextInstanceId !== null) PreviewEngine.stop(nextInstanceId);
+      return;
+    }
+    previewInstanceId = nextInstanceId;
+    if (previewInstanceId === null) throw new Error('Preview failed to start');
     document.getElementById('preview-status').textContent = previewLoops ? 'vamping…' : 'playing…';
     startPlayheadAnimation();
     updatePreviewScrubberValue(cueData.clipStart ?? 0);
@@ -3362,6 +3643,7 @@ function previewDevamp() {
 }
 
 function previewStop() {
+  previewRequestToken++;
   if (previewInstanceId !== null) {
     const oldId = previewInstanceId;
     previewInstanceId = null;
@@ -3399,11 +3681,7 @@ async function persistAndRefresh() {
       const savedScrollTop = container.scrollTop;
       const savedZoom = currentZoom;
 
-      document.getElementById('cue-modal-overlay').classList.remove('visible');
-      currentTargetId = null;
-      currentCueType = null;
-      currentCueId = null;
-      currentLightingAction = 'none';
+      teardownCueModal();
 
       renderAllPages();
       currentZoom = savedZoom;

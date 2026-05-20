@@ -517,13 +517,19 @@ body {
   border-radius: 10px;
   width: 440px;
   max-width: 92vw;
+  max-height: 90vh;
   box-shadow:
     0 24px 64px rgba(0, 0, 0, 0.7),
     0 0 0 1px rgba(255, 255, 255, 0.04);
   overflow: hidden;
 }
 
-
+.cue-modal-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
 
 .cue-modal-header {
   display: flex;
@@ -568,10 +574,24 @@ body {
   border-radius: 4px;
   line-height: 1;
   flex-shrink: 0;
-  margin-left: 8px;
   margin-top: -2px;
 }
 
+.cue-modal-window-btn {
+  background: none;
+  border: none;
+  color: #555;
+  cursor: pointer;
+  font-size: 15px;
+  width: 28px;
+  height: 24px;
+  border-radius: 4px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: -2px;
+}
+
+.cue-modal-window-btn:hover,
 .cue-modal-close:hover {
   background: #3a3a3a;
   color: #bbb;
@@ -581,6 +601,7 @@ body {
 .cue-modal-existing {
   border-bottom: 1px solid var(--border-subtle);
   padding: 12px 20px;
+  position: static;
 }
 
 .cue-modal-existing-label {
@@ -667,6 +688,8 @@ body {
 /* Modal body */
 .cue-modal-body {
   padding: 16px 0 4px;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 /* Type selector */
@@ -1059,16 +1082,29 @@ body {
 
 .cue-modal.modal-wide {
   width: 720px;
-  max-height: 90vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-.cue-modal.modal-wide .cue-modal-body {
+.cue-modal.modal-maximized {
+  width: 100vw;
+  max-width: 100vw;
+  max-height: 100vh;
+  height: 100vh;
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
+}
+
+.cue-modal.modal-maximized .cue-modal-context {
+  max-width: none;
+}
+
+.cue-modal.modal-wide .cue-modal-body,
+.cue-modal.modal-maximized .cue-modal-body {
   flex: 1;
-  overflow-y: auto;
-  min-height: 0;
 }
 
 /* ── Sound section ── */
@@ -1844,6 +1880,13 @@ body {
   background: #38bdf8;
 }
 
+.osc-trigger-marker.selected::before {
+  width: 3px;
+  left: 5px;
+  background: #fbbf24;
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.75);
+}
+
 .osc-trigger-marker::after {
   content: '';
   position: absolute;
@@ -1853,4 +1896,19 @@ body {
   height: 8px;
   background: #38bdf8;
   border-radius: 50%;
+}
+
+.osc-trigger-marker.selected::after {
+  background: #fbbf24;
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.2);
+}
+
+.osc-selection-range {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 8;
+  pointer-events: none;
+  border: 1px solid rgba(251, 191, 36, 0.8);
+  background: rgba(251, 191, 36, 0.16);
 }

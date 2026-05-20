@@ -57,7 +57,16 @@
           <h2 class="cue-modal-title" id="cue-modal-title">Add Cue</h2>
           <span class="cue-modal-context" id="cue-modal-context"></span>
         </div>
-        <button class="cue-modal-close" onclick="closeCueModal()">✕</button>
+        <div class="cue-modal-header-actions">
+          <button
+            class="cue-modal-window-btn"
+            id="cue-modal-maximize"
+            type="button"
+            onclick="toggleCueModalMaximize()"
+            aria-label="Maximise cue editor"
+            title="Maximise cue editor">□</button>
+          <button class="cue-modal-close" type="button" onclick="closeCueModal()">✕</button>
+        </div>
       </div>
 
       <!-- Existing cues list (always visible when cues exist) -->
