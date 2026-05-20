@@ -21,7 +21,7 @@
         "description": "Blackout for title sequence",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
-        "clipStart": 0,
+        "clipStart": 34,
         "clipEnd": 251.506,
         "fadeIn": 0,
         "fadeOut": 0,
@@ -39,7 +39,7 @@
           "oscTransport": "auto"
         },
         "oscTriggers": [],
-        "clip": "/audio/Everybody_Wants_To_Rule_The_World_1778812376869.wav"
+        "clip": "/audio/everybody-wants-to-rule-the-world.wav"
       }
     ]
   },
@@ -289,7 +289,7 @@
         "description": "Cha Cha Slide and romantic slow dance song",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
-        "clipStart": 0,
+        "clipStart": 130,
         "clipEnd": 387.518,
         "fadeIn": 0,
         "fadeOut": 0,
@@ -300,7 +300,7 @@
         "loopEnd": null,
         "loopXfade": 0,
         "oscTriggers": [],
-        "clip": "/audio/Cha_Cha_Slide__Original_Live_Platinum_Band_Mix__1778812329670.wav",
+        "clip": "/audio/cha-cha-slide.wav",
         "oscStartTrigger": {
           "oscAction": "goto",
           "oscPlayback": 1,
@@ -442,7 +442,7 @@
         "description": "Beautiful flowing, nice and peaceful lighting. Bright and rainbows.",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
-        "clipStart": 2,
+        "clipStart": 78,
         "clipEnd": 370.149,
         "fadeIn": 0,
         "fadeOut": 0,
@@ -460,7 +460,7 @@
           "oscTransport": "auto"
         },
         "oscTriggers": [],
-        "clip": "/audio/Morning_Wood_1779229197499.wav"
+        "clip": "/audio/morning-mood.wav"
       }
     ]
   },
@@ -574,7 +574,7 @@
           "oscTransport": "auto"
         },
         "oscTriggers": [],
-        "clip": "/audio/who-let-the-dogs-out_1779242818220.wav"
+        "clip": "/audio/who-let-the-dogs-out.wav"
       }
     ]
   },
@@ -614,7 +614,7 @@
         "description": "",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
-        "clipStart": 0,
+        "clipStart": 17,
         "clipEnd": 211.441,
         "fadeIn": 0,
         "fadeOut": 0,
@@ -625,7 +625,7 @@
         "loopEnd": null,
         "loopXfade": 0,
         "oscTriggers": [],
-        "clip": "/audio/who-let-the-dogs-out_1779242818220.wav",
+        "clip": "/audio/who-let-the-dogs-out.wav",
         "oscStartTrigger": {
           "oscAction": "goto",
           "oscPlayback": 1,
@@ -655,7 +655,7 @@
         "loopEnd": null,
         "loopXfade": 0,
         "oscTriggers": [],
-        "clip": "/audio/john-wick_1779242878387.wav",
+        "clip": "/audio/john-wick-mode.wav",
         "oscStartTrigger": {
           "oscAction": "goto",
           "oscPlayback": 1,
@@ -732,7 +732,7 @@
         "description": "",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
-        "clipStart": 0,
+        "clipStart": 34,
         "clipEnd": 251.506,
         "fadeIn": 0,
         "fadeOut": 0,
@@ -743,7 +743,7 @@
         "loopEnd": null,
         "loopXfade": 0,
         "oscTriggers": [],
-        "clip": "/audio/Everybody_Wants_To_Rule_The_World_1778812376869.wav",
+        "clip": "/audio/everybody-wants-to-rule-the-world.wav",
         "oscStartTrigger": {
           "oscAction": "goto",
           "oscPlayback": 1,
@@ -762,7 +762,7 @@
         "description": "",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
-        "clipStart": 17.11,
+        "clipStart": 17,
         "clipEnd": 211.441,
         "fadeIn": 0,
         "fadeOut": 0,
@@ -780,7 +780,7 @@
           "oscTransport": "auto"
         },
         "oscTriggers": [],
-        "clip": "/audio/who-let-the-dogs-out_1779242818220.wav"
+        "clip": "/audio/who-let-the-dogs-out.wav"
       }
     ]
   },
@@ -1041,7 +1041,7 @@
         "description": "",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
-        "clipStart": 17.11,
+        "clipStart": 17,
         "clipEnd": 211.441,
         "fadeIn": 0,
         "fadeOut": 0,
@@ -1059,7 +1059,7 @@
           "oscTransport": "auto"
         },
         "oscTriggers": [],
-        "clip": "/audio/who-let-the-dogs-out_1779242818220.wav"
+        "clip": "/audio/who-let-the-dogs-out.wav"
       }
     ]
   },
@@ -1203,7 +1203,7 @@
           "oscTransport": "auto"
         },
         "oscTriggers": [],
-        "clip": "/audio/who-let-the-dogs-out_1779242818220.wav"
+        "clip": "/audio/who-let-the-dogs-out.wav"
       }
     ]
   },
@@ -1233,7 +1233,7 @@
           "oscTransport": "auto"
         },
         "oscTriggers": [],
-        "clip": "/audio/who-let-the-dogs-out_1779242818220.wav"
+        "clip": "/audio/who-let-the-dogs-out.wav"
       }
     ]
   },
@@ -1277,7 +1277,7 @@
           "oscTransport": "auto"
         },
         "oscTriggers": [],
-        "clip": "/audio/who-let-the-dogs-out_1779242818220.wav"
+        "clip": "/audio/who-let-the-dogs-out.wav"
       }
     ]
   },
@@ -1567,7 +1567,7 @@
           "oscTransport": "auto"
         },
         "oscTriggers": [],
-        "clip": "/audio/Bonnie_Tyler_-_Holding_Out_For_A_Hero_1779228927121.wav"
+        "clip": "/audio/holding-out-for-a-hero.wav"
       }
     ]
   },
@@ -1597,7 +1597,7 @@
           "oscTransport": "auto"
         },
         "oscTriggers": [],
-        "clip": "/audio/Bonnie_Tyler_-_Holding_Out_For_A_Hero_1779228927121.wav"
+        "clip": "/audio/holding-out-for-a-hero.wav"
       }
     ]
   },
@@ -1623,7 +1623,7 @@
         "description": "",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
-        "clipStart": 0,
+        "clipStart": 34,
         "clipEnd": 251.506,
         "fadeIn": 0,
         "fadeOut": 0,
@@ -1641,7 +1641,7 @@
           "oscTransport": "auto"
         },
         "oscTriggers": [],
-        "clip": "/audio/Everybody_Wants_To_Rule_The_World_1778812376869.wav"
+        "clip": "/audio/everybody-wants-to-rule-the-world.wav"
       }
     ]
   }
