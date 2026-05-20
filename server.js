@@ -256,6 +256,8 @@ function parseCueNumber(rawCueNumber) {
 
   const cueDecText = cueDecPadded.replace(/0+$/, '');
 
+  console.log("Parsing", rawCueNumber, cueInt, cueDec);
+
   return {
     cueInt,
     cueDec,
@@ -379,6 +381,7 @@ function encodeOscMessage(address, args = []) {
 }
 
 function sendUdpPacket(payload, { host, port }) {
+  console.log("Sending", payload.toString(), "to", host, port);
   return new Promise((resolve, reject) => {
     udpSocket.send(payload, port, host, (err) => {
       if (err) reject(err);
@@ -416,7 +419,7 @@ function buildRemoteCommand({ action, playback, cueNumber, level }) {
   if (action === 'level') return `${playback},${level}L`;
   if (action === 'goto') {
     const parsed = parseCueNumber(cueNumber);
-    return `${playback},${parsed.cueInt},${parsed.cueDec}J`;
+    return `${playback},${parsed.normalized}J`;
   }
   throw new Error(`Remote transport does not support action "${action}"`);
 }
@@ -448,6 +451,7 @@ function resolveTargetTransport(target, requestedTransport, action) {
 }
 
 function dispatchCueCommandToTargets({ action, playback, cueNumber, level, transport }) {
+  console.log(action, playback, cueNumber, level, transport);
   const targets = getOscTargets();
   const jobs = targets.map(target => {
     try {
@@ -878,6 +882,29 @@ function buildCueListPayload(pages, cues) {
         const number = nextSceneCueNumber(sceneId);
         const fullCue = deepMerge(type.payloadDefaults || {}, raw);
         fullCue.cueType = type.id;
+        if (fullCue.oscCueNumber && isCueNumberTemplate(fullCue.oscCueNumber)) {
+          fullCue.oscCueNumber = resolveCueNumberTemplate(fullCue.oscCueNumber, number);
+        }
+        if (fullCue.oscStartTrigger?.oscCueNumber && isCueNumberTemplate(fullCue.oscStartTrigger.oscCueNumber)) {
+          fullCue.oscStartTrigger = {
+            ...fullCue.oscStartTrigger,
+            oscCueNumber: resolveCueNumberTemplate(fullCue.oscStartTrigger.oscCueNumber, number),
+          };
+        }
+        if (Array.isArray(fullCue.oscTriggers)) {
+          fullCue.oscTriggers = fullCue.oscTriggers.map(trigger => {
+            if (trigger?.oscCueNumber && isCueNumberTemplate(trigger.oscCueNumber)) {
+              return {
+                ...trigger,
+                oscCueNumber: resolveCueNumberTemplate(trigger.oscCueNumber, number),
+              };
+            }
+            return trigger;
+          });
+        }
+        fullCue.num = number;
+        fullCue.number = number;
+        fullCue.cueNumber = number;
         out.push({
           id: `${targetId}_${type.id}_${raw.id || number}`,
           targetId,

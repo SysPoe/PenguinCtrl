@@ -141,34 +141,6 @@
       }
     ]
   },
-  "03f44b25-76eb-40ab-8f47-86d1338a34c6_w1": {
-    "lighting": [
-      {
-        "id": "lq_15_greg_enters",
-        "title": "Greg enters",
-        "description": "Fade to science lab / squish variation",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
-  "46f02124-5d14-4988-bfdf-56f5e23391df_w1": {
-    "lighting": [
-      {
-        "id": "lq_16_everyone_leaves",
-        "title": "Everyone else leaves",
-        "description": "Lights close in on Stella and Greg. External washer dim, main spots / washers on actors stay on.",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
   "df398461-b128-40ca-8856-09ec5b8c94e4_w1": {
     "lighting": [
       {
@@ -2722,7 +2694,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "remote"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -2766,7 +2738,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -2827,20 +2799,6 @@
         },
         "oscTriggers": [],
         "clip": "/audio/who-let-the-dogs-out.wav"
-      }
-    ]
-  },
-  "scene_2_2_line_1": {
-    "lighting": [
-      {
-        "id": "b534ea81-c9e5-434c-9fbe-af144bcacd8d",
-        "title": "Student council lighting",
-        "description": "",
-        "oscAction": "goto",
-        "oscPlayback": 1,
-        "oscCueNumber": "{cueNumber}",
-        "oscLevel": 100,
-        "oscTransport": "osc"
       }
     ]
   },
@@ -3031,7 +2989,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -3075,7 +3033,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -3119,7 +3077,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -3133,7 +3091,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -3147,7 +3105,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -3191,7 +3149,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -3205,7 +3163,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -3213,13 +3171,13 @@
     "lighting": [
       {
         "id": "5e4b39b4-2e04-42b3-9ec9-e88a947569ad",
-        "title": "Blackout, SS on",
+        "title": "Blackout, Shadow Screen on",
         "description": "",
         "oscAction": "goto",
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -3293,7 +3251,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -3397,7 +3355,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -3440,7 +3398,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -3484,7 +3442,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -3498,7 +3456,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -3512,7 +3470,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -3526,7 +3484,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -3540,7 +3498,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -3554,7 +3512,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -3568,7 +3526,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -3582,7 +3540,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },
@@ -3656,7 +3614,7 @@
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
-        "oscTransport": "osc"
+        "oscTransport": "auto"
       }
     ]
   },

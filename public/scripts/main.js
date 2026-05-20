@@ -719,6 +719,9 @@ function getAllCuesSorted() {
             return t;
           });
         }
+        fullCue.num = num;
+        fullCue.number = num;
+        fullCue.cueNumber = num;
 
         allCues.push({
           id: `${targetId}_${type.id}_${raw.id}`,
@@ -2228,7 +2231,7 @@ function cueNumberToCenti(raw) {
 }
 
 function centiToCueNumber(value) {
-  const safe = Math.max(100, Math.round(Number(value) || 0));
+  const safe = Math.max(0, Math.round(Number(value) || 0));
   const cueInt = Math.floor(safe / 100);
   const cueDec = safe % 100;
   return cueDec ? `${cueInt}.${String(cueDec).padStart(2, '0').replace(/0+$/, '')}` : `${cueInt}`;
@@ -2384,7 +2387,7 @@ function parseLightingActionForm(cueTypeId = getCurrentLightingCueTypeId()) {
     oscPlayback: 1,
     oscCueNumber: '{cueNumber}',
     oscLevel: 100,
-    oscTransport: 'osc',
+    oscTransport: 'auto',
   }, getCueTypePayloadDefaults(cueTypeId));
 
   const action = currentLightingAction;
@@ -2405,11 +2408,11 @@ function parseLightingActionForm(cueTypeId = getCurrentLightingCueTypeId()) {
   const level = Number.isFinite(levelRaw) ? Math.max(0, Math.min(100, Math.round(levelRaw))) : 100;
 
   const cueNumber = parseCueNumberOrTemplate(cueInput?.value ?? typeDefaults.oscCueNumber ?? '{cueNumber}');
-  const transportValue = String(transportSelect?.value || typeDefaults.oscTransport || 'osc').trim().toLowerCase();
+  const transportValue = String(transportSelect?.value || typeDefaults.oscTransport || 'auto').trim().toLowerCase();
   const allowedTransports = getLightingTransportOptions(action);
   const transport = allowedTransports.includes(transportValue)
     ? transportValue
-    : (allowedTransports[0] || 'osc');
+    : (allowedTransports[0] || 'auto');
 
   cueField?.classList.remove('input-error');
 
@@ -2435,7 +2438,7 @@ function initLightingActionForm(cueData, cueTypeId = getCurrentLightingCueTypeId
     oscPlayback: 1,
     oscCueNumber: '{cueNumber}',
     oscLevel: 100,
-    oscTransport: 'osc',
+    oscTransport: 'auto',
   }, getCueTypePayloadDefaults(cueTypeId));
 
   const merged = deepMerge(typeDefaults, cueData || {});
@@ -2452,7 +2455,7 @@ function initLightingActionForm(cueData, cueTypeId = getCurrentLightingCueTypeId
     const level = Number.isFinite(Number(merged.oscLevel)) ? Number(merged.oscLevel) : 100;
     levelInput.value = String(Math.max(0, Math.min(100, Math.round(level))));
   }
-  if (transportSelect) transportSelect.value = String(merged.oscTransport || 'osc').toLowerCase();
+  if (transportSelect) transportSelect.value = String(merged.oscTransport || 'auto').toLowerCase();
 
   updateLightingActionUi();
 }
