@@ -55,7 +55,6 @@ body {
     line-height: 1.35;
     opacity: 0;
     transform: translateY(8px);
-    transition: opacity 0.12s ease, transform 0.12s ease;
     pointer-events: auto;
     cursor: pointer;
 }
@@ -124,7 +123,6 @@ body {
     background: var(--text3);
     display: inline-block;
     margin-left: 4px;
-    transition: background 0.3s;
 }
 
 .ws-dot.connected {
@@ -220,7 +218,6 @@ td {
 
 tr.cue-row {
     cursor: pointer;
-    transition: background 0.06s;
 }
 
 tr.cue-row:hover {
@@ -499,7 +496,6 @@ input[type=range]:active::-webkit-slider-thumb {
     letter-spacing: 0;
     cursor: pointer;
     text-transform: none;
-    transition: filter 0.1s, transform 0.06s;
     min-height: 40px;
     line-height: 1;
     white-space: nowrap;
@@ -587,7 +583,6 @@ input[type=range]:active::-webkit-slider-thumb {
     border: 1px solid #36363e;
     border-radius: 0;
     overflow: hidden;
-    transition: opacity 0.4s;
 }
 
 .vc.fading-out {
@@ -792,7 +787,6 @@ input[type=range]:active::-webkit-slider-thumb {
     background: linear-gradient(to right, rgba(251, 191, 36, 0.04), rgba(251, 146, 60, 0.08));
     pointer-events: none;
     opacity: 0;
-    transition: opacity 0.3s;
 }
 
 .vc.fading-out .vc-fade-overlay {
@@ -818,7 +812,6 @@ input[type=range]:active::-webkit-slider-thumb {
     overflow: hidden;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.2s ease;
 }
 
 .vc-fade-progress-fill {
@@ -827,7 +820,6 @@ input[type=range]:active::-webkit-slider-thumb {
     border-radius: inherit;
     background: linear-gradient(90deg, rgba(251, 191, 36, 0.95), rgba(251, 146, 60, 0.95));
     box-shadow: 0 0 4px rgba(251, 191, 36, 0.22);
-    transition: width 0.08s linear;
 }
 
 .vc-controls {

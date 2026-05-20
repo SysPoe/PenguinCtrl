@@ -621,7 +621,7 @@ function showCueError(message) {
   toast.textContent = text;
   host.appendChild(toast);
 
-  requestAnimationFrame(() => toast.classList.add('visible'));
+  toast.classList.add('visible');
 
   const remove = () => {
     toast.classList.remove('visible');
@@ -833,7 +833,7 @@ function findScrollTarget(targetId) {
   return null;
 }
 
-function scrollTargetIntoView(targetId, behavior = 'smooth') {
+function scrollTargetIntoView(targetId, behavior = 'auto') {
   const el = findScrollTarget(targetId);
   if (el) {
     el.scrollIntoView({ behavior, block: 'center' });
@@ -845,9 +845,9 @@ function scrollTargetIntoView(targetId, behavior = 'smooth') {
 function scrollToTargetWithRetry(targetId) {
   if (scrollTargetIntoView(targetId)) return;
 
-  requestAnimationFrame(() => {
+  setTimeout(() => {
     scrollTargetIntoView(targetId, 'auto');
-  });
+  }, 0);
 }
 
 // Listen for messages from popup
@@ -1335,7 +1335,7 @@ function scrollToPage(index) {
     const containerRect = container.getBoundingClientRect();
     const pageRect = pageEl.getBoundingClientRect();
     const scrollTop = container.scrollTop + pageRect.top - containerRect.top - 60;
-    container.scrollTo({ top: scrollTop, behavior: 'smooth' });
+    container.scrollTo({ top: scrollTop, behavior: 'auto' });
   }
 }
 
@@ -1386,8 +1386,7 @@ document.addEventListener('pointermove', (e) => {
 
     updatePreviewScrubberValue(t);
     previewPlayheadT = t;
-    if (waveformRafId) cancelAnimationFrame(waveformRafId);
-    waveformRafId = requestAnimationFrame(drawWaveform);
+    drawWaveform();
     return;
   }
 
@@ -1422,7 +1421,7 @@ document.addEventListener('pointermove', (e) => {
   updateAllSliderRanges();
   handle.style.left = ((t / duration) * 100).toFixed(3) + '%';
   if (waveformRafId) cancelAnimationFrame(waveformRafId);
-  waveformRafId = requestAnimationFrame(drawWaveform);
+  drawWaveform();
 });
 
 document.addEventListener('pointerup', () => {
@@ -1464,16 +1463,16 @@ document.addEventListener('keydown', (e) => {
     toggleGoto();
   } else if (e.key === 'ArrowDown' || e.key === 'PageDown') {
     e.preventDefault();
-    container.scrollBy({ top: e.key === 'ArrowDown' ? 100 : pageHeight, behavior: 'smooth' });
+    container.scrollBy({ top: e.key === 'ArrowDown' ? 100 : pageHeight, behavior: 'auto' });
   } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
     e.preventDefault();
-    container.scrollBy({ top: e.key === 'ArrowUp' ? -100 : -pageHeight, behavior: 'smooth' });
+    container.scrollBy({ top: e.key === 'ArrowUp' ? -100 : -pageHeight, behavior: 'auto' });
   } else if (e.key === 'Home') {
     e.preventDefault();
-    container.scrollTo({ top: 0, behavior: 'smooth' });
+    container.scrollTo({ top: 0, behavior: 'auto' });
   } else if (e.key === 'End') {
     e.preventDefault();
-    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+    container.scrollTo({ top: container.scrollHeight, behavior: 'auto' });
   } else if (e.key === '+' || e.key === '=') {
     e.preventDefault();
     zoomIn();
@@ -1510,7 +1509,7 @@ async function loadPages() {
     }
 
     container.addEventListener('scroll', () => {
-      requestAnimationFrame(updateActiveSceneHighlight);
+      updateActiveSceneHighlight();
     });
 
     container.addEventListener('scrollend', () => {
@@ -3269,21 +3268,18 @@ async function restartPreviewAt(position) {
 
 function startPlayheadAnimation() {
   if (playheadRafId) cancelAnimationFrame(playheadRafId);
-  function tick() {
-    if (previewInstanceId === null) {
-      drawWaveform();
-      playheadRafId = null;
-      return;
-    }
-    const pos = PreviewEngine.getPosition(previewInstanceId);
-    if (pos !== null && pos !== previewPlayheadT) {
-      previewPlayheadT = pos;
-      updatePreviewScrubberValue(pos);
-      drawWaveform();
-    }
-    playheadRafId = requestAnimationFrame(tick);
+  if (previewInstanceId === null) {
+    drawWaveform();
+    playheadRafId = null;
+    return;
   }
-  playheadRafId = requestAnimationFrame(tick);
+  const pos = PreviewEngine.getPosition(previewInstanceId);
+  if (pos !== null && pos !== previewPlayheadT) {
+    previewPlayheadT = pos;
+    updatePreviewScrubberValue(pos);
+  }
+  drawWaveform();
+  playheadRafId = null;
 }
 
 function stopPlayheadAnimation() {
@@ -3423,3 +3419,4 @@ async function persistAndRefresh() {
     showCueError(err.message || 'Could not save cue');
   }
 }
+

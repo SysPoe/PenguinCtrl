@@ -190,7 +190,7 @@ function showCueModeError(message) {
     toast.textContent = text;
     host.appendChild(toast);
 
-    requestAnimationFrame(() => toast.classList.add('visible'));
+    toast.classList.add('visible');
 
     const remove = () => {
         toast.classList.remove('visible');
@@ -791,6 +791,8 @@ function updateVoices() {
             drawWaveformFromStart(canvas, peaks, inst.position ?? 0, inst.duration, inst.clipStart ?? 0, inst.clipEnd ?? inst.duration, inst.loopStart ?? 0, inst.loopEnd ?? inst.duration, inst.isVamp, inst.fadeIn ?? 0, inst.fadeOut ?? 0, inst.loopXfade ?? 0);
         }
     });
+
+    refreshVoicePositions();
 }
 
 function buildVoiceCard(inst) {
@@ -873,8 +875,7 @@ function fmtTimecode(secs) {
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(cs).padStart(2, '0')}`;
 }
 
-(function rafLoop() {
-    requestAnimationFrame(rafLoop);
+function refreshVoicePositions() {
     for (const [id, state] of voicePosState.entries()) {
         const card = voiceDomMap.get(id);
         if (!card || !state.duration) continue;
@@ -924,7 +925,7 @@ function fmtTimecode(secs) {
             }
         }
     }
-})();
+}
 
 // ── Resizer ────────────────────────────────────────────────────────────────
 (function () {

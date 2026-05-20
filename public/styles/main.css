@@ -100,7 +100,6 @@ body {
   cursor: pointer;
   font-size: 12px;
   font-family: inherit;
-  transition: all 0.15s;
 }
 
 .nav-btn:hover {
@@ -180,7 +179,6 @@ body {
   max-width: 850px;
   margin: 0 auto;
   transform-origin: top center;
-  transition: transform 0.1s ease-out;
 }
 
 .script-page {
@@ -351,7 +349,6 @@ body {
   font-size: 10px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.12s;
   letter-spacing: 0.2px;
   white-space: nowrap;
   user-select: none;
@@ -386,7 +383,6 @@ body {
   padding: 1px 6px;
   font-size: 12px;
   cursor: pointer;
-  transition: all 0.12s;
   line-height: 1.4;
 }
 
@@ -414,7 +410,6 @@ body {
   display: inline;
   border-radius: 2px;
   cursor: pointer;
-  transition: background 0.08s;
 }
 
 .script-word:hover {
@@ -476,7 +471,6 @@ body {
   border-radius: 2px;
   cursor: pointer;
   line-height: 1.4;
-  transition: opacity 0.1s;
 }
 
 .word-cue-pill.dynamic {
@@ -527,20 +521,9 @@ body {
     0 24px 64px rgba(0, 0, 0, 0.7),
     0 0 0 1px rgba(255, 255, 255, 0.04);
   overflow: hidden;
-  animation: modal-appear 0.16s cubic-bezier(0.2, 0, 0, 1);
 }
 
-@keyframes modal-appear {
-  from {
-    opacity: 0;
-    transform: scale(0.96) translateY(-10px);
-  }
 
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
 
 .cue-modal-header {
   display: flex;
@@ -584,7 +567,6 @@ body {
   padding: 2px 6px;
   border-radius: 4px;
   line-height: 1;
-  transition: all 0.12s;
   flex-shrink: 0;
   margin-left: 8px;
   margin-top: -2px;
@@ -622,7 +604,6 @@ body {
   padding: 7px 10px;
   border-radius: 6px;
   cursor: pointer;
-  transition: background 0.1s;
   border: 1px solid transparent;
 }
 
@@ -706,7 +687,6 @@ body {
   font-size: 12px;
   font-family: inherit;
   font-weight: 500;
-  transition: all 0.15s;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -951,7 +931,6 @@ body {
   font-family: inherit;
   font-size: 14px;
   outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .cue-modal input[type="text"]:focus,
@@ -988,7 +967,6 @@ body {
   font-size: 13px;
   font-family: inherit;
   font-weight: 500;
-  transition: all 0.12s;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1032,33 +1010,9 @@ body {
   border-color: var(--danger);
 }
 
-/* Animations */
-@keyframes shake {
 
-  0%,
-  100% {
-    transform: translateX(0);
-  }
-
-  20% {
-    transform: translateX(-5px);
-  }
-
-  40% {
-    transform: translateX(5px);
-  }
-
-  60% {
-    transform: translateX(-4px);
-  }
-
-  80% {
-    transform: translateX(3px);
-  }
-}
 
 .shake {
-  animation: shake 0.35s ease;
 }
 
 /* ── Misc ── */
@@ -1145,7 +1099,6 @@ body {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  transition: all 0.12s;
 }
 
 .sound-sub-btn:hover {
@@ -1197,7 +1150,6 @@ body {
 .clip-browser {
   max-height: 0;
   overflow: hidden;
-  transition: max-height 0.18s ease;
   margin: 0 20px;
 }
 
@@ -1230,7 +1182,6 @@ body {
   font-size: 11px;
   font-family: inherit;
   cursor: pointer;
-  transition: all 0.1s;
   white-space: nowrap;
 }
 
@@ -1296,18 +1247,9 @@ body {
   width: 40%;
   height: 100%;
   background: var(--sound-color);
-  animation: wf-load 1s ease-in-out infinite;
 }
 
-@keyframes wf-load {
-  0% {
-    left: -40%;
-  }
 
-  100% {
-    left: 100%;
-  }
-}
 
 /* Waveform Toolbar */
 .wf-toolbar {
@@ -1387,7 +1329,6 @@ body {
   cursor: pointer;
   font-size: 11px;
   font-family: inherit;
-  transition: all 0.1s;
 }
 
 .seg-btn:hover {
@@ -1521,7 +1462,6 @@ body {
   text-align: right;
   outline: none;
   flex-shrink: 0;
-  transition: border-color 0.12s;
   -moz-appearance: textfield;
 }
 
@@ -1602,7 +1542,6 @@ body {
   font-size: 11px;
   font-family: inherit;
   cursor: pointer;
-  transition: all 0.12s;
 }
 
 .preview-btn:hover {
@@ -1628,7 +1567,6 @@ body {
   font-size: 11px;
   font-family: inherit;
   cursor: pointer;
-  transition: all 0.12s;
 }
 
 .preview-devamp-btn:hover {
@@ -1699,7 +1637,6 @@ body {
   cursor: pointer;
   font-family: inherit;
   font-size: 12px;
-  transition: all 0.12s;
 }
 
 .lighting-action-btn:hover {
@@ -1793,7 +1730,6 @@ body {
   line-height: 1.4;
   opacity: 0;
   transform: translateY(8px);
-  transition: opacity 0.12s ease, transform 0.12s ease;
   pointer-events: auto;
   cursor: pointer;
 }
