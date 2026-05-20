@@ -149,7 +149,7 @@ function dispatchToAllTargets(payload, transport, overrides = {}) {
   });
 }
 
-audioSetTriggerCallback((trigger) => {
+audioSetTriggerCallback((trigger, sourceCue) => {
   try {
     const hasCueFields = trigger && typeof trigger === 'object' && (
       'oscAction' in trigger ||
@@ -166,7 +166,7 @@ audioSetTriggerCallback((trigger) => {
       }
       const playbackRaw = Number(trigger?.oscPlayback);
       const playback = Number.isFinite(playbackRaw) && playbackRaw > 0 ? Math.max(1, Math.round(playbackRaw)) : 1;
-      const cueNumber = trigger?.oscCueNumber ?? '1';
+      const cueNumber = resolveCueNumberValue(trigger?.oscCueNumber ?? '1', sourceCue);
       const level = clampLevel(trigger?.oscLevel);
       const transport = String(trigger?.oscTransport || 'auto').trim().toLowerCase();
 
@@ -261,6 +261,80 @@ function parseCueNumber(rawCueNumber) {
     cueDec,
     normalized: cueDecText ? `${cueInt}.${cueDecText}` : `${cueInt}`,
   };
+}
+
+function cueNumberToCenti(rawCueNumber) {
+  const parsed = parseCueNumber(rawCueNumber);
+  return (parsed.cueInt * 100) + parsed.cueDec;
+}
+
+function centiToCueNumber(rawValue) {
+  if (!Number.isFinite(rawValue)) return null;
+  const centi = Math.max(0, Math.round(rawValue));
+  const cueInt = Math.floor(centi / 100);
+  const cueDec = centi % 100;
+  const cueDecText = String(cueDec).padStart(2, '0').replace(/0+$/, '');
+  return cueDecText ? `${cueInt}.${cueDecText}` : `${cueInt}`;
+}
+
+function parseCueNumberOffset(raw) {
+  const source = String(raw ?? '').trim();
+  const match = source.match(/^([+-])(\d+)(?:\.(\d{1,2}))?$/);
+  if (!match) return null;
+  const sign = match[1] === '-' ? -1 : 1;
+  const cueInt = Number(match[2]);
+  const cueDec = Number(((match[3] || '') + '00').slice(0, 2));
+  if (!Number.isFinite(cueInt) || !Number.isFinite(cueDec)) return null;
+  return sign * ((cueInt * 100) + cueDec);
+}
+
+function isCueNumberTemplate(value) {
+  return typeof value === 'string' && /\{cueNumber(?:[+-]\d+(?:\.\d{1,2})?)?\}/.test(value);
+}
+
+function resolveCueNumberTemplate(template, cueNumber) {
+  if (template == null) return String(cueNumber);
+  const source = String(template).trim();
+  if (!isCueNumberTemplate(source)) return source;
+
+  let resolved = source.replace(/\{cueNumber([+-]\d+(?:\.\d{1,2})?)?\}/g, (_match, offsetText = '') => {
+    try {
+      const base = cueNumberToCenti(cueNumber);
+      const offset = offsetText ? parseCueNumberOffset(offsetText) : 0;
+      if (offset == null) return String(cueNumber);
+      return centiToCueNumber(base + offset) || String(cueNumber);
+    } catch {
+      return String(cueNumber);
+    }
+  });
+
+  const legacyMatch = resolved.match(/^(\d+(?:\.\d{1,2})?)([+-]\d+(?:\.\d{1,2})?)$/);
+  if (legacyMatch) {
+    try {
+      const base = cueNumberToCenti(legacyMatch[1]);
+      const offset = parseCueNumberOffset(legacyMatch[2]);
+      if (offset != null) {
+        resolved = centiToCueNumber(base + offset) || resolved;
+      }
+    } catch {
+      return resolved;
+    }
+  }
+
+  return resolved;
+}
+
+function resolveCueNumberValue(rawCueNumber, sourceCue) {
+  if (!isCueNumberTemplate(rawCueNumber)) {
+    return rawCueNumber ?? '1';
+  }
+
+  const sourceCueNumber = sourceCue?.num ?? sourceCue?.number ?? sourceCue?.cueNumber;
+  if (sourceCueNumber == null || sourceCueNumber === '') {
+    throw new Error(`Cue-number template "${rawCueNumber}" requires source cue context`);
+  }
+
+  return resolveCueNumberTemplate(rawCueNumber, sourceCueNumber);
 }
 
 function padOscString(value) {
@@ -410,7 +484,7 @@ cueExecutionEngine.registerHandler('oscDispatch', async (cue) => {
   const action = String(cue?.oscAction || 'go').trim().toLowerCase();
   const playbackRaw = Number(cue?.oscPlayback);
   const playback = Number.isFinite(playbackRaw) && playbackRaw > 0 ? Math.max(1, Math.round(playbackRaw)) : 1;
-  const cueNumber = cue?.oscCueNumber ?? '1';
+  const cueNumber = resolveCueNumberValue(cue?.oscCueNumber ?? '1', cue);
   const level = clampLevel(cue?.oscLevel);
   const transport = String(cue?.oscTransport || 'auto').trim().toLowerCase();
 
