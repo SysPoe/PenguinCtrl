@@ -134,7 +134,7 @@ const PreviewEngine = (() => {
       clipStart = 0,
       clipEnd = null,
       fadeIn = 0,
-      fadeOut = 0,
+      fadeOut: fadeOutDuration = 0,
       volume: volumeDb = 0,
       allowMultipleInstances = true,
       manualFadeOutDuration = 2,
@@ -240,13 +240,13 @@ const PreviewEngine = (() => {
       const gain = makeGain(ctx, vol, fadeIn);
       const src = startSrc(ctx, buffer, gain, clipStart, playDuration, false);
 
-      if (fadeOut > 0 && playDuration > fadeOut) {
-        const rampAt = (playDuration - fadeOut) * 1000;
+      if (fadeOutDuration > 0 && playDuration > fadeOutDuration) {
+        const rampAt = (playDuration - fadeOutDuration) * 1000;
         const rampT = setTimeout(() => {
           if (!activeInstances.has(instanceId)) return;
           gain.gain.cancelScheduledValues(ctx.currentTime);
           gain.gain.setValueAtTime(vol, ctx.currentTime);
-          gain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + fadeOut);
+          gain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + fadeOutDuration);
         }, rampAt);
         timers.add(rampT);
       }

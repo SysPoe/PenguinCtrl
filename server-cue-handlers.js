@@ -1,3 +1,4 @@
+import { existsSync } from 'fs';
 import { join } from 'path';
 
 function isObject(value) {
@@ -25,6 +26,12 @@ export function createCueExecutionEngine({ cueTypeRegistry, playAudioCue, worksp
     if (typeof normalized.clip === 'string' && normalized.clip.startsWith('/')) {
       normalized.clipUrl = normalized.clip;
       normalized.clip = join(workspaceRoot, 'public', normalized.clip.replace(/^\//, ''));
+    }
+
+    if (typeof normalized.clip === 'string' && !existsSync(normalized.clip)) {
+      const cueLabel = String(normalized.title || normalized.name || normalized.id || 'Unnamed audio cue');
+      const requestedClip = normalized.clipUrl || normalized.clip;
+      throw new Error(`Audio clip missing for "${cueLabel}": ${requestedClip}`);
     }
 
     const instanceId = await playAudioCue(normalized);

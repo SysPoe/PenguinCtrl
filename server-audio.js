@@ -694,7 +694,7 @@ async function playCue(cue) {
         clipStart = 0,
         clipEnd = null,
         fadeIn = 0,
-        fadeOut = 0,
+        fadeOut: fadeOutDuration = 0,
         volume: volumeDb = 0,
         allowMultipleInstances = true,
         manualFadeOutDuration = 2,
@@ -800,13 +800,13 @@ async function playCue(cue) {
         const gain = makeGain(ctx, vol, fadeIn, muteGain);
         const src = startSrc(ctx, buffer, gain, clipStart, playDuration, false);
 
-        if (fadeOut > 0 && playDuration > fadeOut) {
+        if (fadeOutDuration > 0 && playDuration > fadeOutDuration) {
             const rampT = setTimeout(() => {
                 if (!activeInstances.has(instanceId)) return;
                 gain.gain.cancelScheduledValues(ctx.currentTime);
                 gain.gain.setValueAtTime(vol, ctx.currentTime);
-                gain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + fadeOut);
-            }, (playDuration - fadeOut) * 1000);
+                gain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + fadeOutDuration);
+            }, (playDuration - fadeOutDuration) * 1000);
             timers.add(rampT);
         }
 
