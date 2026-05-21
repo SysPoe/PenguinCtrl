@@ -89,7 +89,7 @@
     "lighting": [
       {
         "id": "lq_11_classroom_lights_out",
-        "title": "Classroom lights off",
+        "title": "IGNORE",
         "description": "Classroom lights off as the kids leave, then slowly fade in dim lights for Stella's House / Stella variation",
         "oscAction": "goto",
         "oscCueNumber": "{cueNumber}",
@@ -103,22 +103,8 @@
     "lighting": [
       {
         "id": "lq_14_science_lab_entry",
-        "title": "Science lab entry",
+        "title": "Science lab entry WHEN ON STAGE",
         "description": "Science lab lights / Stella variation",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
-  "df398461-b128-40ca-8856-09ec5b8c94e4_w1": {
-    "lighting": [
-      {
-        "id": "lq_17_reentry_reset",
-        "title": "Greg leaves, everyone else enters",
-        "description": "Lights go to science lab / stella variation",
         "oscAction": "goto",
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
@@ -131,22 +117,8 @@
     "lighting": [
       {
         "id": "lq_21_dodgeball",
-        "title": "Dodgeball",
+        "title": "Dodgeball ON STAGE",
         "description": "A vicious game of Dodgeball highlighting Greg's aggression",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
-  "7b44bd56-1f57-4f5c-a69a-a0987c586252_w3": {
-    "lighting": [
-      {
-        "id": "lq_23_locker_room_harsh",
-        "title": "Boy's locker room",
-        "description": "Less saturated HPE / Squish. Harsh dim-ish.",
         "oscAction": "goto",
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
@@ -159,7 +131,7 @@
     "lighting": [
       {
         "id": "lq_24_get_out",
-        "title": "GET OUT!!",
+        "title": "IGNORE",
         "description": "Lights go bluer??",
         "oscAction": "goto",
         "oscCueNumber": "{cueNumber}",
@@ -173,8 +145,8 @@
     "lighting": [
       {
         "id": "lq_27_principals_office",
-        "title": "Mr. Fowler is sitting with Greg",
-        "description": "Light change to school yard / squish",
+        "title": "IGNORE",
+        "description": "",
         "oscAction": "goto",
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
@@ -194,36 +166,6 @@
         "oscPlayback": 1,
         "oscLevel": 100,
         "oscTransport": "auto"
-      }
-    ]
-  },
-  "8a6786ec-6d53-493e-96f2-c59792a246ed_w3": {
-    "sound": [
-      {
-        "id": "lq_32_cha_cha_slide",
-        "title": "The cha cha slide",
-        "description": "Cha Cha Slide and romantic slow dance song",
-        "soundSubtype": "play_once",
-        "playStyle": "alongside",
-        "clipStart": 130,
-        "clipEnd": 150.529,
-        "fadeIn": 0.735,
-        "fadeOut": 0,
-        "volume": 0,
-        "manualFadeOutDuration": 2,
-        "allowMultipleInstances": false,
-        "loopStart": 0,
-        "loopEnd": null,
-        "loopXfade": 0,
-        "oscTriggers": [],
-        "clip": "/audio/cha-cha-slide.wav",
-        "oscStartTrigger": {
-          "oscAction": "goto",
-          "oscPlayback": 1,
-          "oscCueNumber": "{cueNumber}",
-          "oscLevel": 100,
-          "oscTransport": "auto"
-        }
       }
     ]
   },
@@ -450,8 +392,8 @@
         "soundSubtype": "play_once",
         "playStyle": "alongside",
         "clipStart": 17,
-        "clipEnd": 211.441,
-        "fadeIn": 0,
+        "clipEnd": 211.302,
+        "fadeIn": 1.382,
         "fadeOut": 0,
         "volume": 0,
         "manualFadeOutDuration": 2,
@@ -2628,41 +2570,11 @@
       }
     ]
   },
-  "scene_1_4_line_9_w0": {
-    "sound": [
-      {
-        "id": "d95daca1-48d0-4493-b713-cf45ebf1438d",
-        "title": "Micophone feedback when Madison starts speaking",
-        "description": "",
-        "soundSubtype": "play_once",
-        "playStyle": "alongside",
-        "clipStart": 0.499,
-        "clipEnd": 2.25,
-        "fadeIn": 0,
-        "fadeOut": 0.5,
-        "volume": 0,
-        "manualFadeOutDuration": 2,
-        "allowMultipleInstances": false,
-        "loopStart": 0,
-        "loopEnd": null,
-        "loopXfade": 0,
-        "oscTriggers": [],
-        "clip": "/audio/Microphone Feedback.mp3",
-        "oscStartTrigger": {
-          "oscAction": "goto",
-          "oscPlayback": 1,
-          "oscCueNumber": "{cueNumber}",
-          "oscLevel": 100,
-          "oscTransport": "auto"
-        }
-      }
-    ]
-  },
   "a01596bc-633d-4de5-9d25-d4d7ebb53c80_w14": {
     "lighting": [
       {
         "id": "a9cd6a36-1e34-4056-8cd7-643608765b0e",
-        "title": "Break dance",
+        "title": "IGNORE",
         "description": "Quick break with rainbow lights, movers",
         "oscAction": "goto",
         "oscPlayback": 1,
@@ -2699,66 +2611,6 @@
           "oscLevel": 100,
           "oscTransport": "auto"
         }
-      }
-    ]
-  },
-  "8a6786ec-6d53-493e-96f2-c59792a246ed_w72": {
-    "sound": [
-      {
-        "id": "9c1c536f-91b0-4c19-8880-095b741b7ce4",
-        "title": "Slow dance",
-        "description": "",
-        "soundSubtype": "play_once",
-        "playStyle": "alongside",
-        "clipStart": 0,
-        "clipEnd": 225.233,
-        "fadeIn": 0,
-        "fadeOut": 0,
-        "volume": 0,
-        "manualFadeOutDuration": 5,
-        "allowMultipleInstances": false,
-        "loopStart": 0,
-        "loopEnd": null,
-        "loopXfade": 0,
-        "oscStartTrigger": {
-          "oscAction": "goto",
-          "oscPlayback": 1,
-          "oscCueNumber": "{cueNumber}",
-          "oscLevel": 100,
-          "oscTransport": "auto"
-        },
-        "oscTriggers": [],
-        "clip": "/audio/Elvis_Presley_-_Can_t_Help_Falling_in_Love__Instrumental__1779090731863.wav"
-      }
-    ]
-  },
-  "fb2c7b72-c313-4753-94e6-2efa52f726b6_w6": {
-    "sound": [
-      {
-        "id": "51d4a595-8283-43f0-a3a0-f10305ac6258",
-        "title": "Music cuts",
-        "description": "",
-        "soundSubtype": "play_once",
-        "playStyle": "fade_all",
-        "clipStart": 22,
-        "clipEnd": 22.001,
-        "fadeIn": 0,
-        "fadeOut": 0,
-        "volume": 10.5,
-        "manualFadeOutDuration": 0.1,
-        "allowMultipleInstances": true,
-        "loopStart": 0,
-        "loopEnd": null,
-        "loopXfade": 0,
-        "oscStartTrigger": {
-          "oscAction": "goto",
-          "oscPlayback": 1,
-          "oscCueNumber": "{cueNumber}",
-          "oscLevel": 100,
-          "oscTransport": "auto"
-        },
-        "oscTriggers": [],
-        "clip": "/audio/Microphone Feedback.mp3"
       }
     ]
   },
@@ -2844,7 +2696,7 @@
     "sound": [
       {
         "id": "b6bad18a-e930-463e-8369-448ea3e1d646",
-        "title": "Thunder boom",
+        "title": "UNTIL She Screams MUM",
         "description": "",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
@@ -3081,36 +2933,6 @@
       }
     ]
   },
-  "79cca949-ac6a-4005-a4b4-0eb2e0705094_w5": {
-    "sound": [
-      {
-        "id": "76206c8a-a7d3-4753-a708-9b90df0b6d3a",
-        "title": "DOGS AFTER 1ST WHISTLE",
-        "description": "",
-        "soundSubtype": "play_once",
-        "playStyle": "alongside",
-        "clipStart": 17.001,
-        "clipEnd": 211.302,
-        "fadeIn": 0,
-        "fadeOut": 0,
-        "volume": 0,
-        "manualFadeOutDuration": 2,
-        "allowMultipleInstances": false,
-        "loopStart": 0,
-        "loopEnd": null,
-        "loopXfade": 0,
-        "oscTriggers": [],
-        "clip": "/audio/who-let-the-dogs-out.wav",
-        "oscStartTrigger": {
-          "oscAction": "goto",
-          "oscPlayback": 1,
-          "oscCueNumber": "{cueNumber}",
-          "oscLevel": 100,
-          "oscTransport": "auto"
-        }
-      }
-    ]
-  },
   "scene_2_5_line_46_w1": {
     "sound": [
       {
@@ -3193,9 +3015,9 @@
         "description": "",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
-        "clipStart": 0,
+        "clipStart": 77,
         "clipEnd": 161.88,
-        "fadeIn": 0,
+        "fadeIn": 1,
         "fadeOut": 0,
         "volume": 0,
         "manualFadeOutDuration": 2,
@@ -3228,7 +3050,7 @@
         "fadeIn": 0,
         "fadeOut": 0,
         "volume": 0,
-        "manualFadeOutDuration": 2,
+        "manualFadeOutDuration": 1,
         "allowMultipleInstances": false,
         "loopStart": 0,
         "loopEnd": null,
@@ -3266,7 +3088,7 @@
         "title": "FREEZE (in the music) just spotlight on G & S MUSIC OFF WHEN EXIT",
         "description": "",
         "soundSubtype": "play_once",
-        "playStyle": "alongside",
+        "playStyle": "wait",
         "clipStart": 0,
         "clipEnd": 225.234,
         "fadeIn": 0,
@@ -3284,7 +3106,8 @@
           "oscLevel": 100,
           "oscTransport": "auto"
         },
-        "oscTriggers": []
+        "oscTriggers": [],
+        "clip": "/audio/Elvis_Presley_-_Can_t_Help_Falling_in_Love__Instrumental__1779090731863.wav"
       }
     ]
   },
@@ -3292,7 +3115,7 @@
     "lighting": [
       {
         "id": "db3b6eef-fd2b-4895-a922-22a774a2bf0c",
-        "title": "Blackout",
+        "title": "Blackout DRAG UP MUSIC THEN FADE",
         "description": "",
         "oscAction": "goto",
         "oscPlayback": 1,
@@ -3309,13 +3132,13 @@
         "title": "Stella House",
         "description": "",
         "soundSubtype": "play_once",
-        "playStyle": "alongside",
+        "playStyle": "xfade",
         "clipStart": 0,
         "clipEnd": 468,
         "fadeIn": 10,
         "fadeOut": 0,
         "volume": 0,
-        "manualFadeOutDuration": 2,
+        "manualFadeOutDuration": 0.1,
         "allowMultipleInstances": false,
         "loopStart": 0,
         "loopEnd": null,
@@ -3329,20 +3152,6 @@
         },
         "oscTriggers": [],
         "clip": "/audio/thunderrain_1779186083708.wav"
-      }
-    ]
-  },
-  "scene_4_2_line_3_w0": {
-    "lighting": [
-      {
-        "id": "bbe61b26-21c8-4f22-9723-5ebcc1023a15",
-        "title": "STOP THUNDER",
-        "description": "",
-        "oscAction": "goto",
-        "oscPlayback": 1,
-        "oscCueNumber": "{cueNumber}",
-        "oscLevel": 100,
-        "oscTransport": "auto"
       }
     ]
   },
@@ -3562,36 +3371,6 @@
       }
     ]
   },
-  "scene_1_4_line_27_w12": {
-    "sound": [
-      {
-        "id": "3bb7fc46-2641-4343-b240-279a535a54c7",
-        "title": "DOGS Bell",
-        "description": "",
-        "soundSubtype": "play_once",
-        "playStyle": "alongside",
-        "clipStart": 17,
-        "clipEnd": 211.302,
-        "fadeIn": 0,
-        "fadeOut": 0,
-        "volume": 0,
-        "manualFadeOutDuration": 2,
-        "allowMultipleInstances": false,
-        "loopStart": 0,
-        "loopEnd": null,
-        "loopXfade": 0,
-        "oscStartTrigger": {
-          "oscAction": "goto",
-          "oscPlayback": 1,
-          "oscCueNumber": "{cueNumber}",
-          "oscLevel": 100,
-          "oscTransport": "auto"
-        },
-        "oscTriggers": [],
-        "clip": "/audio/who-let-the-dogs-out.wav"
-      }
-    ]
-  },
   "scene_2_6_line_1_w0": {
     "lighting": [
       {
@@ -3633,6 +3412,238 @@
         },
         "oscTriggers": [],
         "clip": null
+      }
+    ]
+  },
+  "scene_2_2_line_31_w15": {
+    "lighting": [
+      {
+        "id": "49504072-5527-4b70-8d63-cf3053d45f45",
+        "title": "Blackout",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto"
+      }
+    ]
+  },
+  "scene_2_4_line_1_w5": {
+    "lighting": [
+      {
+        "id": "3709d3d9-da90-49d2-a7e5-4015c1d3af04",
+        "title": "WHEN STELLA HIT",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "remote"
+      }
+    ]
+  },
+  "scene_2_4_line_8_w20": {
+    "sound": [
+      {
+        "id": "3d35ca2f-dd1b-46d0-b918-0fc40078084a",
+        "title": "Back to Wick",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 20,
+        "clipEnd": 185.003,
+        "fadeIn": 3,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "clip": "/audio/john-wick-mode.wav"
+      }
+    ]
+  },
+  "57b99c65-a2d6-4eb8-9ebb-02c7d8f4fbc4_w0": {
+    "lighting": [
+      {
+        "id": "1f802e0a-766a-4049-a835-b1dca41d669a",
+        "title": "blackout",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto"
+      }
+    ]
+  },
+  "scene_1_4_line_8_w38": {
+    "lighting": [
+      {
+        "id": "3bc7c429-a8d8-41f4-a7bd-9ffab843ebf3",
+        "title": "Student council",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto"
+      }
+    ]
+  },
+  "scene_1_4_line_27_w12": {
+    "lighting": [
+      {
+        "id": "923a7ddd-2688-46fc-8a06-7314ab4307e5",
+        "title": "blackout AFTER OFF STAGE",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto"
+      }
+    ]
+  },
+  "scene_2_2_line_31_w14": {
+    "sound": [
+      {
+        "id": "950675bb-7fae-42ea-a764-94437696dcaf",
+        "title": "Bell",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 17,
+        "clipEnd": 211.302,
+        "fadeIn": 2,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "clip": "/audio/who-let-the-dogs-out.wav"
+      }
+    ]
+  },
+  "scene_3_3_line_10_w0": {
+    "sound": [
+      {
+        "id": "d42637e1-ca46-479d-9df9-cb4b581a7e01",
+        "title": "BELL ASSEMBLY",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 17,
+        "clipEnd": 211.302,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "clip": "/audio/who-let-the-dogs-out.wav"
+      }
+    ]
+  },
+  "scene_4_1_line_11_w27": {
+    "sound": [
+      {
+        "id": "6dcbb8ea-9c4c-4909-96f0-95a7ae663f24",
+        "title": "The cha cha slide",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 130,
+        "clipEnd": 150.539,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "clip": "/audio/cha-cha-slide.wav"
+      }
+    ]
+  },
+  "scene_4_1_line_1_w0": {
+    "lighting": [
+      {
+        "id": "31b83fc1-bc5f-4584-9e87-c4b5d49baf66",
+        "title": "Dance",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto"
+      }
+    ]
+  },
+  "79cca949-ac6a-4005-a4b4-0eb2e0705094_w5": {
+    "lighting": [
+      {
+        "id": "2eb46a20-7d98-46fa-8ad3-b0561f22be66",
+        "title": "IGNORE",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto"
+      }
+    ]
+  },
+  "scene_4_2_line_3_w0": {
+    "lighting": [
+      {
+        "id": "0d24547a-921e-401b-95bc-abaf697bfbc2",
+        "title": "STOP THUNDER",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto"
       }
     ]
   }
