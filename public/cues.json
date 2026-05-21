@@ -173,7 +173,7 @@
     "lighting": [
       {
         "id": "lq_37_tony_dances",
-        "title": "Tony dances",
+        "title": "IGNORE",
         "description": "Rainbow disco lights",
         "oscAction": "goto",
         "oscCueNumber": "{cueNumber}",
@@ -187,7 +187,7 @@
     "lighting": [
       {
         "id": "lq_38_stellas_room",
-        "title": "Cut middle, different colours on different sides. Split. Spot on each person.",
+        "title": "IGNORE",
         "description": "",
         "oscAction": "goto",
         "oscCueNumber": "{cueNumber}",
@@ -222,50 +222,6 @@
         "oscPlayback": 1,
         "oscLevel": 100,
         "oscTransport": "auto"
-      }
-    ]
-  },
-  "57f8134f-9084-43dc-93ef-798cbfdd05e0_w1": {
-    "lighting": [
-      {
-        "id": "lq_51_fight_scene",
-        "title": "Fight scene",
-        "description": "School bell",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
-  "cf39096f-4061-4426-9f63-f14d0cc24f8c_w3": {
-    "sound": [
-      {
-        "id": "lq_52_tony_peaceful",
-        "title": "Tony shakes more violently",
-        "description": "Beautiful flowing, nice and peaceful lighting. Bright and rainbows.",
-        "soundSubtype": "play_once",
-        "playStyle": "alongside",
-        "clipStart": 78,
-        "clipEnd": 370.149,
-        "fadeIn": 0,
-        "fadeOut": 0,
-        "volume": 0,
-        "manualFadeOutDuration": 2,
-        "allowMultipleInstances": false,
-        "loopStart": 0,
-        "loopEnd": null,
-        "loopXfade": 0,
-        "oscStartTrigger": {
-          "oscAction": "goto",
-          "oscPlayback": 1,
-          "oscCueNumber": "{cueNumber}",
-          "oscLevel": 100,
-          "oscTransport": "auto"
-        },
-        "oscTriggers": [],
-        "clip": "/audio/morning-mood.wav"
       }
     ]
   },
@@ -2789,36 +2745,6 @@
       }
     ]
   },
-  "0172a22d-7c51-4958-bac2-f5c9d7fae725_w2": {
-    "sound": [
-      {
-        "id": "116a9faa-377e-471f-86ef-5a4cfb15bee1",
-        "title": "School bell",
-        "description": "",
-        "soundSubtype": "play_once",
-        "playStyle": "alongside",
-        "clipStart": 17,
-        "clipEnd": 211.441,
-        "fadeIn": 0,
-        "fadeOut": 0,
-        "volume": 0,
-        "manualFadeOutDuration": 2,
-        "allowMultipleInstances": false,
-        "loopStart": 0,
-        "loopEnd": null,
-        "loopXfade": 0,
-        "oscStartTrigger": {
-          "oscAction": "goto",
-          "oscPlayback": 1,
-          "oscCueNumber": "{cueNumber}",
-          "oscLevel": 100,
-          "oscTransport": "auto"
-        },
-        "oscTriggers": [],
-        "clip": "/audio/who-let-the-dogs-out.wav"
-      }
-    ]
-  },
   "bdc13a2f-e70a-41bb-8527-9965e8740988_w4": {
     "lighting": [
       {
@@ -3115,7 +3041,7 @@
     "lighting": [
       {
         "id": "db3b6eef-fd2b-4895-a922-22a774a2bf0c",
-        "title": "Blackout DRAG UP MUSIC THEN FADE",
+        "title": "Blackout DRAG UP MUSIC THEN CUT",
         "description": "",
         "oscAction": "goto",
         "oscPlayback": 1,
@@ -3132,13 +3058,13 @@
         "title": "Stella House",
         "description": "",
         "soundSubtype": "play_once",
-        "playStyle": "xfade",
+        "playStyle": "alongside",
         "clipStart": 0,
         "clipEnd": 468,
         "fadeIn": 10,
         "fadeOut": 0,
         "volume": 0,
-        "manualFadeOutDuration": 0.1,
+        "manualFadeOutDuration": 2,
         "allowMultipleInstances": false,
         "loopStart": 0,
         "loopEnd": null,
@@ -3501,20 +3427,6 @@
       }
     ]
   },
-  "scene_1_4_line_27_w12": {
-    "lighting": [
-      {
-        "id": "923a7ddd-2688-46fc-8a06-7314ab4307e5",
-        "title": "blackout AFTER OFF STAGE",
-        "description": "",
-        "oscAction": "goto",
-        "oscPlayback": 1,
-        "oscCueNumber": "{cueNumber}",
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
   "scene_2_2_line_31_w14": {
     "sound": [
       {
@@ -3584,7 +3496,7 @@
         "soundSubtype": "play_once",
         "playStyle": "alongside",
         "clipStart": 130,
-        "clipEnd": 150.539,
+        "clipEnd": 150.412,
         "fadeIn": 0,
         "fadeOut": 0,
         "volume": 0,
@@ -3644,6 +3556,110 @@
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
         "oscTransport": "auto"
+      }
+    ]
+  },
+  "scene_5_6_line_1_w0": {
+    "lighting": [
+      {
+        "id": "76456bab-7edd-4497-90ec-14e22f04e2ae",
+        "title": "FIGHT",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto"
+      }
+    ]
+  },
+  "scene_5_6_line_6_w0": {
+    "sound": [
+      {
+        "id": "91f3f75e-a2b4-4d50-aedd-5989d61c356c",
+        "title": "BELL",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 17,
+        "clipEnd": 211.302,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "clip": "/audio/who-let-the-dogs-out.wav"
+      }
+    ]
+  },
+  "scene_5_6_line_19_w0": {
+    "sound": [
+      {
+        "id": "677e2f3a-f11b-4cb6-aacf-e4a8afa46039",
+        "title": "Morning Mood",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 0,
+        "clipEnd": 370.091,
+        "fadeIn": 1,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "clip": "/audio/morning-mood.wav"
+      }
+    ]
+  },
+  "scene_1_4_line_27_w12": {
+    "sound": [
+      {
+        "id": "986b578c-24dc-4ca2-8410-844fa07beddd",
+        "title": "DOGS blackout AFTER OFF STAGE",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 17,
+        "clipEnd": 211.302,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "clip": "/audio/who-let-the-dogs-out.wav"
       }
     ]
   }
