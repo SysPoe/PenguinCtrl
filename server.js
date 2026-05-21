@@ -451,13 +451,14 @@ function resolveTargetTransport(target, requestedTransport, action) {
 }
 
 function dispatchCueCommandToTargets({ action, playback, cueNumber, level, transport }) {
-  console.log(action, playback, cueNumber, level, transport);
+  const dispatchCueNumber = action === 'goto' ? parseCueNumber(cueNumber).normalized : cueNumber;
+  console.log(action, playback, dispatchCueNumber, level, transport);
   const targets = getOscTargets();
   const jobs = targets.map(target => {
     try {
       const resolvedTransport = resolveTargetTransport(target, transport, action);
       const port = resolvedTransport === 'osc' ? target.oscPort : target.remotePort;
-      const payload = buildCuePayload({ action, playback, cueNumber, level, transport: resolvedTransport });
+      const payload = buildCuePayload({ action, playback, cueNumber: dispatchCueNumber, level, transport: resolvedTransport });
       return {
         target,
         transport: resolvedTransport,
