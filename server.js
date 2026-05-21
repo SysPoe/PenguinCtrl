@@ -18,7 +18,7 @@ import {
   pause as audioPause, resume as audioResume, seek as audioSeek, setTriggerCallback as audioSetTriggerCallback,
   preloadBuffer as audioPreloadBuffer, updateCacheHints as audioUpdateCacheHints,
   markCuePlayed as audioMarkCuePlayed, clearPlayedCacheHints as audioClearPlayedCacheHints,
-  setCacheCurrentOrder as audioSetCacheCurrentOrder
+  setCacheCurrentOrder as audioSetCacheCurrentOrder, listAudioOutputDevices
 } from './server-audio.js';
 import { createConfigService } from './config/config-service.js';
 import { createCueTypeRegistry } from './config/cue-type-registry.js';
@@ -545,6 +545,32 @@ function getRuntimeMeta() {
       muted: audioIsMasterMuted(),
     },
   };
+}
+
+async function withRuntimeConfigOptions(bundle) {
+  const next = JSON.parse(JSON.stringify(bundle));
+  try {
+    const outputs = await listAudioOutputDevices();
+    const outputOptions = [
+      { value: '', label: 'System default' },
+      ...outputs.map(device => ({
+        value: device.deviceId,
+        label: device.label,
+      })),
+    ];
+    const sections = Array.isArray(next.schema?.sections) ? next.schema.sections : [];
+    for (const section of sections) {
+      const fields = Array.isArray(section.fields) ? section.fields : [];
+      const outputField = fields.find(field => field?.key === 'audio.output.sinkId');
+      if (outputField) {
+        outputField.options = outputOptions;
+        break;
+      }
+    }
+  } catch (err) {
+    console.warn('Could not enumerate audio output devices:', err?.message || err);
+  }
+  return next;
 }
 
 safeMasterVolume(clampMasterVolumeDb(configService.getValue('audio.masterVolume.defaultDb', 0)));
@@ -1114,8 +1140,8 @@ app.get('/api/meta', (_req, res) => {
 });
 
 // API: Config schema + values
-app.get('/api/config', (_req, res) => {
-  const bundle = configService.getBundle();
+app.get('/api/config', async (_req, res) => {
+  const bundle = await withRuntimeConfigOptions(configService.getBundle());
   res.json({
     schema: bundle.schema,
     values: bundle.values,
@@ -1130,14 +1156,14 @@ app.get('/api/config', (_req, res) => {
 });
 
 // API: Save config values
-app.post('/api/config', (req, res) => {
+app.post('/api/config', async (req, res) => {
   try {
     const payload = req.body && typeof req.body === 'object' ? req.body : {};
     const nextValues = payload.values && typeof payload.values === 'object'
       ? payload.values
       : payload;
 
-    const bundle = configService.saveValues(nextValues);
+    const bundle = await withRuntimeConfigOptions(configService.saveValues(nextValues));
     const currentDb = safeMasterVolume();
     safeMasterVolume(clampMasterVolumeDb(currentDb));
     broadcast({

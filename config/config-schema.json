@@ -44,6 +44,15 @@
           "help": "Maximum decoded audio buffers kept in memory. 0 = unlimited (no eviction). Older buffers are evicted first."
         },
         {
+          "key": "audio.output.sinkId",
+          "label": "Output device",
+          "type": "select",
+          "default": "",
+          "options": [{"value":"","label":"System default"}],
+          "allowCustom": true,
+          "help": "Server cue playback output. Change this when Windows sounds use one device but cues come from another."
+        },
+        {
           "key": "audio.masterVolume.defaultDb",
           "label": "Default master volume (dB)",
           "type": "number",

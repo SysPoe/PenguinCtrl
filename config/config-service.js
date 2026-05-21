@@ -90,6 +90,7 @@ function coerceFieldValue(field, rawValue) {
     case 'select': {
       const options = Array.isArray(field.options) ? field.options : [];
       const normalizedOptions = options.map(opt => (isObject(opt) ? opt.value : opt));
+      if (field.allowCustom === true) return rawValue == null ? '' : String(rawValue);
       if (normalizedOptions.length === 0) return String(rawValue ?? '');
       if (normalizedOptions.includes(rawValue)) return rawValue;
       if (normalizedOptions.includes(field.default)) return field.default;

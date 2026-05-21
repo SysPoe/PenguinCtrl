@@ -1,7 +1,7 @@
 // Server-side audio engine using node-web-audio-api directly (no Tone.js)
 // NOTE: run via `pw-jack bun server.js`
 
-import { AudioContext } from 'node-web-audio-api';
+import { AudioContext, mediaDevices } from 'node-web-audio-api';
 import { execFile } from 'child_process';
 import { readFile, unlink } from 'fs/promises';
 import { tmpdir } from 'os';
@@ -19,13 +19,16 @@ function ffmpegEnv() {
 
 let _getConfigValue = () => undefined;
 let _configuredSampleRate = null;
+let _configuredSinkId = null;
 
 export function initAudioConfig(configService) {
     _getConfigValue = (path, fallback) => configService.getValue(path, fallback);
     configService.onChange((bundle) => {
         const newRate = Number(getByPath(bundle?.effective ?? {}, 'audio.buffer.sampleRate', 48000)) || 48000;
+        const newSinkId = normalizeSinkId(getByPath(bundle?.effective ?? {}, 'audio.output.sinkId', ''));
         bufferCache.clear();
-        if (_configuredSampleRate != null && _configuredSampleRate !== newRate) {
+        if ((_configuredSampleRate != null && _configuredSampleRate !== newRate)
+            || (_configuredSinkId != null && _configuredSinkId !== newSinkId)) {
             stopAll();
             if (_ctx && _ctx.state !== 'closed') {
                 try { _ctx.close(); } catch (_) { }
@@ -47,6 +50,11 @@ function getByPath(obj, path, fallback) {
     return cur;
 }
 
+function normalizeSinkId(value) {
+    const sinkId = String(value ?? '').trim();
+    return sinkId === 'default' ? '' : sinkId;
+}
+
 let _ctx = null;
 let _masterGain = null;
 let _masterDb = 0;
@@ -54,15 +62,31 @@ let _masterMuted = false;
 
 function getCtx() {
     const desiredRate = Number(_getConfigValue('audio.buffer.sampleRate', 48000)) || 48000;
-    if (!_ctx || _ctx.state === 'closed' || _configuredSampleRate !== desiredRate) {
+    const desiredSinkId = normalizeSinkId(_getConfigValue('audio.output.sinkId', ''));
+    if (!_ctx || _ctx.state === 'closed' || _configuredSampleRate !== desiredRate || _configuredSinkId !== desiredSinkId) {
         if (_ctx && _ctx.state !== 'closed') {
             try { _ctx.close(); } catch (_) { }
         }
-        _ctx = new AudioContext({ latencyHint: 'playback', sampleRate: desiredRate });
+        const options = { latencyHint: 'playback', sampleRate: desiredRate };
+        if (desiredSinkId) options.sinkId = desiredSinkId;
+        _ctx = new AudioContext(options);
         _masterGain = null;
         _configuredSampleRate = desiredRate;
+        _configuredSinkId = desiredSinkId;
     }
     return _ctx;
+}
+
+async function listAudioOutputDevices() {
+    const devices = await mediaDevices.enumerateDevices();
+    return devices
+        .filter(device => device?.kind === 'audiooutput')
+        .map(device => ({
+            deviceId: String(device.deviceId || ''),
+            label: String(device.label || device.deviceId || 'Audio output'),
+            groupId: String(device.groupId || ''),
+        }))
+        .filter(device => device.deviceId);
 }
 
 function getMasterGain() {
@@ -1021,7 +1045,7 @@ function cancelDevamp(instanceId) {
     }
 }
 
-export { playCue, fadeOut, stop, stopAll, fadeOutAll, devamp, cancelDevamp, listActive, setVolume, setMuted, toggleMute, masterVolume, setMasterMuted, toggleMasterMute, isMasterMuted, pause, resume, seek, setTriggerCallback, cancelWaitingCues, preloadBuffer, updateCacheHints, markCuePlayed, clearPlayedCacheHints, setCacheCurrentOrder };
+export { playCue, fadeOut, stop, stopAll, fadeOutAll, devamp, cancelDevamp, listActive, setVolume, setMuted, toggleMute, masterVolume, setMasterMuted, toggleMasterMute, isMasterMuted, pause, resume, seek, setTriggerCallback, cancelWaitingCues, preloadBuffer, updateCacheHints, markCuePlayed, clearPlayedCacheHints, setCacheCurrentOrder, listAudioOutputDevices };
 
 async function preloadBuffer(filePath) {
     if (!filePath) return false;
