@@ -75,36 +75,8 @@
     "lighting": [
       {
         "id": "lq_07_science_lab_detention",
-        "title": "Scene changes for science lab detention",
+        "title": "Lab",
         "description": "Lighting change for lab / stella variation. Bring up washers to neutral / warmish white (~3000K), spot off. A bit dull.",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
-  "5f7bb439-b1a7-4e77-8433-57e394d75931_w2": {
-    "lighting": [
-      {
-        "id": "lq_09_back_to_normal",
-        "title": "Miss Duane returns",
-        "description": "Lights back to normal",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
-  "23208b69-38ec-450a-bdd4-af22c41b7129_w2": {
-    "lighting": [
-      {
-        "id": "lq_10_lab_closes_in",
-        "title": "Everyone leaves",
-        "description": "Lighting goes bluer, closes in on Stella and Squish. Spots maybe? With subtle washers. Lab / Squish Variation.",
         "oscAction": "goto",
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
@@ -169,20 +141,6 @@
       }
     ]
   },
-  "11481506-f2f0-49ab-bb25-b3b9e1215e5a_w5": {
-    "lighting": [
-      {
-        "id": "lq_22_court_cools",
-        "title": "Stella leaves court",
-        "description": "Switch lighting to cooler as Stella leaves and Greg is remaining?? - HPE / Squish",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
   "7b44bd56-1f57-4f5c-a69a-a0987c586252_w3": {
     "lighting": [
       {
@@ -231,20 +189,6 @@
         "id": "lq_28_stage_goes_dark",
         "title": "They run at each other as the stage goes dark",
         "description": "Brief blackout. Lighting to assembly / squish.",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
-  "64a8b47f-9085-48c4-a6cd-08042da7eac1_w1": {
-    "lighting": [
-      {
-        "id": "lq_30_flashbang",
-        "title": "Francine flashbangs Greg",
-        "description": "Lights flashbang",
         "oscAction": "goto",
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
@@ -331,20 +275,6 @@
         "id": "lq_42_classroom",
         "title": "Classroom",
         "description": "Fade to Classroom / Squish (light)",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
-  "9fa3baf4-d457-40d2-a3e3-c28a19231651_w1": {
-    "lighting": [
-      {
-        "id": "lq_50_friday_255",
-        "title": "Friday 2:55 PM",
-        "description": "Playground / Stella & Squish combined??? (½ + ½?). Dimmed lights, smoke, flashing lights, highly stylised.",
         "oscAction": "goto",
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
@@ -562,7 +492,7 @@
         "oscStartTrigger": {
           "oscAction": "goto",
           "oscPlayback": 1,
-          "oscCueNumber": "{cueNumber}",
+          "oscCueNumber": "{cueNumber+0.02}",
           "oscLevel": 100,
           "oscTransport": "auto"
         },
@@ -587,7 +517,7 @@
             "timeMs": 4556.6485207100595,
             "oscAction": "goto",
             "oscPlayback": 1,
-            "oscCueNumber": "{cueNumber}",
+            "oscCueNumber": "{cueNumber+0.01}",
             "oscLevel": 100,
             "oscTransport": "auto"
           },
@@ -619,7 +549,7 @@
             "timeMs": 12281,
             "oscAction": "goto",
             "oscPlayback": 1,
-            "oscCueNumber": "{cueNumber}",
+            "oscCueNumber": "{cueNumber+0.01}",
             "oscLevel": 100,
             "oscTransport": "auto"
           },
@@ -2772,36 +2702,6 @@
       }
     ]
   },
-  "scene_1_4_line_27": {
-    "sound": [
-      {
-        "id": "07abe1bf-a78c-4b96-a38e-0e30e3838d49",
-        "title": "DOGS Bell",
-        "description": "",
-        "soundSubtype": "play_once",
-        "playStyle": "alongside",
-        "clipStart": 17,
-        "clipEnd": 211.441,
-        "fadeIn": 0,
-        "fadeOut": 0,
-        "volume": 0,
-        "manualFadeOutDuration": 2,
-        "allowMultipleInstances": false,
-        "loopStart": 0,
-        "loopEnd": null,
-        "loopXfade": 0,
-        "oscStartTrigger": {
-          "oscAction": "goto",
-          "oscPlayback": 1,
-          "oscCueNumber": "{cueNumber}",
-          "oscLevel": 100,
-          "oscTransport": "auto"
-        },
-        "oscTriggers": [],
-        "clip": "/audio/who-let-the-dogs-out.wav"
-      }
-    ]
-  },
   "8a6786ec-6d53-493e-96f2-c59792a246ed_w72": {
     "sound": [
       {
@@ -2883,7 +2783,7 @@
         "oscStartTrigger": {
           "oscAction": "goto",
           "oscPlayback": 1,
-          "oscCueNumber": "70.7",
+          "oscCueNumber": "70.02",
           "oscLevel": 100,
           "oscTransport": "auto"
         },
@@ -2892,7 +2792,7 @@
             "timeMs": 580.3429054054054,
             "oscAction": "goto",
             "oscPlayback": 1,
-            "oscCueNumber": "70.4",
+            "oscCueNumber": "70.01",
             "oscLevel": 100,
             "oscTransport": "auto"
           }
@@ -2922,7 +2822,7 @@
         "oscStartTrigger": {
           "oscAction": "goto",
           "oscPlayback": 1,
-          "oscCueNumber": "70.7",
+          "oscCueNumber": "70.02",
           "oscLevel": 100,
           "oscTransport": "auto"
         },
@@ -2931,7 +2831,7 @@
             "timeMs": 612.584177927928,
             "oscAction": "goto",
             "oscPlayback": 1,
-            "oscCueNumber": "70.4",
+            "oscCueNumber": "70.01",
             "oscLevel": 100,
             "oscTransport": "auto"
           }
@@ -2961,7 +2861,7 @@
         "oscStartTrigger": {
           "oscAction": "goto",
           "oscPlayback": 1,
-          "oscCueNumber": "70.7",
+          "oscCueNumber": "70.02",
           "oscLevel": 100,
           "oscTransport": "auto"
         },
@@ -2970,7 +2870,7 @@
             "timeMs": 591.0899962462463,
             "oscAction": "goto",
             "oscPlayback": 1,
-            "oscCueNumber": "70.4",
+            "oscCueNumber": "70.01",
             "oscLevel": 100,
             "oscTransport": "auto"
           }
@@ -3645,6 +3545,94 @@
         },
         "oscTriggers": [],
         "clip": "/audio/everybody-wants-to-rule-the-world.wav"
+      }
+    ]
+  },
+  "scene_1_4_line_27_w0": {
+    "lighting": [
+      {
+        "id": "2d0dfec4-5bfd-407c-8fc6-6239dfd8d924",
+        "title": "Back to assembly",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto"
+      }
+    ]
+  },
+  "scene_1_4_line_27_w12": {
+    "sound": [
+      {
+        "id": "3bb7fc46-2641-4343-b240-279a535a54c7",
+        "title": "DOGS Bell",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 17,
+        "clipEnd": 211.302,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "clip": "/audio/who-let-the-dogs-out.wav"
+      }
+    ]
+  },
+  "scene_2_6_line_1_w0": {
+    "lighting": [
+      {
+        "id": "c836fdb9-38a8-49f4-9654-8c05fa059a1d",
+        "title": "Playground",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto"
+      }
+    ]
+  },
+  "scene_5_5_line_3_w5": {
+    "sound": [
+      {
+        "id": "05d59a70-55f8-48cf-bff3-05cea0c08cfa",
+        "title": "SOUND OFF",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "fade_all",
+        "clipStart": 0,
+        "clipEnd": null,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "clip": null
       }
     ]
   }
