@@ -730,14 +730,6 @@ async function playCue(cue) {
 
     if (!clip) throw new Error('playCue: clip is required');
 
-    if (oscStartTrigger) {
-        try {
-            triggerCallback?.(oscStartTrigger, cue);
-        } catch (e) {
-            console.error('Unhandled error in sound start OSC trigger', e);
-        }
-    }
-
     if (playStyle === 'wait') {
         assertWaitingCuesNotCancelled(cueGeneration);
         await waitForAll();
@@ -842,6 +834,14 @@ async function playCue(cue) {
             muteGain,
             audioContextStartTime: ctx.currentTime, clipStartOffset: clipStart,
         });
+    }
+
+    if (oscStartTrigger) {
+        try {
+            triggerCallback?.(oscStartTrigger, cue);
+        } catch (e) {
+            console.error('Unhandled error in sound start OSC trigger', e);
+        }
     }
 
     return instanceId;
