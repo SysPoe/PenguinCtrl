@@ -17,7 +17,7 @@
     "sound": [
       {
         "id": "lq_03_blackout_title",
-        "title": "B/O / Everybode wants to Rule",
+        "title": "IMMEDIATELY ROLL B/O / Everybode wants to Rule",
         "description": "Blackout for title sequence",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
@@ -47,22 +47,8 @@
     "lighting": [
       {
         "id": "lq_04_school_yard_warm",
-        "title": "Start of school yard scene",
+        "title": "PLAYGROUND; FADE OFF ON PROJ",
         "description": "Lights up for school yard / stella variation. Warm early day lighting.",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
-  "b5e6417b-ce5c-4917-b4a5-d89930cbbbf6_w2": {
-    "lighting": [
-      {
-        "id": "lq_05_assembly_bell",
-        "title": "Bell rings",
-        "description": "Lighting change for assembly / stella variation. White spot on podium. Dim warm white wash.",
         "oscAction": "goto",
         "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
@@ -127,48 +113,6 @@
       }
     ]
   },
-  "scene_2_5_line_29_w1": {
-    "lighting": [
-      {
-        "id": "lq_24_get_out",
-        "title": "IGNORE",
-        "description": "Lights go bluer??",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
-  "0921cda1-fc87-4825-9321-f08f8ccd522d_w5": {
-    "lighting": [
-      {
-        "id": "lq_27_principals_office",
-        "title": "IGNORE",
-        "description": "",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
-  "aa88f406-3fac-4c65-ac47-28fca1b21b05_w9": {
-    "lighting": [
-      {
-        "id": "lq_28_stage_goes_dark",
-        "title": "They run at each other as the stage goes dark",
-        "description": "Brief blackout. Lighting to assembly / squish.",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
   "eb525dbc-6ea5-4d6b-bcdc-5f405be75180_w1": {
     "lighting": [
       {
@@ -188,12 +132,7 @@
       {
         "id": "lq_38_stellas_room",
         "title": "IGNORE",
-        "description": "",
-        "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
-        "oscPlayback": 1,
-        "oscLevel": 100,
-        "oscTransport": "auto"
+        "description": ""
       }
     ]
   },
@@ -257,40 +196,40 @@
     "lighting": [
       {
         "id": "lq_59_storytellers_return",
-        "title": "Storytellers",
+        "title": "Lights back up",
         "description": "Idk what but figure it out",
         "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
+        "oscCueNumber": "100.25",
         "oscPlayback": 1,
         "oscLevel": 100,
         "oscTransport": "auto"
       }
     ]
   },
-  "b66727e1-510e-4582-850a-ab71fd2bcc8e_w2": {
+  "scene_4_3_line_23_w2": {
     "lighting": [
       {
-        "id": "lq_60_stella_gets_up",
-        "title": "Stella gets up; ending",
-        "description": "Fade to black. Or spotlight movie effect where it closes in on Stella's face.",
+        "id": "mnflv2cbji4oy",
+        "title": "SPOTS OFF PREP",
+        "description": "",
         "oscAction": "goto",
-        "oscCueNumber": "{cueNumber}",
         "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
         "oscTransport": "auto"
       }
     ]
   },
-  "scene_4_4_line_44_w1": {
+  "ffd9c7b3-693a-4c99-aa43-164d8c97c306_w0": {
     "sound": [
       {
-        "id": "mnflle5sajw9u",
-        "title": "DOGS Blackout",
+        "id": "mnflxltkg2ayj",
+        "title": "disconnect SPOTS OFF",
         "description": "",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
-        "clipStart": 17,
-        "clipEnd": 211.441,
+        "clipStart": 0.957,
+        "clipEnd": 2.485,
         "fadeIn": 0,
         "fadeOut": 0,
         "volume": 0,
@@ -307,35 +246,7 @@
           "oscTransport": "auto"
         },
         "oscTriggers": [],
-        "clip": "/audio/who-let-the-dogs-out.wav"
-      }
-    ]
-  },
-  "scene_4_3_line_23_w2": {
-    "lighting": [
-      {
-        "id": "mnflv2cbji4oy",
-        "title": "Blackout SPOTS OFF",
-        "description": "",
-        "oscAction": "goto",
-        "oscPlayback": 1,
-        "oscCueNumber": "{cueNumber}",
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
-  "ffd9c7b3-693a-4c99-aa43-164d8c97c306_w0": {
-    "lighting": [
-      {
-        "id": "mnflxltkg2ayj",
-        "title": "Tony's Room. to Tony's Room / Stella",
-        "description": "",
-        "oscAction": "goto",
-        "oscPlayback": 1,
-        "oscCueNumber": "{cueNumber}",
-        "oscLevel": 100,
-        "oscTransport": "auto"
+        "clip": "/audio/Facetime_Hang_Up_-_QuickSounds.com_1779420702449.wav"
       }
     ]
   },
@@ -381,8 +292,8 @@
         "clipEnd": 185.003,
         "fadeIn": 0,
         "fadeOut": 0,
-        "volume": 0,
-        "manualFadeOutDuration": 2,
+        "volume": 4,
+        "manualFadeOutDuration": 0.1,
         "allowMultipleInstances": false,
         "loopStart": 0,
         "loopEnd": null,
@@ -2512,20 +2423,6 @@
       }
     ]
   },
-  "184955c7-fa61-43fe-a914-f1e6d10bd85a_w10": {
-    "lighting": [
-      {
-        "id": "b2251791-f36f-4fe2-b0dd-3acad8d722b0",
-        "title": "Start lights",
-        "description": "",
-        "oscAction": "goto",
-        "oscPlayback": 1,
-        "oscCueNumber": "{cueNumber}",
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
   "a01596bc-633d-4de5-9d25-d4d7ebb53c80_w14": {
     "lighting": [
       {
@@ -2537,36 +2434,6 @@
         "oscCueNumber": "{cueNumber}",
         "oscLevel": 100,
         "oscTransport": "auto"
-      }
-    ]
-  },
-  "scene_6_1_line_18_w8": {
-    "sound": [
-      {
-        "id": "82a2bb81-526c-4928-92d1-4dce04c39062",
-        "title": "Bows",
-        "description": "",
-        "soundSubtype": "play_once",
-        "playStyle": "alongside",
-        "clipStart": 34,
-        "clipEnd": 251.506,
-        "fadeIn": 0,
-        "fadeOut": 0,
-        "volume": 0,
-        "manualFadeOutDuration": 2,
-        "allowMultipleInstances": false,
-        "loopStart": 0,
-        "loopEnd": null,
-        "loopXfade": 0,
-        "oscTriggers": [],
-        "clip": "/audio/everybody-wants-to-rule-the-world.wav",
-        "oscStartTrigger": {
-          "oscAction": "goto",
-          "oscPlayback": 1,
-          "oscCueNumber": "{cueNumber}",
-          "oscLevel": 100,
-          "oscTransport": "auto"
-        }
       }
     ]
   },
@@ -2735,25 +2602,11 @@
     "lighting": [
       {
         "id": "5d7c4a4e-c533-4d83-8c45-e471077aa200",
-        "title": "Lighting change again?",
+        "title": "Yard BACK TO 50.1",
         "description": "",
         "oscAction": "goto",
         "oscPlayback": 1,
-        "oscCueNumber": "{cueNumber}",
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
-  "bdc13a2f-e70a-41bb-8527-9965e8740988_w4": {
-    "lighting": [
-      {
-        "id": "1764fd26-1602-43ab-baf7-060307057981",
-        "title": "Normal",
-        "description": "",
-        "oscAction": "goto",
-        "oscPlayback": 1,
-        "oscCueNumber": "{cueNumber}",
+        "oscCueNumber": "50.1",
         "oscLevel": 100,
         "oscTransport": "auto"
       }
@@ -2791,14 +2644,14 @@
     "sound": [
       {
         "id": "ac979d68-9614-4e1b-911d-0ab61a88c0d4",
-        "title": "News Jingle",
+        "title": "News Jingle SPOT OFF OWEN",
         "description": "",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
         "clipStart": 0,
-        "clipEnd": 9.425,
+        "clipEnd": 5.815,
         "fadeIn": 0,
-        "fadeOut": 5.908,
+        "fadeOut": 4.097,
         "volume": 0,
         "manualFadeOutDuration": 2,
         "allowMultipleInstances": false,
@@ -2837,20 +2690,6 @@
         "id": "13da895e-18f5-4e04-af48-fb99659948c5",
         "title": "Spots off",
         "description": "Button click - tyson turns off light",
-        "oscAction": "goto",
-        "oscPlayback": 1,
-        "oscCueNumber": "{cueNumber}",
-        "oscLevel": 100,
-        "oscTransport": "auto"
-      }
-    ]
-  },
-  "scene_1_6_line_23_w12": {
-    "lighting": [
-      {
-        "id": "5e4b39b4-2e04-42b3-9ec9-e88a947569ad",
-        "title": "Blackout, Shadow Screen on",
-        "description": "",
         "oscAction": "goto",
         "oscPlayback": 1,
         "oscCueNumber": "{cueNumber}",
@@ -3019,7 +2858,7 @@
         "clipEnd": 225.234,
         "fadeIn": 0,
         "fadeOut": 0,
-        "volume": 0,
+        "volume": -13.5,
         "manualFadeOutDuration": 2,
         "allowMultipleInstances": false,
         "loopStart": 0,
@@ -3061,7 +2900,7 @@
         "playStyle": "alongside",
         "clipStart": 0,
         "clipEnd": 468,
-        "fadeIn": 10,
+        "fadeIn": 1,
         "fadeOut": 0,
         "volume": 0,
         "manualFadeOutDuration": 2,
@@ -3078,20 +2917,6 @@
         },
         "oscTriggers": [],
         "clip": "/audio/thunderrain_1779186083708.wav"
-      }
-    ]
-  },
-  "scene_4_2_line_16_w1": {
-    "lighting": [
-      {
-        "id": "02853b83-066c-4ea7-82b5-3715929f4e4c",
-        "title": "Blackout",
-        "description": "",
-        "oscAction": "goto",
-        "oscPlayback": 1,
-        "oscCueNumber": "{cueNumber}",
-        "oscLevel": 100,
-        "oscTransport": "auto"
       }
     ]
   },
@@ -3113,7 +2938,7 @@
     "lighting": [
       {
         "id": "66ec9e5d-b546-4a4f-ab25-5994f8cb1443",
-        "title": "Lights up",
+        "title": "phone call",
         "description": "",
         "oscAction": "goto",
         "oscPlayback": 1,
@@ -3121,19 +2946,33 @@
         "oscLevel": 100,
         "oscTransport": "auto"
       }
-    ]
-  },
-  "scene_4_4_line_15_w6": {
-    "lighting": [
+    ],
+    "sound": [
       {
-        "id": "98176f0e-1c2a-4ffa-8b40-9e9f6d423ea9",
-        "title": "blackout",
+        "id": "66ec9e5d-b546-4a4f-ab25-5994f8cb1443",
+        "title": "connect",
         "description": "",
-        "oscAction": "goto",
-        "oscPlayback": 1,
-        "oscCueNumber": "{cueNumber}",
-        "oscLevel": 100,
-        "oscTransport": "auto"
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 0,
+        "clipEnd": 0.673,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 3,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "clip": "/audio/FaceTime_Connect_-_QuickSounds.com_1779420319294.wav"
       }
     ]
   },
@@ -3187,8 +3026,8 @@
         "description": "",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
-        "clipStart": 0,
-        "clipEnd": 284.331,
+        "clipStart": 2.355,
+        "clipEnd": 284.328,
         "fadeIn": 0,
         "fadeOut": 0,
         "volume": 0,
@@ -3217,8 +3056,8 @@
         "description": "",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
-        "clipStart": 0,
-        "clipEnd": 284.331,
+        "clipStart": 2.355,
+        "clipEnd": 284.328,
         "fadeIn": 0,
         "fadeOut": 0,
         "volume": 0,
@@ -3274,7 +3113,7 @@
         "oscStartTrigger": {
           "oscAction": "goto",
           "oscPlayback": 1,
-          "oscCueNumber": "{cueNumber}",
+          "oscCueNumber": "10000",
           "oscLevel": 100,
           "oscTransport": "auto"
         },
@@ -3312,32 +3151,16 @@
     ]
   },
   "scene_5_5_line_3_w5": {
-    "sound": [
+    "lighting": [
       {
         "id": "05d59a70-55f8-48cf-bff3-05cea0c08cfa",
-        "title": "SOUND OFF",
+        "title": "SOUND OFF TYSON ENTER",
         "description": "",
-        "soundSubtype": "play_once",
-        "playStyle": "fade_all",
-        "clipStart": 0,
-        "clipEnd": null,
-        "fadeIn": 0,
-        "fadeOut": 0,
-        "volume": 0,
-        "manualFadeOutDuration": 2,
-        "allowMultipleInstances": false,
-        "loopStart": 0,
-        "loopEnd": null,
-        "loopXfade": 0,
-        "oscStartTrigger": {
-          "oscAction": "goto",
-          "oscPlayback": 1,
-          "oscCueNumber": "{cueNumber}",
-          "oscLevel": 100,
-          "oscTransport": "auto"
-        },
-        "oscTriggers": [],
-        "clip": null
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto"
       }
     ]
   },
@@ -3382,7 +3205,7 @@
         "fadeIn": 3,
         "fadeOut": 0,
         "volume": 0,
-        "manualFadeOutDuration": 2,
+        "manualFadeOutDuration": 1,
         "allowMultipleInstances": false,
         "loopStart": 0,
         "loopEnd": null,
@@ -3440,7 +3263,7 @@
         "fadeIn": 2,
         "fadeOut": 0,
         "volume": 0,
-        "manualFadeOutDuration": 2,
+        "manualFadeOutDuration": 0.1,
         "allowMultipleInstances": false,
         "loopStart": 0,
         "loopEnd": null,
@@ -3549,7 +3372,7 @@
     "lighting": [
       {
         "id": "0d24547a-921e-401b-95bc-abaf697bfbc2",
-        "title": "STOP THUNDER",
+        "title": "-",
         "description": "",
         "oscAction": "goto",
         "oscPlayback": 1,
@@ -3607,15 +3430,15 @@
     "sound": [
       {
         "id": "677e2f3a-f11b-4cb6-aacf-e4a8afa46039",
-        "title": "Morning Mood",
+        "title": "Morning Mood BEFORE WHAT",
         "description": "",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
-        "clipStart": 0,
+        "clipStart": 2.152,
         "clipEnd": 370.091,
         "fadeIn": 1,
         "fadeOut": 0,
-        "volume": 0,
+        "volume": -11,
         "manualFadeOutDuration": 2,
         "allowMultipleInstances": false,
         "loopStart": 0,
@@ -3633,11 +3456,139 @@
       }
     ]
   },
-  "scene_1_4_line_27_w12": {
+  "scene_3_1_line_32_w0": {
+    "lighting": [
+      {
+        "id": "10b6fdbd-1441-4a57-9613-ba99fcbdac3a",
+        "title": "BO Tony runs away",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto"
+      }
+    ]
+  },
+  "scene_3_2_line_1_w0": {
+    "lighting": [
+      {
+        "id": "feb3c427-bc84-49c3-9cea-ae79574e6d6d",
+        "title": "GREG MR FOWLER ENTERS",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto"
+      }
+    ]
+  },
+  "scene_3_4_line_1_w0": {
+    "lighting": [
+      {
+        "id": "5e8bda5a-723d-4c03-8b9e-62d3231590d3",
+        "title": "LIGHTS UP ASSSEMBLY AS ENTERING",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto"
+      }
+    ]
+  },
+  "scene_5_6_line_33_w8": {
+    "lighting": [
+      {
+        "id": "bbffa108-d62a-450a-bdd2-5da7b4e6a836",
+        "title": "AND IT STAYS THE SAME",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto"
+      }
+    ]
+  },
+  "scene_4_2_line_16_w1": {
+    "lighting": [
+      {
+        "id": "89a0527e-4b82-4ffc-8b6d-2ae44c2e5bc7",
+        "title": "-",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto"
+      }
+    ]
+  },
+  "scene_5_5_line_1_w0": {
+    "lighting": [
+      {
+        "id": "86db1545-7f79-4842-8e10-9043850263f0",
+        "title": "LIGHTS UP",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto"
+      }
+    ]
+  },
+  "scene_5_5_line_2_w4": {
+    "lighting": [
+      {
+        "id": "2f41f366-4637-434a-bba7-d86649a1392d",
+        "title": "LIGHTS DOWN",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "90.13",
+        "oscLevel": 100,
+        "oscTransport": "auto"
+      }
+    ]
+  },
+  "184955c7-fa61-43fe-a914-f1e6d10bd85a_w10": {
     "sound": [
       {
-        "id": "986b578c-24dc-4ca2-8410-844fa07beddd",
-        "title": "DOGS blackout AFTER OFF STAGE",
+        "id": "8e522d6a-5ece-437f-a8e7-2d79ef11d907",
+        "title": "Start lights",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 0,
+        "clipEnd": 467.827,
+        "fadeIn": 2,
+        "fadeOut": 0,
+        "volume": -3.5,
+        "manualFadeOutDuration": 4,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "clip": "/audio/rain_1779419896012.wav"
+      }
+    ]
+  },
+  "b5e6417b-ce5c-4917-b4a5-d89930cbbbf6_w2": {
+    "sound": [
+      {
+        "id": "279d8acd-15ce-4d76-80e1-aa088eced69f",
+        "title": "Bell PLAY OUT",
         "description": "",
         "soundSubtype": "play_once",
         "playStyle": "alongside",
@@ -3660,6 +3611,182 @@
         },
         "oscTriggers": [],
         "clip": "/audio/who-let-the-dogs-out.wav"
+      }
+    ]
+  },
+  "scene_1_4_line_27_w12": {
+    "lighting": [
+      {
+        "id": "bcc41122-b4db-4007-86f6-9616c3cc0cd2",
+        "title": "Blackout",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto"
+      }
+    ]
+  },
+  "ffd9c7b3-693a-4c99-aa43-164d8c97c306_w2": {
+    "lighting": [
+      {
+        "id": "51248d1e-0260-4524-ac92-eb989c4aa06e",
+        "title": "Back to tony",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto"
+      }
+    ]
+  },
+  "scene_1_6_line_23_w10": {
+    "lighting": [
+      {
+        "id": "72c54911-42e1-43b2-b332-fd38dff3448b",
+        "title": "Blackout for bed",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto"
+      }
+    ]
+  },
+  "scene_1_6_line_23_w12": {
+    "sound": [
+      {
+        "id": "5c469346-dfb3-42c3-9b68-c999492f3f24",
+        "title": "Jaws OFF THEN BO",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 0,
+        "clipEnd": 100.868,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": -2,
+        "manualFadeOutDuration": 3,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "clip": "/audio/Jaws_-_Theme_song_1779421401379.wav"
+      }
+    ]
+  },
+  "scene_3_3_line_1_w0": {
+    "sound": [
+      {
+        "id": "d34cd2b6-8f02-401c-8831-034abe7752e7",
+        "title": "JAWS Yr 7s my door is always open",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 0,
+        "clipEnd": 100.868,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 1,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "50.04",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "clip": "/audio/Jaws_-_Theme_song_1779421401379.wav"
+      }
+    ]
+  },
+  "scene_4_4_line_44_w1": {
+    "lighting": [
+      {
+        "id": "c9c84cb1-ebe6-4313-8646-04c68d582981",
+        "title": "Blackout",
+        "description": "",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto"
+      }
+    ]
+  },
+  "scene_5_5_line_6_w3": {
+    "sound": [
+      {
+        "id": "31eb27d8-b933-4222-86e2-9a238265f2d1",
+        "title": "Soudn restart tyson exit",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 22.586,
+        "clipEnd": 284.328,
+        "fadeIn": 1,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 2,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "clip": "/audio/holding-out-for-a-hero.wav"
+      }
+    ]
+  },
+  "scene_5_6_line_7_w0": {
+    "sound": [
+      {
+        "id": "86cc18de-b845-4624-8ceb-438be626504f",
+        "title": "Holding Out For A hero",
+        "description": "",
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 58,
+        "clipEnd": 284.328,
+        "fadeIn": 0.5,
+        "fadeOut": 0,
+        "volume": 0,
+        "manualFadeOutDuration": 5,
+        "allowMultipleInstances": false,
+        "loopStart": 0,
+        "loopEnd": null,
+        "loopXfade": 0,
+        "oscStartTrigger": {
+          "oscAction": "goto",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "clip": "/audio/holding-out-for-a-hero.wav"
       }
     ]
   }
