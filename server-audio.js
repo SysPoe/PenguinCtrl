@@ -960,19 +960,19 @@ function toggleMute(instanceId) {
 function masterVolume(db) {
     if (db !== undefined) {
         _masterDb = db;
-        applyMasterGain();
+        if (_ctx && _ctx.state !== 'closed') applyMasterGain(_ctx);
     }
     return _masterDb;
 }
 
 function setMasterMuted(muted) {
     _masterMuted = Boolean(muted);
-    applyMasterGain();
+    if (_ctx && _ctx.state !== 'closed') applyMasterGain(_ctx);
 }
 
 function toggleMasterMute() {
     _masterMuted = !_masterMuted;
-    applyMasterGain();
+    if (_ctx && _ctx.state !== 'closed') applyMasterGain(_ctx);
     return _masterMuted;
 }
 

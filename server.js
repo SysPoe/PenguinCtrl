@@ -887,6 +887,7 @@ function buildCueListPayload(pages, cues) {
   const sceneCounters = {};
   const cueTypes = cueTypeRegistry.listTypes();
   const out = [];
+  const visitedTargetIds = new Set();
   let sortIndex = 0;
 
   function nextSceneCueNumber(sceneId) {
@@ -900,13 +901,21 @@ function buildCueListPayload(pages, cues) {
     return `${sceneNum}.${String(count).padStart(2, '0')}`;
   }
 
+  function getExplicitCueNumber(raw) {
+    const value = raw?.number ?? raw?.cueNumber;
+    if (value == null) return null;
+    const text = String(value).trim();
+    return text ? text : null;
+  }
+
   function addTargetCues(targetId, sceneId, position, targetSortIndex) {
     const targetCues = cues?.[targetId];
     if (!targetCues || typeof targetCues !== 'object') return;
+    visitedTargetIds.add(targetId);
 
     cueTypes.forEach(type => {
       normalizeCueListForType(targetCues[type.id]).forEach(raw => {
-        const number = nextSceneCueNumber(sceneId);
+        const number = getExplicitCueNumber(raw) || nextSceneCueNumber(sceneId);
         const fullCue = deepMerge(type.payloadDefaults || {}, raw);
         fullCue.cueType = type.id;
         if (fullCue.oscCueNumber && isCueNumberTemplate(fullCue.oscCueNumber)) {
@@ -934,6 +943,7 @@ function buildCueListPayload(pages, cues) {
         fullCue.cueNumber = number;
         out.push({
           id: `${targetId}_${type.id}_${raw.id || number}`,
+          cueId: raw.id || null,
           targetId,
           cueType: type.id,
           cueTypeLabel: type.label,
@@ -979,6 +989,12 @@ function buildCueListPayload(pages, cues) {
     });
   });
 
+  Object.keys(cues || {}).forEach(targetId => {
+    if (visitedTargetIds.has(targetId)) return;
+    addTargetCues(targetId, null, 'Cue List', sortIndex);
+    sortIndex += 1;
+  });
+
   return out.sort((a, b) => {
     if (a.sortIndex !== b.sortIndex) return a.sortIndex - b.sortIndex;
     if (a.cueType !== b.cueType) {
@@ -1022,11 +1038,13 @@ function addCueCacheEntry(entriesByClip, cue, order, cueIds = [], orderCueId = n
 function buildCueCacheEntries(pages, cues) {
   const entriesByClip = new Map();
   const nextCueOrderById = new Map();
+  const visitedTargetIds = new Set();
   let order = 0;
 
   function assignTarget(targetId) {
     const targetCues = cues?.[targetId];
     if (!targetCues || typeof targetCues !== 'object') return;
+    visitedTargetIds.add(targetId);
 
     cueTypeRegistry.listTypes().forEach(type => {
       normalizeCueListForType(targetCues[type.id]).forEach(cue => {
@@ -1058,6 +1076,10 @@ function buildCueCacheEntries(pages, cues) {
         });
       }
     });
+  });
+
+  Object.keys(cues || {}).forEach(targetId => {
+    if (!visitedTargetIds.has(targetId)) assignTarget(targetId);
   });
 
   cueOrderById = nextCueOrderById;
@@ -1517,10 +1539,11 @@ wss.on('connection', (ws) => {
   });
 });
 
-// Start server after warming caches used during show playback.
+// Build the script index before serving legacy cue data. Audio warmup is async
+// so the cue-list UI is not blocked by a large preload pass.
 await loadSceneIndex().catch(e => console.error('Error loading scenes:', e.message));
-await preloadCueAudio().catch(e => console.error('Error preloading cue audio:', e.message));
 
 httpServer.listen(PORT, () => {
-  console.log(`Script Viewer running at http://localhost:${PORT}`);
+  console.log(`Cue List running at http://localhost:${PORT}`);
+  preloadCueAudio().catch(e => console.error('Error preloading cue audio:', e.message));
 });

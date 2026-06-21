@@ -4,521 +4,268 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CuSus</title>
+  <title>CuSus Cue List</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
-    href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:ital,wght@0,200..800;1,200..800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=Cormorant+Garamond:ital,wght@0,600;1,600&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:ital,wght@0,200..800;1,200..800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="styles/main.css">
+  <link rel="stylesheet" href="styles/cue.css">
 </head>
 
 <body>
-  <main class="main-content">
-    <div class="top-bar">
-      <div class="scene-breadcrumb">
-        <span class="act-name" id="breadcrumb-act">Loading...</span>
-        <span class="scene-title" id="breadcrumb-title">Please wait</span>
-      </div>
-      <div class="controls">
-        <span class="page-display" id="page-display">Page --</span>
-        <div class="goto-container">
-          <button class="nav-btn" onclick="toggleGoto()">Go to Page</button>
-          <div class="goto-input" id="goto-input">
-            <input type="number" id="page-number" placeholder="Page #" min="1"
-              onkeydown="if(event.key==='Enter') goToPageNumber()">
-            <button class="nav-btn" onclick="goToPageNumber()">Go</button>
-          </div>
-        </div>
-        <button class="nav-btn" onclick="openConfigModal()">Config</button>
-        <button class="nav-btn" onclick="openCueList()">Cue List</button>
-        <div class="zoom-controls">
-          <button class="nav-btn" onclick="zoomOut()">−</button>
-          <span class="zoom-level" id="zoom-level">100%</span>
-          <button class="nav-btn" onclick="zoomIn()">+</button>
-        </div>
-      </div>
-    </div>
+  <div class="cue-error-toasts" id="cue-error-toasts"></div>
 
-    <div class="script-scroll-container" id="scroll-container">
-      <div class="script-content" id="script-content">
-        <div class="welcome-panel">
-          <h2>Loading script...</h2>
-        </div>
-      </div>
-    </div>
-  </main>
-
-  <!-- Cue Modal -->
-  <div class="cue-modal-overlay" id="cue-modal-overlay" onclick="closeCueModal(event)">
-    <div class="cue-modal">
-      <div class="cue-modal-header">
-        <div class="cue-modal-header-left">
-          <h2 class="cue-modal-title" id="cue-modal-title">Add Cue</h2>
-          <span class="cue-modal-context" id="cue-modal-context"></span>
-        </div>
-        <div class="cue-modal-header-actions">
-          <button
-            class="cue-modal-window-btn"
-            id="cue-modal-maximize"
-            type="button"
-            onclick="toggleCueModalMaximize()"
-            aria-label="Maximise cue editor"
-            title="Maximise cue editor">□</button>
-          <button class="cue-modal-close" type="button" onclick="closeCueModal()">✕</button>
-        </div>
-      </div>
-
-      <!-- Existing cues list (always visible when cues exist) -->
-      <div class="cue-modal-existing" id="cue-modal-existing" style="display:none">
-        <div class="cue-modal-existing-label">Cues on this line</div>
-        <div class="cue-modal-existing-list" id="cue-modal-existing-list"></div>
-      </div>
-
-      <div class="cue-modal-body">
-        <!-- Type selector -->
-        <div class="cue-type-selector" id="cue-type-selector">
-          <button class="cue-type-btn" data-type="lighting" onclick="selectCueType('lighting')">Lighting</button>
-          <button class="cue-type-btn" data-type="sound" onclick="selectCueType('sound')">Sound</button>
-          <button class="cue-type-btn" data-type="osc" onclick="selectCueType('osc')">OSC</button>
-        </div>
-
-        <!-- Sound options (shown when type=sound) -->
-        <div id="sound-section" class="sound-section" style="display:none">
-
-          <!-- Sub-type -->
-          <div class="sound-subtype-bar">
-            <button class="sound-sub-btn selected" data-subtype="play_once" onclick="selectSoundSubtype('play_once')">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polygon points="5 3 19 12 5 21 5 3" />
-              </svg>
-              Play Once
-            </button>
-            <button class="sound-sub-btn" data-subtype="vamp" onclick="selectSoundSubtype('vamp')">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="17 1 21 5 17 9" />
-                <path d="M3 11V9a4 4 0 0 1 4-4h14" />
-                <polyline points="7 23 3 19 7 15" />
-                <path d="M21 13v2a4 4 0 0 1-4 4H3" />
-              </svg>
-              Vamp
-            </button>
-          </div>
-
-          <!-- Clip selector -->
-          <div class="clip-row">
-            <div class="clip-name-area">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                style="flex-shrink:0;opacity:.4">
-                <path d="M9 18V5l12-2v13" />
-                <circle cx="6" cy="18" r="3" />
-                <circle cx="18" cy="16" r="3" />
-              </svg>
-              <span id="clip-name-text">No clip selected</span>
-            </div>
-            <button class="btn btn-ghost btn-xs" type="button" onclick="toggleClipBrowser()">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="2" y="3" width="20" height="14" rx="2" />
-                <line x1="8" y1="21" x2="16" y2="21" />
-                <line x1="12" y1="17" x2="12" y2="21" />
-              </svg>
-              Browse
-            </button>
-            <label class="btn btn-ghost btn-xs" for="clip-file-input">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="17 8 12 3 7 8" />
-                <line x1="12" y1="3" x2="12" y2="15" />
-              </svg>
-              Upload
-            </label>
-            <input type="file" id="clip-file-input" accept="audio/*" style="display:none"
-              onchange="handleClipUpload(this.files[0])">
-          </div>
-
-          <!-- Clip browser -->
-          <div class="clip-browser" id="clip-browser">
-            <div class="clip-browser-inner" id="clip-browser-inner">
-              <div class="clip-browser-msg">Loading…</div>
-            </div>
-          </div>
-
-          <!-- Preview bar -->
-          <div class="preview-bar" id="preview-bar" style="display:none">
-            <button class="preview-btn" id="preview-play-btn" onclick="previewToggle()">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                <polygon points="5 3 19 12 5 21 5 3" />
-              </svg>
-              Preview
-            </button>
-            <button class="preview-devamp-btn" id="preview-devamp-btn" onclick="previewDevamp()" style="display:none">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="7 23 3 19 7 15" />
-                <path d="M21 13v2a4 4 0 0 1-4 4H3" />
-              </svg>
-              Vamp Out
-            </button>
-            <span class="preview-status" id="preview-status"></span>
-          </div>
-
-          <div class="preview-scrub" id="preview-scrub" style="display:none">
-            <span class="preview-time" id="preview-position-start">0.00s</span>
-            <input type="range" class="preview-position" id="preview-position" min="0" max="0" step="0.001" value="0"
-              oninput="onPreviewScrubberInput()">
-            <span class="preview-time" id="preview-position-end">0.00s</span>
-          </div>
-
-          <!-- Waveform -->
-          <div class="wf-toolbar">
-            <span class="wf-toolbar-title">Waveform</span>
-            <div class="wf-zoom-controls" style="display:none" id="wf-zoom-controls">
-              <button type="button" class="btn btn-ghost btn-xs"
-                onclick="setWaveformZoom(Math.max(1, waveformZoom - 0.5))">−</button>
-              <div style="display: flex; align-items: center; gap: 2px;">
-                <input type="number" id="wf-zoom-input"
-                  style="width: 40px; text-align: right; background: transparent; border: 1px solid #333; color: white; border-radius: 3px; font-size: 0.8rem; padding: 1px 4px; appearance: textfield; -moz-appearance: textfield;"
-                  value="100" onchange="setWaveformZoom(this.value / 100)" min="10" step="10">
-                <span style="font-size: 0.8rem; opacity: 0.8;">%</span>
-              </div>
-              <button type="button" class="btn btn-ghost btn-xs"
-                onclick="setWaveformZoom(waveformZoom + 0.5)">+</button>
-            </div>
-          </div>
-          <div class="waveform-container" id="waveform-container" style="overflow-x: auto; position: relative;">
-            <div class="waveform-inner" id="waveform-inner" style="position: relative; height: 110px;"
-              onpointerdown="onWaveformScrubStart(event)">
-              <div class="waveform-empty" id="waveform-empty">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                </svg>
-                <span class="waveform-empty-text">No audio loaded</span>
-              </div>
-              <div class="waveform-loading" id="waveform-loading" style="display:none">
-                <div class="waveform-loading-bar"></div>
-              </div>
-              <canvas id="waveform-canvas"
-                style="display:none; position:absolute; top:0; left:0; height: 110px;"></canvas>
-              <div id="wf-handle-layer" style="display:none; position:absolute; inset:0; pointer-events:none"></div>
-              <div id="wf-trigger-layer" style="display:none; position:absolute; inset:0; pointer-events:none"></div>
-            </div>
-          </div>
-
-          <!-- Triggers (Sync OSC) -->
-          <div class="ssg" id="osc-triggers-section" style="display:none;">
-            <div class="ssg-label" style="display: flex; justify-content: space-between; align-items: center;">
-              <span>OSC Sync</span>
-              <button type="button" class="btn btn-ghost btn-xs" onclick="addOscTrigger()">+ Add</button>
-            </div>
-            <div id="osc-triggers-list" class="osc-triggers-list"></div>
-          </div>
-
-          <!-- Play style -->
-          <div class="ssg">
-            <div class="ssg-label">Play style</div>
-            <div class="seg-control" id="play-style-control">
-              <button class="seg-btn selected" data-value="alongside" onclick="selectPlayStyle(this)">Alongside</button>
-              <button class="seg-btn" data-value="wait" onclick="selectPlayStyle(this)">Wait</button>
-              <button class="seg-btn" data-value="fade_all" onclick="selectPlayStyle(this)">Fade all</button>
-              <button class="seg-btn" data-value="xfade" onclick="selectPlayStyle(this)">X-Fade</button>
-            </div>
-          </div>
-
-          <!-- Cue start OSC -->
-          <div class="ssg">
-            <div class="ssg-label">Cue start OSC</div>
-            <label class="toggle-row" style="gap: 8px; align-items: center;">
-              <span>Trigger on cue start</span>
-              <select id="p-start-osc" class="param-select" style="min-width: 140px;" onchange="syncSoundStartOscUi(this.value)">
-                <option value="none">None</option>
-                <option value="go">Go</option>
-                <option value="back">Back</option>
-                <option value="release">Release</option>
-                <option value="goto">Go To Cue</option>
-                <option value="level">Set Level</option>
-                <option value="flash">Flash</option>
-              </select>
-            </label>
-            <div class="prows" id="p-start-osc-rows" style="margin-top: 8px;">
-              <div class="prow" id="p-start-osc-playback-row">
-                <span class="plabel">Playback</span>
-                <div class="ptrack-wrap">
-                  <div class="ptrack-bg"><div class="ptrack-fill pf-trim" id="pf-start-osc-playback"></div></div>
-                  <input type="range" class="ptrack" id="ps-start-osc-playback" min="1" max="99" step="1" value="1"
-                    oninput="onParamChange('p-start-osc-playback','slider')">
-                </div>
-                <input type="number" class="pnum" id="p-start-osc-playback" min="1" step="1" value="1"
-                  oninput="onParamChange('p-start-osc-playback','number')">
-              </div>
-              <div class="prow" id="p-start-osc-cue-row">
-                <span class="plabel">Cue no.</span>
-                <input type="text" class="pnum" id="p-start-osc-cue" value="{cueNumber}" style="width: 120px;"
-                  oninput="onParamChange('p-start-osc-cue','number')">
-              </div>
-              <div class="prow" id="p-start-osc-level-row">
-                <span class="plabel">Level</span>
-                <div class="ptrack-wrap">
-                  <div class="ptrack-bg"><div class="ptrack-fill pf-vol" id="pf-start-osc-level"></div></div>
-                  <input type="range" class="ptrack" id="ps-start-osc-level" min="0" max="100" step="1" value="100"
-                    oninput="onParamChange('p-start-osc-level','slider')">
-                </div>
-                <input type="number" class="pnum" id="p-start-osc-level" min="0" max="100" step="1" value="100"
-                  oninput="onParamChange('p-start-osc-level','number')">
-              </div>
-              <div class="prow" id="p-start-osc-transport-row">
-                <span class="plabel">Transport</span>
-                <select id="p-start-osc-transport" class="param-select" style="min-width: 120px;" onchange="onParamChange('p-start-osc-transport','number')">
-                  <option value="auto">Auto</option>
-                  <option value="osc">OSC</option>
-                  <option value="remote">REMOTE</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <!-- Trim -->
-          <div class="ssg">
-            <div class="ssg-label">Trim</div>
-            <div class="prows">
-              <div class="prow">
-                <span class="plabel">Start</span>
-                <div class="ptrack-wrap">
-                  <div class="ptrack-bg">
-                    <div class="ptrack-fill pf-trim" id="pf-clip-start"></div>
-                  </div><input type="range" class="ptrack" id="ps-clip-start" min="0" max="60" step="0.001" value="0"
-                    oninput="onParamChange('p-clip-start','slider')">
-                </div>
-                <input type="number" class="pnum" id="p-clip-start" min="0" step="0.001" value="0"
-                  oninput="onParamChange('p-clip-start','number')">
-                <span class="punit">s</span>
-              </div>
-              <div class="prow">
-                <span class="plabel">End</span>
-                <div class="ptrack-wrap">
-                  <div class="ptrack-bg">
-                    <div class="ptrack-fill pf-trim" id="pf-clip-end"></div>
-                  </div><input type="range" class="ptrack" id="ps-clip-end" min="0" max="60" step="0.001" value="60"
-                    oninput="onParamChange('p-clip-end','slider')">
-                </div>
-                <input type="number" class="pnum" id="p-clip-end" min="0" step="0.001" placeholder="-"
-                  oninput="onParamChange('p-clip-end','number')">
-                <span class="punit">s</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Fades -->
-          <div class="ssg">
-            <div class="ssg-label">Fades</div>
-            <div class="prows">
-              <div class="prow">
-                <span class="plabel">Fade in</span>
-                <div class="ptrack-wrap">
-                  <div class="ptrack-bg">
-                    <div class="ptrack-fill pf-fade" id="pf-fade-in"></div>
-                  </div><input type="range" class="ptrack" id="ps-fade-in" min="0" max="30" step="0.001" value="0"
-                    oninput="onParamChange('p-fade-in','slider')">
-                </div>
-                <input type="number" class="pnum" id="p-fade-in" min="0" step="0.001" value="0"
-                  oninput="onParamChange('p-fade-in','number')">
-                <span class="punit">s</span>
-              </div>
-              <div class="prow">
-                <span class="plabel">Fade out</span>
-                <div class="ptrack-wrap">
-                  <div class="ptrack-bg">
-                    <div class="ptrack-fill pf-fade" id="pf-fade-out"></div>
-                  </div><input type="range" class="ptrack" id="ps-fade-out" min="0" max="30" step="0.001" value="0"
-                    oninput="onParamChange('p-fade-out','slider')">
-                </div>
-                <input type="number" class="pnum" id="p-fade-out" min="0" step="0.001" value="0"
-                  oninput="onParamChange('p-fade-out','number')">
-                <span class="punit">s</span>
-              </div>
-              <div class="prow">
-                <span class="plabel">Manual f/o</span>
-                <div class="ptrack-wrap">
-                  <div class="ptrack-bg">
-                    <div class="ptrack-fill pf-muted" id="pf-manual-fo"></div>
-                  </div><input type="range" class="ptrack" id="ps-manual-fo" min="0.1" max="30" step="0.1" value="2"
-                    oninput="onParamChange('p-manual-fo','slider')">
-                </div>
-                <input type="number" class="pnum" id="p-manual-fo" min="0.1" step="0.1" value="2"
-                  oninput="onParamChange('p-manual-fo','number')">
-                <span class="punit">s</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Level -->
-          <div class="ssg">
-            <div class="ssg-label">Level</div>
-            <div class="prows">
-              <div class="prow">
-                <span class="plabel">Volume</span>
-                <div class="ptrack-wrap">
-                  <div class="ptrack-bg ptrack-bg-vol">
-                    <div class="ptrack-zerodb"></div>
-                    <div class="ptrack-fill pf-vol" id="pf-volume"></div>
-                  </div><input type="range" class="ptrack" id="ps-volume" min="-40" max="20" step="0.5" value="0"
-                    oninput="onParamChange('p-volume','slider')">
-                </div>
-                <input type="number" class="pnum" id="p-volume" min="-40" max="20" step="0.5" value="0"
-                  oninput="onParamChange('p-volume','number')">
-                <span class="punit">dB</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Allow multi -->
-          <div class="sound-extras">
-            <label class="toggle-row">
-              <input type="checkbox" id="p-allow-multi">
-              <span>Allow multiple instances</span>
-            </label>
-          </div>
-
-          <!-- Vamp section -->
-          <div id="vamp-section" style="display:none">
-            <div class="vamp-divider">Loop</div>
-            <div class="ssg">
-              <div class="ssg-label">Range</div>
-              <div class="prows">
-                <div class="prow">
-                  <span class="plabel">Start</span>
-                  <div class="ptrack-wrap">
-                    <div class="ptrack-bg">
-                      <div class="ptrack-fill pf-loop" id="pf-loop-start"></div>
-                    </div><input type="range" class="ptrack" id="ps-loop-start" min="0" max="60" step="0.001" value="0"
-                      oninput="onParamChange('p-loop-start','slider')">
-                  </div>
-                  <input type="number" class="pnum" id="p-loop-start" min="0" step="0.001" value="0"
-                    oninput="onParamChange('p-loop-start','number')">
-                  <span class="punit">s</span>
-                </div>
-                <div class="prow">
-                  <span class="plabel">End</span>
-                  <div class="ptrack-wrap">
-                    <div class="ptrack-bg">
-                      <div class="ptrack-fill pf-loop" id="pf-loop-end"></div>
-                    </div><input type="range" class="ptrack" id="ps-loop-end" min="0" max="60" step="0.001" value="60"
-                      oninput="onParamChange('p-loop-end','slider')">
-                  </div>
-                  <input type="number" class="pnum" id="p-loop-end" min="0" step="0.001" placeholder="-"
-                    oninput="onParamChange('p-loop-end','number')">
-                  <span class="punit">s</span>
-                </div>
-                <div class="prow">
-                  <span class="plabel">X-fade</span>
-                  <div class="ptrack-wrap">
-                    <div class="ptrack-bg">
-                      <div class="ptrack-fill pf-loop" id="pf-loop-xfade"></div>
-                    </div><input type="range" class="ptrack" id="ps-loop-xfade" min="0" max="30" step="0.001" value="0"
-                      oninput="onParamChange('p-loop-xfade','slider')">
-                  </div>
-                  <input type="number" class="pnum" id="p-loop-xfade" min="0" step="0.001" value="0"
-                    oninput="onParamChange('p-loop-xfade','number')">
-                  <span class="punit">s</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-        </div>
-
-        <!-- Lighting actions -->
-        <div id="lighting-section" class="lighting-section" style="display:none">
-          <div class="lighting-action-bar">
-            <button class="lighting-action-btn selected" data-action="none" onclick="selectLightingAction('none')">None</button>
-            <button class="lighting-action-btn" data-action="go" onclick="selectLightingAction('go')">Go</button>
-            <button class="lighting-action-btn" data-action="back" onclick="selectLightingAction('back')">Back</button>
-            <button class="lighting-action-btn" data-action="goto" onclick="selectLightingAction('goto')">Go To Cue</button>
-            <button class="lighting-action-btn" data-action="release" onclick="selectLightingAction('release')">Release</button>
-          </div>
-
-          <div class="lighting-action-desc" id="lighting-action-desc">No OSC action.</div>
-
-          <div class="osc-grid">
-            <div class="osc-field-row">
-              <label for="lighting-playback">Playback (Cue Stack)</label>
-              <input type="number" id="lighting-playback" min="1" step="1" value="1">
-            </div>
-
-            <div class="osc-field-row" id="lighting-cue-row" style="display:none">
-              <label for="lighting-cue-number">Cue Number</label>
-              <input type="text" id="lighting-cue-number" value="{cueNumber}" placeholder="e.g. 5, {cueNumber}, {cueNumber+0.01}, {cueNumber}+1">
-            </div>
-
-            <div class="osc-field-row" id="lighting-level-row" style="display:none">
-              <label for="lighting-level">Level</label>
-              <input type="number" id="lighting-level" min="0" max="100" step="1" value="100">
-            </div>
-
-            <div class="osc-field-row">
-              <label for="lighting-transport">Transport</label>
-              <select id="lighting-transport" class="param-select" onchange="updateLightingActionUi()">
-                <option value="auto">Auto</option>
-                <option value="osc">OSC</option>
-                <option value="remote">QuickQ Remote UDP</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="osc-help-note">
-            Leave this as None for plain lighting cues with no console action.
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label for="cue-title">Title</label>
-          <input type="text" id="cue-title" placeholder="e.g., Blackout, Thunder roll" autocomplete="off"
-            onkeydown="handleCueModalKeydown(event)">
-        </div>
-
-        <div class="form-group">
-          <label for="cue-description">
-            Notes
-            <span class="label-hint">optional</span>
-          </label>
-          <textarea id="cue-description" rows="2" placeholder="Additional notes..."
-            onkeydown="handleCueModalKeydown(event)"></textarea>
-        </div>
-      </div>
-
-      <div class="modal-actions">
-        <button class="btn btn-ghost" onclick="closeCueModal()">Cancel</button>
-        <button class="btn btn-danger" id="btn-delete-cue" onclick="deleteCue()" style="display:none">Delete</button>
-        <button class="btn btn-primary" onclick="saveCue()">
-          Save
-          <span class="btn-hint">↵</span>
-        </button>
-      </div>
-    </div>
+  <div id="ws-banner">
+    WebSocket Disconnected - Reconnecting...
   </div>
 
-  <!-- Config Modal -->
-  <div class="config-modal-overlay" id="config-modal-overlay" onclick="closeConfigModal(event)">
-    <div class="config-modal">
-      <div class="config-modal-header">
+  <header class="header app-header">
+    <div class="header-left">
+      <strong class="app-title">Cue List</strong>
+      <span class="header-count" id="cue-count">-</span>
+      <span class="ws-dot" id="ws-dot" title="WebSocket status"></span>
+    </div>
+    <nav class="header-actions" aria-label="Cue list actions">
+      <button class="header-btn" id="btn-new-cue" type="button">New Cue</button>
+      <button class="header-btn" id="btn-edit-cue" type="button" disabled>Edit</button>
+      <button class="btn-reset" id="btn-reset-played" type="button" title="Clear all tick marks">Reset</button>
+      <button class="header-btn" id="btn-refresh" type="button">Refresh</button>
+      <a class="header-btn link-btn" href="settings.html">Settings</a>
+    </nav>
+  </header>
+
+  <section class="pane-top" id="pane-top" style="height: 56vh;" aria-label="Cues">
+    <div class="cue-table-wrap">
+      <table id="cue-table">
+        <thead>
+          <tr>
+            <th class="col-num">#</th>
+            <th>Title</th>
+            <th class="col-type">Type</th>
+            <th class="col-state">State</th>
+            <th class="col-position">Position</th>
+            <th class="col-len r">Length</th>
+          </tr>
+        </thead>
+        <tbody id="cue-tbody"></tbody>
+      </table>
+      <div class="empty-cues" id="empty-cues" hidden>No cues defined</div>
+    </div>
+  </section>
+
+  <div class="resizer" id="resizer" role="separator" aria-orientation="horizontal" aria-label="Resize panes"></div>
+
+  <section class="pane-bottom" aria-label="Runtime controls">
+    <div class="transport">
+      <div class="master-vol-row">
+        <div class="master-vol-top">
+          <div class="master-vol-label">Master Vol <span id="master-db-label">+0.0 dB</span></div>
+          <button class="header-btn btn-master-mute" id="master-mute-btn" type="button">Mute</button>
+        </div>
+        <input type="range" id="master-vol" min="-40" max="6" step="0.5" value="0" aria-label="Master volume">
+      </div>
+      <div class="transport-btns">
+        <button class="btn-transport btn-go" id="btn-go" type="button" disabled>GO</button>
+        <button class="btn-transport btn-fade" id="btn-fade-all" type="button">Fade All</button>
+        <button class="btn-transport btn-stop" id="btn-stop-all" type="button">Stop All</button>
+      </div>
+    </div>
+
+    <div class="voices-panel">
+      <div class="voices-header">
+        <span id="voices-header-label">Active Voices</span>
+        <button class="header-btn voices-clear-btn" id="btn-clear-queue" type="button" title="Cancel any queued waiting cues">Clear Queue</button>
+      </div>
+      <div id="voices-list">
+        <div class="no-voices">No active voices</div>
+      </div>
+    </div>
+  </section>
+
+  <dialog class="cue-editor" id="cue-editor">
+    <form id="cue-editor-form" method="dialog">
+      <div class="editor-header">
         <div>
-          <h2 class="config-modal-title">Configuration</h2>
+          <h2 id="editor-title">New Cue</h2>
+          <p id="editor-subtitle">Create a cue directly in the list.</p>
         </div>
-        <button class="cue-modal-close" onclick="closeConfigModal()">✕</button>
+        <button class="icon-btn" id="btn-close-editor" type="button" aria-label="Close editor">x</button>
       </div>
-      <div class="config-modal-body" id="config-modal-body">
-        <div class="config-loading">Loading configuration…</div>
-      </div>
-      <div class="config-modal-actions">
-        <button class="btn btn-ghost" onclick="closeConfigModal()">Close</button>
-        <button class="btn btn-primary" onclick="saveConfigModal()">Save Config</button>
-      </div>
-    </div>
-  </div>
 
-  <div class="cue-toast-container" id="cue-toast-container"></div>
+      <div class="editor-grid">
+        <label>
+          Cue Number
+          <input id="field-cue-number" name="number" type="text" autocomplete="off" placeholder="10.01">
+        </label>
+        <label>
+          Type
+          <select id="field-cue-type" name="cueType"></select>
+        </label>
+        <label class="span-2">
+          Title
+          <input id="field-title" name="title" type="text" autocomplete="off" required placeholder="Cue title">
+        </label>
+        <label class="span-2">
+          Notes
+          <textarea id="field-description" name="description" rows="2" placeholder="Optional notes"></textarea>
+        </label>
+      </div>
 
-  <script src="scripts/audio-preview.js"></script>
-  <script src="scripts/main.js"></script>
+      <section class="editor-section" id="lighting-editor" hidden>
+        <h3>Lighting</h3>
+        <div class="editor-grid">
+          <label>
+            Action
+            <select id="field-lighting-action">
+              <option value="none">None</option>
+              <option value="go">Go</option>
+              <option value="back">Back</option>
+              <option value="release">Release</option>
+              <option value="goto">Go To Cue</option>
+              <option value="level">Set Level</option>
+              <option value="flash">Flash</option>
+            </select>
+          </label>
+          <label>
+            Transport
+            <select id="field-lighting-transport">
+              <option value="auto">Auto</option>
+              <option value="osc">OSC</option>
+              <option value="remote">QuickQ Remote UDP</option>
+            </select>
+          </label>
+          <label>
+            Playback
+            <input id="field-lighting-playback" type="number" min="1" step="1" value="1">
+          </label>
+          <label>
+            Console Cue
+            <input id="field-lighting-cue" type="text" value="{cueNumber}" placeholder="{cueNumber+0.01}">
+          </label>
+          <label>
+            Level
+            <input id="field-lighting-level" type="number" min="0" max="100" step="1" value="100">
+          </label>
+        </div>
+      </section>
+
+      <section class="editor-section" id="sound-editor" hidden>
+        <h3>Sound</h3>
+        <div class="editor-grid">
+          <label>
+            Clip
+            <select id="field-sound-clip"></select>
+          </label>
+          <label class="upload-label">
+            Upload
+            <input id="field-sound-upload" type="file" accept="audio/*">
+          </label>
+          <label>
+            Subtype
+            <select id="field-sound-subtype">
+              <option value="play_once">Play Once</option>
+              <option value="vamp">Vamp</option>
+            </select>
+          </label>
+          <label>
+            Play Style
+            <select id="field-sound-play-style">
+              <option value="alongside">Alongside</option>
+              <option value="wait">Wait</option>
+              <option value="fade_all">Fade all</option>
+              <option value="xfade">X-Fade</option>
+            </select>
+          </label>
+          <label>
+            Start
+            <input id="field-clip-start" type="number" min="0" step="0.001" value="0">
+          </label>
+          <label>
+            End
+            <input id="field-clip-end" type="number" min="0" step="0.001" placeholder="Auto">
+          </label>
+          <label>
+            Fade In
+            <input id="field-fade-in" type="number" min="0" step="0.001" value="0">
+          </label>
+          <label>
+            Fade Out
+            <input id="field-fade-out" type="number" min="0" step="0.001" value="0">
+          </label>
+          <label>
+            Manual Fade
+            <input id="field-manual-fade" type="number" min="0.1" step="0.1" value="2">
+          </label>
+          <label>
+            Volume dB
+            <input id="field-volume" type="number" min="-40" max="20" step="0.5" value="0">
+          </label>
+          <label>
+            Loop Start
+            <input id="field-loop-start" type="number" min="0" step="0.001" value="0">
+          </label>
+          <label>
+            Loop End
+            <input id="field-loop-end" type="number" min="0" step="0.001" placeholder="Auto">
+          </label>
+          <label>
+            Loop X-Fade
+            <input id="field-loop-xfade" type="number" min="0" step="0.001" value="0">
+          </label>
+          <label class="toggle-field">
+            <input id="field-allow-multiple" type="checkbox">
+            <span>Allow multiple instances</span>
+          </label>
+        </div>
+
+        <h3>Start OSC</h3>
+        <div class="editor-grid">
+          <label>
+            Action
+            <select id="field-start-osc-action">
+              <option value="none">None</option>
+              <option value="go">Go</option>
+              <option value="back">Back</option>
+              <option value="release">Release</option>
+              <option value="goto">Go To Cue</option>
+              <option value="level">Set Level</option>
+              <option value="flash">Flash</option>
+            </select>
+          </label>
+          <label>
+            Transport
+            <select id="field-start-osc-transport">
+              <option value="auto">Auto</option>
+              <option value="osc">OSC</option>
+              <option value="remote">QuickQ Remote UDP</option>
+            </select>
+          </label>
+          <label>
+            Playback
+            <input id="field-start-osc-playback" type="number" min="1" step="1" value="1">
+          </label>
+          <label>
+            Console Cue
+            <input id="field-start-osc-cue" type="text" value="{cueNumber}" placeholder="{cueNumber+0.01}">
+          </label>
+          <label>
+            Level
+            <input id="field-start-osc-level" type="number" min="0" max="100" step="1" value="100">
+          </label>
+        </div>
+      </section>
+
+      <div class="editor-actions">
+        <button class="btn-vc stop" id="btn-delete-cue" type="button" hidden>Delete</button>
+        <span class="editor-spacer"></span>
+        <button class="header-btn" id="btn-cancel-editor" type="button">Cancel</button>
+        <button class="header-btn primary-action" id="btn-save-cue" type="submit">Save Cue</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="scripts/cue-app.js"></script>
 </body>
 
 </html>

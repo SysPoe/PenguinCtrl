@@ -4,80 +4,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cues</title>
-  <link rel="stylesheet" href="styles/cue.css">
-  <link
-    href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:ital,wght@0,200..800;1,200..800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=Cormorant+Garamond:ital,wght@0,600;1,600&display=swap"
-    rel="stylesheet">
+  <title>CuSus Cue List</title>
+  <meta http-equiv="refresh" content="0; url=/">
 </head>
 
 <body>
-
-  <div class="cue-error-toasts" id="cue-error-toasts"></div>
-
-  <div id="ws-banner">
-    WebSocket Disconnected - Reconnecting...
-  </div>
-
-  <div class="header">
-    <div class="header-left">
-      <span class="header-count" id="cue-count">-</span>
-      <span class="ws-dot" id="ws-dot" title="WebSocket status"></span>
-    </div>
-    <div style="display:flex;gap:6px">
-      <button class="btn-reset" onclick="resetPlayed()" title="Clear all tick marks">Reset</button>
-      <button class="header-btn" onclick="requestCues()">Refresh</button>
-    </div>
-  </div>
-
-  <div class="pane-top" id="pane-top" style="height: 55vh;">
-    <div class="cue-table-wrap">
-      <table id="cue-table">
-        <thead>
-          <tr>
-            <th class="col-num">#</th>
-            <th>Title</th>
-            <th class="col-type">Type</th>
-            <th class="col-state">State</th>
-            <th class="col-len r">Length</th>
-          </tr>
-        </thead>
-        <tbody id="cue-tbody"></tbody>
-      </table>
-      <div class="empty-cues" id="empty-cues" style="display:none">No cues defined</div>
-    </div>
-  </div>
-
-  <div class="resizer" id="resizer"></div>
-
-  <div class="pane-bottom">
-    <div class="transport">
-      <div class="master-vol-row">
-        <div class="master-vol-top">
-          <div class="master-vol-label">Master Vol <span id="master-db-label">+0.0 dB</span></div>
-          <button class="header-btn btn-master-mute" id="master-mute-btn" onclick="toggleMasterMute()">Mute</button>
-        </div>
-        <input type="range" id="master-vol" min="-40" max="6" step="0.5" value="0" oninput="onMasterVol(this.value)">
-      </div>
-      <div class="transport-btns">
-        <button class="btn-transport btn-go" id="btn-go" onclick="goSelected()" disabled>GO</button>
-        <button class="btn-transport btn-fade" onclick="fadeAll()">Fade All</button>
-        <button class="btn-transport btn-stop" onclick="stopAll()">Stop All</button>
-      </div>
-    </div>
-
-    <div class="voices-panel">
-      <div class="voices-header">
-        <span id="voices-header-label">Active Voices</span>
-        <button class="header-btn voices-clear-btn" onclick="clearQueue()" title="Cancel any queued waiting cues">Clear Queue</button>
-      </div>
-      <div id="voices-list">
-        <div class="no-voices">No active voices</div>
-      </div>
-    </div>
-  </div>
-
-  <script src="scripts/cues.js"></script>
+  <a href="/">Open Cue List</a>
 </body>
 
 </html>

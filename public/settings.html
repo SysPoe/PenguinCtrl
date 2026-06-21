@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CuSus Settings</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:ital,wght@0,200..800;1,200..800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="styles/cue.css">
+</head>
+
+<body class="settings-body">
+  <div class="cue-error-toasts" id="cue-error-toasts"></div>
+
+  <header class="header app-header">
+    <div class="header-left">
+      <strong class="app-title">Settings</strong>
+      <span class="header-count" id="settings-status">Loading...</span>
+    </div>
+    <nav class="header-actions" aria-label="Settings actions">
+      <a class="header-btn link-btn" href="/">Cue List</a>
+      <button class="header-btn" id="btn-reload-settings" type="button">Reload</button>
+      <button class="header-btn primary-action" id="btn-save-settings" type="button">Save</button>
+    </nav>
+  </header>
+
+  <main class="settings-page">
+    <div class="settings-layout" id="settings-root">
+      <div class="config-loading">Loading configuration...</div>
+    </div>
+  </main>
+
+  <script src="scripts/settings.js"></script>
+</body>
+
+</html>
