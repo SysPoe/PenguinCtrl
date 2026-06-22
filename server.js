@@ -1,71 +1,29 @@
 import express from 'express';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
-import { readFileSync, statSync, writeFileSync, existsSync, mkdirSync, unlinkSync, readdirSync } from 'fs';
-import { join, dirname, extname, basename } from 'path';
+import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'fs';
+import { basename, dirname, extname, join } from 'path';
 import { execFile } from 'child_process';
 import dgram from 'node:dgram';
-import { parseString } from 'xml2js';
 import { fileURLToPath } from 'url';
+import { gzipSync, gunzipSync } from 'zlib';
 import ffmpegStatic from 'ffmpeg-static';
 import {
-  initAudioConfig,
-  playCue, fadeOut as audioFadeOut, stop as audioStop, stopAll as audioStopAll,
+  initAudioConfig, playCue, fadeOut as audioFadeOut, stop as audioStop, stopAll as audioStopAll,
   fadeOutAll as audioFadeOutAll, devamp as audioDevamp, cancelDevamp as audioCancelDevamp,
-  listActive, setVolume, toggleMute as audioToggleMute,
-  masterVolume, toggleMasterMute as audioToggleMasterMute,
+  listActive, setVolume, toggleMute as audioToggleMute, masterVolume, toggleMasterMute,
   isMasterMuted as audioIsMasterMuted, cancelWaitingCues as audioCancelWaitingCues,
-  pause as audioPause, resume as audioResume, seek as audioSeek, setTriggerCallback as audioSetTriggerCallback,
+  pause as audioPause, resume as audioResume, seek as audioSeek, setTriggerCallback,
   preloadBuffer as audioPreloadBuffer, updateCacheHints as audioUpdateCacheHints,
-  markCuePlayed as audioMarkCuePlayed, clearPlayedCacheHints as audioClearPlayedCacheHints,
-  setCacheCurrentOrder as audioSetCacheCurrentOrder, listAudioOutputDevices
+  markCuePlayed, clearPlayedCacheHints, setCacheCurrentOrder, listAudioOutputDevices,
 } from './server-audio.js';
 import { createConfigService } from './config/config-service.js';
 import { createCueTypeRegistry } from './config/cue-type-registry.js';
 import { createCueExecutionEngine } from './server-cue-handlers.js';
 
-// NOTE: Please ensure you have pipewire-jack installed and running through `pw-jack node x.js` if you encounter any errors
-
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3001;
-
-function isAudioBackendClientError(err) {
-  const message = String(err?.message || err || '');
-  return message.includes('SERVER_FAILED')
-    || message.includes('Failed to open client')
-    || (err?.code === 'ECONNREFUSED' && message.includes('recv'));
-}
-
-function logAudioBackendHint(err) {
-  console.error('Audio backend error:', err?.message || err);
-  console.error('On Raspberry Pi/PipeWire, start with ./start.sh or: WEB_AUDIO_LATENCY=playback pw-jack bun server.js');
-}
-
-function ffmpegEnv() {
-  const env = { ...process.env };
-  delete env.LD_LIBRARY_PATH;
-  return env;
-}
-
-process.on('uncaughtException', (err) => {
-  if (isAudioBackendClientError(err)) {
-    logAudioBackendHint(err);
-    return;
-  }
-  throw err;
-});
-
-process.on('unhandledRejection', (reason) => {
-  if (isAudioBackendClientError(reason)) {
-    logAudioBackendHint(reason);
-    return;
-  }
-  console.error('Unhandled rejection:', reason);
-});
-
-// Config
-const SCENES_FILE = join(__dirname, 'scenes.xml');
 const CUES_FILE = join(__dirname, 'public', 'cues.json');
 const AUDIO_DIR = join(__dirname, 'public', 'audio');
 const CONFIG_SCHEMA_FILE = join(__dirname, 'config', 'config-schema.json');
@@ -73,1477 +31,460 @@ const CONFIG_VALUES_FILE = join(__dirname, 'config', 'config-values.json');
 const CUE_TYPES_FILE = join(__dirname, 'config', 'cue-types.json');
 if (!existsSync(AUDIO_DIR)) mkdirSync(AUDIO_DIR, { recursive: true });
 
-const configService = createConfigService({
-  schemaPath: CONFIG_SCHEMA_FILE,
-  valuesPath: CONFIG_VALUES_FILE,
-});
-
+const configService = createConfigService({ schemaPath: CONFIG_SCHEMA_FILE, valuesPath: CONFIG_VALUES_FILE });
+const cueTypeRegistry = createCueTypeRegistry({ filePath: CUE_TYPES_FILE });
 initAudioConfig(configService);
-
-const cueTypeRegistry = createCueTypeRegistry({
-  filePath: CUE_TYPES_FILE,
-});
-
-const cueExecutionEngine = createCueExecutionEngine({
-  cueTypeRegistry,
-  playAudioCue: playCue,
-  workspaceRoot: __dirname,
-});
-
+const cueExecutionEngine = createCueExecutionEngine({ cueTypeRegistry, playAudioCue: playCue, workspaceRoot: __dirname });
 const udpSocket = dgram.createSocket('udp4');
-udpSocket.on('error', (err) => {
-  console.error('UDP socket error:', err?.message || err);
-});
+const playedCueIds = new Set();
+const pendingCueExecutions = new Map();
+let cuesCache = {};
+let cueOrderById = new Map();
+const showState = { mode: 'edit', name: 'Current Show', file: null, loadedAt: new Date().toISOString() };
 
-function getOscTargets() {
-  const raw = configService.getValue('osc.targets');
-  if (Array.isArray(raw) && raw.length > 0) {
-    return raw.map(t => ({
-      ip: String(t?.ip || '127.0.0.1').trim() || '127.0.0.1',
-      oscPort: clampPort(t?.oscPort, 8000),
-      remotePort: clampRemotePort(t?.remotePort, 6553),
-    }));
+const isObject = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+const clone = v => v === undefined ? undefined : structuredClone(v);
+function deepMerge(base, patch) {
+  if (!isObject(base)) return clone(patch);
+  if (!isObject(patch)) return clone(base);
+  const out = clone(base);
+  for (const [key, value] of Object.entries(patch)) out[key] = isObject(value) && isObject(out[key]) ? deepMerge(out[key], value) : clone(value);
+  return out;
+}
+function locked() { return showState.mode === 'show'; }
+function assertEditable() {
+  if (locked()) {
+    const err = new Error('Show mode is active. Editing is locked for all connected clients.');
+    err.statusCode = 423;
+    throw err;
   }
-  const legacyIp = String(configService.getValue('osc.target.ip', '127.0.0.1') || '127.0.0.1').trim() || '127.0.0.1';
-  const legacyOscPort = clampPort(configService.getValue('osc.target.oscPort', 8000), 8000);
-  const legacyRemotePort = clampRemotePort(configService.getValue('osc.target.remotePort', 6553), 6553);
-  return [{ ip: legacyIp, oscPort: legacyOscPort, remotePort: legacyRemotePort }];
 }
-
-function dispatchToAllTargets(payload, transport, overrides = {}) {
-  const targets = getOscTargets();
-  const promises = targets.map(target => {
-    const remotePort = overrides.remotePort ?? target.remotePort;
-    const oscPort = overrides.oscPort ?? target.oscPort;
-    if (transport === 'osc') {
-      if (!hasUsablePort(oscPort)) {
-        console.warn(`Skipping OSC dispatch to ${target.ip}: no usable oscPort configured`);
-        return Promise.resolve();
-      }
-      console.log("Sending OSC", payload.toString('hex'), "to", target.ip, "port", oscPort);
-      return sendUdpPacket(payload, { host: target.ip, port: oscPort });
-    }
-    if (!hasUsablePort(remotePort)) {
-      if (!hasUsablePort(oscPort)) {
-        console.warn(`Skipping remote dispatch to ${target.ip}: no usable remotePort or oscPort configured`);
-        return Promise.resolve();
-      }
-      console.log("Sending remote command", payload.toString('ascii'), "to", target.ip, "port", oscPort, "(OSC fallback)");
-      return sendUdpPacket(payload, { host: target.ip, port: oscPort });
-    }
-    const port = remotePort;
-    console.log("Sending remote command", payload.toString('ascii'), "to", target.ip, "port", port);
-    return sendUdpPacket(payload, { host: target.ip, port });
-  });
-  return Promise.allSettled(promises).then(results => {
-    results.forEach((r, i) => {
-      if (r.status === 'rejected') {
-        const remotePort = overrides.remotePort ?? targets[i].remotePort;
-        const oscPort = overrides.oscPort ?? targets[i].oscPort;
-        const port = transport === 'osc'
-          ? oscPort
-          : (hasUsablePort(remotePort) ? remotePort : oscPort);
-        console.error(`Failed to dispatch to ${targets[i].ip}:${port}:`, r.reason);
-      }
-    });
-  });
-}
-
-audioSetTriggerCallback((trigger, sourceCue) => {
-  try {
-    const hasCueFields = trigger && typeof trigger === 'object' && (
-      'oscAction' in trigger ||
-      'oscPlayback' in trigger ||
-      'oscCueNumber' in trigger ||
-      'oscLevel' in trigger ||
-      'oscTransport' in trigger
-    );
-
-    if (hasCueFields) {
-      const action = String(trigger?.oscAction || 'go').trim().toLowerCase();
-      if (action === 'none') {
-        return;
-      }
-      const playbackRaw = Number(trigger?.oscPlayback);
-      const playback = Number.isFinite(playbackRaw) && playbackRaw > 0 ? Math.max(1, Math.round(playbackRaw)) : 1;
-      const cueNumber = resolveCueNumberValue(trigger?.oscCueNumber ?? '1', sourceCue);
-      const level = clampLevel(trigger?.oscLevel);
-      const transport = String(trigger?.oscTransport || 'auto').trim().toLowerCase();
-
-      if (transport !== 'osc' && transport !== 'remote' && transport !== 'auto') {
-        throw new Error(`Invalid OSC transport "${transport}" (expected auto, osc, or remote)`);
-      }
-
-      dispatchCueCommandToTargets({ action, playback, cueNumber, level, transport });
-      return;
-    }
-
-    const msg = encodeOscMessage(trigger.address || '/next', Array.isArray(trigger.args) ? trigger.args : []);
-    dispatchToAllTargets(msg, 'osc');
-  } catch (e) {
-    console.error('Trigger dispatch error:', e);
-  }
-});
-
-function clampPort(value, fallback) {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return fallback;
-  return Math.max(1, Math.min(65535, Math.round(parsed)));
-}
-
-function clampRemotePort(value, fallback) {
-  const parsed = Number(value);
-  if (parsed === -1) return -1;
-  return clampPort(value, fallback);
-}
-
-function hasUsablePort(value) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 1 && parsed <= 65535;
-}
-
-function hasRemotePort(target) {
-  return hasUsablePort(target?.remotePort);
-}
-
-function hasOscPort(target) {
-  return hasUsablePort(target?.oscPort);
-}
-
-function clampLevel(value) {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return 100;
-  return Math.max(0, Math.min(100, Math.round(parsed)));
-}
-
-function toArray(value) {
-  if (Array.isArray(value)) return value;
-  if (value == null) return [];
-  return [value];
-}
-
-function getXmlText(value) {
-  if (typeof value === 'string') return value;
-  if (value && typeof value === 'object' && typeof value._ === 'string') return value._;
-  return '';
-}
-
-function normalizeHeaderValue(value, fallback = '') {
-  const raw = Array.isArray(value) ? value[0] : value;
-  const text = String(raw ?? fallback);
-  return text.trim() || fallback;
-}
-
-function parseCueNumber(rawCueNumber) {
-  const source = String(rawCueNumber ?? '').trim();
-  const match = source.match(/^(\d+)(?:\.(\d+))?$/);
-  if (!match) {
-    throw new Error(`Invalid cue number "${source}". Use a number like 5 or 5.1`);
-  }
-
-  const cueInt = Number(match[1]);
-  const cueDecSource = match[2] || '0';
-  const cueDecPadded = (cueDecSource + '00').slice(0, 2);
-  const cueDec = Number(cueDecPadded);
-
-  if (!Number.isFinite(cueInt) || cueInt < 0 || cueInt > 65536) {
-    throw new Error(`Cue number integer part must be 0..65536 (got ${cueInt})`);
-  }
-
-  if (!Number.isFinite(cueDec) || cueDec < 0 || cueDec > 99) {
-    throw new Error(`Cue number decimal part must be 0..99 (got ${cueDec})`);
-  }
-
-  const cueDecText = cueDecPadded.replace(/0+$/, '');
-
-  console.log("Parsing", rawCueNumber, cueInt, cueDec);
-
-  return {
-    cueInt,
-    cueDec,
-    normalized: cueDecText ? `${cueInt}.${cueDecText}` : `${cueInt}`,
-  };
-}
-
-function cueNumberToCenti(rawCueNumber) {
-  const parsed = parseCueNumber(rawCueNumber);
-  return (parsed.cueInt * 100) + parsed.cueDec;
-}
-
-function centiToCueNumber(rawValue) {
-  if (!Number.isFinite(rawValue)) return null;
-  const centi = Math.max(0, Math.round(rawValue));
-  const cueInt = Math.floor(centi / 100);
-  const cueDec = centi % 100;
-  const cueDecText = String(cueDec).padStart(2, '0').replace(/0+$/, '');
-  return cueDecText ? `${cueInt}.${cueDecText}` : `${cueInt}`;
-}
-
-function parseCueNumberOffset(raw) {
-  const source = String(raw ?? '').trim();
-  const match = source.match(/^([+-])(\d+)(?:\.(\d{1,2}))?$/);
-  if (!match) return null;
-  const sign = match[1] === '-' ? -1 : 1;
-  const cueInt = Number(match[2]);
-  const cueDec = Number(((match[3] || '') + '00').slice(0, 2));
-  if (!Number.isFinite(cueInt) || !Number.isFinite(cueDec)) return null;
-  return sign * ((cueInt * 100) + cueDec);
-}
-
-function isCueNumberTemplate(value) {
-  return typeof value === 'string' && /\{cueNumber(?:[+-]\d+(?:\.\d{1,2})?)?\}/.test(value);
-}
-
-function resolveCueNumberTemplate(template, cueNumber) {
-  if (template == null) return String(cueNumber);
-  const source = String(template).trim();
-  if (!isCueNumberTemplate(source)) return source;
-
-  let resolved = source.replace(/\{cueNumber([+-]\d+(?:\.\d{1,2})?)?\}/g, (_match, offsetText = '') => {
-    try {
-      const base = cueNumberToCenti(cueNumber);
-      const offset = offsetText ? parseCueNumberOffset(offsetText) : 0;
-      if (offset == null) return String(cueNumber);
-      return centiToCueNumber(base + offset) || String(cueNumber);
-    } catch {
-      return String(cueNumber);
-    }
-  });
-
-  const legacyMatch = resolved.match(/^(\d+(?:\.\d{1,2})?)([+-]\d+(?:\.\d{1,2})?)$/);
-  if (legacyMatch) {
-    try {
-      const base = cueNumberToCenti(legacyMatch[1]);
-      const offset = parseCueNumberOffset(legacyMatch[2]);
-      if (offset != null) {
-        resolved = centiToCueNumber(base + offset) || resolved;
-      }
-    } catch {
-      return resolved;
-    }
-  }
-
-  return resolved;
-}
-
-function resolveCueNumberValue(rawCueNumber, sourceCue) {
-  if (!isCueNumberTemplate(rawCueNumber)) {
-    return rawCueNumber ?? '1';
-  }
-
-  const sourceCueNumber = sourceCue?.num ?? sourceCue?.number ?? sourceCue?.cueNumber;
-  if (sourceCueNumber == null || sourceCueNumber === '') {
-    throw new Error(`Cue-number template "${rawCueNumber}" requires source cue context`);
-  }
-
-  return resolveCueNumberTemplate(rawCueNumber, sourceCueNumber);
-}
-
-function padOscString(value) {
-  const source = `${String(value ?? '')}\0`;
-  const raw = Buffer.from(source, 'utf8');
-  const padding = (4 - (raw.length % 4)) % 4;
-  return padding ? Buffer.concat([raw, Buffer.alloc(padding)]) : raw;
-}
-
-function encodeOscMessage(address, args = []) {
-  if (typeof address !== 'string' || !address.startsWith('/')) {
-    throw new Error(`Invalid OSC address: ${address}`);
-  }
-
-  const typeTags = [','];
-  const argBuffers = [];
-
-  for (const arg of args) {
-    if (typeof arg === 'number' && Number.isFinite(arg)) {
-      if (Number.isInteger(arg)) {
-        typeTags.push('i');
-        const buf = Buffer.alloc(4);
-        buf.writeInt32BE(arg, 0);
-        argBuffers.push(buf);
-      } else {
-        typeTags.push('f');
-        const buf = Buffer.alloc(4);
-        buf.writeFloatBE(arg, 0);
-        argBuffers.push(buf);
-      }
-    } else {
-      typeTags.push('s');
-      argBuffers.push(padOscString(String(arg ?? '')));
-    }
-  }
-
-  return Buffer.concat([
-    padOscString(address),
-    padOscString(typeTags.join('')),
-    ...argBuffers,
-  ]);
-}
-
-function sendUdpPacket(payload, { host, port }) {
-  console.log("Sending", payload.toString(), "to", host, port);
-  return new Promise((resolve, reject) => {
-    udpSocket.send(payload, port, host, (err) => {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
-}
-
-function canSendOscAction(action) {
-  return ['go', 'pause', 'release', 'flash', 'level', 'goto'].includes(action);
-}
-
-function canSendRemoteAction(action) {
-  return ['go', 'back', 'release', 'flash', 'level', 'goto'].includes(action);
-}
-
-function buildOscAddressAndArgs({ action, playback, cueNumber, level }) {
-  if (action === 'go') return { address: `/pb/${playback}/go`, args: [1] };
-  if (action === 'pause') return { address: `/pb/${playback}/pause`, args: [1] };
-  if (action === 'release') return { address: `/pb/${playback}/release`, args: [1] };
-  if (action === 'flash') return { address: `/pb/${playback}/flash`, args: [level > 0 ? 1 : 0] };
-  if (action === 'level') return { address: `/pb/${playback}`, args: [level] };
-  if (action === 'goto') {
-    const parsed = parseCueNumber(cueNumber);
-    return { address: `/pb/${playback}/${parsed.normalized}`, args: [1] };
-  }
-  throw new Error(`OSC transport does not support action "${action}"`);
-}
-
-function buildRemoteCommand({ action, playback, cueNumber, level }) {
-  if (action === 'go') return `${playback}G`;
-  if (action === 'back') return `${playback}S`;
-  if (action === 'release') return `${playback}R`;
-  if (action === 'flash') return level > 0 ? `${playback}T` : `${playback}U`;
-  if (action === 'level') return `${playback},${level}L`;
-  if (action === 'goto') {
-    const parsed = parseCueNumber(cueNumber);
-    return `${playback},${parsed.normalized}J`;
-  }
-  throw new Error(`Remote transport does not support action "${action}"`);
-}
-
-function buildCuePayload({ action, playback, cueNumber, level, transport }) {
-  if (transport === 'osc') {
-    const { address, args } = buildOscAddressAndArgs({ action, playback, cueNumber, level });
-    return encodeOscMessage(address, args);
-  }
-
-  return Buffer.from(buildRemoteCommand({ action, playback, cueNumber, level }), 'ascii');
-}
-
-function resolveTargetTransport(target, requestedTransport, action) {
-  if (requestedTransport === 'osc') {
-    if (hasOscPort(target) && canSendOscAction(action)) return 'osc';
-    if (hasRemotePort(target) && canSendRemoteAction(action)) return 'remote';
-    throw new Error(`OSC transport cannot send action "${action}" to ${target.ip} without an oscPort or fallback remotePort`);
-  }
-  if (requestedTransport === 'remote') {
-    if (hasRemotePort(target) && canSendRemoteAction(action)) return 'remote';
-    if (hasOscPort(target) && canSendOscAction(action)) return 'osc';
-    throw new Error(`Remote transport cannot send action "${action}" to ${target.ip} without a remotePort or fallback oscPort`);
-  }
-
-  if (hasRemotePort(target) && canSendRemoteAction(action)) return 'remote';
-  if (hasOscPort(target) && canSendOscAction(action)) return 'osc';
-  throw new Error(`Auto transport cannot send action "${action}" to ${target.ip} without a usable remotePort or oscPort`);
-}
-
-function dispatchCueCommandToTargets({ action, playback, cueNumber, level, transport }) {
-  const dispatchCueNumber = action === 'goto' ? parseCueNumber(cueNumber).normalized : cueNumber;
-  console.log(action, playback, dispatchCueNumber, level, transport);
-  const targets = getOscTargets();
-  const jobs = targets.map(target => {
-    try {
-      const resolvedTransport = resolveTargetTransport(target, transport, action);
-      const port = resolvedTransport === 'osc' ? target.oscPort : target.remotePort;
-      const payload = buildCuePayload({ action, playback, cueNumber: dispatchCueNumber, level, transport: resolvedTransport });
-      return {
-        target,
-        transport: resolvedTransport,
-        port,
-        promise: sendUdpPacket(payload, { host: target.ip, port }),
-      };
-    } catch (err) {
-      return {
-        target,
-        transport,
-        port: transport === 'osc' ? target.oscPort : target.remotePort,
-        promise: Promise.reject(err),
-      };
-    }
-  });
-
-  return Promise.allSettled(jobs.map(job => job.promise)).then(results => {
-    results.forEach((r, i) => {
-      if (r.status === 'rejected') {
-        const job = jobs[i];
-        console.error(`Failed to dispatch ${job.transport.toUpperCase()} to ${job.target.ip}:${job.port}:`, r.reason);
-      }
-    });
-  });
-}
-
-cueExecutionEngine.registerHandler('oscDispatch', async (cue) => {
-  const action = String(cue?.oscAction || 'go').trim().toLowerCase();
-  const playbackRaw = Number(cue?.oscPlayback);
-  const playback = Number.isFinite(playbackRaw) && playbackRaw > 0 ? Math.max(1, Math.round(playbackRaw)) : 1;
-  const cueNumber = resolveCueNumberValue(cue?.oscCueNumber ?? '1', cue);
-  const level = clampLevel(cue?.oscLevel);
-  const transport = String(cue?.oscTransport || 'auto').trim().toLowerCase();
-
-  if (transport !== 'osc' && transport !== 'remote' && transport !== 'auto') {
-    throw new Error(`Invalid OSC transport "${transport}" (expected auto, osc, or remote)`);
-  }
-
-  const targets = getOscTargets();
-
-  try {
-    await dispatchCueCommandToTargets({ action, playback, cueNumber, level, transport });
-    return { instanceId: null };
-  } catch (err) {
-    console.error(`Error sending ${transport.toUpperCase()} command:`, err);
-    const targetSummary = targets.map(t => `${t.ip}:osc=${t.oscPort},remote=${t.remotePort}`).join(', ');
-    throw new Error(
-      `Failed to send ${transport.toUpperCase()} command (${action}) to [${targetSummary}] - ${err.message}`
-    );
-  }
-});
-
-function getUploadLimit() {
-  const maxMb = Number(configService.getValue('audio.upload.maxMb', 300));
-  const normalized = Number.isFinite(maxMb) ? Math.max(10, maxMb) : 300;
-  return `${normalized}mb`;
-}
-
-function getMasterVolumeBounds() {
+function fail(res, err) { res.status(err?.statusCode || 500).json({ error: err?.message || 'Request failed' }); }
+function normalizeHeader(value, fallback = '') { return String((Array.isArray(value) ? value[0] : value) ?? fallback).trim() || fallback; }
+function ffmpegEnv() { const env = { ...process.env }; delete env.LD_LIBRARY_PATH; return env; }
+function getUploadLimit() { return `${Math.max(1, Number(configService.getValue('audio.upload.maxMb', 300)) || 300)}mb`; }
+function masterBounds() {
   const minDb = Number(configService.getValue('audio.masterVolume.minDb', -40));
   const maxDb = Number(configService.getValue('audio.masterVolume.maxDb', 6));
-  const safeMin = Number.isFinite(minDb) ? minDb : -40;
-  const safeMax = Number.isFinite(maxDb) ? maxDb : 6;
-  return {
-    minDb: Math.min(safeMin, safeMax),
-    maxDb: Math.max(safeMin, safeMax),
-  };
+  return { minDb: Math.min(minDb, maxDb), maxDb: Math.max(minDb, maxDb) };
 }
+function clampMaster(db) { const b = masterBounds(); const n = Number(db); return Number.isFinite(n) ? Math.min(b.maxDb, Math.max(b.minDb, n)) : 0; }
+function safeMasterVolume(db) { try { return masterVolume(db === undefined ? undefined : clampMaster(db)); } catch { return Number(db || 0); } }
+safeMasterVolume(configService.getValue('audio.masterVolume.defaultDb', 0));
 
-function clampMasterVolumeDb(db) {
-  const value = Number(db);
-  const { minDb, maxDb } = getMasterVolumeBounds();
-  if (!Number.isFinite(value)) return Number(configService.getValue('audio.masterVolume.defaultDb', 0)) || 0;
-  return Math.min(maxDb, Math.max(minDb, value));
-}
-
-function getRuntimeMeta() {
-  const db = safeMasterVolume();
+function runtimeMeta() {
   return {
     config: configService.getClientConfig(),
     cueTypes: cueTypeRegistry.listTypes(),
-    masterVolume: {
-      ...getMasterVolumeBounds(),
-      db,
-      muted: audioIsMasterMuted(),
-    },
+    show: { ...showState, locked: locked() },
+    masterVolume: { ...masterBounds(), db: safeMasterVolume(), muted: audioIsMasterMuted() },
   };
 }
-
-async function withRuntimeConfigOptions(bundle) {
-  const next = JSON.parse(JSON.stringify(bundle));
-  try {
-    const outputs = await listAudioOutputDevices();
-    const outputOptions = [
-      { value: '', label: 'System default' },
-      ...outputs.map(device => ({
-        value: device.deviceId,
-        label: device.label,
-      })),
-    ];
-    const sections = Array.isArray(next.schema?.sections) ? next.schema.sections : [];
-    for (const section of sections) {
-      const fields = Array.isArray(section.fields) ? section.fields : [];
-      const outputField = fields.find(field => field?.key === 'audio.output.sinkId');
-      if (outputField) {
-        outputField.options = outputOptions;
-        break;
-      }
-    }
-  } catch (err) {
-    console.warn('Could not enumerate audio output devices:', err?.message || err);
-  }
-  return next;
+async function configBundle() {
+  await listAudioOutputDevices().catch(() => []);
+  return clone(configService.getBundle());
 }
-
-safeMasterVolume(clampMasterVolumeDb(configService.getValue('audio.masterVolume.defaultDb', 0)));
-
-// Cache for parsed scenes
-let sceneCache = {
-  fingerprint: null,
-  pages: [],
-  tocActs: []
-};
-
-// Cache for cues
-let cuesCache = {};
-let cueOrderById = new Map();
-
-function getFileFingerprint(filePath) {
-  try {
-    const stat = statSync(filePath);
-    return { mtime: stat.mtimeMs, size: stat.size };
-  } catch (e) {
-    return null;
-  }
-}
-
-function parseXmlSync(xmlContent) {
-  return new Promise((resolve, reject) => {
-    parseString(xmlContent, (err, result) => {
-      if (err) reject(err);
-      else resolve(result);
-    });
-  });
-}
-
-function buildSceneCache(result, fingerprint) {
-  const script = result && typeof result === 'object' ? result.Script : null;
-  const scenes = toArray(script && typeof script === 'object' ? script.Scene : null);
-
-  const pages = [];
-
-  scenes.forEach(scene => {
-    if (!scene || typeof scene !== 'object') return;
-
-    const sceneAttrs = scene.$ && typeof scene.$ === 'object' ? scene.$ : {};
-    const sceneId = String(sceneAttrs.id || '').trim();
-    if (!sceneId) return;
-
-    const sceneStruck = sceneAttrs.struck === 'true';
-    const sceneNumber = sceneAttrs.sceneNumber != null ? String(sceneAttrs.sceneNumber).trim() : '';
-    const sceneMeta = {
-      id: sceneId,
-      sceneNumber,
-      act: sceneAttrs.act,
-      title: sceneAttrs.title,
-      description: sceneAttrs.description,
-      location: sceneAttrs.location,
-      struck: sceneStruck
-    };
-
-    const scenePages = toArray(scene.Page);
-    let isFirstPage = true;
-
-    scenePages.forEach(page => {
-      if (!page || typeof page !== 'object') return;
-
-      const pageAttrs = page.$ && typeof page.$ === 'object' ? page.$ : {};
-      const pageNum = parseInt(pageAttrs.number, 10);
-      if (!Number.isFinite(pageNum)) return;
-
-      const pageStruck = pageAttrs.struck === 'true' || sceneStruck;
-      const elements = [];
-
-      if (isFirstPage) {
-        elements.push({ type: 'scene_meta', meta: sceneMeta });
-      }
-
-      toArray(page.Location).forEach((loc, locIdx) => {
-        const text = getXmlText(loc).trim();
-        if (text) {
-          elements.push({
-            type: 'location',
-            text,
-            id: (loc && loc.$ && loc.$.id) || `${sceneId}_p${pageNum}_loc${locIdx}`,
-            scene_id: sceneId,
-            page_num: pageNum,
-            struck: pageStruck
-          });
-        }
-      });
-
-      // Process StageDirection elements - assign stable IDs
-      toArray(page.StageDirection).forEach((sd, sdIdx) => {
-        const text = getXmlText(sd).trim();
-        if (text) {
-          elements.push({
-            type: 'stage',
-            text,
-            id: (sd && sd.$ && sd.$.id) || `${sceneId}_p${pageNum}_sd${sdIdx}`,
-            scene_id: sceneId,
-            page_num: pageNum,
-            struck: pageStruck
-          });
-        }
-      });
-
-      // Process DialogueBlock elements
-      toArray(page.DialogueBlock).forEach((block, blockIdx) => {
-        if (!block || typeof block !== 'object') return;
-
-        const blockAttrs = block.$ && typeof block.$ === 'object' ? block.$ : {};
-        const speaker = getXmlText(toArray(block.Speaker)[0]).trim();
-        const lines = [];
-        let inlineIdx = 0;
-
-        const blockStruck = blockAttrs.struck === 'true' || pageStruck;
-
-        toArray(block.Line).forEach(line => {
-          const lineText = getXmlText(line);
-          if (lineText) {
-            lines.push({
-              type: 'line',
-              text: lineText,
-              struck: (line && line.$ && line.$.struck === 'true') || blockStruck,
-              id: line && line.$ && line.$.id ? line.$.id : null
-            });
-          }
-        });
-
-        toArray(block.InlineDirection).forEach(inlineEl => {
-          const text = getXmlText(inlineEl).trim();
-          if (text) {
-            lines.push({
-              type: 'inline',
-              text,
-              id: (inlineEl && inlineEl.$ && inlineEl.$.id) || `${sceneId}_p${pageNum}_b${blockIdx}_il${inlineIdx++}`,
-              struck: blockStruck
-            });
-          }
-        });
-
-        elements.push({
-          type: 'dialogue',
-          speaker,
-          lines,
-          scene_id: sceneId,
-          page_num: pageNum,
-          block_struck: blockStruck
-        });
-      });
-
-      pages.push({
-        scene: isFirstPage ? sceneMeta : null,
-        scene_id: sceneId,
-        number: pageNum,
-        struck: pageStruck,
-        elements
-      });
-
-      isFirstPage = false;
-    });
-  });
-
-  // Group pages by number
-  const groupedPages = {};
-  pages.forEach(p => {
-    const num = p.number;
-    if (!groupedPages[num]) {
-      groupedPages[num] = {
-        number: num,
-        struck: p.struck,
-        scenes_meta: p.scene ? [p.scene] : [],
-        elements: [...p.elements]
-      };
-    } else {
-      if (p.scene && !groupedPages[num].scenes_meta.find(s => s.id === p.scene.id)) {
-        groupedPages[num].scenes_meta.push(p.scene);
-      }
-      groupedPages[num].elements.push(...p.elements);
-    }
-  });
-
-  const sortedPages = Object.values(groupedPages).sort((a, b) => a.number - b.number);
-
-  // Build TOC by acts
-  const tocActs = [];
-  const seenSceneIds = new Set();
-
-  sortedPages.forEach(page => {
-    if (page.scenes_meta) {
-      page.scenes_meta.forEach(meta => {
-        if (!seenSceneIds.has(meta.id)) {
-          seenSceneIds.add(meta.id);
-          const actName = meta.act || 'Unknown Act';
-
-          let actEntry = tocActs.find(a => a.name === actName);
-          if (!actEntry) {
-            actEntry = { name: actName, scenes: [] };
-            tocActs.push(actEntry);
-          }
-          actEntry.scenes.push({
-            id: meta.id,
-            name: meta.title,
-            page: page.number
-          });
-        }
-      });
-    }
-  });
-
-  sceneCache = { fingerprint, pages: sortedPages, tocActs };
-  console.log(`Loaded ${scenes.length} scenes, ${sortedPages.length} pages`);
-}
-
-async function loadSceneIndex() {
-  const fingerprint = getFileFingerprint(SCENES_FILE);
-
-  if (!fingerprint) {
-    if (sceneCache.fingerprint) {
-      return { pages: [...sceneCache.pages], tocActs: [...sceneCache.tocActs] };
-    }
-    return { pages: [], tocActs: [] };
-  }
-
-  if (sceneCache.fingerprint &&
-    sceneCache.fingerprint.mtime === fingerprint.mtime &&
-    sceneCache.fingerprint.size === fingerprint.size) {
-    return { pages: [...sceneCache.pages], tocActs: [...sceneCache.tocActs] };
-  }
-
-  try {
-    const xmlContent = readFileSync(SCENES_FILE, 'utf-8');
-    const result = await parseXmlSync(xmlContent);
-    buildSceneCache(result, fingerprint);
-  } catch (err) {
-    console.error('Error loading scenes:', err.message);
-    if (!sceneCache.fingerprint) {
-      sceneCache = { fingerprint, pages: [], tocActs: [] };
-    }
-  }
-
-  return { pages: [...sceneCache.pages], tocActs: [...sceneCache.tocActs] };
-}
-
 function loadCues() {
-  try {
-    const cuesContent = readFileSync(CUES_FILE, 'utf-8');
-    cuesCache = JSON.parse(cuesContent);
-  } catch (e) {
-    cuesCache = {};
-  }
+  try { cuesCache = JSON.parse(readFileSync(CUES_FILE, 'utf-8')); } catch { cuesCache = {}; }
   return cuesCache;
 }
-
-function resolvePublicAudioPath(clip) {
-  if (typeof clip !== 'string' || !clip.trim()) return null;
-  if (clip.startsWith('/')) return join(__dirname, 'public', clip.replace(/^\//, ''));
-  return clip;
+function saveCues(nextCues) {
+  cuesCache = isObject(nextCues) ? nextCues : {};
+  writeFileSync(CUES_FILE, JSON.stringify(cuesCache, null, 2));
+  refreshAudioCacheHints();
+  return cuesCache;
 }
-
-function collectCueAudioPaths(value, paths = new Set()) {
-  if (!value || typeof value !== 'object') return paths;
-  if (Array.isArray(value)) {
-    value.forEach(item => collectCueAudioPaths(item, paths));
-    return paths;
+function publicAudioPath(clip) { return typeof clip === 'string' && clip.startsWith('/') ? join(__dirname, 'public', clip.slice(1)) : clip; }
+function collectAudio(value, paths = new Set()) {
+  if (Array.isArray(value)) value.forEach(item => collectAudio(item, paths));
+  else if (isObject(value)) {
+    if (typeof value.clip === 'string') {
+      const path = publicAudioPath(value.clip);
+      if (path && existsSync(path)) paths.add(path);
+    }
+    Object.values(value).forEach(item => collectAudio(item, paths));
   }
-  if (typeof value.clip === 'string') {
-    const resolved = resolvePublicAudioPath(value.clip);
-    if (resolved && existsSync(resolved)) paths.add(resolved);
-  }
-  Object.values(value).forEach(item => collectCueAudioPaths(item, paths));
   return paths;
 }
-
-function normalizeCueListForType(value) {
-  if (Array.isArray(value)) return value.filter(item => item && typeof item === 'object');
-  if (value && typeof value === 'object') return [value];
-  return [];
+function cueListForType(value) { return Array.isArray(value) ? value.filter(isObject) : (isObject(value) ? [value] : []); }
+function cueSort(number) {
+  const match = String(number ?? '').trim().match(/^(\d+)(?:\.(\d+))?$/);
+  if (!match) return Number.MAX_SAFE_INTEGER;
+  return Number(match[1]) * 10000 + Number((match[2] || '').padEnd(4, '0').slice(0, 4) || 0);
 }
-
-function deepMerge(base, patch) {
-  if (!base || typeof base !== 'object' || Array.isArray(base)) {
-    return structuredClone(patch);
-  }
-  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
-    return structuredClone(base);
-  }
-
-  const out = structuredClone(base);
-  Object.entries(patch).forEach(([key, value]) => {
-    if (
-      value && typeof value === 'object' && !Array.isArray(value)
-      && out[key] && typeof out[key] === 'object' && !Array.isArray(out[key])
-    ) {
-      out[key] = deepMerge(out[key], value);
-    } else {
-      out[key] = structuredClone(value);
-    }
-  });
-  return out;
-}
-
-function buildSceneNumberMap(pages) {
-  const map = {};
-  pages.forEach(page => {
-    (page.scenes_meta || []).forEach(meta => {
-      if (meta?.id && meta?.sceneNumber) map[meta.id] = meta.sceneNumber;
-    });
-  });
-  return map;
-}
-
-function buildCueListPayload(pages, cues) {
-  const sceneNumberMap = buildSceneNumberMap(pages);
-  const sceneCounters = {};
-  const cueTypes = cueTypeRegistry.listTypes();
-  const out = [];
-  const visitedTargetIds = new Set();
-  let sortIndex = 0;
-
-  function nextSceneCueNumber(sceneId) {
-    if (!sceneId) {
-      sceneCounters.__global = sceneCounters.__global == null ? 1 : sceneCounters.__global + 3;
-      return sceneCounters.__global;
-    }
-    const sceneNum = sceneNumberMap[sceneId] || '0';
-    const count = sceneCounters[sceneId] == null ? 1 : sceneCounters[sceneId] + 3;
-    sceneCounters[sceneId] = count;
-    return `${sceneNum}.${String(count).padStart(2, '0')}`;
-  }
-
-  function getExplicitCueNumber(raw) {
-    const value = raw?.number ?? raw?.cueNumber;
-    if (value == null) return null;
-    const text = String(value).trim();
-    return text ? text : null;
-  }
-
-  function addTargetCues(targetId, sceneId, position, targetSortIndex) {
-    const targetCues = cues?.[targetId];
-    if (!targetCues || typeof targetCues !== 'object') return;
-    visitedTargetIds.add(targetId);
-
-    cueTypes.forEach(type => {
-      normalizeCueListForType(targetCues[type.id]).forEach(raw => {
-        const number = getExplicitCueNumber(raw) || nextSceneCueNumber(sceneId);
-        const fullCue = deepMerge(type.payloadDefaults || {}, raw);
-        fullCue.cueType = type.id;
-        if (fullCue.oscCueNumber && isCueNumberTemplate(fullCue.oscCueNumber)) {
-          fullCue.oscCueNumber = resolveCueNumberTemplate(fullCue.oscCueNumber, number);
-        }
-        if (fullCue.oscStartTrigger?.oscCueNumber && isCueNumberTemplate(fullCue.oscStartTrigger.oscCueNumber)) {
-          fullCue.oscStartTrigger = {
-            ...fullCue.oscStartTrigger,
-            oscCueNumber: resolveCueNumberTemplate(fullCue.oscStartTrigger.oscCueNumber, number),
-          };
-        }
-        if (Array.isArray(fullCue.oscTriggers)) {
-          fullCue.oscTriggers = fullCue.oscTriggers.map(trigger => {
-            if (trigger?.oscCueNumber && isCueNumberTemplate(trigger.oscCueNumber)) {
-              return {
-                ...trigger,
-                oscCueNumber: resolveCueNumberTemplate(trigger.oscCueNumber, number),
-              };
-            }
-            return trigger;
-          });
-        }
-        fullCue.num = number;
-        fullCue.number = number;
-        fullCue.cueNumber = number;
-        out.push({
-          id: `${targetId}_${type.id}_${raw.id || number}`,
-          cueId: raw.id || null,
-          targetId,
-          cueType: type.id,
-          cueTypeLabel: type.label,
-          cueTypeShortLabel: type.shortLabel,
-          cueTypeColor: type.color,
-          number,
-          cueNum: parseFloat(number) || 0,
-          title: raw.title || 'Untitled',
-          description: raw.description || '',
-          position,
-          sortIndex: targetSortIndex,
-          duration: deriveCueDurationSeconds(fullCue),
-          subtype: raw.soundSubtype || raw.subtype || null,
-          isAudio: !!fullCue.clip,
-          liveVoices: null,
-          fullCue,
-        });
-      });
-    });
-  }
-
-  function processTarget(targetId, text, sceneId, position) {
-    if (!targetId) return;
-    if (text) {
-      String(text).trim().split(/\s+/).filter(Boolean).forEach((_, wordIdx) => {
-        addTargetCues(`${targetId}_w${wordIdx}`, sceneId, `${position} (word)`, sortIndex + wordIdx * 0.001);
-      });
-    }
-    addTargetCues(targetId, sceneId, position, sortIndex);
-    sortIndex += 1;
-  }
-
-  pages.forEach(page => {
-    page.elements.forEach(el => {
-      const sceneId = el.scene_id || page.scene_id || null;
-      if ((el.type === 'stage' || el.type === 'location') && el.id) {
-        processTarget(el.id, el.text, sceneId, `Page ${page.number} - Stage Direction`);
-      } else if (el.type === 'dialogue') {
-        el.lines.forEach(line => {
-          if (line.id) processTarget(line.id, line.text, sceneId, `Page ${page.number} - ${el.speaker || 'Unknown'}`);
-        });
-      }
-    });
-  });
-
-  Object.keys(cues || {}).forEach(targetId => {
-    if (visitedTargetIds.has(targetId)) return;
-    addTargetCues(targetId, null, 'Cue List', sortIndex);
-    sortIndex += 1;
-  });
-
-  return out.sort((a, b) => {
-    if (a.sortIndex !== b.sortIndex) return a.sortIndex - b.sortIndex;
-    if (a.cueType !== b.cueType) {
-      const aType = cueTypes.find(type => type.id === a.cueType);
-      const bType = cueTypes.find(type => type.id === b.cueType);
-      return (aType?.order || 0) - (bType?.order || 0);
-    }
-    return (a.cueNum || 0) - (b.cueNum || 0);
-  });
-}
-
-function deriveCueDurationSeconds(cue) {
+function duration(cue) {
   const explicit = Number(cue?.duration);
   if (Number.isFinite(explicit) && explicit > 0) return explicit;
-
-  const start = Number(cue?.clipStart ?? 0);
-  const end = Number(cue?.clipEnd);
-  if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
-    return end - start;
-  }
-  return null;
+  const start = Number(cue?.clipStart ?? 0), end = Number(cue?.clipEnd);
+  return Number.isFinite(end) && end > start ? end - start : null;
 }
-
-function addCueCacheEntry(entriesByClip, cue, order, cueIds = [], orderCueId = null) {
-  if (!cue || typeof cue !== 'object' || typeof cue.clip !== 'string') return;
-  const resolved = resolvePublicAudioPath(cue.clip);
-  if (!resolved || !existsSync(resolved)) return;
-
-  if (!entriesByClip.has(resolved)) {
-    entriesByClip.set(resolved, { clip: resolved, cueIds: [], orders: [], cueOrders: [] });
-  }
-
-  const entry = entriesByClip.get(resolved);
-  cueIds.filter(Boolean).map(String).forEach(id => {
-    entry.cueIds.push(id);
-  });
-  if (orderCueId) entry.cueOrders.push({ id: String(orderCueId), order });
-  entry.orders.push(order);
-}
-
-function buildCueCacheEntries(pages, cues) {
-  const entriesByClip = new Map();
-  const nextCueOrderById = new Map();
-  const visitedTargetIds = new Set();
+function buildCueList(cues) {
+  const types = cueTypeRegistry.listTypes();
+  const rows = [];
   let order = 0;
-
-  function assignTarget(targetId) {
-    const targetCues = cues?.[targetId];
-    if (!targetCues || typeof targetCues !== 'object') return;
-    visitedTargetIds.add(targetId);
-
-    cueTypeRegistry.listTypes().forEach(type => {
-      normalizeCueListForType(targetCues[type.id]).forEach(cue => {
-        order += 1;
-        const ids = cue.id ? [String(cue.id), `${targetId}_${type.id}_${cue.id}`] : [];
-        ids.forEach(id => nextCueOrderById.set(id, order));
-        addCueCacheEntry(entriesByClip, cue, order, ids, ids[1] || ids[0]);
-      });
-    });
-  }
-
-  function processTarget(targetId, text) {
-    if (!targetId) return;
-    if (text) {
-      String(text).trim().split(/\s+/).filter(Boolean).forEach((_, wordIdx) => {
-        assignTarget(`${targetId}_w${wordIdx}`);
+  for (const [targetId, target] of Object.entries(cues || {})) {
+    for (const type of types) {
+      cueListForType(target?.[type.id]).forEach((raw, idx) => {
+        const number = String(raw.number ?? raw.cueNumber ?? order + idx + 1);
+        const fullCue = deepMerge(type.payloadDefaults || {}, raw);
+        Object.assign(fullCue, { cueType: type.id, number, cueNumber: number, num: number });
+        rows.push({
+          id: `${targetId}_${type.id}_${raw.id || number}`, cueId: raw.id || null, targetId,
+          cueType: type.id, cueTypeLabel: type.label, cueTypeShortLabel: type.shortLabel,
+          cueTypeColor: type.color, number, cueNum: cueSort(number), title: raw.title || 'Untitled',
+          description: raw.description || '', position: 'Cue List', sortIndex: order,
+          duration: duration(fullCue), subtype: raw.soundSubtype || raw.subtype || null,
+          isAudio: Boolean(fullCue.clip), fullCue,
+        });
       });
     }
-    assignTarget(targetId);
+    order += 1;
   }
-
-  pages.forEach(page => {
-    page.elements.forEach(el => {
-      if ((el.type === 'stage' || el.type === 'location') && el.id) {
-        processTarget(el.id, el.text);
-      } else if (el.type === 'dialogue') {
-        el.lines.forEach(line => {
-          if (line.id) processTarget(line.id, line.text);
-        });
-      }
-    });
-  });
-
-  Object.keys(cues || {}).forEach(targetId => {
-    if (!visitedTargetIds.has(targetId)) assignTarget(targetId);
-  });
-
-  cueOrderById = nextCueOrderById;
-
-  return [...entriesByClip.values()].map(entry => ({
-    ...entry,
-    cueIds: [...new Set(entry.cueIds)],
-    orders: [...new Set(entry.orders)].sort((a, b) => a - b),
-    cueOrders: entry.cueOrders.sort((a, b) => a.order - b.order),
-  }));
+  return rows.sort((a, b) => (a.cueNum - b.cueNum) || (a.sortIndex - b.sortIndex));
 }
-
-function findCueOrder(cueId) {
-  if (!cueId) return null;
-  return cueOrderById.get(String(cueId)) ?? null;
+function addCache(entries, cue, order, cueIds = []) {
+  const path = publicAudioPath(cue?.clip);
+  if (!path || !existsSync(path)) return;
+  if (!entries.has(path)) entries.set(path, { clip: path, cueIds: [], orders: [], cueOrders: [] });
+  const entry = entries.get(path);
+  cueIds.forEach(id => entry.cueIds.push(id));
+  entry.orders.push(order);
+  if (cueIds[1]) entry.cueOrders.push({ id: cueIds[1], order });
 }
-
 function refreshAudioCacheHints() {
-  audioUpdateCacheHints(buildCueCacheEntries(sceneCache.pages || [], cuesCache || {}));
+  const entries = new Map();
+  const nextOrders = new Map();
+  let order = 0;
+  for (const [targetId, target] of Object.entries(cuesCache || {})) {
+    for (const type of cueTypeRegistry.listTypes()) cueListForType(target?.[type.id]).forEach(cue => {
+      order += 1;
+      const ids = cue.id ? [String(cue.id), `${targetId}_${type.id}_${cue.id}`] : [];
+      ids.forEach(id => nextOrders.set(id, order));
+      addCache(entries, cue, order, ids);
+    });
+  }
+  cueOrderById = nextOrders;
+  audioUpdateCacheHints([...entries.values()]);
 }
-
 async function preloadCueAudio() {
   const cues = loadCues();
   refreshAudioCacheHints();
-  const cacheEntries = buildCueCacheEntries(sceneCache.pages || [], cues);
-  const maxCached = Number(configService.getValue('audio.buffer.maxCached', 0));
-  const orderedPaths = cacheEntries
-    .slice()
-    .sort((a, b) => (a.orders[0] ?? Number.MAX_SAFE_INTEGER) - (b.orders[0] ?? Number.MAX_SAFE_INTEGER))
-    .map(entry => entry.clip);
-  const allPaths = [...collectCueAudioPaths(cues)];
-  const orderedSet = new Set(orderedPaths);
-  const audioPaths = [
-    ...orderedPaths,
-    ...allPaths.filter(path => !orderedSet.has(path)),
-  ];
-  const preloadPaths = maxCached > 0 ? audioPaths.slice(0, maxCached) : audioPaths;
-
-  let preloadedCount = 0;
-  for (const audioPath of preloadPaths) {
-    if (await audioPreloadBuffer(audioPath)) preloadedCount += 1;
-  }
-  if (preloadPaths.length > 0) {
-    const capped = preloadPaths.length < audioPaths.length ? ` (${audioPaths.length - preloadPaths.length} deferred by cache cap)` : '';
-    console.log(`Preloaded ${preloadedCount}/${preloadPaths.length} cue audio file${preloadPaths.length === 1 ? '' : 's'}${capped}`);
-  }
+  for (const path of collectAudio(cues)) await audioPreloadBuffer(path);
 }
 
-function mergeCuesWithPages(pages, cues) {
-  return pages.map(page => ({
-    ...page,
-    elements: page.elements.map(el => {
-      if (el.type === 'stage' && el.id) {
-        return { ...el, cues: cues[el.id] || null };
-      }
-      if (el.type === 'dialogue') {
-        return {
-          ...el,
-          lines: el.lines.map(line => ({
-            ...line,
-            cues: line.id ? (cues[line.id] || null) : null
-          }))
-        };
-      }
-      return el;
-    })
+function showPackage() {
+  const cues = loadCues();
+  const audioFiles = [...collectAudio(cues)].map(path => ({ filename: basename(path), path: `/audio/${basename(path)}`, encoding: 'base64', data: readFileSync(path).toString('base64') }));
+  return { format: 'cusus-show', version: 1, exportedAt: new Date().toISOString(), show: { ...showState, mode: 'edit' }, cues, config: configService.getBundle().values, audioFiles };
+}
+function importPackage(buffer, filename) {
+  const pkg = JSON.parse(gunzipSync(buffer).toString('utf-8'));
+  if (pkg.format !== 'cusus-show' || pkg.version !== 1) throw new Error('Unsupported .cusus show package');
+  for (const file of Array.isArray(pkg.audioFiles) ? pkg.audioFiles : []) {
+    const safe = basename(String(file.filename || file.path || 'audio.bin')).replace(/[^a-zA-Z0-9._\-]/g, '_');
+    if (safe) writeFileSync(join(AUDIO_DIR, safe), Buffer.from(String(file.data || ''), 'base64'));
+  }
+  if (isObject(pkg.config)) configService.saveValues(pkg.config);
+  saveCues(pkg.cues || {});
+  Object.assign(showState, { mode: 'edit', name: String(pkg.show?.name || basename(filename, extname(filename)) || 'Imported Show'), file: basename(filename), loadedAt: new Date().toISOString() });
+  return { cues: cuesCache, show: { ...showState, locked: false } };
+}
+
+function port(value, fallback) { const n = Number(value); return Number.isFinite(n) ? Math.max(1, Math.min(65535, Math.round(n))) : fallback; }
+function targets() {
+  const raw = configService.getValue('osc.targets');
+  return (Array.isArray(raw) && raw.length ? raw : [{ ip: '127.0.0.1', oscPort: 8000, remotePort: 6553 }]).map(t => ({
+    ip: String(t?.ip || '127.0.0.1').trim() || '127.0.0.1',
+    oscPort: port(t?.oscPort, 8000),
+    remotePort: Number(t?.remotePort) === -1 ? -1 : port(t?.remotePort, 6553),
   }));
 }
+function pad(value) {
+  const raw = Buffer.from(`${String(value ?? '')}\0`, 'utf8');
+  const padding = (4 - (raw.length % 4)) % 4;
+  return padding ? Buffer.concat([raw, Buffer.alloc(padding)]) : raw;
+}
+function osc(address, args = []) {
+  const tags = [','];
+  const buffers = [];
+  for (const arg of args) {
+    if (typeof arg === 'number' && Number.isFinite(arg)) {
+      const buf = Buffer.alloc(4);
+      Number.isInteger(arg) ? (tags.push('i'), buf.writeInt32BE(arg, 0)) : (tags.push('f'), buf.writeFloatBE(arg, 0));
+      buffers.push(buf);
+    } else {
+      tags.push('s');
+      buffers.push(pad(arg));
+    }
+  }
+  return Buffer.concat([pad(address), pad(tags.join('')), ...buffers]);
+}
+function parseCueNumber(raw) {
+  const match = String(raw ?? '').trim().match(/^(\d+)(?:\.(\d+))?$/);
+  if (!match) throw new Error(`Invalid cue number "${raw}"`);
+  return `${Number(match[1])}.${((match[2] || '0') + '00').slice(0, 2)}`;
+}
+function resolveTemplate(value, cue) {
+  const raw = String(value ?? '{cueNumber}');
+  if (!raw.includes('{cueNumber')) return raw;
+  const number = Number(cue?.number ?? cue?.cueNumber ?? cue?.num ?? 1);
+  return raw.replace(/\{cueNumber(?:([+-])(\d+(?:\.\d+)?))?\}/g, (_m, op, amount) => String((number + (op === '-' ? -1 : 1) * Number(amount || 0)).toFixed(2).replace(/\.?0+$/, '')));
+}
+function sendUdp(payload, host, udpPort) {
+  return new Promise((resolve, reject) => udpSocket.send(payload, udpPort, host, err => err ? reject(err) : resolve()));
+}
+async function dispatchCommand({ action, playback, cueNumber, level, setLevel, transport }) {
+  if (action === 'none' && !setLevel) return;
+  const jobs = targets().map(t => {
+    const useRemote = transport !== 'osc' && t.remotePort > 0;
+    if (useRemote) {
+      const sends = [];
+      if (action !== 'none') {
+        const command = action === 'go' ? `${playback}G` : action === 'back' ? `${playback}S` : action === 'release' ? `${playback}R` : action === 'level' ? `${playback},${level}L` : `${playback},${parseCueNumber(cueNumber)}J`;
+        sends.push(sendUdp(Buffer.from(command, 'ascii'), t.ip, t.remotePort));
+      }
+      if (setLevel && action !== 'level') sends.push(sendUdp(Buffer.from(`${playback},${level}L`, 'ascii'), t.ip, t.remotePort));
+      return Promise.allSettled(sends);
+    }
+    const parsed = action === 'goto' ? parseCueNumber(cueNumber) : cueNumber;
+    const address = action === 'go' ? `/pb/${playback}/go` : action === 'release' ? `/pb/${playback}/release` : action === 'level' ? `/pb/${playback}` : `/pb/${playback}/${parsed}`;
+    const sends = action === 'none' ? [] : [sendUdp(osc(address, [action === 'level' ? level : 1]), t.ip, t.oscPort)];
+    if (setLevel && action !== 'level') sends.push(sendUdp(osc(`/pb/${playback}`, [level]), t.ip, t.oscPort));
+    return Promise.allSettled(sends);
+  });
+  await Promise.allSettled(jobs);
+}
+cueExecutionEngine.registerHandler('oscDispatch', async cue => {
+  const action = String(cue?.oscAction || 'go').trim().toLowerCase();
+  if (action === 'volume_up' || action === 'volume_down') {
+    const step = Math.abs(Number(cue?.oscVolumeStepDb) || 3);
+    safeMasterVolume(safeMasterVolume() + (action === 'volume_up' ? step : -step));
+    broadcastMaster();
+    return { instanceId: null };
+  }
+  await dispatchCommand({
+    action,
+    playback: Math.max(1, Math.round(Number(cue?.oscPlayback) || 1)),
+    cueNumber: resolveTemplate(cue?.oscCueNumber, cue),
+    level: Math.max(0, Math.min(100, Math.round(Number(cue?.oscLevel) || 100))),
+    setLevel: Boolean(cue?.setLevel || cue?.oscSetLevel || action === 'level'),
+    transport: String(cue?.oscTransport || 'auto').toLowerCase(),
+  });
+  return { instanceId: null };
+});
+cueExecutionEngine.registerHandler('modifierCue', async cue => {
+  const target = String(cue?.targetCueId || cue?.targetCueNumber || cue?.targetTitle || '').trim().toLowerCase();
+  const action = String(cue?.modifierAction || 'fade').toLowerCase();
+  const matches = listActive().filter(inst => [inst.cueId, inst.cueNumber, inst.title].some(v => String(v || '').toLowerCase() === target));
+  const duration = Math.max(0.05, Number(cue?.modifierDuration) || 2);
+  for (const inst of matches) {
+    if (action === 'stop') audioStop(inst.instanceId);
+    else if (action === 'volume') {
+      const from = Number(inst.volume || 0), to = Number(cue?.targetVolumeDb || 0), steps = Math.max(1, Math.round(duration * 20));
+      for (let i = 1; i <= steps; i++) setTimeout(() => setVolume(inst.instanceId, from + (to - from) * i / steps), i * duration * 1000 / steps);
+    } else audioFadeOut(inst.instanceId, duration);
+  }
+  return { instanceId: null, matched: matches.length };
+});
+function rampInstanceVolume(instanceId, targetDb, seconds) {
+  if (!instanceId) return;
+  const current = listActive().find(inst => inst.instanceId === instanceId);
+  const from = Number(current?.volume || 0);
+  const to = Number(targetDb || 0);
+  const duration = Math.max(0, Number(seconds) || 0);
+  if (duration <= 0) return setVolume(instanceId, to);
+  const steps = Math.max(1, Math.round(duration * 20));
+  for (let i = 1; i <= steps; i++) {
+    setTimeout(() => setVolume(instanceId, from + (to - from) * i / steps), i * duration * 1000 / steps);
+  }
+}
+function rampInstanceLevel(instanceId, targetLevelDb, seconds) {
+  const current = listActive().find(inst => inst.instanceId === instanceId);
+  if (!current) return;
+  rampInstanceVolume(instanceId, Number(current.baseVolume || 0) + Number(targetLevelDb || 0), seconds);
+}
+function rampMasterVolume(targetDb, seconds) {
+  const from = safeMasterVolume();
+  const to = clampMaster(Number(targetDb || 0));
+  const duration = Math.max(0, Number(seconds) || 0);
+  if (duration <= 0) {
+    safeMasterVolume(to);
+    broadcastMaster();
+    return;
+  }
+  const steps = Math.max(1, Math.round(duration * 20));
+  for (let i = 1; i <= steps; i++) {
+    setTimeout(() => {
+      safeMasterVolume(from + (to - from) * i / steps);
+      broadcastMaster();
+    }, i * duration * 1000 / steps);
+  }
+}
+function dispatchOscTrigger(trigger, sourceCue) {
+  const kind = String(trigger?.triggerType || trigger?.kind || 'osc').toLowerCase();
+  if (kind === 'none') return;
+  const action = String(trigger.oscAction || 'go').toLowerCase();
+  if (!trigger || action === 'none') return;
+  if (action === 'volume_up' || action === 'volume_down') {
+    const step = Math.abs(Number(trigger.oscVolumeStepDb) || 3);
+    safeMasterVolume(safeMasterVolume() + (action === 'volume_up' ? step : -step));
+    broadcastMaster();
+    return;
+  }
+  dispatchCommand({
+    action,
+    playback: Number(trigger.oscPlayback || 1),
+    cueNumber: resolveTemplate(trigger.oscCueNumber, sourceCue),
+    level: Number(trigger.oscLevel || 100),
+    setLevel: action === 'level',
+    transport: String(trigger.oscTransport || 'auto').toLowerCase(),
+  }).catch(err => console.error('Trigger dispatch error:', err.message));
+}
+setTriggerCallback((trigger, sourceCue, sourceInstance) => {
+  const kind = String(trigger?.triggerType || trigger?.kind || 'osc').toLowerCase();
+  if (trigger?.setLevel) rampInstanceLevel(sourceInstance?.instanceId, trigger.targetLevelDb ?? trigger.oscLevel ?? 0, trigger.fadeSeconds);
+  if (kind === 'cue_volume') return rampInstanceVolume(sourceInstance?.instanceId, trigger.targetVolumeDb, trigger.fadeSeconds);
+  if (kind === 'master_volume') return rampMasterVolume(trigger.targetVolumeDb, trigger.fadeSeconds);
+  dispatchOscTrigger(trigger, sourceCue);
+});
 
-// Serve static files from public directory
 app.use(express.static(join(__dirname, 'public')));
 app.use(express.json());
-
-function uploadRawMiddleware(req, res, next) {
-  return express.raw({ type: () => true, limit: getUploadLimit() })(req, res, next);
-}
-
-// API: Runtime metadata used by clients
-app.get('/api/meta', (_req, res) => {
-  res.json(getRuntimeMeta());
-});
-
-// API: Config schema + values
+const uploadRaw = (req, res, next) => express.raw({ type: () => true, limit: getUploadLimit() })(req, res, next);
+app.get('/api/meta', (_req, res) => res.json(runtimeMeta()));
 app.get('/api/config', async (_req, res) => {
-  const bundle = await withRuntimeConfigOptions(configService.getBundle());
-  res.json({
-    schema: bundle.schema,
-    values: bundle.values,
-    effective: bundle.effective,
-    client: bundle.client,
-    cueTypes: cueTypeRegistry.listTypes(),
-    masterVolume: {
-      ...getMasterVolumeBounds(),
-      db: safeMasterVolume(),
-    },
-  });
+  const bundle = await configBundle();
+  res.json({ ...bundle, cueTypes: cueTypeRegistry.listTypes(), masterVolume: { ...masterBounds(), db: safeMasterVolume(), muted: audioIsMasterMuted() } });
 });
-
-// API: Save config values
 app.post('/api/config', async (req, res) => {
   try {
-    const payload = req.body && typeof req.body === 'object' ? req.body : {};
-    const nextValues = payload.values && typeof payload.values === 'object'
-      ? payload.values
-      : payload;
-
-    const bundle = await withRuntimeConfigOptions(configService.saveValues(nextValues));
-    const currentDb = safeMasterVolume();
-    safeMasterVolume(clampMasterVolumeDb(currentDb));
-    broadcast({
-      type: 'meta',
-      config: bundle.client,
-      cueTypes: cueTypeRegistry.listTypes(),
-      masterVolume: {
-        ...getMasterVolumeBounds(),
-        db: safeMasterVolume(),
-        muted: audioIsMasterMuted(),
-      },
-    });
-
-    res.json({
-      success: true,
-      schema: bundle.schema,
-      values: bundle.values,
-      effective: bundle.effective,
-      client: bundle.client,
-      cueTypes: cueTypeRegistry.listTypes(),
-      masterVolume: {
-        ...getMasterVolumeBounds(),
-        db: safeMasterVolume(),
-        muted: audioIsMasterMuted(),
-      },
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+    assertEditable();
+    const bundle = configService.saveValues(isObject(req.body?.values) ? req.body.values : req.body);
+    broadcast({ type: 'meta', ...runtimeMeta() });
+    res.json({ success: true, ...bundle });
+  } catch (err) { fail(res, err); }
 });
-
-// API: Get all cues
-app.get('/api/cues', async (req, res) => {
-  try {
-    const cuesContent = readFileSync(CUES_FILE, 'utf-8');
-    cuesCache = JSON.parse(cuesContent);
-    res.json({ cues: cuesCache });
-  } catch (e) {
-    res.json({ cues: {} });
-  }
+app.get('/api/cues', (_req, res) => res.json({ cues: loadCues() }));
+app.post('/api/cues', (req, res) => {
+  try { assertEditable(); res.json({ success: true, cues: saveCues(req.body) }); broadcast({ type: 'cuesChanged' }); }
+  catch (err) { fail(res, err); }
 });
-
-app.get('/api/cue-list', async (req, res) => {
-  try {
-    const { pages } = await loadSceneIndex();
-    const cues = loadCues();
-    refreshAudioCacheHints();
-    res.json({ cues: buildCueListPayload(pages, cues) });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// API: Save cues
-app.post('/api/cues', async (req, res) => {
-  try {
-    const newCues = req.body;
-    writeFileSync(CUES_FILE, JSON.stringify(newCues, null, 2));
-    cuesCache = newCues;
-    refreshAudioCacheHints();
-    res.json({ success: true, cues: newCues });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// API: Get all pages
-app.get('/api/pages', async (req, res) => {
-  const { pages, tocActs } = await loadSceneIndex();
+app.get('/api/cue-list', (_req, res) => {
   const cues = loadCues();
   refreshAudioCacheHints();
-  const pagesWithCues = mergeCuesWithPages(pages, cues);
-  res.json({ pages: pagesWithCues, tocActs });
+  res.json({ cues: buildCueList(cues), show: { ...showState, locked: locked() } });
 });
-
-// API: Get TOC
-app.get('/api/toc', async (req, res) => {
-  const { tocActs } = await loadSceneIndex();
-  res.json({ toc: tocActs });
-});
-
-// API: Get specific page by number
-app.get('/api/page/:pageNum', async (req, res) => {
-  const { pages } = await loadSceneIndex();
-  const cues = loadCues();
-  const pagesWithCues = mergeCuesWithPages(pages, cues);
-  const pageNum = parseInt(req.params.pageNum, 10);
-  const page = pagesWithCues.find(p => p.number === pageNum);
-  if (!page) return res.status(404).json({ error: 'Page not found' });
-  res.json(page);
-});
-
-// API: List uploaded audio clips
 app.get('/api/audio/list', (_req, res) => {
-  try {
-    const exts = /\.(webm|mp3|ogg|wav|flac|aac|m4a)$/i;
-    const clips = readdirSync(AUDIO_DIR)
-      .filter(f => exts.test(f) && !f.startsWith('tmp_'))
-      .sort()
-      .map(f => ({ filename: f, path: '/audio/' + f }));
-    res.json({ clips });
-  } catch {
-    res.json({ clips: [] });
-  }
+  const clips = readdirSync(AUDIO_DIR).filter(f => /\.(webm|mp3|ogg|wav|flac|aac|m4a)$/i.test(f) && !f.startsWith('tmp_')).sort().map(f => ({ filename: f, path: `/audio/${f}` }));
+  res.json({ clips });
 });
-
-// API: Upload and transcode audio file
-app.post('/api/audio/upload', uploadRawMiddleware, async (req, res) => {
-  const rawName = normalizeHeaderValue(req.headers['x-filename'], 'upload.bin').replace(/\.\./g, '');
-  const safe = basename(rawName).replace(/[^a-zA-Z0-9._\-]/g, '_');
-  const ts = Date.now();
-  const inputExt = extname(safe) || '.bin';
-  const inputPath = join(AUDIO_DIR, `tmp_${ts}${inputExt}`);
-  const outputName = safe.replace(/\.[^.]+$/, '') + `_${ts}.wav`;
-  const outputPath = join(AUDIO_DIR, outputName);
-  const sampleRate = Number(configService.getValue('audio.buffer.sampleRate', 48000)) || 48000;
-  const channels = Number(configService.getValue('audio.buffer.channels', 2)) || 2;
-
+app.post('/api/audio/upload', uploadRaw, async (req, res) => {
   try {
-    writeFileSync(inputPath, req.body);
-
-    await new Promise((resolve, reject) => {
-      execFile(ffmpegStatic, [
-        '-y', '-i', inputPath,
-        '-vn',
-        '-ar', String(sampleRate),
-        '-ac', String(channels),
-        '-c:a', 'pcm_s16le',
-        '-f', 'wav',
-        outputPath,
-      ], { env: ffmpegEnv() }, (_err, _stdout, stderr) => {
-        if (_err) reject(new Error(stderr || _err.message));
-        else resolve();
-      });
-    });
-
-    try { unlinkSync(inputPath); } catch (_) { }
-    await audioPreloadBuffer(outputPath);
-    res.json({ path: '/audio/' + outputName, filename: outputName });
-  } catch (err) {
-    try { unlinkSync(inputPath); } catch (_) { }
-    res.status(500).json({ error: err.message });
-  }
+    assertEditable();
+    const safe = basename(normalizeHeader(req.headers['x-filename'], 'upload.bin')).replace(/[^a-zA-Z0-9._\-]/g, '_');
+    const input = join(AUDIO_DIR, `tmp_${Date.now()}${extname(safe) || '.bin'}`);
+    const outputName = `${safe.replace(/\.[^.]+$/, '')}_${Date.now()}.wav`;
+    const output = join(AUDIO_DIR, outputName);
+    writeFileSync(input, req.body);
+    await new Promise((resolve, reject) => execFile(ffmpegStatic, ['-y', '-i', input, '-vn', '-ar', String(configService.getValue('audio.buffer.sampleRate', 48000)), '-ac', String(configService.getValue('audio.buffer.channels', 2)), '-c:a', 'pcm_s16le', output], { env: ffmpegEnv() }, (err, _out, stderr) => err ? reject(new Error(stderr || err.message)) : resolve()));
+    unlinkSync(input);
+    res.json({ path: `/audio/${outputName}`, filename: outputName });
+    audioPreloadBuffer(output).catch(err => console.error('Uploaded audio preload failed:', err.message));
+  } catch (err) { fail(res, err); }
 });
-
-// ── WebSocket server ──────────────────────────────────────────────────────────
+app.post('/api/show/mode', (req, res) => {
+  const mode = String(req.body?.mode || '').toLowerCase();
+  if (!['edit', 'show'].includes(mode)) return res.status(400).json({ error: 'mode must be edit or show' });
+  showState.mode = mode;
+  broadcast({ type: 'show', show: { ...showState, locked: locked() } });
+  res.json({ success: true, show: { ...showState, locked: locked() } });
+});
+app.get('/api/show/export', (_req, res) => {
+  const name = String(showState.name || 'show').replace(/[^a-zA-Z0-9._\-]+/g, '-') || 'show';
+  res.setHeader('Content-Type', 'application/vnd.cusus.show');
+  res.setHeader('Content-Disposition', `attachment; filename="${name}.cusus"`);
+  res.send(gzipSync(Buffer.from(JSON.stringify(showPackage()), 'utf-8')));
+});
+app.post('/api/show/import', express.raw({ type: () => true, limit: '2048mb' }), (req, res) => {
+  try { assertEditable(); const result = importPackage(req.body, normalizeHeader(req.headers['x-filename'], 'Imported Show.cusus')); broadcast({ type: 'meta', ...runtimeMeta() }); broadcast({ type: 'cuesChanged' }); res.json({ success: true, ...result }); }
+  catch (err) { fail(res, err); }
+});
 
 const httpServer = createServer(app);
 const wss = new WebSocketServer({ server: httpServer });
-
-// Played cues tracking (survives reconnects)
-const playedCueIds = new Set();
-const pendingCueExecutions = new Map();
-
-function normalizePendingCueEntries() {
-  return [...pendingCueExecutions.entries()].map(([cueId, count]) => ({ cueId, count }));
-}
-
-function setPendingCueCount(cueId, delta) {
+function pendingList() { return [...pendingCueExecutions.entries()].map(([cueId, count]) => ({ cueId, count })); }
+function pending(cueId, delta) {
   if (!cueId) return;
-  const nextCount = Math.max(0, (pendingCueExecutions.get(cueId) || 0) + delta);
-  if (nextCount === 0) pendingCueExecutions.delete(cueId);
-  else pendingCueExecutions.set(cueId, nextCount);
+  const next = Math.max(0, (pendingCueExecutions.get(cueId) || 0) + delta);
+  if (next) pendingCueExecutions.set(cueId, next);
+  else pendingCueExecutions.delete(cueId);
 }
-
-function clearPendingCueExecutions() {
-  pendingCueExecutions.clear();
-}
-
 function broadcast(data) {
   const msg = JSON.stringify(data);
-  wss.clients.forEach(client => {
-    if (client.readyState === 1) client.send(msg);
-  });
+  wss.clients.forEach(client => { if (client.readyState === 1) client.send(msg); });
 }
+function broadcastInstances() { broadcast({ type: 'instances', list: listActive(), waitingCount: pendingCueExecutions.size }); }
+function broadcastPending() { broadcast({ type: 'pendingCues', list: pendingList() }); }
+function broadcastPlayed() { broadcast({ type: 'playedCues', ids: [...playedCueIds] }); }
+function broadcastMaster() { broadcast({ type: 'masterVolume', db: safeMasterVolume(), muted: audioIsMasterMuted(), ...masterBounds() }); }
 
-function broadcastInstances() {
-  broadcast({ type: 'instances', list: listActive(), waitingCount: pendingCueExecutions.size });
+function wsHello(ws) {
+  ws.send(JSON.stringify({ type: 'meta', ...runtimeMeta() }));
+  ws.send(JSON.stringify({ type: 'show', show: { ...showState, locked: locked() } }));
+  ws.send(JSON.stringify({ type: 'instances', list: listActive(), waitingCount: pendingCueExecutions.size }));
+  ws.send(JSON.stringify({ type: 'pendingCues', list: pendingList() }));
+  ws.send(JSON.stringify({ type: 'playedCues', ids: [...playedCueIds] }));
+  ws.send(JSON.stringify({ type: 'masterVolume', db: safeMasterVolume(), muted: audioIsMasterMuted(), ...masterBounds() }));
 }
-
-function broadcastPendingCues() {
-  broadcast({ type: 'pendingCues', list: normalizePendingCueEntries() });
-}
-
-function broadcastPlayed() {
-  broadcast({ type: 'playedCues', ids: [...playedCueIds] });
-}
-
-function safeMasterVolume(db) {
-  const clamped = db === undefined ? undefined : clampMasterVolumeDb(db);
+async function runCue(ws, msg) {
+  if (msg.cueId) {
+    const order = cueOrderById.get(String(msg.cueId));
+    if (order != null) setCacheCurrentOrder(order);
+    playedCueIds.add(msg.cueId);
+    markCuePlayed(msg.cueId);
+    pending(msg.cueId, 1);
+    broadcastPlayed();
+    broadcastPending();
+  }
   try {
-    return masterVolume(clamped);
-  } catch (_) {
-    if (clamped === undefined) return 0;
-    return clamped;
+    const execution = await cueExecutionEngine.execute(msg.cue || null);
+    ws.send(JSON.stringify({ type: 'go_ack', instanceId: execution.instanceId ?? null, cueType: execution.cueType, handler: execution.handlerName }));
+  } finally {
+    if (msg.cueId) pending(msg.cueId, -1);
+    broadcastPending();
+    broadcastInstances();
   }
 }
-
-// Periodic broadcast so clients stay in sync
-function scheduleInstanceBroadcast() {
-  const intervalMs = Number(configService.getValue('realtime.instanceBroadcastMs', 100));
-  const safeInterval = Number.isFinite(intervalMs) ? Math.max(25, intervalMs) : 100;
-  setTimeout(() => {
-    broadcastInstances();
-    scheduleInstanceBroadcast();
-  }, safeInterval);
-}
-
-scheduleInstanceBroadcast();
-
-wss.on('connection', (ws) => {
-  ws.send(JSON.stringify({ type: 'meta', ...getRuntimeMeta() }));
-  ws.send(JSON.stringify({ type: 'instances', list: listActive() }));
-  ws.send(JSON.stringify({ type: 'pendingCues', list: normalizePendingCueEntries() }));
-  ws.send(JSON.stringify({ type: 'playedCues', ids: [...playedCueIds] }));
-  try { ws.send(JSON.stringify({ type: 'masterVolume', db: safeMasterVolume(), muted: audioIsMasterMuted() })); } catch (_) { }
-
-  ws.on('message', async (raw) => {
+wss.on('connection', ws => {
+  wsHello(ws);
+  ws.on('message', async raw => {
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
-
     try {
-      if (msg.type === 'go') {
-        // Track played cue id (for tick display)
-        if (msg.cueId) {
-          const cueOrder = findCueOrder(msg.cueId);
-          if (cueOrder != null) audioSetCacheCurrentOrder(cueOrder);
-          playedCueIds.add(msg.cueId);
-          broadcastPlayed();
-        }
-
-        if (msg.cueId) {
-          setPendingCueCount(msg.cueId, 1);
-          broadcastPendingCues();
-        }
-
-        try {
-          const execution = await cueExecutionEngine.execute(msg.cue || null);
-          if (msg.cueId) audioMarkCuePlayed(msg.cueId);
-          ws.send(JSON.stringify({
-            type: 'go_ack',
-            instanceId: execution.instanceId ?? null,
-            cueType: execution.cueType,
-            handler: execution.handlerName,
-          }));
-        } finally {
-          if (msg.cueId) {
-            setPendingCueCount(msg.cueId, -1);
-            broadcastPendingCues();
-          }
-          broadcastInstances();
-        }
-
-      } else if (msg.type === 'preload') {
-        if (msg.clip) {
-          const resolved = resolvePublicAudioPath(msg.clip);
-          if (resolved && existsSync(resolved)) {
-            audioPreloadBuffer(resolved);
-          }
-        }
-
-      } else if (msg.type === 'resetPlayed') {
-        playedCueIds.clear();
-        audioClearPlayedCacheHints();
-        broadcastPlayed();
-
-      } else if (msg.type === 'fadeOut') {
-        audioFadeOut(msg.instanceId, msg.duration);
-        broadcastInstances();
-
-      } else if (msg.type === 'stop') {
-        audioStop(msg.instanceId);
-        broadcastInstances();
-
-      } else if (msg.type === 'stopAll') {
-        audioCancelWaitingCues();
-        clearPendingCueExecutions();
-        broadcastPendingCues();
-        audioStopAll();
-        broadcastInstances();
-
-      } else if (msg.type === 'clearQueue') {
-        audioCancelWaitingCues();
-        clearPendingCueExecutions();
-        broadcastPendingCues();
-        broadcastInstances();
-
-      } else if (msg.type === 'devamp') {
-        audioDevamp(msg.instanceId);
-        broadcastInstances();
-
-      } else if (msg.type === 'cancelDevamp') {
-        audioCancelDevamp(msg.instanceId);
-        broadcastInstances();
-
-      } else if (msg.type === 'fadeOutAll') {
-        const defaultFade = Number(configService.getValue('ui.cues.defaultManualFadeOutSeconds', 2));
-        const fallbackDuration = Number.isFinite(defaultFade) ? Math.max(0.1, defaultFade) : 2;
-        audioCancelWaitingCues();
-        clearPendingCueExecutions();
-        broadcastPendingCues();
-        audioFadeOutAll(msg.duration ?? fallbackDuration);
-        setTimeout(broadcastInstances, 100);
-
-      } else if (msg.type === 'setVolume') {
-        setVolume(msg.instanceId, msg.db);
-
-      } else if (msg.type === 'toggleMute') {
-        audioToggleMute(msg.instanceId);
-        broadcastInstances();
-
-      } else if (msg.type === 'pause') {
-        audioPause(msg.instanceId);
-        broadcastInstances();
-
-      } else if (msg.type === 'resume') {
-        await audioResume(msg.instanceId);
-        broadcastInstances();
-
-      } else if (msg.type === 'seek') {
-        await audioSeek(msg.instanceId, msg.position);
-        broadcastInstances();
-
-      } else if (msg.type === 'masterVolume') {
-        safeMasterVolume(msg.db);
-        broadcast({
-          type: 'masterVolume',
-          db: safeMasterVolume(),
-          muted: audioIsMasterMuted(),
-          ...getMasterVolumeBounds(),
-        });
-
-      } else if (msg.type === 'toggleMasterMute') {
-        audioToggleMasterMute();
-        broadcast({
-          type: 'masterVolume',
-          db: safeMasterVolume(),
-          muted: audioIsMasterMuted(),
-          ...getMasterVolumeBounds(),
-        });
-      }
+      if (msg.type === 'go') await runCue(ws, msg);
+      else if (msg.type === 'preload' && msg.clip) await audioPreloadBuffer(publicAudioPath(msg.clip));
+      else if (msg.type === 'resetPlayed') { playedCueIds.clear(); clearPlayedCacheHints(); broadcastPlayed(); }
+      else if (msg.type === 'fadeOut') { audioFadeOut(msg.instanceId, msg.duration); broadcastInstances(); }
+      else if (msg.type === 'stop') { audioStop(msg.instanceId); broadcastInstances(); }
+      else if (msg.type === 'stopAll') { audioCancelWaitingCues(); pendingCueExecutions.clear(); audioStopAll(); broadcastPending(); broadcastInstances(); }
+      else if (msg.type === 'clearQueue') { audioCancelWaitingCues(); pendingCueExecutions.clear(); broadcastPending(); broadcastInstances(); }
+      else if (msg.type === 'devamp') { audioDevamp(msg.instanceId); broadcastInstances(); }
+      else if (msg.type === 'cancelDevamp') { audioCancelDevamp(msg.instanceId); broadcastInstances(); }
+      else if (msg.type === 'fadeOutAll') { audioCancelWaitingCues(); pendingCueExecutions.clear(); audioFadeOutAll(msg.duration || configService.getValue('ui.cues.defaultManualFadeOutSeconds', 2)); broadcastPending(); setTimeout(broadcastInstances, 100); }
+      else if (msg.type === 'setVolume') setVolume(msg.instanceId, msg.db);
+      else if (msg.type === 'toggleMute') { audioToggleMute(msg.instanceId); broadcastInstances(); }
+      else if (msg.type === 'pause') { audioPause(msg.instanceId); broadcastInstances(); }
+      else if (msg.type === 'resume') { await audioResume(msg.instanceId); broadcastInstances(); }
+      else if (msg.type === 'seek') { await audioSeek(msg.instanceId, msg.position); broadcastInstances(); }
+      else if (msg.type === 'masterVolume') { safeMasterVolume(msg.db); broadcastMaster(); }
+      else if (msg.type === 'toggleMasterMute') { toggleMasterMute(); broadcastMaster(); }
     } catch (err) {
-      if (err?.code === 'WAITING_CUE_CANCELLED') {
-        broadcastInstances();
-        return;
-      }
-      const message = err?.message || 'Unknown runtime error';
-      broadcast({ type: 'runtimeError', message });
+      broadcast({ type: 'runtimeError', message: err?.message || 'Runtime error' });
     }
   });
 });
-
-// Build the script index before serving legacy cue data. Audio warmup is async
-// so the cue-list UI is not blocked by a large preload pass.
-await loadSceneIndex().catch(e => console.error('Error loading scenes:', e.message));
-
+setInterval(broadcastInstances, Math.max(50, Number(configService.getValue('realtime.instanceBroadcastMs', 200)) || 200));
 httpServer.listen(PORT, () => {
   console.log(`Cue List running at http://localhost:${PORT}`);
-  preloadCueAudio().catch(e => console.error('Error preloading cue audio:', e.message));
+  preloadCueAudio().catch(err => console.error('Audio preload failed:', err.message));
 });

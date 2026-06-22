@@ -1,1083 +1,348 @@
-// Server-side audio engine using node-web-audio-api directly (no Tone.js)
-// NOTE: run via `pw-jack bun server.js`
-
-import { AudioContext, mediaDevices } from 'node-web-audio-api';
 import { execFile } from 'child_process';
 import { readFile, unlink } from 'fs/promises';
+import { existsSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import ffmpegStatic from 'ffmpeg-static';
 
-const CLEANUP_GRACE_MS = 25;
-const FAR_AHEAD_WEIGHT = 0.01;
+const active = new Map();
+const bufferCache = new Map();
+let nextId = 1;
+let ctx = null;
+let masterGain = null;
+let AudioContextCtor = null;
+let mediaDevicesRef = null;
+let masterDbValue = 0;
+let masterMuted = false;
+let configValue = (_path, fallback) => fallback;
+let triggerCallback = null;
+let cacheHints = [];
+let currentOrder = 0;
+const playedCueIds = new Set();
+
+function dbToGain(db) {
+  return Math.pow(10, Number(db || 0) / 20);
+}
 
 function ffmpegEnv() {
-    const env = { ...process.env };
-    delete env.LD_LIBRARY_PATH;
-    return env;
+  const env = { ...process.env };
+  delete env.LD_LIBRARY_PATH;
+  return env;
 }
 
-let _getConfigValue = () => undefined;
-let _configuredSampleRate = null;
-let _configuredSinkId = null;
-
-export function initAudioConfig(configService) {
-    _getConfigValue = (path, fallback) => configService.getValue(path, fallback);
-    configService.onChange((bundle) => {
-        const newRate = Number(getByPath(bundle?.effective ?? {}, 'audio.buffer.sampleRate', 48000)) || 48000;
-        const newSinkId = normalizeSinkId(getByPath(bundle?.effective ?? {}, 'audio.output.sinkId', ''));
-        bufferCache.clear();
-        if ((_configuredSampleRate != null && _configuredSampleRate !== newRate)
-            || (_configuredSinkId != null && _configuredSinkId !== newSinkId)) {
-            stopAll();
-            if (_ctx && _ctx.state !== 'closed') {
-                try { _ctx.close(); } catch (_) { }
-                _ctx = null;
-                _masterGain = null;
-            }
-        }
-    });
+async function ensureAudioApi() {
+  if (AudioContextCtor) return;
+  const mod = await import('node-web-audio-api');
+  AudioContextCtor = mod.AudioContext;
+  mediaDevicesRef = mod.mediaDevices;
 }
-
-function getByPath(obj, path, fallback) {
-    const parts = String(path).split('.');
-    let cur = obj;
-    for (const part of parts) {
-        if (cur == null || typeof cur !== 'object') return fallback;
-        if (!(part in cur)) return fallback;
-        cur = cur[part];
-    }
-    return cur;
-}
-
-function normalizeSinkId(value) {
-    const sinkId = String(value ?? '').trim();
-    return sinkId === 'default' ? '' : sinkId;
-}
-
-let _ctx = null;
-let _masterGain = null;
-let _masterDb = 0;
-let _masterMuted = false;
 
 function getCtx() {
-    const desiredRate = Number(_getConfigValue('audio.buffer.sampleRate', 48000)) || 48000;
-    const desiredSinkId = normalizeSinkId(_getConfigValue('audio.output.sinkId', ''));
-    if (!_ctx || _ctx.state === 'closed' || _configuredSampleRate !== desiredRate || _configuredSinkId !== desiredSinkId) {
-        if (_ctx && _ctx.state !== 'closed') {
-            try { _ctx.close(); } catch (_) { }
-        }
-        const options = { latencyHint: 'playback', sampleRate: desiredRate };
-        if (desiredSinkId) options.sinkId = desiredSinkId;
-        _ctx = new AudioContext(options);
-        _masterGain = null;
-        _configuredSampleRate = desiredRate;
-        _configuredSinkId = desiredSinkId;
+  const sampleRate = Number(configValue('audio.buffer.sampleRate', 48000)) || 48000;
+  if (!ctx || ctx.state === 'closed' || ctx.sampleRate !== sampleRate) {
+    if (ctx && ctx.state !== 'closed') {
+      try { ctx.close(); } catch { }
     }
-    return _ctx;
+    if (!AudioContextCtor) throw new Error('Audio backend is not available');
+    ctx = new AudioContextCtor({ latencyHint: 'playback', sampleRate });
+    masterGain = null;
+  }
+  if (!masterGain) {
+    masterGain = ctx.createGain();
+    masterGain.connect(ctx.destination);
+    applyMasterGain();
+  }
+  return ctx;
 }
 
-async function listAudioOutputDevices() {
-    const devices = await mediaDevices.enumerateDevices();
-    return devices
-        .filter(device => device?.kind === 'audiooutput')
-        .map(device => ({
-            deviceId: String(device.deviceId || ''),
-            label: String(device.label || device.deviceId || 'Audio output'),
-            groupId: String(device.groupId || ''),
-        }))
-        .filter(device => device.deviceId);
+function applyMasterGain() {
+  if (!ctx || !masterGain) return;
+  masterGain.gain.setValueAtTime(masterMuted ? 0 : dbToGain(masterDbValue), ctx.currentTime);
 }
 
-function getMasterGain() {
-    const ctx = getCtx();
-    if (!_masterGain) {
-        _masterGain = ctx.createGain();
-        _masterGain.gain.value = _masterMuted ? 0 : dbToLinear(_masterDb);
-        _masterGain.connect(ctx.destination);
-    }
-    return _masterGain;
-}
-
-function createOutputGain(ctx) {
-    const g = ctx.createGain();
-    g.gain.value = 1;
-    g.connect(getMasterGain());
-    return g;
-}
-
-function createMuteGain(ctx, muted = false) {
-    const g = ctx.createGain();
-    g.gain.value = muted ? 0 : 1;
-    g.connect(getMasterGain());
-    return g;
-}
-
-function applyMasterGain(ctx = getCtx()) {
-    getMasterGain().gain.setValueAtTime(_masterMuted ? 0 : dbToLinear(_masterDb), ctx.currentTime);
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-function dbToLinear(db) {
-    if (db == null || db <= -60) return 0.0001;
-    return Math.pow(10, db / 20);
-}
-
-// LRU buffer cache (keyed by filesystem path)
-const bufferCache = new Map();
-const cacheHints = new Map();
-let cacheCurrentOrder = 0;
-
-function normalizeCueIds(cueIds) {
-    if (!Array.isArray(cueIds)) return new Set();
-    return new Set(cueIds.filter(Boolean).map(String));
-}
-
-function getCacheHint(filePath) {
-    return cacheHints.get(filePath) || {
-        cueIds: new Set(),
-        orders: [],
-        cueOrders: [],
-        playedCueIds: new Set(),
-        lastUsedAt: 0,
-    };
-}
-
-function setCacheHint(filePath, patch) {
-    if (!filePath) return;
-    const prev = getCacheHint(filePath);
-    const next = {
-        ...prev,
-        ...patch,
-        cueIds: patch.cueIds instanceof Set ? patch.cueIds : prev.cueIds,
-        playedCueIds: patch.playedCueIds instanceof Set ? patch.playedCueIds : prev.playedCueIds,
-        orders: Array.isArray(patch.orders) ? patch.orders : prev.orders,
-        cueOrders: Array.isArray(patch.cueOrders) ? patch.cueOrders : prev.cueOrders,
-    };
-    cacheHints.set(filePath, next);
-}
-
-function isClipActive(filePath) {
-    for (const inst of activeInstances.values()) {
-        if (inst.clip === filePath) return true;
-    }
-    return false;
-}
-
-function getEvictionScore(filePath, currentOrder) {
-    if (isClipActive(filePath)) return Number.NEGATIVE_INFINITY;
-
-    const hint = getCacheHint(filePath);
-    const orders = hint.orders.filter(Number.isFinite);
-    const cueOrders = hint.cueOrders.filter(item => item?.id && Number.isFinite(item.order));
-    const cueIds = cueOrders.length ? cueOrders.map(item => item.id) : [...hint.cueIds];
-    const allKnownCuesPlayed = cueIds.length > 0 && cueIds.every(id => hint.playedCueIds.has(id));
-    const lastOrder = orders.length ? Math.max(...orders) : Number.POSITIVE_INFINITY;
-    const nextOrder = cueOrders.length
-        ? cueOrders
-            .filter(item => !hint.playedCueIds.has(item.id) && item.order >= currentOrder)
-            .map(item => item.order)
-            .sort((a, b) => a - b)[0]
-        : orders.filter(order => order >= currentOrder).sort((a, b) => a - b)[0];
-    const lastUsedPenalty = Math.max(0, Date.now() - (hint.lastUsedAt || 0)) / 1e12;
-
-    if (allKnownCuesPlayed || lastOrder < currentOrder) {
-        return 1_000_000 + Math.max(0, currentOrder - lastOrder) + lastUsedPenalty;
-    }
-
-    if (Number.isFinite(nextOrder)) {
-        return Math.max(0, nextOrder - currentOrder) * FAR_AHEAD_WEIGHT + lastUsedPenalty;
-    }
-
-    return 10_000 + lastUsedPenalty;
-}
-
-function evictBufferCache() {
-    const maxCached = Number(_getConfigValue('audio.buffer.maxCached', 0));
-    if (maxCached <= 0) return;
-    while (bufferCache.size > maxCached) {
-        const currentOrder = cacheCurrentOrder;
-        let victim = null;
-        let victimScore = Number.NEGATIVE_INFINITY;
-
-        for (const filePath of bufferCache.keys()) {
-            const score = getEvictionScore(filePath, currentOrder);
-            if (score > victimScore) {
-                victim = filePath;
-                victimScore = score;
-            }
-        }
-
-        if (!victim || victimScore === Number.NEGATIVE_INFINITY) return;
-        bufferCache.delete(victim);
-    }
+function decodeViaFfmpeg(filePath) {
+  const out = join(tmpdir(), `cusus-${Date.now()}-${Math.random().toString(36).slice(2)}.wav`);
+  const sampleRate = Number(configValue('audio.buffer.sampleRate', 48000)) || 48000;
+  const channels = Number(configValue('audio.buffer.channels', 2)) || 2;
+  return new Promise((resolve, reject) => {
+    execFile(ffmpegStatic, ['-y', '-i', filePath, '-vn', '-ar', String(sampleRate), '-ac', String(channels), '-c:a', 'pcm_s16le', out], { env: ffmpegEnv() }, async (err, _stdout, stderr) => {
+      if (err) {
+        reject(new Error(stderr || err.message));
+        return;
+      }
+      try {
+        resolve(await readFile(out));
+      } catch (readErr) {
+        reject(readErr);
+      } finally {
+        await unlink(out).catch(() => { });
+      }
+    });
+  });
 }
 
 async function loadBuffer(filePath) {
-    if (bufferCache.has(filePath)) {
-        const cached = bufferCache.get(filePath);
-        bufferCache.delete(filePath);
-        bufferCache.set(filePath, cached);
-        setCacheHint(filePath, { lastUsedAt: Date.now() });
-        return cached;
-    }
-
-    const sampleRate = Number(_getConfigValue('audio.buffer.sampleRate', 48000)) || 48000;
-    const channels = Number(_getConfigValue('audio.buffer.channels', 2)) || 2;
-
-    const wavBuffer = await tryLoadWavBuffer(filePath, sampleRate, channels);
-    if (wavBuffer) {
-        bufferCache.set(filePath, wavBuffer);
-        setCacheHint(filePath, { lastUsedAt: Date.now() });
-        evictBufferCache();
-        return wavBuffer;
-    }
-
-    const pcmBuf = await decodeToPcmBuffer(filePath, sampleRate, channels);
-
-    const ctx = getCtx();
-    const frameCount = pcmBuf.byteLength / (4 * channels);
-    const audioBuffer = ctx.createBuffer(channels, frameCount, sampleRate);
-
-    for (let c = 0; c < channels; c++) {
-        const channelData = audioBuffer.getChannelData(c);
-        for (let i = 0; i < frameCount; i++) {
-            channelData[i] = pcmBuf.readFloatLE((i * channels + c) * 4);
-        }
-    }
-
-    bufferCache.set(filePath, audioBuffer);
-    setCacheHint(filePath, { lastUsedAt: Date.now() });
-    evictBufferCache();
-    return audioBuffer;
+  if (bufferCache.has(filePath)) return bufferCache.get(filePath);
+  await ensureAudioApi();
+  const audioCtx = getCtx();
+  let bytes = await readFile(filePath);
+  if (!String(filePath).toLowerCase().endsWith('.wav')) {
+    bytes = await decodeViaFfmpeg(filePath);
+  }
+  const buffer = await audioCtx.decodeAudioData(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
+  bufferCache.set(filePath, buffer);
+  return buffer;
 }
 
-function decodeToPcmBuffer(filePath, sampleRate, channels) {
-    const safeName = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}.f32le`;
-    const outputPath = join(tmpdir(), `cusus-pcm-${safeName}`);
-
-    return (async () => {
-        try {
-            await new Promise((resolve, reject) => {
-                execFile(ffmpegStatic, [
-                    '-y',
-                    '-v', 'error',
-                    '-nostats',
-                    '-i', filePath,
-                    '-f', 'f32le', '-acodec', 'pcm_f32le',
-                    '-ar', String(sampleRate), '-ac', String(channels),
-                    outputPath,
-                ], { encoding: 'buffer', env: ffmpegEnv(), maxBuffer: 1024 * 1024 }, (err, _stdout, stderr) => {
-                    if (err) {
-                        const detail = stderr?.toString() || err.message;
-                        reject(new Error(detail));
-                    } else {
-                        resolve();
-                    }
-                });
-            });
-
-            return await readFile(outputPath);
-        } finally {
-            await unlink(outputPath).catch(() => {});
-        }
-    })();
+function clearInstance(instanceId) {
+  const inst = active.get(instanceId);
+  if (!inst) return;
+  inst.timers.forEach(timer => clearTimeout(timer));
+  try { inst.source.stop(); } catch { }
+  try { inst.source.disconnect(); } catch { }
+  try { inst.gain.disconnect(); } catch { }
+  active.delete(instanceId);
 }
 
-function updateCacheHints(entries = []) {
-    const nextPaths = new Set();
-
-    entries.forEach(entry => {
-        if (!entry?.clip) return;
-        nextPaths.add(entry.clip);
-        const cueIds = normalizeCueIds(entry.cueIds);
-        const orders = Array.isArray(entry.orders)
-            ? entry.orders.map(Number).filter(Number.isFinite).sort((a, b) => a - b)
-            : [];
-        const cueOrders = Array.isArray(entry.cueOrders)
-            ? entry.cueOrders
-                .map(item => ({ id: String(item?.id || ''), order: Number(item?.order) }))
-                .filter(item => item.id && Number.isFinite(item.order))
-                .sort((a, b) => a.order - b.order)
-            : [];
-        const prev = getCacheHint(entry.clip);
-        setCacheHint(entry.clip, {
-            cueIds,
-            orders,
-            cueOrders,
-            playedCueIds: prev.playedCueIds,
-            lastUsedAt: prev.lastUsedAt,
-        });
-    });
-
-    for (const filePath of cacheHints.keys()) {
-        if (!nextPaths.has(filePath) && !bufferCache.has(filePath)) {
-            cacheHints.delete(filePath);
-        }
-    }
-
-    evictBufferCache();
+function scheduleEnd(inst) {
+  if (inst.loop) return;
+  const remaining = Math.max(0, (inst.endAt || inst.duration) - inst.position);
+  const timer = setTimeout(() => clearInstance(inst.instanceId), remaining * 1000 + 40);
+  inst.timers.add(timer);
 }
 
-function markCuePlayed(cueId) {
-    if (!cueId) return;
-    const id = String(cueId);
-    for (const [filePath, hint] of cacheHints.entries()) {
-        if (!hint.cueIds.has(id)) continue;
-        const playedCueIds = new Set(hint.playedCueIds);
-        playedCueIds.add(id);
-        setCacheHint(filePath, { playedCueIds });
-    }
-    evictBufferCache();
+function positionFor(inst) {
+  if (!inst) return 0;
+  const elapsed = inst.paused || !ctx ? 0 : Math.max(0, ctx.currentTime - inst.startedAt);
+  return Math.min(inst.endAt, inst.position + elapsed);
 }
 
-function clearPlayedCacheHints() {
-    for (const [filePath, hint] of cacheHints.entries()) {
-        if (hint.playedCueIds.size > 0) {
-            setCacheHint(filePath, { playedCueIds: new Set() });
-        }
-    }
-    cacheCurrentOrder = 0;
-    evictBufferCache();
+function firedTriggerSet(triggers, position) {
+  const fired = new Set();
+  if (!Array.isArray(triggers)) return fired;
+  triggers.forEach((trigger, idx) => {
+    if ((Number(trigger?.timeMs || 0) / 1000) < position) fired.add(idx);
+  });
+  return fired;
 }
 
-function setCacheCurrentOrder(order) {
-    const parsed = Number(order);
-    if (Number.isFinite(parsed)) cacheCurrentOrder = Math.max(cacheCurrentOrder, parsed);
-    evictBufferCache();
+function startSource(inst, offset = inst.position || 0) {
+  const audioCtx = getCtx();
+  const source = audioCtx.createBufferSource();
+  source.buffer = inst.buffer;
+  source.loop = inst.loop;
+  source.loopStart = inst.loopStart;
+  source.loopEnd = inst.loopEnd;
+  const gain = audioCtx.createGain();
+  const targetGain = dbToGain(inst.volume);
+  const fadeIn = Math.max(0, Number(inst.cue?.fadeIn || 0));
+  const fadeOut = Math.max(0, Number(inst.cue?.fadeOut || 0));
+  const t0 = audioCtx.currentTime;
+  const playLen = Math.max(0.01, inst.endAt - offset);
+  gain.gain.cancelScheduledValues(t0);
+  gain.gain.setValueAtTime(0, t0);
+  if (fadeIn > 0 && offset < inst.clipStart + fadeIn) gain.gain.linearRampToValueAtTime(targetGain, t0 + (inst.clipStart + fadeIn - offset));
+  else gain.gain.setValueAtTime(targetGain, t0);
+  if (fadeOut > 0 && inst.endAt - fadeOut > offset) {
+    const rampAt = t0 + (inst.endAt - fadeOut - offset);
+    gain.gain.setValueAtTime(targetGain, rampAt);
+    gain.gain.linearRampToValueAtTime(0.0001, t0 + playLen);
+  }
+  source.connect(gain);
+  gain.connect(masterGain);
+  inst.source = source;
+  inst.gain = gain;
+  inst.startedAt = audioCtx.currentTime;
+  inst.position = offset;
+  source.start(audioCtx.currentTime, offset, inst.loop ? undefined : Math.max(0.01, inst.endAt - offset));
+  scheduleEnd(inst);
 }
 
-async function tryLoadWavBuffer(filePath, expectedSampleRate, expectedChannels) {
-    if (!String(filePath).toLowerCase().endsWith('.wav')) return null;
-
-    const file = await readFile(filePath);
-    const parsed = parsePcmWav(file);
-    if (!parsed) return null;
-
-    const { sampleRate, channels, bitsPerSample, format, dataOffset, dataSize } = parsed;
-    if (sampleRate !== expectedSampleRate || channels !== expectedChannels) return null;
-
-    const bytesPerSample = bitsPerSample / 8;
-    const frameCount = Math.floor(dataSize / (bytesPerSample * channels));
-    const ctx = getCtx();
-    const audioBuffer = ctx.createBuffer(channels, frameCount, sampleRate);
-
-    for (let c = 0; c < channels; c++) {
-        const channelData = audioBuffer.getChannelData(c);
-        for (let i = 0; i < frameCount; i++) {
-            const offset = dataOffset + ((i * channels + c) * bytesPerSample);
-            channelData[i] = readWavSample(file, offset, bitsPerSample, format);
-        }
-    }
-
-    return audioBuffer;
+export function initAudioConfig(configService) {
+  configValue = (path, fallback) => configService.getValue(path, fallback);
+  configService.onChange(() => {
+    bufferCache.clear();
+    stopAll();
+    if (ctx && ctx.state !== 'closed') ctx.close().catch(() => { });
+    ctx = null;
+    masterGain = null;
+  });
 }
 
-function parsePcmWav(file) {
-    if (file.length < 44) return null;
-    if (file.toString('ascii', 0, 4) !== 'RIFF' || file.toString('ascii', 8, 12) !== 'WAVE') return null;
-
-    let pos = 12;
-    let fmt = null;
-    let data = null;
-    while (pos + 8 <= file.length) {
-        const id = file.toString('ascii', pos, pos + 4);
-        const size = file.readUInt32LE(pos + 4);
-        const body = pos + 8;
-        if (body + size > file.length) break;
-
-        if (id === 'fmt ') {
-            if (size < 16) return null;
-            fmt = {
-                format: file.readUInt16LE(body),
-                channels: file.readUInt16LE(body + 2),
-                sampleRate: file.readUInt32LE(body + 4),
-                bitsPerSample: file.readUInt16LE(body + 14),
-            };
-        } else if (id === 'data') {
-            data = { dataOffset: body, dataSize: size };
-        }
-
-        pos = body + size + (size % 2);
-    }
-
-    if (!fmt || !data) return null;
-    const isSupported = (fmt.format === 1 && (fmt.bitsPerSample === 16 || fmt.bitsPerSample === 24 || fmt.bitsPerSample === 32))
-        || (fmt.format === 3 && fmt.bitsPerSample === 32);
-    if (!isSupported || fmt.channels < 1) return null;
-    return { ...fmt, ...data };
+export async function playCue(cue) {
+  if (!cue?.clip || !existsSync(cue.clip)) return null;
+  if (cue.playStyle === 'fade_all') fadeOutAll(cue.fadeOut || 1);
+  if (cue.playStyle === 'xfade') fadeOutAll(cue.fadeIn || 1);
+  const buffer = await loadBuffer(cue.clip);
+  const start = Math.max(0, Number(cue.clipStart || 0));
+  const end = Number.isFinite(Number(cue.clipEnd)) ? Math.min(buffer.duration, Number(cue.clipEnd)) : buffer.duration;
+  const instanceId = `aud_${Date.now()}_${nextId++}`;
+  const loop = cue.soundSubtype === 'vamp';
+  const inst = {
+    instanceId,
+    cue: { ...cue },
+    cueId: cue.id || null,
+    cueNumber: cue.number || cue.cueNumber || null,
+    title: cue.title || '',
+    clip: cue.clip,
+    clipUrl: cue.clipUrl || cue.clip,
+    buffer,
+    duration: buffer.duration,
+    clipStart: start,
+    clipEnd: end,
+    endAt: end,
+    position: start,
+    loop,
+    loopStart: Number(cue.loopStart ?? start),
+    loopEnd: Number(cue.loopEnd ?? end),
+    loopXfade: Number(cue.loopXfade || 0),
+    baseVolume: Number(cue.volume || 0),
+    volume: Number(cue.volume || 0),
+    muted: false,
+    paused: false,
+    timers: new Set(),
+    firedTriggers: firedTriggerSet(cue.oscTriggers, start),
+  };
+  active.set(instanceId, inst);
+  startSource(inst, start);
+  if (cue.oscStartTrigger && triggerCallback) triggerCallback(cue.oscStartTrigger, cue);
+  return instanceId;
 }
 
-function readWavSample(file, offset, bitsPerSample, format) {
-    if (format === 3 && bitsPerSample === 32) return file.readFloatLE(offset);
-    if (bitsPerSample === 16) return file.readInt16LE(offset) / 32768;
-    if (bitsPerSample === 24) return file.readIntLE(offset, 3) / 8388608;
-    if (bitsPerSample === 32) return file.readInt32LE(offset) / 2147483648;
-    return 0;
+export function fadeOut(instanceId, duration = 2) {
+  const inst = active.get(instanceId);
+  if (!inst?.gain) return;
+  const audioCtx = getCtx();
+  const seconds = Math.max(0.05, Number(duration) || 2);
+  inst.fadeMode = 'fadeOut';
+  inst.fadeStartedAt = Date.now();
+  inst.fadeDuration = seconds;
+  inst.gain.gain.cancelScheduledValues(audioCtx.currentTime);
+  inst.gain.gain.setValueAtTime(inst.gain.gain.value, audioCtx.currentTime);
+  inst.gain.gain.linearRampToValueAtTime(0.0001, audioCtx.currentTime + seconds);
+  inst.timers.add(setTimeout(() => clearInstance(instanceId), seconds * 1000 + 50));
 }
 
-function makeGain(ctx, vol, fadeIn, destination = getMasterGain()) {
-    const g = ctx.createGain();
-    if (fadeIn > 0) {
-        g.gain.setValueAtTime(0.0001, ctx.currentTime);
-        g.gain.linearRampToValueAtTime(vol, ctx.currentTime + fadeIn);
-    } else {
-        g.gain.setValueAtTime(vol, ctx.currentTime);
-    }
-    g.connect(destination);
-    return g;
+export function stop(instanceId) { clearInstance(instanceId); }
+export function stopAll() { [...active.keys()].forEach(clearInstance); }
+export function fadeOutAll(duration = 2) { [...active.keys()].forEach(id => fadeOut(id, duration)); }
+export function devamp(instanceId) { const inst = active.get(instanceId); if (inst) { inst.loop = false; inst.source.loop = false; } }
+export function cancelDevamp(instanceId) { const inst = active.get(instanceId); if (inst) { inst.loop = true; inst.source.loop = true; } }
+export function cancelWaitingCues() { }
+
+export function setVolume(instanceId, db) {
+  const inst = active.get(instanceId);
+  if (!inst?.gain) return;
+  inst.volume = Number(db) || 0;
+  inst.cue.volume = inst.volume;
+  inst.gain.gain.setValueAtTime(dbToGain(inst.volume), getCtx().currentTime);
 }
 
-function startSrc(ctx, buffer, gainNode, offset, duration, loop, loopStart, loopEnd) {
-    const src = ctx.createBufferSource();
-    src.buffer = buffer;
-    if (loop) {
-        src.loop = true;
-        src.loopStart = loopStart ?? 0;
-        src.loopEnd = loopEnd ?? buffer.duration;
-    }
-    src.connect(gainNode);
-    if (!loop && duration != null) {
-        src.start(ctx.currentTime, offset, duration);
-    } else {
-        src.start(ctx.currentTime, offset);
-    }
-    return src;
+export function setMuted(instanceId, muted) {
+  const inst = active.get(instanceId);
+  if (!inst?.gain) return;
+  inst.muted = Boolean(muted);
+  inst.gain.gain.setValueAtTime(inst.muted ? 0 : dbToGain(inst.volume), getCtx().currentTime);
 }
 
-function disposePlayer(p) {
-    try { p.source.stop(); } catch (_) { }
-    try { p.source.disconnect(); } catch (_) { }
-    try { p.gain.disconnect(); } catch (_) { }
+export function toggleMute(instanceId) {
+  const inst = active.get(instanceId);
+  if (!inst) return false;
+  setMuted(instanceId, !inst.muted);
+  return inst.muted;
 }
 
-// ── Active instances ───────────────────────────────────────────────────────
-
-const activeInstances = new Map();
-let nextId = 0;
-let waitingCueGeneration = 0;
-const waitingResolvers = new Set();
-
-class WaitingCueCancelledError extends Error {
-    constructor() {
-        super('Waiting cue cancelled');
-        this.name = 'WaitingCueCancelledError';
-        this.code = 'WAITING_CUE_CANCELLED';
-    }
+export function masterVolume(db) {
+  if (db !== undefined) {
+    masterDbValue = Number(db) || 0;
+    applyMasterGain();
+  }
+  return masterDbValue;
 }
 
-function cancelWaitingCues() {
-    waitingCueGeneration += 1;
-    if (waitingResolvers.size > 0) {
-        for (const resolve of waitingResolvers) resolve();
-        waitingResolvers.clear();
-    }
+export function toggleMasterMute() { masterMuted = !masterMuted; applyMasterGain(); return masterMuted; }
+export function setMasterMuted(muted) { masterMuted = Boolean(muted); applyMasterGain(); }
+export function isMasterMuted() { return masterMuted; }
+
+export function pause(instanceId) {
+  const inst = active.get(instanceId);
+  if (!inst || inst.paused) return;
+  const audioCtx = getCtx();
+  inst.position = Math.min(inst.endAt, inst.position + (audioCtx.currentTime - inst.startedAt));
+  clearInstance(instanceId);
+  active.set(instanceId, { ...inst, paused: true, timers: new Set(), source: null, gain: null });
 }
 
-function assertWaitingCuesNotCancelled(startGeneration) {
-    if (startGeneration !== waitingCueGeneration) {
-        throw new WaitingCueCancelledError();
-    }
+export async function resume(instanceId) {
+  const inst = active.get(instanceId);
+  if (!inst || !inst.paused) return;
+  inst.paused = false;
+  startSource(inst, inst.position);
 }
 
-function clearInstance(id) {
-    const inst = activeInstances.get(id);
-    if (!inst) return;
-    inst.timers.forEach(t => clearTimeout(t));
-    inst.timers.clear();
-    if (inst.type === 'xfade_vamp') {
-        inst.players.forEach(disposePlayer);
-        if (inst.outputGain) {
-            try { inst.outputGain.disconnect(); } catch (_) { }
-        }
-        if (inst.muteGain) {
-            try { inst.muteGain.disconnect(); } catch (_) { }
-        }
-    } else if (inst.nodes) {
-        disposePlayer(inst.nodes);
-        if (inst.muteGain) {
-            try { inst.muteGain.disconnect(); } catch (_) { }
-        }
-    }
-    activeInstances.delete(id);
-    if (activeInstances.size === 0 && waitingResolvers.size > 0) {
-        for (const resolve of waitingResolvers) resolve();
-        waitingResolvers.clear();
-    }
+export async function seek(instanceId, position) {
+  const inst = active.get(instanceId);
+  if (!inst) return;
+  const next = Math.max(inst.clipStart, Math.min(inst.endAt, Number(position) || inst.clipStart));
+  clearInstance(instanceId);
+  active.set(instanceId, { ...inst, position: next, paused: false, timers: new Set(), firedTriggers: firedTriggerSet(inst.cue?.oscTriggers, next) });
+  startSource(active.get(instanceId), next);
 }
 
-// ── Crossfade scheduling ───────────────────────────────────────────────────
-
-function scheduleCrossfade(instanceId, currentPlayer, delaySeconds) {
-    const inst = activeInstances.get(instanceId);
-    if (!inst || inst.isDeramping) return;
-
-    const t = setTimeout(() => {
-        const inst = activeInstances.get(instanceId);
-        if (!inst || inst.isDeramping) return;
-        const ctx = getCtx();
-        const { buffer, lStart, loopXfade, targetVol, loopDuration, outputGain } = inst;
-        const destination = outputGain ?? getMasterGain();
-
-        const nextGain = ctx.createGain();
-        nextGain.gain.setValueAtTime(0.0001, ctx.currentTime);
-        nextGain.gain.linearRampToValueAtTime(targetVol, ctx.currentTime + loopXfade);
-        nextGain.connect(destination);
-        const nextSrc = ctx.createBufferSource();
-        nextSrc.buffer = buffer;
-        nextSrc.connect(nextGain);
-        nextSrc.start(ctx.currentTime, lStart);
-        const nextPlayer = { source: nextSrc, gain: nextGain, startCtxTime: ctx.currentTime, startOffset: lStart };
-        inst.players.push(nextPlayer);
-
-        currentPlayer.gain.gain.setValueAtTime(targetVol, ctx.currentTime);
-        currentPlayer.gain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + loopXfade);
-        const disposeT = setTimeout(() => {
-            disposePlayer(currentPlayer);
-            const idx = inst.players.indexOf(currentPlayer);
-            if (idx !== -1) inst.players.splice(idx, 1);
-            inst.timers.delete(disposeT);
-        }, loopXfade * 1000 + 100);
-        inst.timers.add(disposeT);
-
-        scheduleCrossfade(instanceId, nextPlayer, loopDuration - loopXfade);
-    }, delaySeconds * 1000);
-
-    inst.timers.add(t);
+export function listActive() {
+  return [...active.values()].map(inst => {
+    return {
+      instanceId: inst.instanceId,
+      cueId: inst.cueId,
+      cueNumber: inst.cueNumber,
+      title: inst.title,
+      clip: inst.clip,
+      clipUrl: inst.clipUrl,
+      position: positionFor(inst),
+      duration: inst.duration,
+      clipStart: inst.clipStart,
+      clipEnd: inst.clipEnd,
+      loopStart: inst.loopStart,
+      loopEnd: inst.loopEnd,
+      isVamp: inst.loop,
+      paused: inst.paused,
+      muted: inst.muted,
+      baseVolume: inst.baseVolume,
+      volume: inst.volume,
+      fadeMode: inst.fadeMode || null,
+      fadeStartedAt: inst.fadeStartedAt || null,
+      fadeDuration: inst.fadeDuration || null,
+    };
+  });
 }
 
-// ── Position ───────────────────────────────────────────────────────────────
-
-function getPosition(instanceId) {
-    const inst = activeInstances.get(instanceId);
-    if (!inst) return 0;
-    if (inst.paused) return inst.pausedAt ?? 0;
-
-    const ctx = getCtx();
-
-    if (inst.type === 'xfade_vamp') {
-        if (!inst.players.length) return 0;
-        const primary = inst.players[inst.players.length - 1];
-        const elapsed = ctx.currentTime - primary.startCtxTime;
-        return primary.startOffset + elapsed;
-    }
-
-    const elapsed = ctx.currentTime - (inst.audioContextStartTime ?? ctx.currentTime);
-    if (inst.type === 'vamp') {
-        const cs = inst.clipStartOffset ?? 0;
-        const { lStart, lEnd, loopDuration } = inst;
-        const initialLen = Math.max(0, lStart - cs);
-        if (elapsed <= initialLen) return cs + elapsed;
-        return lStart + ((elapsed - initialLen) % (loopDuration || 1));
-    }
-    return Math.min((inst.clipStartOffset ?? 0) + elapsed, inst.buffer.duration);
-}
-
-// ── Seek (stop + restart from new position) ────────────────────────────────
-
-async function seek(instanceId, newPos) {
-    const inst = activeInstances.get(instanceId);
-    if (!inst) return;
-
-    // Stop existing audio
-    inst.timers.forEach(t => clearTimeout(t));
-    inst.timers.clear();
-    if (inst.type === 'xfade_vamp') {
-        inst.players.forEach(p => { try { p.source.stop(); } catch (_) { } try { p.gain.disconnect(); } catch (_) { } });
-        inst.players = [];
-        if (inst.outputGain) {
-            try { inst.outputGain.disconnect(); } catch (_) { }
-        }
-    } else if (inst.nodes) {
-        try { inst.nodes.source.stop(); } catch (_) { }
-        try { inst.nodes.gain.disconnect(); } catch (_) { }
-        inst.nodes = null;
-    }
-    if (inst.muteGain) {
-        try { inst.muteGain.disconnect(); } catch (_) { }
-        inst.muteGain = null;
-    }
-    inst.isDeramping = false;
-    inst.paused = false; inst.firedTriggers = new Set();
-
-    const ctx = getCtx();
-    const buffer = inst.buffer;
-    const cue = inst.cue;
-    const vol = dbToLinear(cue.volume ?? 0);
-    const loopXfade = cue.loopXfade ?? 0;
-    const lStart = cue.loopStart ?? 0;
-    const lEnd = cue.loopEnd ?? buffer.duration;
-    const loopDuration = lEnd - lStart;
-    const muteGain = createMuteGain(ctx, Boolean(inst.muted));
-
-    newPos = Math.max(0, Math.min(buffer.duration - 0.01, newPos));
-
-    if (inst.type === 'xfade_vamp') {
-        const outputGain = inst.outputGain ?? ctx.createGain();
-        inst.outputGain = outputGain;
-        outputGain.gain.value = 1;
-        outputGain.connect(muteGain);
-        outputGain.gain.cancelScheduledValues(ctx.currentTime);
-        outputGain.gain.setValueAtTime(1, ctx.currentTime);
-        const firstGain = ctx.createGain();
-        firstGain.gain.setValueAtTime(vol, ctx.currentTime);
-        firstGain.connect(outputGain);
-        const firstSrc = ctx.createBufferSource();
-        firstSrc.buffer = buffer;
-        firstSrc.connect(firstGain);
-        firstSrc.start(ctx.currentTime, newPos);
-        const firstPlayer = { source: firstSrc, gain: firstGain, startCtxTime: ctx.currentTime, startOffset: newPos };
-        inst.players = [firstPlayer];
-        inst.targetVol = vol;
-        inst.muteGain = muteGain;
-
-        const distToLoopEnd = lEnd - newPos;
-        if (distToLoopEnd > loopXfade && loopDuration > 0) {
-            scheduleCrossfade(instanceId, firstPlayer, distToLoopEnd - loopXfade);
-        }
-
-    } else if (inst.type === 'vamp') {
-        const g = ctx.createGain();
-        g.gain.setValueAtTime(vol, ctx.currentTime);
-        g.connect(muteGain);
-        const src = ctx.createBufferSource();
-        src.buffer = buffer;
-        src.loop = true;
-        src.loopStart = lStart;
-        src.loopEnd = lEnd;
-        src.connect(g);
-        src.start(ctx.currentTime, newPos);
-        inst.nodes = { source: src, gain: g };
-        inst.muteGain = muteGain;
-        inst.audioContextStartTime = ctx.currentTime;
-        inst.clipStartOffset = newPos;
-
-    } else {
-        const end = cue.clipEnd ?? buffer.duration;
-        const remaining = Math.max(0.01, end - newPos);
-        const g = ctx.createGain();
-        g.gain.setValueAtTime(vol, ctx.currentTime);
-        g.connect(muteGain);
-        const src = ctx.createBufferSource();
-        src.buffer = buffer;
-        src.connect(g);
-        src.start(ctx.currentTime, newPos, remaining);
-        inst.nodes = { source: src, gain: g };
-        inst.muteGain = muteGain;
-        inst.audioContextStartTime = ctx.currentTime;
-        inst.clipStartOffset = newPos;
-        const cleanupT = setTimeout(() => { clearInstance(instanceId); }, remaining * 1000 + CLEANUP_GRACE_MS);
-        inst.timers.add(cleanupT);
-    }
-}
-
-// ── Pause / Resume ─────────────────────────────────────────────────────────
-
-function pause(instanceId) {
-    const inst = activeInstances.get(instanceId);
-    if (!inst || inst.paused) return;
-    inst.pausedAt = getPosition(instanceId);
-    inst.paused = true;
-    inst.timers.forEach(t => clearTimeout(t));
-    inst.timers.clear();
-    if (inst.type === 'xfade_vamp') {
-        inst.isDeramping = true; // stop crossfade scheduling
-        inst.players.forEach(p => { try { p.source.stop(); } catch (_) { } try { p.gain.disconnect(); } catch (_) { } });
-        inst.players = [];
-    } else if (inst.nodes) {
-        try { inst.nodes.source.stop(); } catch (_) { }
-        try { inst.nodes.gain.disconnect(); } catch (_) { }
-        inst.nodes = null;
-    }
-    if (inst.muteGain) {
-        try { inst.muteGain.disconnect(); } catch (_) { }
-        inst.muteGain = null;
-    }
-}
-
-async function resume(instanceId) {
-    const inst = activeInstances.get(instanceId);
-    if (!inst || !inst.paused) return;
-    const pos = inst.pausedAt ?? 0;
-    inst.paused = false; inst.firedTriggers = new Set();
-    inst.isDeramping = false;
-    await seek(instanceId, pos);
-}
-
-// ── Public API ─────────────────────────────────────────────────────────────
-
-async function playCue(cue) {
-    const cueGeneration = waitingCueGeneration;
-    const cueType = cue.cueType || cue.soundSubtype || 'play_once';
-    const playbackMode = cue.soundSubtype || (cueType === 'sound' ? 'play_once' : cueType);
-    const {
-        clip,
-        clipUrl = null,
-        playStyle = 'alongside',
-        clipStart = 0,
-        clipEnd = null,
-        fadeIn = 0,
-        fadeOut: fadeOutDuration = 0,
-        volume: volumeDb = 0,
-        allowMultipleInstances = true,
-        manualFadeOutDuration = 2,
-        loopStart = 0,
-        loopEnd = null,
-        loopXfade = 0,
-        oscStartTrigger = null,
-    } = cue;
-
-    if (!clip) throw new Error('playCue: clip is required');
-
-    if (playStyle === 'wait') {
-        assertWaitingCuesNotCancelled(cueGeneration);
-        await waitForAll();
-        assertWaitingCuesNotCancelled(cueGeneration);
-    } else if (playStyle === 'fade_all') {
-        assertWaitingCuesNotCancelled(cueGeneration);
-        fadeOutAll(manualFadeOutDuration);
-        await new Promise(r => setTimeout(r, manualFadeOutDuration * 1000 + 200));
-        assertWaitingCuesNotCancelled(cueGeneration);
-    } else if (playStyle === 'xfade') {
-        [...activeInstances.keys()].forEach(id => fadeOut(id, manualFadeOutDuration));
-    }
-
-    if (playStyle !== 'alongside' && !allowMultipleInstances) {
-        for (const [id, inst] of activeInstances.entries()) {
-            if (inst.clip === clip) clearInstance(id);
-        }
-    }
-
-    const instanceId = String(nextId++);
-    const buffer = await loadBuffer(clip);
-    const ctx = getCtx();
-    const dur = buffer.duration;
-    const end = clipEnd ?? dur;
-    const playDuration = Math.max(0, end - clipStart);
-    const timers = new Set();
-    const vol = dbToLinear(volumeDb);
-    const muted = false;
-
-    if (playbackMode === 'vamp') {
-        const lEnd = loopEnd ?? dur;
-        const lStart = loopStart;
-        const loopDuration = lEnd - lStart;
-        const shouldLoop = clipStart < lEnd && loopDuration > 0;
-        const muteGain = createMuteGain(ctx, muted);
-
-        if (shouldLoop && loopXfade > 0) {
-            const firstLoopDuration = lEnd - clipStart;
-            const outputGain = ctx.createGain();
-            outputGain.gain.value = 1;
-            outputGain.connect(muteGain);
-            const firstGain = makeGain(ctx, vol, fadeIn, outputGain);
-            const firstSrc = ctx.createBufferSource();
-            firstSrc.buffer = buffer;
-            firstSrc.connect(firstGain);
-            firstSrc.start(ctx.currentTime, clipStart);
-            const firstPlayer = { source: firstSrc, gain: firstGain, startCtxTime: ctx.currentTime, startOffset: clipStart };
-
-            activeInstances.set(instanceId, {
-                type: 'xfade_vamp', clip, clipUrl, cue, buffer,
-                players: [firstPlayer], timers, isDeramping: false, paused: false, muted,
-                lStart, lEnd, loopDuration, loopXfade, targetVol: vol,
-                outputGain,
-                muteGain,
-            });
-            scheduleCrossfade(instanceId, firstPlayer, firstLoopDuration - loopXfade);
-
-        } else if (shouldLoop) {
-            const gain = makeGain(ctx, vol, fadeIn, muteGain);
-            const src = startSrc(ctx, buffer, gain, clipStart, null, true, lStart, lEnd);
-            activeInstances.set(instanceId, {
-                type: 'vamp', clip, clipUrl, cue, buffer,
-                nodes: { source: src, gain }, timers, isDeramping: false, paused: false, muted,
-                muteGain,
-                lStart, lEnd, loopDuration,
-                audioContextStartTime: ctx.currentTime, clipStartOffset: clipStart,
-            });
-
-        } else {
-            const gain = makeGain(ctx, vol, fadeIn, muteGain);
-            const src = startSrc(ctx, buffer, gain, clipStart, playDuration, false);
-            const cleanupT = setTimeout(() => { clearInstance(instanceId); }, playDuration * 1000 + CLEANUP_GRACE_MS);
-            timers.add(cleanupT);
-            activeInstances.set(instanceId, {
-                type: 'play_once', clip, clipUrl, cue, buffer,
-                nodes: { source: src, gain }, timers, isDeramping: false, paused: false, muted,
-                muteGain,
-                audioContextStartTime: ctx.currentTime, clipStartOffset: clipStart,
-            });
-        }
-
-    } else {
-        const muteGain = createMuteGain(ctx, muted);
-        const gain = makeGain(ctx, vol, fadeIn, muteGain);
-        const src = startSrc(ctx, buffer, gain, clipStart, playDuration, false);
-
-        if (fadeOutDuration > 0 && playDuration > fadeOutDuration) {
-            const rampT = setTimeout(() => {
-                if (!activeInstances.has(instanceId)) return;
-                gain.gain.cancelScheduledValues(ctx.currentTime);
-                gain.gain.setValueAtTime(vol, ctx.currentTime);
-                gain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + fadeOutDuration);
-            }, (playDuration - fadeOutDuration) * 1000);
-            timers.add(rampT);
-        }
-
-        const cleanupT = setTimeout(() => { clearInstance(instanceId); }, playDuration * 1000 + CLEANUP_GRACE_MS);
-        timers.add(cleanupT);
-        activeInstances.set(instanceId, {
-            type: 'play_once', clip, clipUrl, cue, buffer,
-            nodes: { source: src, gain }, timers, isDeramping: false, paused: false, muted,
-            muteGain,
-            audioContextStartTime: ctx.currentTime, clipStartOffset: clipStart,
-        });
-    }
-
-    if (oscStartTrigger) {
-        try {
-            triggerCallback?.(oscStartTrigger, cue);
-        } catch (e) {
-            console.error('Unhandled error in sound start OSC trigger', e);
-        }
-    }
-
-    return instanceId;
-}
-
-function fadeOut(instanceId, duration) {
-    const inst = activeInstances.get(instanceId);
-    if (!inst) return;
-    const ctx = getCtx();
-    const fd = duration ?? inst.cue?.manualFadeOutDuration ?? 2;
-
-    if (inst.type === 'xfade_vamp') {
-        const outputGain = inst.outputGain ?? createOutputGain(ctx);
-        inst.outputGain = outputGain;
-        inst.fadeMode = 'fadeOut';
-        inst.fadeStartedAt = Date.now();
-        inst.fadeDuration = fd;
-        outputGain.gain.cancelScheduledValues(ctx.currentTime);
-        const currentValue = outputGain.gain.value == null ? 1 : Math.max(outputGain.gain.value, 0.0001);
-        outputGain.gain.setValueAtTime(currentValue, ctx.currentTime);
-        outputGain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + fd);
-
-        const t = setTimeout(() => { clearInstance(instanceId); }, fd * 1000 + CLEANUP_GRACE_MS);
-        inst.timers.add(t);
-    } else if (inst.nodes) {
-        inst.isDeramping = true;
-        inst.fadeMode = 'fadeOut';
-        inst.fadeStartedAt = Date.now();
-        inst.fadeDuration = fd;
-        inst.timers.forEach(t => clearTimeout(t));
-        inst.timers.clear();
-        const vol = dbToLinear(inst.cue?.volume ?? 0);
-        inst.nodes.gain.gain.setValueAtTime(vol, ctx.currentTime);
-        inst.nodes.gain.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + fd);
-
-        const t = setTimeout(() => { clearInstance(instanceId); }, fd * 1000 + CLEANUP_GRACE_MS);
-        inst.timers.add(t);
-    }
-}
-
-function stop(instanceId) { clearInstance(instanceId); }
-
-function stopAll() { [...activeInstances.keys()].forEach(clearInstance); }
-
-function fadeOutAll(duration = 2) {
-    [...activeInstances.keys()].forEach(id => fadeOut(id, duration));
-}
-
-function devamp(instanceId) {
-    const inst = activeInstances.get(instanceId);
-    if (!inst) return;
-    const ctx = getCtx();
-    const isFadingOut = inst.fadeMode === 'fadeOut';
-    inst.isDeramping = true;
-    if (!isFadingOut) {
-        inst.fadeMode = 'devamp';
-        inst.fadeStartedAt = null;
-        inst.fadeDuration = null;
-        inst.timers.forEach(t => clearTimeout(t));
-        inst.timers.clear();
-    }
-
-    if (inst.type === 'xfade_vamp') {
-        if (isFadingOut) return;
-
-        const primary = inst.players[inst.players.length - 1];
-        inst.players.slice(0, -1).forEach(disposePlayer);
-        inst.players = primary ? [primary] : [];
-        if (!primary) { activeInstances.delete(instanceId); return; }
-        const elapsed = ctx.currentTime - primary.startCtxTime;
-        const currentPos = primary.startOffset + elapsed;
-        const remaining = Math.max(0, inst.buffer.duration - currentPos);
-        const t = setTimeout(() => { clearInstance(instanceId); }, remaining * 1000 + CLEANUP_GRACE_MS);
-        inst.timers.add(t);
-    } else if (inst.nodes) {
-        inst.nodes.source.loop = false;
-        if (isFadingOut) return;
-        const elapsed = ctx.currentTime - (inst.audioContextStartTime ?? ctx.currentTime);
-        const currentPos = (inst.clipStartOffset ?? 0) + elapsed;
-        const remaining = Math.max(0, inst.buffer.duration - currentPos);
-        const t = setTimeout(() => { clearInstance(instanceId); }, remaining * 1000 + CLEANUP_GRACE_MS);
-        inst.timers.add(t);
-    }
-}
-
-function setVolume(instanceId, db) {
-    const inst = activeInstances.get(instanceId);
-    if (!inst) return;
-    const ctx = getCtx();
-    const vol = dbToLinear(db);
-    if (inst.type === 'xfade_vamp') {
-        inst.targetVol = vol;
-        inst.players.forEach(p => p.gain.gain.setValueAtTime(vol, ctx.currentTime));
-    } else if (inst.nodes) {
-        inst.nodes.gain.gain.setValueAtTime(vol, ctx.currentTime);
-    }
-    if (inst.cue) inst.cue.volume = db;
-}
-
-function setMuted(instanceId, muted) {
-    const inst = activeInstances.get(instanceId);
-    if (!inst) return;
-    inst.muted = Boolean(muted);
-    if (inst.muteGain) {
-        inst.muteGain.gain.setValueAtTime(inst.muted ? 0 : 1, getCtx().currentTime);
-    }
-}
-
-function toggleMute(instanceId) {
-    const inst = activeInstances.get(instanceId);
-    if (!inst) return false;
-    setMuted(instanceId, !inst.muted);
-    return Boolean(inst.muted);
-}
-
-function masterVolume(db) {
-    if (db !== undefined) {
-        _masterDb = db;
-        if (_ctx && _ctx.state !== 'closed') applyMasterGain(_ctx);
-    }
-    return _masterDb;
-}
-
-function setMasterMuted(muted) {
-    _masterMuted = Boolean(muted);
-    if (_ctx && _ctx.state !== 'closed') applyMasterGain(_ctx);
-}
-
-function toggleMasterMute() {
-    _masterMuted = !_masterMuted;
-    if (_ctx && _ctx.state !== 'closed') applyMasterGain(_ctx);
-    return _masterMuted;
-}
-
-function isMasterMuted() {
-    return _masterMuted;
-}
-
-function listActive() {
-    return [...activeInstances.entries()].map(([instanceId, inst]) => {
-        const volumeDb = inst.cue?.volume ?? 0;
-        return {
-            instanceId,
-            cueId: inst.cue?.id ?? null,
-            clip: inst.clip,
-            clipUrl: inst.clipUrl || null,
-            title: inst.cue?.title || inst.clip.split('/').pop(),
-            cueType: inst.cue?.cueType ?? inst.cue?.soundSubtype ?? 'play_once',
-            isVamp: inst.type === 'xfade_vamp' || inst.type === 'vamp',
-            isDeramping: inst.isDeramping,
-            fadeMode: inst.fadeMode ?? null,
-            fadeStartedAt: inst.fadeStartedAt ?? null,
-            fadeDuration: inst.fadeDuration ?? null,
-            paused: inst.paused ?? false,
-            muted: inst.muted ?? false,
-            volume: volumeDb,
-            position: getPosition(instanceId),
-            duration: inst.buffer?.duration ?? 0,
-            clipStart: inst.cue?.clipStart ?? inst.clipStartOffset ?? 0,
-            clipEnd: inst.cue?.clipEnd ?? inst.buffer?.duration ?? 0,
-            fadeIn: inst.cue?.fadeIn ?? 0,
-            fadeOut: inst.cue?.fadeOut ?? 0,
-            loopStart: inst.lStart ?? inst.cue?.loopStart ?? 0,
-            loopEnd: inst.lEnd ?? inst.cue?.loopEnd ?? inst.buffer?.duration ?? 0,
-            loopXfade: inst.cue?.loopXfade ?? 0,
-        };
-    });
-}
-
-async function waitForAll() {
-    return new Promise(resolve => {
-        if (activeInstances.size === 0) {
-            resolve();
-            return;
-        }
-        waitingResolvers.add(resolve);
-    });
-}
-
-function cancelDevamp(instanceId) {
-    const inst = activeInstances.get(instanceId);
-    if (!inst || !inst.isDeramping) return;
-    inst.isDeramping = false;
-    inst.timers.forEach(t => clearTimeout(t));
-    inst.timers.clear();
-
-    if (inst.type === 'xfade_vamp') {
-        // Re-enable crossfade scheduling from current player
-        const primary = inst.players[inst.players.length - 1];
-        if (!primary) return;
-        const ctx = getCtx();
-        const elapsed = ctx.currentTime - primary.startCtxTime;
-        const posInLoop = ((primary.startOffset + elapsed) - inst.lStart) % inst.loopDuration;
-        const remaining = inst.loopDuration - posInLoop - inst.loopXfade;
-        scheduleCrossfade(instanceId, primary, Math.max(0, remaining));
-    } else if (inst.nodes) {
-        // Re-enable loop for simple vamp
-        inst.nodes.source.loop = true;
-        inst.nodes.source.loopStart = inst.lStart;
-        inst.nodes.source.loopEnd = inst.lEnd;
-    }
-}
-
-export { playCue, fadeOut, stop, stopAll, fadeOutAll, devamp, cancelDevamp, listActive, setVolume, setMuted, toggleMute, masterVolume, setMasterMuted, toggleMasterMute, isMasterMuted, pause, resume, seek, setTriggerCallback, cancelWaitingCues, preloadBuffer, updateCacheHints, markCuePlayed, clearPlayedCacheHints, setCacheCurrentOrder, listAudioOutputDevices };
-
-async function preloadBuffer(filePath) {
-    if (!filePath) return false;
-    try {
-        await loadBuffer(filePath);
-        console.log("Preload successful for", filePath);
-        return true;
-    } catch (e) {
-        console.error(`preloadBuffer failed for ${filePath}:`, e.message);
-        return false;
-    }
-}
-
-let triggerCallback = null;
-function setTriggerCallback(cb) {
-    triggerCallback = cb;
-}
-
-// Trigger interval
+export function setTriggerCallback(fn) { triggerCallback = typeof fn === 'function' ? fn : null; }
 setInterval(() => {
-    if (!triggerCallback) return;
-    for (const [id, inst] of activeInstances.entries()) {
-        if (inst.paused || !inst.cue || !Array.isArray(inst.cue.oscTriggers)) continue;
-        const pos = getPosition(id);
-        if (!inst.firedTriggers) inst.firedTriggers = new Set();
-
-        inst.cue.oscTriggers.forEach((trigger, idx) => {
-            const timeS = (trigger.timeMs || 0) / 1000;
-            if (pos >= timeS && !inst.firedTriggers.has(idx)) {
-                inst.firedTriggers.add(idx);
-                try { triggerCallback(trigger, inst.cue); } catch (e) { console.error("Unhandled error in triggerCallback", e); }
-            }
-        });
-    }
+  if (!triggerCallback) return;
+  for (const inst of active.values()) {
+    if (inst.paused || !Array.isArray(inst.cue?.oscTriggers)) continue;
+    const pos = positionFor(inst);
+    inst.firedTriggers ||= new Set();
+    inst.cue.oscTriggers.forEach((trigger, idx) => {
+      const timeS = Number(trigger?.timeMs || 0) / 1000;
+      if (pos >= timeS && !inst.firedTriggers.has(idx)) {
+        inst.firedTriggers.add(idx);
+        try { triggerCallback(trigger, inst.cue, { instanceId: inst.instanceId, position: pos }); }
+        catch (err) { console.error('Trigger callback error:', err?.message || err); }
+      }
+    });
+  }
 }, 50);
+export async function preloadBuffer(filePath) { try { await loadBuffer(filePath); return true; } catch { return false; } }
+export function updateCacheHints(entries) { cacheHints = Array.isArray(entries) ? entries : []; }
+export function markCuePlayed(cueId) { if (cueId) playedCueIds.add(String(cueId)); }
+export function clearPlayedCacheHints() { playedCueIds.clear(); }
+export function setCacheCurrentOrder(order) { currentOrder = Number(order) || currentOrder; }
+export async function listAudioOutputDevices() {
+  try {
+    await ensureAudioApi();
+    return mediaDevicesRef?.enumerateDevices ? mediaDevicesRef.enumerateDevices() : [];
+  } catch {
+    return [];
+  }
+}

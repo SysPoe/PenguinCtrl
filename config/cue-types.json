@@ -1,25 +1,14 @@
 {
-  "version": 1,
+  "version": 2,
   "types": [
-    {
-      "id": "lighting",
-      "label": "Lighting",
-      "shortLabel": "L",
-      "description": "Non-audio cue used for operator tracking.",
-      "editor": "basic",
-      "handler": "trackOnly",
-      "color": "#f59e0b",
-      "order": 10
-    },
     {
       "id": "sound",
       "label": "Sound",
       "shortLabel": "S",
-      "description": "Audio cue played by the server audio engine.",
       "editor": "sound",
       "handler": "audioPlay",
-      "color": "#10b981",
-      "order": 20,
+      "color": "#20c878",
+      "order": 10,
       "payloadDefaults": {
         "soundSubtype": "play_once",
         "playStyle": "alongside",
@@ -28,19 +17,40 @@
         "fadeIn": 0,
         "fadeOut": 0,
         "volume": 0,
-        "manualFadeOutDuration": 2,
-        "allowMultipleInstances": false,
         "loopStart": 0,
         "loopEnd": null,
-        "loopXfade": 0,
         "oscStartTrigger": {
-          "oscAction": "goto",
+          "oscAction": "none",
           "oscPlayback": 1,
           "oscCueNumber": "{cueNumber}",
           "oscLevel": 100,
           "oscTransport": "auto"
         },
         "oscTriggers": []
+      }
+    },
+    {
+      "id": "lighting",
+      "label": "Lighting",
+      "shortLabel": "L",
+      "editor": "basic",
+      "handler": "trackOnly",
+      "color": "#f5b642",
+      "order": 20,
+      "payloadDefaults": {}
+    },
+    {
+      "id": "modifier",
+      "label": "Modifier",
+      "shortLabel": "M",
+      "editor": "modifier",
+      "handler": "modifierCue",
+      "color": "#d98a32",
+      "order": 30,
+      "payloadDefaults": {
+        "modifierAction": "fade",
+        "modifierDuration": 2,
+        "targetVolumeDb": -12
       }
     }
   ]

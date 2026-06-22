@@ -8,9 +8,6 @@
       "channels": 2,
       "maxCached": 0
     },
-    "output": {
-      "sinkId": "18306343585879179269"
-    },
     "masterVolume": {
       "defaultDb": 0,
       "minDb": -40,
@@ -22,18 +19,12 @@
     "reconnectDelayMs": 2000
   },
   "ui": {
-    "script": {
-      "minZoom": 50,
-      "maxZoom": 200,
-      "zoomStep": 10,
-      "wheelZoomStep": 5
-    },
     "cues": {
       "defaultManualFadeOutSeconds": 2
     }
   },
   "system": {
-    "notes": "When running with pulseaudio please ensure you are running it through pw-jack"
+    "notes": "Audio is routed through the OS sound mixer."
   },
   "osc": {
     "targets": [

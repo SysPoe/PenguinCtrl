@@ -1,0 +1,96 @@
+.toasts,
+.cue-error-toasts {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 10;
+  display: grid;
+  gap: 0;
+}
+
+.toast,
+.cue-error-toast {
+  max-width: 420px;
+  background: #421b20;
+  border: 1px solid #a8323e;
+  color: #ffd4da;
+  padding: 6px 8px;
+}
+
+.status-banner {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 42px;
+  z-index: 20;
+  min-height: 96px;
+  display: grid;
+  place-items: center;
+  background: #8f1d28;
+  border-top: 2px solid #ff7d87;
+  border-bottom: 2px solid #ff7d87;
+  color: #fff5f6;
+  font-size: 42px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.status-banner[hidden] {
+  display: none;
+}
+
+.settings-page {
+  height: calc(100% - 42px);
+  overflow: auto;
+}
+
+.settings-layout {
+  display: grid;
+}
+
+.config-section {
+  border-bottom: 1px solid #333841;
+}
+
+.config-section-header {
+  padding: 4px 6px;
+  background: #181a1e;
+  border-bottom: 1px solid #333841;
+}
+
+.config-section-title {
+  font-weight: 700;
+}
+
+.config-section-desc,
+.config-help {
+  color: #8994a2;
+  font-size: 12px;
+}
+
+.config-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.config-field {
+  border-right: 1px solid #22262c;
+  border-bottom: 1px solid #22262c;
+}
+
+.target-list {
+  display: grid;
+}
+
+.target-row {
+  display: grid;
+  grid-template-columns: 1fr 110px 110px auto;
+  border-bottom: 1px solid #22262c;
+}
+
+@media (max-width: 820px) {
+  .config-fields,
+  .target-row {
+    grid-template-columns: 1fr;
+  }
+}

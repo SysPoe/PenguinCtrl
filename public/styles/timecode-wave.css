@@ -1,0 +1,269 @@
+.wave-editor,
+.timecode-wave {
+  position: relative;
+  height: 130px;
+  border-top: 1px solid #333841;
+  background: #0c0d10;
+  touch-action: none;
+}
+
+.timecode-wave {
+  height: 320px;
+  border-bottom: 1px solid #333841;
+}
+
+.timecode-top-panel {
+  padding: 0;
+}
+
+.timecode-edit-grid {
+  display: grid;
+  grid-template-columns: minmax(430px, .82fr) minmax(520px, 1.18fr);
+  gap: 0;
+}
+
+.timecode-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0;
+  border-bottom: 1px solid #333841;
+}
+
+.timecode-group + .timecode-group {
+  border-left: 1px solid #333841;
+}
+
+.timecode-group > span {
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  min-width: 58px;
+  padding: 0 8px;
+  border-right: 1px solid #333841;
+  color: #a8b1bd;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.timecode-group label {
+  min-width: 112px;
+  max-width: 160px;
+  flex: 1 1 120px;
+}
+
+.marker-group label {
+  min-width: 126px;
+}
+
+.marker-group [data-trigger-field="local-level"] {
+  max-width: 132px;
+}
+
+.marker-group [data-trigger-field="osc"]:has(#trigger-cue) {
+  min-width: 150px;
+  flex-basis: 170px;
+}
+
+.marker-group button {
+  min-width: 110px;
+  align-self: stretch;
+}
+
+.wave-editor canvas,
+.timecode-wave canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.wave-status {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  background: rgba(12, 13, 16, .78);
+  color: #e9eef2;
+  text-align: center;
+  z-index: 8;
+  pointer-events: none;
+}
+
+#wave-triggers {
+  position: absolute;
+  inset: 0;
+}
+
+.wave-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  transform: translateX(-7px);
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.wave-marker::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #e9eef2;
+}
+
+.wave-marker.start::before { background: #48d275; }
+.wave-marker.end::before { background: #f05b63; }
+
+.wave-trigger {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  transform: translateX(-6px);
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.wave-trigger::before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #f5b642;
+}
+
+.wave-trigger.selected::before { width: 4px; left: 4px; background: #338ad1; }
+.wave-trigger.activated::before { width: 6px; left: 3px; background: #42a5ff; }
+.wave-trigger.level::before { background: #8fdbff; }
+.wave-trigger.volume::before { background: #cfa6ff; }
+
+.wave-trigger span {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  padding: 2px 5px;
+  border: 1px solid #333841;
+  background: rgba(17, 19, 23, .86);
+  color: #e9eef2;
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.wave-trigger-fade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid rgba(143, 219, 255, .7);
+  background: linear-gradient(90deg, rgba(143, 219, 255, .18), rgba(143, 219, 255, .04));
+  pointer-events: none;
+}
+
+.wave-trigger-fade-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  transform: translateX(-7px);
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.wave-trigger-fade-handle::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #8fdbff;
+}
+
+.wave-head,
+.fade-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  transform: translateX(-50%);
+  touch-action: none;
+}
+
+.wave-head {
+  width: 16px;
+  cursor: ew-resize;
+  z-index: 5;
+}
+
+.wave-head::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: #fff;
+}
+
+.wave-head::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 8px solid #fff;
+}
+
+.fade-handle {
+  width: 18px;
+  cursor: ew-resize;
+  z-index: 3;
+}
+
+.fade-handle.in { transform: translateX(0); }
+.fade-handle.out { transform: translateX(-100%); }
+
+.fade-handle::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 10px;
+  width: 0;
+  height: 0;
+  border-top: 9px solid transparent;
+  border-bottom: 9px solid transparent;
+}
+
+.fade-handle.in::before { border-left: 12px solid #338ad1; }
+.fade-handle.out::before { border-right: 12px solid #338ad1; }
+
+.fade-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.fade-zone.in { background: linear-gradient(90deg, rgba(12, 13, 16, .85), rgba(51, 138, 209, .28)); }
+.fade-zone.out { background: linear-gradient(90deg, rgba(51, 138, 209, .28), rgba(12, 13, 16, .85)); }
+
+@media (max-width: 980px) {
+  .timecode-edit-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .timecode-group + .timecode-group {
+    border-left: 0;
+  }
+}

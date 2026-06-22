@@ -6,6 +6,7 @@ function isObject(value) {
 }
 
 function inferCueType(cue) {
+  if (typeof cue?.cueType === 'string' && cue.cueType.trim()) return cue.cueType.trim();
   if (cue.soundSubtype || cue.clip) return 'sound';
   return 'lighting';
 }

@@ -1,214 +1,163 @@
 (() => {
-    'use strict';
-
-    const state = {
-        schema: { sections: [] },
-        values: {},
-        fieldDefs: new Map(),
-    };
-
-    const $ = (id) => document.getElementById(id);
-
-    function isObject(value) {
-        return value !== null && typeof value === 'object' && !Array.isArray(value);
+  const state = { schema: { sections: [] }, values: {}, fields: new Map() };
+  const $ = id => document.getElementById(id);
+  const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
+  const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c]));
+  const clone = v => structuredClone(v);
+  function merge(base, patch) {
+    if (!isObj(base)) return clone(patch);
+    if (!isObj(patch)) return clone(base);
+    const out = clone(base);
+    for (const [k, v] of Object.entries(patch)) out[k] = isObj(v) && isObj(out[k]) ? merge(out[k], v) : clone(v);
+    return out;
+  }
+  function get(path, fallback) {
+    let cur = state.values;
+    for (const part of String(path).split('.')) {
+      if (!isObj(cur) && !Array.isArray(cur)) return fallback;
+      if (!(part in cur)) return fallback;
+      cur = cur[part];
     }
-
-    function deepClone(value) {
-        if (value === undefined) return undefined;
-        return structuredClone(value);
+    return cur;
+  }
+  function set(obj, path, value) {
+    const parts = String(path).split('.');
+    let cur = obj;
+    for (let i = 0; i < parts.length - 1; i++) {
+      cur[parts[i]] ||= {};
+      cur = cur[parts[i]];
     }
-
-    function deepMerge(base, patch) {
-        if (!isObject(base)) return deepClone(patch);
-        if (!isObject(patch)) return deepClone(base);
-        const out = deepClone(base);
-        Object.entries(patch).forEach(([key, value]) => {
-            out[key] = isObject(value) && isObject(out[key]) ? deepMerge(out[key], value) : deepClone(value);
-        });
-        return out;
+    cur[parts.at(-1)] = value;
+  }
+  async function json(url, init) {
+    const res = await fetch(url, init);
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+    return body;
+  }
+  function toast(message) {
+    const el = document.createElement('div');
+    el.className = 'cue-error-toast';
+    el.textContent = message;
+    $('cue-error-toasts').appendChild(el);
+    requestAnimationFrame(() => el.classList.add('visible'));
+    setTimeout(() => el.remove(), 3200);
+  }
+  function fieldList() {
+    const out = [];
+    for (const section of state.schema.sections || []) for (const field of section.fields || []) out.push({ ...field, sectionId: section.id });
+    return out;
+  }
+  function rebuildFields() {
+    state.fields.clear();
+    fieldList().forEach(field => state.fields.set(field.key, field));
+  }
+  function cleanNumber(input, allowDecimal = true, allowNegative = true) {
+    const old = input.value;
+    let next = old.replace(/[^\d.\-]/g, '');
+    if (!allowDecimal) next = next.replace(/\./g, '');
+    if (!allowNegative) next = next.replace(/\-/g, '');
+    next = next.replace(/(?!^)-/g, '').replace(/^(-?\d*\.?\d*).*$/, '$1');
+    if (next !== old) input.value = next;
+  }
+  function cleanIp(input) {
+    const old = input.value;
+    const next = old.replace(/[^0-9a-fA-F:.]/g, '').slice(0, 45);
+    if (next !== old) input.value = next;
+  }
+  function renderTargetRows(targets) {
+    return `<div class="target-list" data-target-list>${targets.map((t, i) => `
+      <div class="target-row" data-target-row>
+        <label>IP <input data-target-field="ip" value="${esc(t.ip || '')}" placeholder="127.0.0.1"></label>
+        <label>OSC Port <input data-target-field="oscPort" value="${esc(t.oscPort ?? 8000)}" inputmode="numeric"></label>
+        <label>Remote Port <input data-target-field="remotePort" value="${esc(t.remotePort ?? 6553)}" inputmode="numeric"></label>
+        <button type="button" data-remove-target="${i}">Remove</button>
+      </div>`).join('')}
+      <button type="button" data-add-target>Add Target</button>
+    </div>`;
+  }
+  function renderField(field) {
+    const value = get(field.key, field.default);
+    if (field.key === 'osc.targets') return `<div class="config-field wide"><label>${esc(field.label)}</label>${renderTargetRows(Array.isArray(value) ? value : [])}<div class="config-help">${esc(field.help || '')}</div></div>`;
+    if (field.type === 'select') {
+      return `<div class="config-field"><label>${esc(field.label)}</label><select data-key="${esc(field.key)}">${(field.options || []).map(opt => {
+        const option = isObj(opt) ? opt : { value: opt, label: opt };
+        return `<option value="${esc(option.value)}"${option.value === value ? ' selected' : ''}>${esc(option.label)}</option>`;
+      }).join('')}</select></div>`;
     }
-
-    function escapeHtml(text) {
-        if (text == null) return '';
-        const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
-        return String(text).replace(/[&<>"']/g, (ch) => map[ch]);
+    if (field.multiline) return `<div class="config-field wide"><label>${esc(field.label)}</label><textarea data-key="${esc(field.key)}">${esc(value ?? '')}</textarea></div>`;
+    const type = field.type === 'number' ? 'text' : 'text';
+    return `<div class="config-field"><label>${esc(field.label)}</label><input type="${type}" data-key="${esc(field.key)}" value="${esc(value ?? '')}" inputmode="${field.type === 'number' ? 'decimal' : 'text'}"></div>`;
+  }
+  function render() {
+    $('settings-root').innerHTML = (state.schema.sections || []).map(section => `
+      <section class="config-section settings-section">
+        <div class="config-section-header"><div class="config-section-title">${esc(section.label || section.id)}</div><div class="config-section-desc">${esc(section.description || '')}</div></div>
+        <div class="config-fields">${(section.fields || []).map(renderField).join('')}</div>
+      </section>`).join('');
+    bindValidation();
+  }
+  function bindValidation() {
+    document.querySelectorAll('[data-key]').forEach(input => {
+      const field = state.fields.get(input.dataset.key);
+      if (field?.type === 'number') input.addEventListener('input', () => cleanNumber(input, true, Number(field.min) < 0));
+    });
+    document.querySelectorAll('[data-target-field="ip"]').forEach(input => input.addEventListener('input', () => cleanIp(input)));
+    document.querySelectorAll('[data-target-field$="Port"]').forEach(input => input.addEventListener('input', () => cleanNumber(input, false, true)));
+  }
+  function collectTargets() {
+    return [...document.querySelectorAll('[data-target-row]')].map(row => ({
+      ip: row.querySelector('[data-target-field="ip"]').value.trim() || '127.0.0.1',
+      oscPort: Number(row.querySelector('[data-target-field="oscPort"]').value) || 8000,
+      remotePort: Number(row.querySelector('[data-target-field="remotePort"]').value) || -1,
+    }));
+  }
+  function coerce(field, input) {
+    if (field?.type === 'number') {
+      const value = Number(input.value);
+      return Number.isFinite(value) ? value : Number(field.default || 0);
     }
-
-    function getByPath(obj, path, fallback = undefined) {
-        const parts = String(path || '').split('.').filter(Boolean);
-        let cur = obj;
-        for (const part of parts) {
-            if (!isObject(cur) && !Array.isArray(cur)) return fallback;
-            if (!(part in cur)) return fallback;
-            cur = cur[part];
-        }
-        return cur;
+    return input.value;
+  }
+  function collectValues() {
+    const values = merge({}, state.values || {});
+    document.querySelectorAll('[data-key]').forEach(input => set(values, input.dataset.key, coerce(state.fields.get(input.dataset.key), input)));
+    set(values, 'osc.targets', collectTargets());
+    return values;
+  }
+  async function load() {
+    $('settings-status').textContent = 'Loading...';
+    const payload = await json('/api/config', { cache: 'no-store' });
+    state.schema = payload.schema || { sections: [] };
+    state.values = merge({}, payload.values || {});
+    rebuildFields();
+    render();
+    $('settings-status').textContent = 'Ready';
+  }
+  async function save() {
+    $('settings-status').textContent = 'Saving...';
+    const payload = await json('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(collectValues()) });
+    state.schema = payload.schema || state.schema;
+    state.values = merge({}, payload.values || collectValues());
+    rebuildFields();
+    render();
+    $('settings-status').textContent = 'Saved';
+    toast('Settings saved');
+  }
+  $('settings-root').addEventListener('click', e => {
+    if (e.target.matches('[data-add-target]')) {
+      const targets = collectTargets();
+      set(state.values, 'osc.targets', [...targets, { ip: '127.0.0.1', oscPort: 8000, remotePort: 6553 }]);
+      render();
     }
-
-    function setByPath(obj, path, value) {
-        const parts = String(path).split('.');
-        let cur = obj;
-        for (let i = 0; i < parts.length - 1; i++) {
-            const part = parts[i];
-            if (!isObject(cur[part])) cur[part] = {};
-            cur = cur[part];
-        }
-        cur[parts[parts.length - 1]] = value;
+    if (e.target.matches('[data-remove-target]')) {
+      const idx = Number(e.target.dataset.removeTarget);
+      const targets = collectTargets().filter((_t, i) => i !== idx);
+      set(state.values, 'osc.targets', targets);
+      render();
     }
-
-    async function fetchJson(url, init) {
-        const res = await fetch(url, init);
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(body.error || `Request failed (${res.status})`);
-        return body;
-    }
-
-    function showToast(message) {
-        const host = $('cue-error-toasts');
-        if (!host) return;
-        const toast = document.createElement('div');
-        toast.className = 'cue-error-toast';
-        toast.textContent = message;
-        host.appendChild(toast);
-        requestAnimationFrame(() => toast.classList.add('visible'));
-        setTimeout(() => {
-            toast.classList.remove('visible');
-            setTimeout(() => toast.remove(), 140);
-        }, 3200);
-    }
-
-    /** Build a stable field index so saves can coerce values by schema type. */
-    function rebuildFieldIndex() {
-        state.fieldDefs.clear();
-        const sections = Array.isArray(state.schema.sections) ? state.schema.sections : [];
-        sections.forEach((section) => {
-            (Array.isArray(section.fields) ? section.fields : []).forEach((field) => {
-                if (field?.key) state.fieldDefs.set(field.key, { ...field, sectionId: section.id });
-            });
-        });
-    }
-
-    function normalizeOption(option) {
-        if (isObject(option)) return option;
-        return { value: option, label: String(option) };
-    }
-
-    function renderField(field) {
-        const value = getByPath(state.values, field.key, field.default);
-        const key = escapeHtml(field.key);
-        const label = escapeHtml(field.label || field.key);
-        const help = field.help ? `<div class="config-help">${escapeHtml(field.help)}</div>` : '';
-        let input = '';
-
-        if (field.type === 'boolean') {
-            input = `<label class="toggle-field config-toggle"><input type="checkbox" data-config-key="${key}"${value ? ' checked' : ''}><span>${label}</span></label>`;
-            return `<div class="config-field">${input}${help}</div>`;
-        }
-
-        if (field.type === 'select') {
-            const options = (Array.isArray(field.options) ? field.options : []).map(normalizeOption);
-            input = `<select data-config-key="${key}">${options.map((option) => {
-                const selected = option.value === value ? ' selected' : '';
-                return `<option value="${escapeHtml(option.value)}"${selected}>${escapeHtml(option.label || option.value)}</option>`;
-            }).join('')}</select>`;
-        } else if (field.type === 'json' || field.multiline) {
-            const raw = field.type === 'json' ? JSON.stringify(value ?? field.default ?? {}, null, 2) : String(value ?? '');
-            input = `<textarea data-config-key="${key}" rows="${field.type === 'json' ? 8 : 3}">${escapeHtml(raw)}</textarea>`;
-        } else {
-            const type = field.type === 'number' ? 'number' : 'text';
-            const min = Number.isFinite(Number(field.min)) ? ` min="${field.min}"` : '';
-            const max = Number.isFinite(Number(field.max)) ? ` max="${field.max}"` : '';
-            const step = Number.isFinite(Number(field.step)) ? ` step="${field.step}"` : '';
-            input = `<input type="${type}" data-config-key="${key}" value="${escapeHtml(value ?? '')}"${min}${max}${step}>`;
-        }
-
-        return `<div class="config-field"><label>${label}</label>${input}${help}</div>`;
-    }
-
-    function renderSettings() {
-        const root = $('settings-root');
-        const sections = Array.isArray(state.schema.sections) ? state.schema.sections : [];
-        if (!sections.length) {
-            root.innerHTML = '<div class="config-loading">No configurable fields found.</div>';
-            return;
-        }
-        root.innerHTML = sections.map((section) => {
-            const fields = (Array.isArray(section.fields) ? section.fields : []).map(renderField).join('');
-            const desc = section.description ? `<div class="config-section-desc">${escapeHtml(section.description)}</div>` : '';
-            return `<section class="config-section settings-section">
-                <div class="config-section-header">
-                  <div class="config-section-title">${escapeHtml(section.label || section.id || 'Section')}</div>
-                  ${desc}
-                </div>
-                <div class="config-fields">${fields}</div>
-            </section>`;
-        }).join('');
-    }
-
-    async function loadSettings() {
-        $('settings-status').textContent = 'Loading...';
-        $('settings-root').innerHTML = '<div class="config-loading">Loading configuration...</div>';
-        try {
-            const payload = await fetchJson('/api/config', { cache: 'no-store' });
-            state.schema = payload.schema || { sections: [] };
-            state.values = deepMerge({}, payload.values || {});
-            rebuildFieldIndex();
-            renderSettings();
-            $('settings-status').textContent = 'Ready';
-        } catch (err) {
-            $('settings-status').textContent = 'Error';
-            $('settings-root').innerHTML = `<div class="config-error">${escapeHtml(err.message || 'Could not load settings')}</div>`;
-        }
-    }
-
-    function coerceFieldValue(field, input) {
-        if (input.type === 'checkbox') return Boolean(input.checked);
-        if (field?.type === 'number') {
-            const value = Number(input.value);
-            return Number.isFinite(value) ? value : Number(field.default ?? 0);
-        }
-        if (field?.type === 'json') {
-            try {
-                return JSON.parse(input.value || 'null');
-            } catch {
-                throw new Error(`Invalid JSON in ${field.label || field.key}`);
-            }
-        }
-        return input.value;
-    }
-
-    function collectSettingsValues() {
-        const values = deepMerge({}, state.values || {});
-        document.querySelectorAll('[data-config-key]').forEach((input) => {
-            const key = input.getAttribute('data-config-key');
-            const field = state.fieldDefs.get(key);
-            setByPath(values, key, coerceFieldValue(field, input));
-        });
-        return values;
-    }
-
-    async function saveSettings() {
-        $('settings-status').textContent = 'Saving...';
-        try {
-            const values = collectSettingsValues();
-            const payload = await fetchJson('/api/config', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(values),
-            });
-            state.schema = payload.schema || state.schema;
-            state.values = deepMerge({}, payload.values || values);
-            rebuildFieldIndex();
-            renderSettings();
-            $('settings-status').textContent = 'Saved';
-            showToast('Settings saved');
-        } catch (err) {
-            $('settings-status').textContent = 'Error';
-            showToast(err.message || 'Could not save settings');
-        }
-    }
-
-    $('btn-reload-settings').addEventListener('click', loadSettings);
-    $('btn-save-settings').addEventListener('click', saveSettings);
-    loadSettings();
+  });
+  $('btn-reload-settings').onclick = () => load().catch(err => toast(err.message));
+  $('btn-save-settings').onclick = () => save().catch(err => { $('settings-status').textContent = 'Error'; toast(err.message); });
+  load().catch(err => toast(err.message));
 })();

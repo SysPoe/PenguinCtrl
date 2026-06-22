@@ -1,84 +1,19 @@
 {
   "title": "CuSus Configuration",
-  "version": 1,
+  "version": 2,
   "sections": [
     {
       "id": "audio",
       "label": "Audio",
-      "description": "Audio upload and master output settings.",
+      "description": "Audio upload, decoding, and master volume defaults.",
       "fields": [
-        {
-          "key": "audio.upload.maxMb",
-          "label": "Upload limit (MB)",
-          "type": "number",
-          "default": 300,
-          "min": 10,
-          "max": 2048,
-          "step": 1,
-          "help": "Maximum accepted payload size for /api/audio/upload."
-        },
-        {
-          "key": "audio.buffer.sampleRate",
-          "label": "Buffer sample rate (Hz)",
-          "type": "select",
-          "default": 48000,
-          "options": [22050, 44100, 48000],
-          "help": "Lower rates reduce memory usage on constrained devices."
-        },
-        {
-          "key": "audio.buffer.channels",
-          "label": "Buffer channels",
-          "type": "select",
-          "default": 2,
-          "options": [1, 2],
-          "help": "Mono (1) halves memory vs stereo (2)."
-        },
-        {
-          "key": "audio.buffer.maxCached",
-          "label": "Max cached buffers",
-          "type": "number",
-          "default": 0,
-          "min": 0,
-          "max": 256,
-          "step": 1,
-          "help": "Maximum decoded audio buffers kept in memory. 0 = unlimited (no eviction). Older buffers are evicted first."
-        },
-        {
-          "key": "audio.output.sinkId",
-          "label": "Output device",
-          "type": "select",
-          "default": "",
-          "options": [{"value":"","label":"System default"}],
-          "allowCustom": true,
-          "help": "Server cue playback output. Change this when Windows sounds use one device but cues come from another."
-        },
-        {
-          "key": "audio.masterVolume.defaultDb",
-          "label": "Default master volume (dB)",
-          "type": "number",
-          "default": 0,
-          "min": -40,
-          "max": 6,
-          "step": 0.5
-        },
-        {
-          "key": "audio.masterVolume.minDb",
-          "label": "Master volume minimum (dB)",
-          "type": "number",
-          "default": -40,
-          "min": -80,
-          "max": 0,
-          "step": 0.5
-        },
-        {
-          "key": "audio.masterVolume.maxDb",
-          "label": "Master volume maximum (dB)",
-          "type": "number",
-          "default": 6,
-          "min": 0,
-          "max": 24,
-          "step": 0.5
-        }
+        { "key": "audio.upload.maxMb", "label": "Upload limit MB", "type": "number", "default": 300, "min": 10, "max": 2048, "step": 1 },
+        { "key": "audio.buffer.sampleRate", "label": "Sample rate", "type": "select", "default": 48000, "options": [44100, 48000] },
+        { "key": "audio.buffer.channels", "label": "Channels", "type": "select", "default": 2, "options": [1, 2] },
+        { "key": "audio.buffer.maxCached", "label": "Max cached buffers", "type": "number", "default": 0, "min": 0, "max": 256, "step": 1 },
+        { "key": "audio.masterVolume.defaultDb", "label": "Default master dB", "type": "number", "default": 0, "min": -40, "max": 6, "step": 0.5 },
+        { "key": "audio.masterVolume.minDb", "label": "Minimum master dB", "type": "number", "default": -40, "min": -80, "max": 0, "step": 0.5 },
+        { "key": "audio.masterVolume.maxDb", "label": "Maximum master dB", "type": "number", "default": 6, "min": 0, "max": 24, "step": 0.5 }
       ]
     },
     {
@@ -86,107 +21,39 @@
       "label": "Realtime",
       "description": "WebSocket sync and refresh timing.",
       "fields": [
-        {
-          "key": "realtime.instanceBroadcastMs",
-          "label": "Instance broadcast interval (ms)",
-          "type": "number",
-          "default": 100,
-          "min": 25,
-          "max": 1000,
-          "step": 5
-        },
-        {
-          "key": "realtime.reconnectDelayMs",
-          "label": "Reconnect delay (ms)",
-          "type": "number",
-          "default": 2000,
-          "min": 250,
-          "max": 20000,
-          "step": 250
-        }
+        { "key": "realtime.instanceBroadcastMs", "label": "Instance broadcast ms", "type": "number", "default": 200, "min": 50, "max": 1000, "step": 10 },
+        { "key": "realtime.reconnectDelayMs", "label": "Reconnect delay ms", "type": "number", "default": 2000, "min": 250, "max": 20000, "step": 250 }
       ]
     },
     {
       "id": "ui",
       "label": "UI",
-      "description": "Client-side script and cue editor defaults.",
+      "description": "Cue editor defaults.",
+      "fields": [
+        { "key": "ui.cues.defaultManualFadeOutSeconds", "label": "Default fade out s", "type": "number", "default": 2, "min": 0.1, "max": 30, "step": 0.1 }
+      ]
+    },
+    {
+      "id": "timecode",
+      "label": "Timecode",
+      "description": "Network targets for timecode, OSC, and console playback commands.",
       "fields": [
         {
-          "key": "ui.script.minZoom",
-          "label": "Minimum zoom (%)",
-          "type": "number",
-          "default": 50,
-          "min": 25,
-          "max": 100,
-          "step": 5
-        },
-        {
-          "key": "ui.script.maxZoom",
-          "label": "Maximum zoom (%)",
-          "type": "number",
-          "default": 200,
-          "min": 100,
-          "max": 400,
-          "step": 5
-        },
-        {
-          "key": "ui.script.zoomStep",
-          "label": "Zoom button step (%)",
-          "type": "number",
-          "default": 10,
-          "min": 1,
-          "max": 50,
-          "step": 1
-        },
-        {
-          "key": "ui.script.wheelZoomStep",
-          "label": "Wheel zoom step (%)",
-          "type": "number",
-          "default": 5,
-          "min": 1,
-          "max": 25,
-          "step": 1
-        },
-        {
-          "key": "ui.cues.defaultManualFadeOutSeconds",
-          "label": "Default manual fade out (s)",
-          "type": "number",
-          "default": 2,
-          "min": 0.1,
-          "max": 30,
-          "step": 0.1
+          "key": "osc.targets",
+          "label": "Targets",
+          "type": "json",
+          "default": [{ "ip": "127.0.0.1", "oscPort": 8000, "remotePort": 6553 }],
+          "multiline": true,
+          "help": "JSON array. Set remotePort to -1 to force OSC."
         }
       ]
     },
     {
       "id": "system",
       "label": "System",
-      "description": "General notes for your deployment.",
+      "description": "Local operator notes.",
       "fields": [
-        {
-          "key": "system.notes",
-          "label": "Operator notes",
-          "type": "text",
-          "default": "",
-          "multiline": true,
-          "placeholder": "Optional notes",
-          "exposeToClient": false
-        }
-      ]
-    },
-    {
-      "id": "osc",
-      "label": "OSC",
-      "description": "Target network settings for OSC and QuickQ/MagicQ remote playback commands. Commands are sent to all targets.",
-      "fields": [
-        {
-          "key": "osc.targets",
-          "label": "OSC Targets",
-          "type": "json",
-          "default": [{"ip":"127.0.0.1","oscPort":8000,"remotePort":6553}],
-          "multiline": true,
-          "help": "JSON array of targets. Each entry: {\"ip\":\"...\",\"oscPort\":8000,\"remotePort\":6553}. Auto transport prioritizes Ethernet remote control when remotePort is usable, then falls back to OSC. Set remotePort to -1 to force OSC for that target when transport is Auto. Commands are sent to ALL targets."
-        }
+        { "key": "system.notes", "label": "Notes", "type": "text", "default": "", "multiline": true, "exposeToClient": false }
       ]
     }
   ]

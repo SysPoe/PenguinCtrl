@@ -1,7 +1,9 @@
 node_modules
 bun.lock
+pnpm-lock.yaml
 .claude
 package-lock.json
 yarn.lock
 CODEX.md
 .cursor
+AGENTS.md

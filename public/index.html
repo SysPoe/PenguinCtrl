@@ -4,268 +4,218 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CuSus Cue List</title>
+  <title>CuSus</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
-    href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:ital,wght@0,200..800;1,200..800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Atkinson+Hyperlegible+Mono:wght@400;600;700&display=swap"
     rel="stylesheet">
   <link rel="stylesheet" href="styles/cue.css">
+  <link rel="stylesheet" href="styles/app-support.css">
+  <link rel="stylesheet" href="styles/timecode-wave.css">
 </head>
 
 <body>
-  <div class="cue-error-toasts" id="cue-error-toasts"></div>
-
-  <div id="ws-banner">
-    WebSocket Disconnected - Reconnecting...
-  </div>
-
-  <header class="header app-header">
-    <div class="header-left">
-      <strong class="app-title">Cue List</strong>
-      <span class="header-count" id="cue-count">-</span>
-      <span class="ws-dot" id="ws-dot" title="WebSocket status"></span>
+  <div id="toasts" class="toasts"></div>
+  <div id="status-banner" class="status-banner" hidden></div>
+  <header class="topbar">
+    <div class="brand">
+      <strong>CuSus</strong>
+      <span id="show-status">Edit mode</span>
+      <span id="ws-dot" class="dot"></span>
     </div>
-    <nav class="header-actions" aria-label="Cue list actions">
-      <button class="header-btn" id="btn-new-cue" type="button">New Cue</button>
-      <button class="header-btn" id="btn-edit-cue" type="button" disabled>Edit</button>
-      <button class="btn-reset" id="btn-reset-played" type="button" title="Clear all tick marks">Reset</button>
-      <button class="header-btn" id="btn-refresh" type="button">Refresh</button>
-      <a class="header-btn link-btn" href="settings.html">Settings</a>
+    <nav class="tools">
+      <button id="btn-show-mode" type="button">Show Mode</button>
+      <button id="btn-new" type="button">New</button>
+      <button id="btn-edit" type="button" disabled>Edit</button>
+      <button id="btn-copy" type="button" disabled>Copy</button>
+      <button id="btn-paste" type="button">Paste</button>
+      <button id="btn-bump" type="button">Bump</button>
+      <button id="btn-export" type="button">Export</button>
+      <label class="file-btn">Import <input id="show-import" type="file" accept=".cusus"></label>
+      <a href="settings.html">Settings</a>
     </nav>
   </header>
 
-  <section class="pane-top" id="pane-top" style="height: 56vh;" aria-label="Cues">
-    <div class="cue-table-wrap">
-      <table id="cue-table">
+  <main class="workspace">
+    <section class="cue-area">
+      <table>
         <thead>
           <tr>
-            <th class="col-num">#</th>
+            <th>#</th>
             <th>Title</th>
-            <th class="col-type">Type</th>
-            <th class="col-state">State</th>
-            <th class="col-position">Position</th>
-            <th class="col-len r">Length</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Length</th>
           </tr>
         </thead>
-        <tbody id="cue-tbody"></tbody>
+        <tbody id="cue-body"></tbody>
       </table>
-      <div class="empty-cues" id="empty-cues" hidden>No cues defined</div>
-    </div>
-  </section>
-
-  <div class="resizer" id="resizer" role="separator" aria-orientation="horizontal" aria-label="Resize panes"></div>
-
-  <section class="pane-bottom" aria-label="Runtime controls">
-    <div class="transport">
-      <div class="master-vol-row">
-        <div class="master-vol-top">
-          <div class="master-vol-label">Master Vol <span id="master-db-label">+0.0 dB</span></div>
-          <button class="header-btn btn-master-mute" id="master-mute-btn" type="button">Mute</button>
-        </div>
-        <input type="range" id="master-vol" min="-40" max="6" step="0.5" value="0" aria-label="Master volume">
+      <div id="empty" class="empty" hidden>No cues yet</div>
+    </section>
+    <aside class="sidecar">
+      <div class="master">
+        <label>Master <span id="master-label">+0.0 dB</span></label>
+        <input id="master" type="range" min="-40" max="6" step="0.5" value="0">
+        <button id="master-mute" type="button">Mute</button>
       </div>
-      <div class="transport-btns">
-        <button class="btn-transport btn-go" id="btn-go" type="button" disabled>GO</button>
-        <button class="btn-transport btn-fade" id="btn-fade-all" type="button">Fade All</button>
-        <button class="btn-transport btn-stop" id="btn-stop-all" type="button">Stop All</button>
+      <button id="go" class="go" type="button" disabled>GO</button>
+      <button id="fade-all" class="warn" type="button">Fade All</button>
+      <button id="stop-all" class="danger" type="button">Stop All</button>
+      <button id="reset-played" type="button">Reset Ticks</button>
+      <div class="voices">
+        <h2>Active Voices</h2>
+        <div id="voices"></div>
       </div>
-    </div>
+    </aside>
+  </main>
 
-    <div class="voices-panel">
-      <div class="voices-header">
-        <span id="voices-header-label">Active Voices</span>
-        <button class="header-btn voices-clear-btn" id="btn-clear-queue" type="button" title="Cancel any queued waiting cues">Clear Queue</button>
-      </div>
-      <div id="voices-list">
-        <div class="no-voices">No active voices</div>
-      </div>
-    </div>
-  </section>
-
-  <dialog class="cue-editor" id="cue-editor">
-    <form id="cue-editor-form" method="dialog">
-      <div class="editor-header">
-        <div>
-          <h2 id="editor-title">New Cue</h2>
-          <p id="editor-subtitle">Create a cue directly in the list.</p>
-        </div>
-        <button class="icon-btn" id="btn-close-editor" type="button" aria-label="Close editor">x</button>
-      </div>
-
-      <div class="editor-grid">
-        <label>
-          Cue Number
-          <input id="field-cue-number" name="number" type="text" autocomplete="off" placeholder="10.01">
-        </label>
-        <label>
-          Type
-          <select id="field-cue-type" name="cueType"></select>
-        </label>
-        <label class="span-2">
-          Title
-          <input id="field-title" name="title" type="text" autocomplete="off" required placeholder="Cue title">
-        </label>
-        <label class="span-2">
-          Notes
-          <textarea id="field-description" name="description" rows="2" placeholder="Optional notes"></textarea>
-        </label>
-      </div>
-
-      <section class="editor-section" id="lighting-editor" hidden>
-        <h3>Lighting</h3>
-        <div class="editor-grid">
-          <label>
-            Action
-            <select id="field-lighting-action">
-              <option value="none">None</option>
-              <option value="go">Go</option>
-              <option value="back">Back</option>
-              <option value="release">Release</option>
-              <option value="goto">Go To Cue</option>
-              <option value="level">Set Level</option>
-              <option value="flash">Flash</option>
-            </select>
-          </label>
-          <label>
-            Transport
-            <select id="field-lighting-transport">
-              <option value="auto">Auto</option>
-              <option value="osc">OSC</option>
-              <option value="remote">QuickQ Remote UDP</option>
-            </select>
-          </label>
-          <label>
-            Playback
-            <input id="field-lighting-playback" type="number" min="1" step="1" value="1">
-          </label>
-          <label>
-            Console Cue
-            <input id="field-lighting-cue" type="text" value="{cueNumber}" placeholder="{cueNumber+0.01}">
-          </label>
-          <label>
-            Level
-            <input id="field-lighting-level" type="number" min="0" max="100" step="1" value="100">
-          </label>
-        </div>
+  <dialog id="cue-editor" class="fullscreen">
+    <form id="cue-form">
+      <header>
+        <h1 id="editor-heading">Cue</h1><button id="close-editor" type="button">Close</button>
+      </header>
+      <section class="form-grid">
+        <label>Cue Number <input id="cue-number" autocomplete="off"></label>
+        <label>Type <select id="cue-type"></select></label>
+        <label class="wide">Title <input id="cue-title" required></label>
+        <label class="wide">Notes <textarea id="cue-notes"></textarea></label>
       </section>
-
-      <section class="editor-section" id="sound-editor" hidden>
-        <h3>Sound</h3>
-        <div class="editor-grid">
-          <label>
-            Clip
-            <select id="field-sound-clip"></select>
-          </label>
-          <label class="upload-label">
-            Upload
-            <input id="field-sound-upload" type="file" accept="audio/*">
-          </label>
-          <label>
-            Subtype
-            <select id="field-sound-subtype">
+      <section id="sound-fields" class="panel">
+        <h2>Sound</h2>
+        <div class="form-grid">
+          <label>Clip <select id="sound-clip"></select></label>
+          <label>Upload <input id="sound-upload" type="file" accept="audio/*"></label>
+          <label>Subtype <select id="sound-subtype">
               <option value="play_once">Play Once</option>
               <option value="vamp">Vamp</option>
-            </select>
-          </label>
-          <label>
-            Play Style
-            <select id="field-sound-play-style">
+            </select></label>
+          <label>Style <select id="play-style">
               <option value="alongside">Alongside</option>
               <option value="wait">Wait</option>
-              <option value="fade_all">Fade all</option>
-              <option value="xfade">X-Fade</option>
-            </select>
-          </label>
-          <label>
-            Start
-            <input id="field-clip-start" type="number" min="0" step="0.001" value="0">
-          </label>
-          <label>
-            End
-            <input id="field-clip-end" type="number" min="0" step="0.001" placeholder="Auto">
-          </label>
-          <label>
-            Fade In
-            <input id="field-fade-in" type="number" min="0" step="0.001" value="0">
-          </label>
-          <label>
-            Fade Out
-            <input id="field-fade-out" type="number" min="0" step="0.001" value="0">
-          </label>
-          <label>
-            Manual Fade
-            <input id="field-manual-fade" type="number" min="0.1" step="0.1" value="2">
-          </label>
-          <label>
-            Volume dB
-            <input id="field-volume" type="number" min="-40" max="20" step="0.5" value="0">
-          </label>
-          <label>
-            Loop Start
-            <input id="field-loop-start" type="number" min="0" step="0.001" value="0">
-          </label>
-          <label>
-            Loop End
-            <input id="field-loop-end" type="number" min="0" step="0.001" placeholder="Auto">
-          </label>
-          <label>
-            Loop X-Fade
-            <input id="field-loop-xfade" type="number" min="0" step="0.001" value="0">
-          </label>
-          <label class="toggle-field">
-            <input id="field-allow-multiple" type="checkbox">
-            <span>Allow multiple instances</span>
-          </label>
+              <option value="fade_all">Fade All</option>
+              <option value="xfade">Crossfade</option>
+            </select></label>
+          <label>Start <input id="clip-start" type="number" step="0.001" value="0"></label>
+          <label>End <input id="clip-end" type="number" step="0.001"></label>
+          <label>Fade In <input id="fade-in" type="number" step="0.001" value="0"></label>
+          <label>Fade Out <input id="fade-out" type="number" step="0.001" value="0"></label>
+          <label>Volume dB <input id="volume" type="number" step="0.5" value="0"></label>
+          <label>Loop Start <input id="loop-start" type="number" step="0.001" value="0"></label>
+          <label>Loop End <input id="loop-end" type="number" step="0.001"></label>
+          <div class="wide action-row">
+            <button id="open-timecode" type="button">Timecode</button>
+            <span id="sound-timecode-summary">No markers</span>
+          </div>
         </div>
-
-        <h3>Start OSC</h3>
-        <div class="editor-grid">
-          <label>
-            Action
-            <select id="field-start-osc-action">
+      </section>
+      <section id="lighting-fields" class="panel">
+        <h2>Timecode</h2>
+        <div class="form-grid">
+          <label>Remote Action <select id="osc-action">
               <option value="none">None</option>
+              <option value="goto">Go To Cue</option>
               <option value="go">Go</option>
               <option value="back">Back</option>
               <option value="release">Release</option>
-              <option value="goto">Go To Cue</option>
-              <option value="level">Set Level</option>
-              <option value="flash">Flash</option>
-            </select>
-          </label>
-          <label>
-            Transport
-            <select id="field-start-osc-transport">
-              <option value="auto">Auto</option>
-              <option value="osc">OSC</option>
-              <option value="remote">QuickQ Remote UDP</option>
-            </select>
-          </label>
-          <label>
-            Playback
-            <input id="field-start-osc-playback" type="number" min="1" step="1" value="1">
-          </label>
-          <label>
-            Console Cue
-            <input id="field-start-osc-cue" type="text" value="{cueNumber}" placeholder="{cueNumber+0.01}">
-          </label>
-          <label>
-            Level
-            <input id="field-start-osc-level" type="number" min="0" max="100" step="1" value="100">
-          </label>
+            </select></label>
+          <label>Playback <input id="osc-playback" type="number" min="1" value="1"></label>
+          <label>Console Cue <input id="osc-cue" value="{cueNumber}"></label>
+          <label>Level <input id="osc-level" type="number" min="0" max="100" value="100"></label>
         </div>
       </section>
-
-      <div class="editor-actions">
-        <button class="btn-vc stop" id="btn-delete-cue" type="button" hidden>Delete</button>
-        <span class="editor-spacer"></span>
-        <button class="header-btn" id="btn-cancel-editor" type="button">Cancel</button>
-        <button class="header-btn primary-action" id="btn-save-cue" type="submit">Save Cue</button>
-      </div>
+      <section id="modifier-fields" class="panel">
+        <h2>Modifier</h2>
+        <div class="form-grid">
+          <label>Target Cue <select id="target-cue"></select></label>
+          <label>Action <select id="modifier-action">
+              <option value="fade">Fade Target</option>
+              <option value="volume">Lerp Volume</option>
+              <option value="stop">Stop Target</option>
+            </select></label>
+          <label data-modifier-field="duration">Duration <input id="modifier-duration" type="number" step="0.001"
+              value="2"></label>
+          <label data-modifier-field="volume">Target Volume dB <input id="target-volume" type="number" step="0.5"
+              value="-12"></label>
+        </div>
+      </section>
+      <footer><button id="delete-cue" class="danger" type="button">Delete</button><span></span><button type="button"
+          id="cancel-editor">Cancel</button><button class="primary" type="submit">Save</button></footer>
     </form>
   </dialog>
 
-  <script src="scripts/cue-app.js"></script>
+  <dialog id="timecode-editor" class="fullscreen">
+    <header>
+      <h1>Sound Timecode</h1><button id="close-timecode" type="button">Close</button>
+    </header>
+    <section class="panel timecode-top-panel">
+      <div class="timecode-edit-grid">
+        <div class="timecode-group clip-group">
+          <span>Clip</span>
+          <label>Start <input id="tc-clip-start" type="number" min="0" step="0.001" value="0"></label>
+          <label>End <input id="tc-clip-end" type="number" min="0" step="0.001"></label>
+          <label>In <input id="tc-fade-in" type="number" min="0" step="0.001" value="0"></label>
+          <label>Out <input id="tc-fade-out" type="number" min="0" step="0.001" value="0"></label>
+        </div>
+        <div class="timecode-group marker-group">
+          <span>Marker</span>
+        <label>At seconds <input id="trigger-time" type="number" min="0" step="0.001" value="0"></label>
+        <label>Type <select id="trigger-kind">
+            <option value="osc">Remote Action</option>
+            <option value="cue_volume">Cue Volume</option>
+            <option value="master_volume">Master Volume</option>
+          </select></label>
+        <label data-trigger-field="osc">Action <select id="trigger-action">
+            <option value="none">No action</option>
+            <option value="goto">Go To Cue</option>
+            <option value="go">Go</option>
+            <option value="back">Back</option>
+            <option value="release">Release</option>
+          </select></label>
+        <label data-trigger-field="osc">Playback <input id="trigger-playback" type="number" min="1" step="1"
+            value="1"></label>
+        <label data-trigger-field="osc">Console Cue <input id="trigger-cue" value="{cueNumber}"></label>
+        <label data-trigger-field="local-level" class="check-label"><input id="trigger-set-level" type="checkbox"> Set
+          level</label>
+        <label data-trigger-field="local-level">Level dB <input id="trigger-level" type="number" step="0.5" value="0"
+            disabled></label>
+        <label data-trigger-field="osc">Transport <select id="trigger-transport">
+            <option value="auto">Auto</option>
+            <option value="osc">OSC</option>
+            <option value="remote">Remote UDP</option>
+          </select></label>
+        <label data-trigger-field="volume">Volume dB <input id="trigger-volume" type="number" step="0.5"
+            value="0"></label>
+        <label data-trigger-field="fade">Fade seconds <input id="trigger-fade" type="number" min="0" step="0.001"
+            value="0"></label>
+        <button id="add-trigger" type="button">Add Marker</button>
+        </div>
+      </div>
+    </section>
+    <section class="timecode-controls">
+      <button id="wave-play" type="button">Play</button>
+      <span id="wave-time">0.000s</span>
+      <label>Zoom <input id="wave-zoom" type="range" min="1" max="48" step="0.5" value="1"></label>
+    </section>
+    <section class="timecode-wave">
+      <canvas id="clip-wave"></canvas>
+      <div id="wave-status" class="wave-status" role="status" aria-live="polite" hidden></div>
+      <div id="wave-fade-in-zone" class="fade-zone in" hidden></div>
+      <div id="wave-fade-out-zone" class="fade-zone out" hidden></div>
+      <div id="wave-fade-in" class="fade-handle in"></div>
+      <div id="wave-fade-out" class="fade-handle out"></div>
+      <div id="wave-triggers"></div>
+      <div class="wave-marker start" id="wave-start"></div>
+      <div class="wave-marker end" id="wave-end"></div>
+      <div class="wave-head" id="wave-head"></div>
+    </section>
+    <section class="panel">
+      <h2>Markers</h2>
+      <div id="trigger-list" class="trigger-list" tabindex="0"></div>
+    </section>
+  </dialog>
+
+  <script type="module" src="scripts/cue-app.js"></script>
 </body>
 
 </html>
