@@ -85,7 +85,7 @@
         <h2>Sound</h2>
         <div class="form-grid">
           <label>Clip <select id="sound-clip"></select></label>
-          <label>Upload <input id="sound-upload" type="file" accept="audio/*"></label>
+          <label>Upload <input id="sound-upload" type="file" accept="audio/*,video/*,.mp4,.mov,.m4v,.mkv,.avi"></label>
           <label>Subtype <select id="sound-subtype">
               <option value="play_once">Play Once</option>
               <option value="vamp">Vamp</option>
@@ -149,46 +149,61 @@
       <h1>Sound Timecode</h1><button id="close-timecode" type="button">Close</button>
     </header>
     <section class="panel timecode-top-panel">
-      <div class="timecode-edit-grid">
-        <div class="timecode-group clip-group">
-          <span>Clip</span>
-          <label>Start <input id="tc-clip-start" type="number" min="0" step="0.001" value="0"></label>
-          <label>End <input id="tc-clip-end" type="number" min="0" step="0.001"></label>
-          <label>In <input id="tc-fade-in" type="number" min="0" step="0.001" value="0"></label>
-          <label>Out <input id="tc-fade-out" type="number" min="0" step="0.001" value="0"></label>
+      <div class="timecode-grid layout-bands">
+        <div class="timecode-cell clip-cell">
+          <h2>Clip</h2>
+          <label><span class="label-text">Start</span><input id="tc-clip-start" type="number" min="0" step="0.001"
+              value="0"></label>
+          <label><span class="label-text">End</span><input id="tc-clip-end" type="number" min="0" step="0.001"></label>
+          <label><span class="label-text">In</span><input id="tc-fade-in" type="number" min="0" step="0.001"
+              value="0"></label>
+          <label><span class="label-text">Out</span><input id="tc-fade-out" type="number" min="0" step="0.001"
+              value="0"></label>
         </div>
-        <div class="timecode-group marker-group">
-          <span>Marker</span>
-        <label>At seconds <input id="trigger-time" type="number" min="0" step="0.001" value="0"></label>
-        <label>Type <select id="trigger-kind">
-            <option value="osc">Remote Action</option>
-            <option value="cue_volume">Cue Volume</option>
-            <option value="master_volume">Master Volume</option>
-          </select></label>
-        <label data-trigger-field="osc">Action <select id="trigger-action">
-            <option value="none">No action</option>
-            <option value="goto">Go To Cue</option>
-            <option value="go">Go</option>
-            <option value="back">Back</option>
-            <option value="release">Release</option>
-          </select></label>
-        <label data-trigger-field="osc">Playback <input id="trigger-playback" type="number" min="1" step="1"
-            value="1"></label>
-        <label data-trigger-field="osc">Console Cue <input id="trigger-cue" value="{cueNumber}"></label>
-        <label data-trigger-field="local-level" class="check-label"><input id="trigger-set-level" type="checkbox"> Set
-          level</label>
-        <label data-trigger-field="local-level">Level dB <input id="trigger-level" type="number" step="0.5" value="0"
-            disabled></label>
-        <label data-trigger-field="osc">Transport <select id="trigger-transport">
-            <option value="auto">Auto</option>
-            <option value="osc">OSC</option>
-            <option value="remote">Remote UDP</option>
-          </select></label>
-        <label data-trigger-field="volume">Volume dB <input id="trigger-volume" type="number" step="0.5"
-            value="0"></label>
-        <label data-trigger-field="fade">Fade seconds <input id="trigger-fade" type="number" min="0" step="0.001"
-            value="0"></label>
-        <button id="add-trigger" type="button">Add Marker</button>
+        <div class="timecode-cell marker-main">
+          <h2>Marker</h2>
+          <label><span class="label-text">At</span><input id="trigger-time" type="number" min="0" step="0.001"
+              value="0"></label>
+          <label><span class="label-text">Type</span><select id="trigger-kind">
+              <option value="osc">Remote Action</option>
+              <option value="cue_volume">Cue Volume</option>
+              <option value="master_volume">Master Volume</option>
+            </select></label>
+        </div>
+        <div class="timecode-cell remote-cell">
+          <h2>Remote</h2>
+          <label data-trigger-field="osc"><span class="label-text">Action</span><select id="trigger-action">
+              <option value="none">No action</option>
+              <option value="goto">Go To Cue</option>
+              <option value="go">Go</option>
+              <option value="back">Back</option>
+              <option value="release">Release</option>
+            </select></label>
+          <label data-trigger-field="osc" data-action-dependent><span class="label-text">Playback</span><input
+              id="trigger-playback" type="number" min="1" step="1" value="1"></label>
+          <label data-trigger-field="osc" data-action-dependent><span class="label-text">Cue</span><input
+              id="trigger-cue" value="{cueNumber}"></label>
+          <label data-trigger-field="osc" data-action-dependent><span class="label-text">Transport</span><select
+              id="trigger-transport">
+              <option value="auto">Auto</option>
+              <option value="osc">OSC</option>
+              <option value="remote">Remote UDP</option>
+            </select></label>
+        </div>
+        <div class="timecode-cell level-cell">
+          <h2>Level</h2>
+          <label data-trigger-field="local-level" class="check-label level-toggle">
+            <span class="label-text">Set level</span><input id="trigger-set-level" type="checkbox">
+          </label>
+          <label data-trigger-field="local-level"><span class="label-text">Level dB</span><input id="trigger-level"
+              type="number" step="0.5" value="0" disabled></label>
+          <label data-trigger-field="fade"><span class="label-text">Fade</span><input id="trigger-fade" type="number"
+              min="0" step="0.001" value="0"></label>
+          <label data-trigger-field="volume"><span class="label-text">Volume dB</span><input id="trigger-volume"
+              type="number" step="0.5" value="0"></label>
+        </div>
+        <div class="timecode-cell action-cell">
+          <button id="add-trigger" type="button">Add Marker</button>
         </div>
       </div>
     </section>

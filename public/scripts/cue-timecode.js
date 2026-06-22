@@ -2,6 +2,8 @@ import { createWaveformRenderer, samplePeaks } from './waveform-renderer.js';
 import { createPreviewController } from './timecode-preview.js';
 import { createMarkerRenderer } from './timecode-marker-renderer.js';
 import { createAudioLoader } from './timecode-audio-loader.js';
+import { installTimecodeClipControls, syncTimecodeClipControls } from './timecode-clip-controls.js';
+import { installTimecodeNumberSteppers } from './timecode-number-steppers.js';
 import {
   describeTrigger, isTypingTarget, levelAutomationSig, levelGainAt,
   normalizeTrigger, normalizeTriggers, selectedTriggerIndexes, trackPointerDrag,
@@ -95,7 +97,7 @@ export function createTimecodeEditor(deps) {
 
   const preview = createPreviewController({ $, state, wave, audioContext, clipBounds, updateOverlay: () => updateOverlay() });
   const { isPlaying, playheadSec, refreshPreviewFromEdits, startPreview, stopPreview } = preview;
-  const audioLoader = createAudioLoader({ $, wave, audioContext, samplePeaks, draw, stopPreview });
+  const audioLoader = createAudioLoader({ $, wave, audioContext, samplePeaks, draw: () => scheduleDraw(true, true), stopPreview });
   const load = audioLoader.load;
 
   function syncNewMarkerTime() {
@@ -103,19 +105,17 @@ export function createTimecodeEditor(deps) {
     if (document.activeElement === $('trigger-time')) return;
     $('trigger-time').value = playheadSec().toFixed(3);
   }
-
   function markTriggersAtOrBefore(sec) {
     (state.edit?.triggers || []).forEach((trigger, i) => {
       if (Number(trigger.timeMs || 0) / 1000 <= sec) wave.fired.add(i);
     });
   }
-
   const renderer = createWaveformRenderer(wave, { clipBounds, clipSig, fadeEnvelope, viewDuration });
   const markers = createMarkerRenderer({ state, wave, secToPct });
-
   function updateOverlay() {
     const bounds = clipBounds();
     const { start, end, fadeIn, fadeOut } = bounds;
+    syncTimecodeClipControls($);
     place('wave-start', start);
     place('wave-end', end);
     place('wave-fade-in', start + fadeIn);
@@ -127,25 +127,21 @@ export function createTimecodeEditor(deps) {
     $('wave-time').textContent = `${playheadSec().toFixed(3)}s`;
     syncNewMarkerTime();
   }
-
-  let drawRaf = null;
-  function scheduleDraw(renderMarkers = true) {
-    if (drawRaf) return;
-    drawRaf = requestAnimationFrame(() => { drawRaf = null; draw(renderMarkers); });
+  function scheduleDraw(renderMarkers = true, force = false, retrying = false) {
+    renderer.scheduleDraw(draw, renderMarkers, force, retrying);
   }
-
-  function draw(renderMarkers = true) {
+  function draw(renderMarkers = true, force = false) {
     const canvas = $('clip-wave');
-    if (!canvas) return;
+    if (!canvas) return false;
     const rect = canvas.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return;
-    if (renderer.waveformDirty(rect)) renderer.drawWaveform(canvas, rect);
+    if (rect.width <= 0 || rect.height <= 0) return false;
+    if (force || renderer.waveformDirty(rect)) renderer.drawWaveform(canvas, rect);
     updateOverlay();
     if (renderMarkers) renderMarkersLayer();
+    return true;
   }
 
   function place(id, sec) { const el = $(id); if (el) el.style.left = `${secToPct(sec)}%`; }
-
   function placeRange(id, fromSec, toSec) {
     const el = $(id);
     if (!el) return;
@@ -156,12 +152,10 @@ export function createTimecodeEditor(deps) {
     el.style.left = `${left}%`;
     el.style.width = `${width}%`;
   }
-
   function renderMarkersLayer() {
     markers.render($('wave-triggers'));
   }
   function positionMarkers() { markers.position(); }
-
   function syncList() {
     const list = $('trigger-list');
     if (!list || !state.edit) return;
@@ -246,8 +240,8 @@ export function createTimecodeEditor(deps) {
     const showFade = kind !== 'osc' || setLevel;
     document.querySelectorAll('[data-trigger-field="osc"]').forEach(el => { el.hidden = kind !== 'osc'; });
     document.querySelectorAll('[data-trigger-field="volume"]').forEach(el => { el.hidden = kind === 'osc'; });
-    document.querySelectorAll('[data-trigger-field="local-level"]').forEach(el => { el.hidden = false; });
-    document.querySelectorAll('[data-trigger-field="fade"]').forEach(el => { el.hidden = !showFade; });
+    document.querySelectorAll('[data-trigger-field="local-level"]').forEach(el => { el.hidden = kind !== 'osc'; });
+    document.querySelectorAll('[data-trigger-field="fade"]').forEach(el => { el.hidden = false; });
     ['trigger-playback', 'trigger-cue', 'trigger-transport'].forEach(id => { $(id).disabled = noAction; });
     $('trigger-set-level').disabled = false;
     $('trigger-level').disabled = !setLevel;
@@ -260,7 +254,7 @@ export function createTimecodeEditor(deps) {
     state.edit.triggerEditIndex = index;
     $('trigger-time').value = (Number(trigger.timeMs || 0) / 1000).toFixed(3);
     $('trigger-kind').value = (trigger.triggerType || trigger.kind || 'osc') === 'none' ? 'osc' : trigger.triggerType || trigger.kind || 'osc';
-    $('trigger-action').value = (trigger.triggerType || trigger.kind) === 'none' ? 'none' : trigger.oscAction || 'goto';
+    $('trigger-action').value = (trigger.triggerType || trigger.kind) === 'none' ? 'none' : trigger.oscAction || 'none';
     $('trigger-playback').value = trigger.oscPlayback ?? 1;
     $('trigger-cue').value = trigger.oscCueNumber || '{cueNumber}';
     $('trigger-set-level').checked = Boolean(trigger.setLevel || trigger.targetLevelDb != null || trigger.oscSetLevel);
@@ -286,7 +280,7 @@ export function createTimecodeEditor(deps) {
     return {
       timeMs,
       triggerType: 'osc',
-      oscAction: $('trigger-action').value || 'goto',
+      oscAction: $('trigger-action').value || 'none',
       oscPlayback: num($('trigger-playback')) ?? 1,
       oscCueNumber: $('trigger-cue').value.trim() || '{cueNumber}',
       ...levelFields,
@@ -376,6 +370,8 @@ export function createTimecodeEditor(deps) {
   }
 
   function bind() {
+    installTimecodeClipControls($, cleanDecimal, () => { refreshPreviewFromEdits(); draw(); });
+    installTimecodeNumberSteppers($('timecode-editor'));
     $('wave-play').onclick = togglePlay;
     $('wave-zoom').oninput = e => setZoom(Number(e.target.value) || 1, playheadSec());
     $('trigger-kind').onchange = syncFields;
@@ -479,7 +475,8 @@ export function createTimecodeEditor(deps) {
     state.edit.selectedTriggers = new Set();
     $('add-trigger').textContent = 'Add Marker';
     $('trigger-set-level').checked = false;
-    $('trigger-action').value = 'goto';
+    $('trigger-action').value = 'none';
+    syncTimecodeClipControls($);
     syncFields();
     syncList();
     syncNewMarkerTime();
@@ -488,7 +485,7 @@ export function createTimecodeEditor(deps) {
     load().then(() => {
       syncNewMarkerTime();
       renderer.invalidateWaveform();
-      requestAnimationFrame(() => requestAnimationFrame(draw));
+      scheduleDraw(true, true);
     }).catch(err => toast(err.message));
   }
 

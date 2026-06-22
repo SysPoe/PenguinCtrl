@@ -103,7 +103,7 @@ export function normalizeTrigger(trigger) {
   return {
     timeMs,
     triggerType: 'osc',
-    oscAction: kind === 'none' ? 'none' : String(trigger.oscAction || 'goto').toLowerCase(),
+    oscAction: kind === 'none' ? 'none' : String(trigger.oscAction || 'none').toLowerCase(),
     oscPlayback: Math.max(1, Math.round(Number(trigger.oscPlayback || 1))),
     oscCueNumber: String(trigger.oscCueNumber || '{cueNumber}').trim() || '{cueNumber}',
     ...levelFields,

@@ -1,5 +1,6 @@
 import { createTimecodeEditor } from './cue-timecode.js';
 import { renderClipOptions as renderClipSelectOptions } from './cue-clip-options.js';
+import { createAudioUploads } from './audio-drop-upload.js';
 
 (() => {
   const state = { meta: {}, cues: {}, rows: [], clips: [], selected: -1, selectedRows: new Set(), selectionAnchor: -1, edit: null, ws: null, wsConnected: false, hasFocus: document.hasFocus(), active: [], played: new Set(), pending: new Map(), locked: false, draggingVoice: null, cueClipboard: [] };
@@ -129,6 +130,7 @@ import { renderClipOptions as renderClipSelectOptions } from './cue-clip-options
   }
   function editingClipValue() { return $('cue-editor')?.open ? ($('sound-clip').value || rawCue()?.clip || '') : ''; }
   function renderClipOptions(selectedValue = editingClipValue()) { renderClipSelectOptions($('sound-clip'), state.clips, selectedValue); }
+  const { installDropTarget, uploadClip } = createAudioUploads({ json, state, renderClipOptions, timecode, toast });
   function selectRow(index, extend = false, toggle = false) {
     const next = clampRowIndex(index);
     if (next < 0) {
@@ -356,12 +358,6 @@ import { renderClipOptions as renderClipSelectOptions } from './cue-clip-options
     await persist();
     toast(`${payload.length} cue${payload.length === 1 ? '' : 's'} pasted`);
   }
-  async function uploadClip(file) {
-    const payload = await json('/api/audio/upload', { method: 'POST', headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-Filename': file.name }, body: file });
-    state.clips.push(payload);
-    renderClipOptions(payload.path);
-    await timecode.load();
-  }
   function connect() {
     state.ws = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`);
     state.ws.onopen = () => {
@@ -454,6 +450,7 @@ import { renderClipOptions as renderClipSelectOptions } from './cue-clip-options
     $('cue-editor').addEventListener('cancel', e => { e.preventDefault(); saveAndCloseCue(); }); $('timecode-editor').addEventListener('cancel', e => { e.preventDefault(); saveAndCloseTimecode(); });
     $('sound-clip').onchange = () => timecode.load().catch(err => toast(err.message));
     $('sound-upload').onchange = e => { if (e.target.files[0]) uploadClip(e.target.files[0]).catch(err => toast(err.message)); e.target.value = ''; };
+    installDropTarget();
     $('open-timecode').onclick = openTimecodeEditor;
     $('show-import').onchange = async e => { const file = e.target.files[0]; if (file) await json('/api/show/import', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', 'X-Filename': file.name }, body: file }).then(loadAll).catch(err => toast(err.message)); };
     $('btn-export').onclick = () => location.href = '/api/show/export';

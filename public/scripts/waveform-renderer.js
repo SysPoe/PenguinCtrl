@@ -1,5 +1,8 @@
 export function createWaveformRenderer(wave, options) {
   const { clipBounds, clipSig, fadeEnvelope, viewDuration } = options;
+  let drawRaf = null;
+  let drawRetries = 0;
+  let drawForce = false;
 
   function peakBins(rect) {
     const width = Math.max(1, Math.ceil(rect.width));
@@ -102,7 +105,23 @@ export function createWaveformRenderer(wave, options) {
     return bounds;
   }
 
-  return { drawWaveform, invalidateWaveform, peakBins, waveformDirty };
+  function scheduleDraw(draw, renderMarkers = true, force = false, retrying = false) {
+    drawForce ||= force;
+    if (drawRaf) return;
+    if (!retrying) drawRetries = 0;
+    drawRaf = requestAnimationFrame(() => {
+      drawRaf = null;
+      const forceFrame = drawForce;
+      drawForce = false;
+      const drawn = draw(renderMarkers, forceFrame);
+      if (((forceFrame && drawn) || !drawn) && drawRetries < 8) {
+        drawRetries += 1;
+        scheduleDraw(draw, renderMarkers, forceFrame, true);
+      }
+    });
+  }
+
+  return { drawWaveform, invalidateWaveform, peakBins, scheduleDraw, waveformDirty };
 }
 
 export function samplePeaks(buffer, bins = 500) {
