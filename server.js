@@ -15,6 +15,7 @@ import {
   pause as audioPause, resume as audioResume, seek as audioSeek, setTriggerCallback,
   preloadBuffer as audioPreloadBuffer, updateCacheHints as audioUpdateCacheHints,
   markCuePlayed, clearPlayedCacheHints, setCacheCurrentOrder, listAudioOutputDevices,
+  refreshAudioOutput,
 } from './server-audio.js';
 import { createConfigService } from './config/config-service.js';
 import { createCueTypeRegistry } from './config/cue-type-registry.js';
@@ -432,6 +433,7 @@ wss.on('connection', ws => {
       else if (msg.type === 'seek') { await audioSeek(msg.instanceId, msg.position); broadcastInstances(); }
       else if (msg.type === 'masterVolume') { safeMasterVolume(msg.db); broadcastMaster(); }
       else if (msg.type === 'toggleMasterMute') { toggleMasterMute(); broadcastMaster(); }
+      else if (msg.type === 'refreshAudioOutput') { await refreshAudioOutput(); broadcastInstances(); }
     } catch (err) {
       broadcast({ type: 'runtimeError', message: err?.message || 'Runtime error' });
     }

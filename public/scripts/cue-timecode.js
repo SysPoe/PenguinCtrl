@@ -2,6 +2,8 @@ import { createWaveformRenderer, samplePeaks } from './waveform-renderer.js';
 import { createPreviewController } from './timecode-preview.js';
 import { createMarkerRenderer } from './timecode-marker-renderer.js';
 import { createAudioLoader } from './timecode-audio-loader.js';
+import { createTimecodeHistory } from './timecode-history.js';
+import { createTimecodeSelection } from './timecode-selection.js';
 import { installTimecodeClipControls, syncTimecodeClipControls } from './timecode-clip-controls.js';
 import { installTimecodeNumberSteppers } from './timecode-number-steppers.js';
 import {
@@ -12,6 +14,7 @@ import {
 export function createTimecodeEditor(deps) {
   const { $, state, esc, num, fmtDb, toast, cleanDecimal } = deps;
   const wave = { cache: new Map(), ctx: null, path: '', duration: 0, buffer: null, peaks: [], viewPeaks: [], viewPeaksStart: 0, viewPeaksKey: '', zoom: 1, viewStart: 0, fired: new Set(), activated: new Set(), preview: null, scrubSec: null, canvasCtx: null, canvasScale: 1 };
+  const historyFields = ['clip-start', 'clip-end', 'fade-in', 'fade-out', 'volume', 'loop-start', 'loop-end', 'tc-clip-start', 'tc-clip-end', 'tc-fade-in', 'tc-fade-out'];
 
   function dbToGain(db) { return Math.pow(10, Number(db || 0) / 20); }
 
@@ -112,6 +115,8 @@ export function createTimecodeEditor(deps) {
   }
   const renderer = createWaveformRenderer(wave, { clipBounds, clipSig, fadeEnvelope, viewDuration });
   const markers = createMarkerRenderer({ state, wave, secToPct });
+  const history = createTimecodeHistory({ $, state, fieldIds: historyFields, onRestore: restoreHistory });
+  const selection = createTimecodeSelection({ $, state, syncList, updateSelectionUI });
   function updateOverlay() {
     const bounds = clipBounds();
     const { start, end, fadeIn, fadeOut } = bounds;
@@ -186,24 +191,13 @@ export function createTimecodeEditor(deps) {
 
   const selectedIndexes = () => selectedTriggerIndexes(state.edit);
 
-  function selectTrigger(index, event = {}) {
-    if (!state.edit?.triggers?.[index]) return;
-    $('trigger-list')?.focus();
-    state.edit.selectedTriggers ||= new Set();
-    if (event.shiftKey && state.edit.triggerAnchor != null) {
-      const from = Math.min(state.edit.triggerAnchor, index);
-      const to = Math.max(state.edit.triggerAnchor, index);
-      state.edit.selectedTriggers = new Set(Array.from({ length: to - from + 1 }, (_v, i) => from + i));
-    } else if (event.ctrlKey || event.metaKey) {
-      if (state.edit.selectedTriggers.has(index)) state.edit.selectedTriggers.delete(index);
-      else state.edit.selectedTriggers.add(index);
-      state.edit.triggerAnchor = index;
-    } else {
-      state.edit.selectedTriggers = new Set([index]);
-      state.edit.triggerAnchor = index;
-    }
-    if (event.noSync) updateSelectionUI();
-    else syncList();
+  function restoreHistory() {
+    $('add-trigger').textContent = Number.isInteger(state.edit?.triggerEditIndex) ? 'Update Marker' : 'Add Marker';
+    syncTimecodeClipControls($);
+    syncFields();
+    refreshPreviewFromEdits();
+    renderer.invalidateWaveform();
+    syncList();
   }
 
   async function copySelectedMarkers() {
@@ -225,6 +219,7 @@ export function createTimecodeEditor(deps) {
       } catch { }
     }
     if (!markers.length) return toast('No copied markers');
+    history.checkpoint();
     const minMs = Math.min(...markers.map(t => Number(t.timeMs || 0)));
     const baseMs = Math.round((playheadSec() * 1000));
     state.edit.triggers.push(...markers.map(trigger => ({ ...normalizeTrigger(trigger), timeMs: Math.max(0, baseMs + Number(trigger.timeMs || 0) - minMs) })));
@@ -291,6 +286,7 @@ export function createTimecodeEditor(deps) {
   function addTrigger() {
     state.edit.triggers ||= [];
     const trigger = collectTrigger();
+    history.checkpoint();
     if (Number.isInteger(state.edit.triggerEditIndex) && state.edit.triggers[state.edit.triggerEditIndex]) {
       state.edit.triggers.splice(state.edit.triggerEditIndex, 1, trigger);
       state.edit.triggerEditIndex = null;
@@ -348,7 +344,11 @@ export function createTimecodeEditor(deps) {
     el.addEventListener('pointerdown', e => {
       if (!wave.duration) return;
       const wrap = el.parentElement;
-      const move = ev => { onMove(eventToSec(ev, wrap)); refreshPreviewFromEdits(); draw(false); };
+      let checkpointed = false;
+      const move = ev => {
+        if (!checkpointed) { history.checkpoint(); checkpointed = true; }
+        onMove(eventToSec(ev, wrap)); refreshPreviewFromEdits(); draw(false);
+      };
       el.setPointerCapture(e.pointerId);
       move(e);
       el.onpointermove = move;
@@ -361,6 +361,15 @@ export function createTimecodeEditor(deps) {
     wrap.addEventListener('pointerdown', e => {
       if (e.target.closest('.wave-trigger, .wave-marker, .fade-handle') || !wave.duration) return;
       const captureEl = e.target.closest('.wave-head') || wrap;
+      if (e.shiftKey) {
+        const startSec = eventToSec(e, wrap);
+        const move = ev => selection.selectRange(startSec, eventToSec(ev, wrap));
+        captureEl.setPointerCapture(e.pointerId);
+        move(e);
+        captureEl.onpointermove = move;
+        captureEl.onpointerup = captureEl.onpointercancel = () => { captureEl.onpointermove = null; };
+        return;
+      }
       const move = ev => scrubPlayhead(ev, wrap);
       captureEl.setPointerCapture(e.pointerId);
       move(e);
@@ -372,6 +381,7 @@ export function createTimecodeEditor(deps) {
   function bind() {
     installTimecodeClipControls($, cleanDecimal, () => { refreshPreviewFromEdits(); draw(); });
     installTimecodeNumberSteppers($('timecode-editor'));
+    history.watchFields(() => { refreshPreviewFromEdits(); draw(); });
     $('wave-play').onclick = togglePlay;
     $('wave-zoom').oninput = e => setZoom(Number(e.target.value) || 1, playheadSec());
     $('trigger-kind').onchange = syncFields;
@@ -406,7 +416,9 @@ export function createTimecodeEditor(deps) {
         const trigger = state.edit?.triggers?.[index];
         if (!trigger) return;
         const wrap = fadeHandle.parentElement;
+        let checkpointed = false;
         trackPointerDrag(e, fadeHandle, ev => {
+          if (!checkpointed) { history.checkpoint(); checkpointed = true; }
           const start = Number(trigger.timeMs || 0) / 1000;
           trigger.fadeSeconds = Math.max(0, eventToSec(ev, wrap) - start);
           renderer.invalidateWaveform();
@@ -419,12 +431,14 @@ export function createTimecodeEditor(deps) {
       const index = Number(marker.dataset.i);
       const trigger = state.edit?.triggers?.[index];
       if (!trigger) return;
-      if (!state.edit.selectedTriggers?.has(index) || e.shiftKey || e.ctrlKey || e.metaKey) selectTrigger(index, { shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey, noSync: true });
+      if (!state.edit.selectedTriggers?.has(index) || e.shiftKey || e.ctrlKey || e.metaKey) selection.selectIndex(index, { shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey, noSync: true });
       const moving = selectedIndexes().length ? selectedIndexes() : [index];
       const startSec = eventToSec(e, marker.parentElement);
       const starts = moving.map(i => Number(state.edit.triggers[i]?.timeMs || 0) / 1000);
+      let checkpointed = false;
       marker.setPointerCapture(e.pointerId);
       marker.onpointermove = ev => {
+        if (!checkpointed) { history.checkpoint(); checkpointed = true; }
         const rawDelta = eventToSec(ev, marker.parentElement) - startSec;
         const minDelta = -Math.min(...starts);
         const maxDelta = wave.duration - Math.max(...starts);
@@ -439,14 +453,16 @@ export function createTimecodeEditor(deps) {
       const removeIdx = Number(e.target.dataset.removeTrigger);
       const editIdx = Number(e.target.dataset.editTrigger);
       const rowIdx = Number(e.target.dataset.triggerRow);
-      if (Number.isInteger(removeIdx)) { state.edit.triggers.splice(removeIdx, 1); state.edit.triggerEditIndex = null; $('add-trigger').textContent = 'Add Marker'; syncNewMarkerTime(); syncList(); }
+      if (Number.isInteger(removeIdx)) { history.checkpoint(); state.edit.triggers.splice(removeIdx, 1); state.edit.triggerEditIndex = null; $('add-trigger').textContent = 'Add Marker'; syncNewMarkerTime(); syncList(); }
       else if (Number.isInteger(editIdx)) loadTrigger(editIdx);
-      else if (Number.isInteger(rowIdx)) selectTrigger(rowIdx, e);
+      else if (Number.isInteger(rowIdx)) selection.selectIndex(rowIdx, e);
     };
     document.addEventListener('keydown', e => {
       if (!$('timecode-editor').open || !(e.ctrlKey || e.metaKey)) return;
-      if (isTypingTarget(e.target)) return;
       const key = e.key.toLowerCase();
+      if (key === 'z') { e.preventDefault(); (e.shiftKey ? history.redo() : history.undo()) || toast('Nothing to undo'); return; }
+      if (key === 'y') { e.preventDefault(); history.redo() || toast('Nothing to redo'); return; }
+      if (isTypingTarget(e.target)) return;
       if (key === 'a') {
         e.preventDefault();
         state.edit.selectedTriggers = new Set((state.edit.triggers || []).map((_t, i) => i));
@@ -477,6 +493,7 @@ export function createTimecodeEditor(deps) {
     $('trigger-set-level').checked = false;
     $('trigger-action').value = 'none';
     syncTimecodeClipControls($);
+    history.reset();
     syncFields();
     syncList();
     syncNewMarkerTime();

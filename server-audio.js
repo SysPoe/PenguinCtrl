@@ -19,6 +19,7 @@ let triggerCallback = null;
 let cacheHints = [];
 let currentOrder = 0;
 const playedCueIds = new Set();
+let refreshingOutput = false;
 
 function dbToGain(db) {
   return Math.pow(10, Number(db || 0) / 20);
@@ -97,11 +98,18 @@ async function loadBuffer(filePath) {
 function clearInstance(instanceId) {
   const inst = active.get(instanceId);
   if (!inst) return;
+  stopInstanceNodes(inst);
+  active.delete(instanceId);
+}
+
+function stopInstanceNodes(inst) {
   inst.timers.forEach(timer => clearTimeout(timer));
   try { inst.source.stop(); } catch { }
   try { inst.source.disconnect(); } catch { }
   try { inst.gain.disconnect(); } catch { }
-  active.delete(instanceId);
+  inst.source = null;
+  inst.gain = null;
+  inst.timers = new Set();
 }
 
 function scheduleEnd(inst) {
@@ -229,6 +237,31 @@ export function fadeOutAll(duration = 2) { [...active.keys()].forEach(id => fade
 export function devamp(instanceId) { const inst = active.get(instanceId); if (inst) { inst.loop = false; inst.source.loop = false; } }
 export function cancelDevamp(instanceId) { const inst = active.get(instanceId); if (inst) { inst.loop = true; inst.source.loop = true; } }
 export function cancelWaitingCues() { }
+
+export async function refreshAudioOutput() {
+  if (refreshingOutput) return false;
+  refreshingOutput = true;
+  const snapshots = [...active.values()].map(inst => ({ inst, position: positionFor(inst), paused: inst.paused }));
+  try {
+    for (const { inst, position, paused } of snapshots) {
+      inst.position = position;
+      inst.paused = paused;
+      stopInstanceNodes(inst);
+    }
+    bufferCache.clear();
+    if (ctx && ctx.state !== 'closed') await ctx.close().catch(() => { });
+    ctx = null;
+    masterGain = null;
+    for (const { inst, paused } of snapshots) {
+      if (!active.has(inst.instanceId)) continue;
+      inst.buffer = await loadBuffer(inst.clip);
+      if (!paused) startSource(inst, inst.position);
+    }
+    return true;
+  } finally {
+    refreshingOutput = false;
+  }
+}
 
 export function setVolume(instanceId, db) {
   const inst = active.get(instanceId);

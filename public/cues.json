@@ -89,17 +89,57 @@
     }
   },
   "manual_396fc7c6-d1ad-4a5f-a2a1-0331ea6ae5fa": {
+    "sound": []
+  },
+  "manual_b0d8bf42-7552-4de0-b481-b25b93cc041d": {
+    "modifier": []
+  },
+  "manual_be46ee82-cbbd-4a68-9929-8d1883377616": {
+    "modifier": []
+  },
+  "manual_6dfc1263-b87c-4e98-bd63-8d6ec9bc5f2e": {
+    "sound": []
+  },
+  "manual_bde7e6a4-2a11-4a8e-be35-2c7ab0f7feb3": {
+    "lighting": [
+      {
+        "actionType": "lighting",
+        "cueType": "lighting",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto",
+        "id": "cb86f66d-d554-4c4d-a667-e7793b48ef52",
+        "title": "Start blackout",
+        "description": "",
+        "number": "1",
+        "actions": [
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ]
+      }
+    ]
+  },
+  "manual_c29be593-ca45-487b-908c-3a31cf7ff478": {
     "sound": [
       {
         "soundSubtype": "play_once",
         "playStyle": "alongside",
         "clipStart": 0,
-        "clipEnd": 151.432,
-        "fadeIn": 2.63,
-        "fadeOut": 11.615,
+        "clipEnd": 165.461,
+        "fadeIn": 0,
+        "fadeOut": 0,
         "volume": 0,
         "loopStart": 0,
-        "loopEnd": 151.432,
+        "loopEnd": 165.461,
         "oscStartTrigger": {
           "oscAction": "none",
           "oscPlayback": 1,
@@ -108,22 +148,23 @@
           "oscTransport": "auto"
         },
         "oscTriggers": [],
-        "id": "2573e757-dad5-41b5-aae8-9872c989993f",
-        "title": "amogos",
+        "actionType": "sound",
+        "cueType": "sound",
+        "id": "ac2f7252-fad9-481b-8aa9-a7a963f1a6d7",
+        "title": "1. Lucky Penny – Dance Company",
         "description": "",
-        "number": "1",
-        "clip": "/audio/UNCUT_trailer_BGM_1782109454874.wav",
+        "number": "2",
         "actions": [
           {
             "soundSubtype": "play_once",
             "playStyle": "alongside",
             "clipStart": 0,
-            "clipEnd": 151.432,
-            "fadeIn": 2.63,
-            "fadeOut": 11.615,
+            "clipEnd": 165.461,
+            "fadeIn": 0,
+            "fadeOut": 0,
             "volume": 0,
             "loopStart": 0,
-            "loopEnd": 151.432,
+            "loopEnd": 165.461,
             "oscStartTrigger": {
               "oscAction": "none",
               "oscPlayback": 1,
@@ -134,7 +175,7 @@
             "oscTriggers": [],
             "actionType": "sound",
             "cueType": "sound",
-            "clip": "/audio/UNCUT_trailer_BGM_1782109454874.wav"
+            "clip": "/audio/1_-_Lucky_Penny_1782173580772.wav"
           },
           {
             "actionType": "lighting",
@@ -146,39 +187,807 @@
             "oscTransport": "auto"
           }
         ],
-        "actionType": "sound",
-        "cueType": "sound"
+        "clip": "/audio/1_-_Lucky_Penny_1782173580772.wav"
       }
     ]
   },
-  "manual_b0d8bf42-7552-4de0-b481-b25b93cc041d": {
-    "modifier": [
+  "manual_6ffc229b-b8ee-4be1-ab9a-e59e0aed054c": {
+    "lighting": [
       {
-        "modifierAction": "volume",
-        "id": "1335a1e3-ed51-4d82-ae89-cdad46532c21",
-        "title": "lerp down",
+        "actionType": "lighting",
+        "cueType": "lighting",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto",
+        "id": "ec4370b2-b13f-49d1-beef-192f12ed6f61",
+        "title": "RED <- 1 dancer USC facing back",
         "description": "",
-        "number": "2",
-        "targetCueId": "2573e757-dad5-41b5-aae8-9872c989993f",
-        "modifierDuration": 2,
-        "targetVolumeDb": -5
+        "number": "2.1",
+        "actions": [
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ]
       }
     ]
   },
-  "manual_be46ee82-cbbd-4a68-9929-8d1883377616": {
+  "manual_83d8822d-873e-4ebb-9018-f4c07cca9a7e": {
+    "lighting": [
+      {
+        "actionType": "lighting",
+        "cueType": "lighting",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto",
+        "id": "1c8d3116-17b4-40fa-b68d-35a916c3df1b",
+        "title": "BLACKOUT <- Nadia flips coin DSC",
+        "description": "",
+        "number": "2.2",
+        "actions": [
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "modifierAction": "fade",
+            "actionType": "modifier",
+            "cueType": "modifier",
+            "targetCueId": "ac2f7252-fad9-481b-8aa9-a7a963f1a6d7",
+            "modifierDuration": 2
+          }
+        ]
+      }
+    ]
+  },
+  "manual_91dccc21-c4a6-40cb-a813-0538d8935759": {
+    "lighting": [
+      {
+        "actionType": "lighting",
+        "cueType": "lighting",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto",
+        "id": "bb5f2d2a-4f83-4e91-9210-25164e71e61c",
+        "title": "Speech",
+        "description": "",
+        "number": "3",
+        "actions": [
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ]
+      }
+    ]
+  },
+  "manual_a458d0a0-64b6-4f16-a527-15d6c614ac7a": {
+    "sound": [
+      {
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 0,
+        "clipEnd": 172.918,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "loopStart": 0,
+        "loopEnd": 172.918,
+        "oscStartTrigger": {
+          "oscAction": "none",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "actionType": "sound",
+        "cueType": "sound",
+        "clip": "/audio/2_-_Woman_AUDIO_1782173570030.wav",
+        "id": "42e296be-8ade-4f57-bfe1-55b870bbe2da",
+        "title": "2. Woman – Leann",
+        "description": "",
+        "number": "4",
+        "actions": [
+          {
+            "soundSubtype": "play_once",
+            "playStyle": "alongside",
+            "clipStart": 0,
+            "clipEnd": 172.918,
+            "fadeIn": 0,
+            "fadeOut": 0,
+            "volume": 0,
+            "loopStart": 0,
+            "loopEnd": 172.918,
+            "oscStartTrigger": {
+              "oscAction": "none",
+              "oscPlayback": 1,
+              "oscCueNumber": "{cueNumber}",
+              "oscLevel": 100,
+              "oscTransport": "auto"
+            },
+            "oscTriggers": [],
+            "actionType": "sound",
+            "cueType": "sound",
+            "clip": "/audio/2_-_Woman_AUDIO_1782173570030.wav"
+          },
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ]
+      }
+    ]
+  },
+  "manual_2a1108ff-ba4b-4b08-8734-6500835384fa": {
+    "lighting": [
+      {
+        "actionType": "lighting",
+        "cueType": "lighting",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto",
+        "id": "336a6b98-f418-4c1d-b8ba-63b6ca81ae34",
+        "title": "PINK <- 1 dancer CS",
+        "description": "",
+        "number": "4.1",
+        "actions": [
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ]
+      }
+    ]
+  },
+  "manual_09de187e-eca5-4051-96d4-936c4315b844": {
+    "lighting": [
+      {
+        "actionType": "lighting",
+        "cueType": "lighting",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto",
+        "id": "dbf59dba-f754-4e92-b26d-5fcf33b8834a",
+        "title": "3 SPOTS <- ???",
+        "description": "",
+        "number": "4.2",
+        "actions": [
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ]
+      }
+    ]
+  },
+  "manual_1db6fdf7-af77-4cbf-955a-be3c0942484c": {
     "modifier": [
       {
         "modifierAction": "fade",
-        "id": "923761a6-cdbc-46ac-8765-6937a14e578a",
-        "title": "fade out",
+        "modifierDuration": 2,
+        "targetVolumeDb": -12,
+        "actionType": "modifier",
+        "cueType": "modifier",
+        "targetCueId": "42e296be-8ade-4f57-bfe1-55b870bbe2da",
+        "id": "fe98223d-8a1c-4c2d-be41-5b917d34e074",
+        "title": "BLACKOUT <- 4 dancers walk off",
         "description": "",
-        "number": "3",
-        "targetCueId": "2573e757-dad5-41b5-aae8-9872c989993f",
-        "modifierDuration": 2
+        "number": "4.3",
+        "actions": [
+          {
+            "modifierAction": "fade",
+            "actionType": "modifier",
+            "cueType": "modifier",
+            "targetCueId": "42e296be-8ade-4f57-bfe1-55b870bbe2da",
+            "modifierDuration": 2
+          },
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ]
       }
     ]
   },
-  "manual_6dfc1263-b87c-4e98-bd63-8d6ec9bc5f2e": {
-    "sound": []
+  "manual_658addc7-6ea6-45ff-85fc-7e6603893c64": {
+    "sound": [
+      {
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 0,
+        "clipEnd": 111.862,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "loopStart": 0,
+        "loopEnd": 111.862,
+        "oscStartTrigger": {
+          "oscAction": "none",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "actionType": "sound",
+        "cueType": "sound",
+        "clip": "/audio/3_-_Desperado_1782173581039.wav",
+        "id": "345828c5-f678-4ead-bf1b-ebd9f1d2631e",
+        "title": "ALL DANCERS ON STAGE <- 3. Desperado – Senior Dance Company",
+        "description": "",
+        "number": "5",
+        "actions": [
+          {
+            "soundSubtype": "play_once",
+            "playStyle": "alongside",
+            "clipStart": 0,
+            "clipEnd": 111.862,
+            "fadeIn": 0,
+            "fadeOut": 0,
+            "volume": 0,
+            "loopStart": 0,
+            "loopEnd": 111.862,
+            "oscStartTrigger": {
+              "oscAction": "none",
+              "oscPlayback": 1,
+              "oscCueNumber": "{cueNumber}",
+              "oscLevel": 100,
+              "oscTransport": "auto"
+            },
+            "oscTriggers": [],
+            "actionType": "sound",
+            "cueType": "sound",
+            "clip": "/audio/3_-_Desperado_1782173581039.wav"
+          },
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ]
+      }
+    ]
+  },
+  "manual_f17a9e1e-869d-4ddc-b02f-4b513c93341c": {
+    "modifier": [
+      {
+        "modifierAction": "fade",
+        "modifierDuration": 2,
+        "targetVolumeDb": -12,
+        "actionType": "modifier",
+        "cueType": "modifier",
+        "targetCueId": "345828c5-f678-4ead-bf1b-ebd9f1d2631e",
+        "id": "b1e1c677-506e-4190-a6ef-ccd3c2da5d03",
+        "title": "BLACKOUT <- End in clump CS",
+        "description": "",
+        "number": "5.1",
+        "actions": [
+          {
+            "modifierAction": "fade",
+            "actionType": "modifier",
+            "cueType": "modifier",
+            "targetCueId": "345828c5-f678-4ead-bf1b-ebd9f1d2631e",
+            "modifierDuration": 2
+          },
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ]
+      }
+    ]
+  },
+  "manual_77e92b77-5db0-44de-bfa0-127f7414002b": {
+    "sound": [
+      {
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 0,
+        "clipEnd": 0,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "loopStart": 0,
+        "loopEnd": 0,
+        "oscStartTrigger": {
+          "oscAction": "none",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "actionType": "sound",
+        "cueType": "sound",
+        "id": "5ed884f3-237d-42fb-8a41-b71096bb4f50",
+        "title": "4. Shell Necklace",
+        "description": "",
+        "number": "6",
+        "actions": [
+          {
+            "soundSubtype": "play_once",
+            "playStyle": "alongside",
+            "clipStart": 0,
+            "clipEnd": 0,
+            "fadeIn": 0,
+            "fadeOut": 0,
+            "volume": 0,
+            "loopStart": 0,
+            "loopEnd": 0,
+            "oscStartTrigger": {
+              "oscAction": "none",
+              "oscPlayback": 1,
+              "oscCueNumber": "{cueNumber}",
+              "oscLevel": 100,
+              "oscTransport": "auto"
+            },
+            "oscTriggers": [],
+            "actionType": "sound",
+            "cueType": "sound"
+          },
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ]
+      }
+    ]
+  },
+  "manual_589407d2-053d-432b-88b1-b2f7b8bd2e0b": {
+    "lighting": [
+      {
+        "actionType": "lighting",
+        "cueType": "lighting",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto",
+        "id": "edd710a4-92bc-49c5-ace3-a53324309e75",
+        "title": "BLACKOUT <- ???",
+        "description": "",
+        "number": "6.9",
+        "actions": [
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ]
+      }
+    ]
+  },
+  "manual_7f4c430b-1335-4f40-90e7-60a5d86154c1": {
+    "sound": [
+      {
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 0,
+        "clipEnd": 0,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "loopStart": 0,
+        "loopEnd": 0,
+        "oscStartTrigger": {
+          "oscAction": "none",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "actionType": "sound",
+        "cueType": "sound",
+        "clip": "/audio/5_-_Water_1782173580984.wav",
+        "id": "059dd5d9-eda6-48c5-b486-4169cf7203ba",
+        "title": "5. XXX – Nadia",
+        "description": "",
+        "number": "7",
+        "actions": [
+          {
+            "soundSubtype": "play_once",
+            "playStyle": "alongside",
+            "clipStart": 0,
+            "clipEnd": 0,
+            "fadeIn": 0,
+            "fadeOut": 0,
+            "volume": 0,
+            "loopStart": 0,
+            "loopEnd": 0,
+            "oscStartTrigger": {
+              "oscAction": "none",
+              "oscPlayback": 1,
+              "oscCueNumber": "{cueNumber}",
+              "oscLevel": 100,
+              "oscTransport": "auto"
+            },
+            "oscTriggers": [],
+            "actionType": "sound",
+            "cueType": "sound",
+            "clip": "/audio/5_-_Water_1782173580984.wav"
+          },
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ]
+      }
+    ]
+  },
+  "manual_8c01ecd8-1f58-4e87-afa3-642efd906b5b": {
+    "lighting": [
+      {
+        "actionType": "lighting",
+        "cueType": "lighting",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto",
+        "id": "957e7598-8254-4312-99a8-cf443adbf3ba",
+        "title": "DARK BLUE <- Nadia in front of drama blocks",
+        "description": "",
+        "number": "7.1",
+        "actions": [
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ]
+      }
+    ]
+  },
+  "manual_865b907a-23cd-48e9-b22c-9191845484e5": {
+    "lighting": [
+      {
+        "actionType": "lighting",
+        "cueType": "lighting",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto",
+        "id": "8e9ba120-7624-4185-8f92-061870daa247",
+        "title": "WHITE <- Tyler enters",
+        "description": "",
+        "number": "7.2",
+        "actions": [
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ]
+      }
+    ]
+  },
+  "manual_12ef9220-5d44-4372-99df-ebf13fddd983": {
+    "lighting": [
+      {
+        "actionType": "lighting",
+        "cueType": "lighting",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto",
+        "id": "2ef447b3-11f2-42a4-93b9-17f3a4edab92",
+        "title": "BLACKOUT <- Dancers holding hands DSC",
+        "description": "",
+        "number": "7.3",
+        "actions": [
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "modifierAction": "fade",
+            "actionType": "modifier",
+            "cueType": "modifier",
+            "targetCueId": "059dd5d9-eda6-48c5-b486-4169cf7203ba",
+            "modifierDuration": 2
+          }
+        ]
+      }
+    ]
+  },
+  "manual_9b11a186-5ca7-4c6c-8dd7-244ab7ba9696": {
+    "sound": [
+      {
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 0,
+        "clipEnd": 217.056,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "loopStart": 0,
+        "loopEnd": 217.056,
+        "oscStartTrigger": {
+          "oscAction": "none",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "actionType": "sound",
+        "cueType": "sound",
+        "clip": "/audio/6_-_Die_on_this_Hill_1782173580882.wav",
+        "id": "c6da37fb-e010-42dd-9183-95aa35bed2ad",
+        "title": "6. Die on this Hill – Ava",
+        "description": "",
+        "number": "8",
+        "actions": [
+          {
+            "soundSubtype": "play_once",
+            "playStyle": "alongside",
+            "clipStart": 0,
+            "clipEnd": 217.056,
+            "fadeIn": 0,
+            "fadeOut": 0,
+            "volume": 0,
+            "loopStart": 0,
+            "loopEnd": 217.056,
+            "oscStartTrigger": {
+              "oscAction": "none",
+              "oscPlayback": 1,
+              "oscCueNumber": "{cueNumber}",
+              "oscLevel": 100,
+              "oscTransport": "auto"
+            },
+            "oscTriggers": [],
+            "actionType": "sound",
+            "cueType": "sound",
+            "clip": "/audio/6_-_Die_on_this_Hill_1782173580882.wav"
+          },
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ]
+      }
+    ]
+  },
+  "manual_9afe9a81-7364-4713-8ffe-0a282a381e51": {
+    "lighting": [
+      {
+        "actionType": "lighting",
+        "cueType": "lighting",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto",
+        "id": "58b82fa8-f85b-4996-87eb-e9bbb545a508",
+        "title": "BLACKOUT <- Exit SL",
+        "description": "",
+        "number": "8.1",
+        "actions": [
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "modifierAction": "fade",
+            "actionType": "modifier",
+            "cueType": "modifier",
+            "targetCueId": "c6da37fb-e010-42dd-9183-95aa35bed2ad",
+            "modifierDuration": 2
+          }
+        ]
+      }
+    ]
+  },
+  "manual_07579b83-099f-4475-ae63-650f2d26f96c": {
+    "sound": [
+      {
+        "soundSubtype": "play_once",
+        "playStyle": "alongside",
+        "clipStart": 0,
+        "clipEnd": 0,
+        "fadeIn": 0,
+        "fadeOut": 0,
+        "volume": 0,
+        "loopStart": 0,
+        "loopEnd": 0,
+        "oscStartTrigger": {
+          "oscAction": "none",
+          "oscPlayback": 1,
+          "oscCueNumber": "{cueNumber}",
+          "oscLevel": 100,
+          "oscTransport": "auto"
+        },
+        "oscTriggers": [],
+        "actionType": "sound",
+        "cueType": "sound",
+        "id": "901cc684-c233-4854-8bb9-51fbaa3a8cdb",
+        "title": "7. Wave – Dance Company",
+        "description": "",
+        "number": "9",
+        "actions": [
+          {
+            "soundSubtype": "play_once",
+            "playStyle": "alongside",
+            "clipStart": 0,
+            "clipEnd": 0,
+            "fadeIn": 0,
+            "fadeOut": 0,
+            "volume": 0,
+            "loopStart": 0,
+            "loopEnd": 0,
+            "oscStartTrigger": {
+              "oscAction": "none",
+              "oscPlayback": 1,
+              "oscCueNumber": "{cueNumber}",
+              "oscLevel": 100,
+              "oscTransport": "auto"
+            },
+            "oscTriggers": [],
+            "actionType": "sound",
+            "cueType": "sound"
+          },
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ]
+      }
+    ]
+  },
+  "manual_dc47e82f-4687-41e4-8e2d-691df3ee66bd": {
+    "lighting": [
+      {
+        "actionType": "lighting",
+        "cueType": "lighting",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto",
+        "id": "4cf4c5be-ebae-4328-b03f-807d4a153e7d",
+        "title": "Blackout <- ???",
+        "description": "",
+        "number": "9.9",
+        "actions": [
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ]
+      }
+    ]
+  },
+  "manual_f999879e-84e2-4837-a66c-aba2bfd6258b": {
+    "lighting": [
+      {
+        "actionType": "lighting",
+        "cueType": "lighting",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto",
+        "id": "89a9c1de-1ee1-4eab-8134-e85750a6ce8b",
+        "title": "SPEECH",
+        "description": "",
+        "number": "10",
+        "actions": [
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ]
+      }
+    ]
   }
 }

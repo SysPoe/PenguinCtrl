@@ -431,6 +431,7 @@ import { createVoicePanel } from './cue-voices.js';
     $('go').onclick = go;
     $('fade-all').onclick = () => send({ type: 'fadeOutAll' });
     $('stop-all').onclick = () => send({ type: 'stopAll' });
+    $('refresh-output').onclick = () => send({ type: 'refreshAudioOutput' });
     $('reset-played').onclick = () => send({ type: 'resetPlayed' });
     $('master').oninput = e => { $('master-label').textContent = fmtDb(e.target.value); send({ type: 'masterVolume', db: Number(e.target.value) }); };
     $('master-mute').onclick = () => send({ type: 'toggleMasterMute' });
