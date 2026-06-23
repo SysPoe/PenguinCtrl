@@ -97,7 +97,6 @@ import { createVoicePanel } from './cue-voices.js';
   function typingTarget(el) {
     return el?.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA'].includes(el?.tagName);
   }
-
   async function loadAll() {
     const [meta, cues, list, audio] = await Promise.all([
       json('/api/meta'), json('/api/cues', { cache: 'no-store' }), json('/api/cue-list', { cache: 'no-store' }), json('/api/audio/list', { cache: 'no-store' }),
@@ -127,7 +126,7 @@ import { createVoicePanel } from './cue-voices.js';
   }
   const renderRows = createCueTableRenderer({ $, state, esc, fmtDur, selectedIndexes });
   function renderTypeOptions() {
-    $('cue-type').innerHTML = types().map(t => `<option value="${esc(t.id)}">${esc(t.label || t.id)}</option>`).join('');
+    $('new-action-type').innerHTML = types().map(t => `<option value="${esc(t.id)}">${esc(t.label || t.id)}</option>`).join('');
   }
   function editingClipValue() { return $('cue-editor')?.open ? ($('sound-clip').value || rawCue()?.clip || '') : ''; }
   function renderClipOptions(selectedValue = editingClipValue()) { renderClipSelectOptions($('sound-clip'), state.clips, selectedValue); }
@@ -166,9 +165,8 @@ import { createVoicePanel } from './cue-voices.js';
     return (Array.isArray(list) ? list : []).find(c => c.id === row.cueId || `${row.targetId}_${row.cueType}_${c.id}` === row.id) || {};
   }
   function nextNumber() {
-    const last = state.rows[state.rows.length - 1]?.number;
-    const n = Number(last);
-    return Number.isFinite(n) ? String(n + 1) : String(state.rows.length + 1);
+    const numbers = state.rows.map(row => Math.floor(Number(row.number))).filter(Number.isFinite);
+    return String((numbers.length ? Math.max(...numbers) : 0) + 1);
   }
   function rowTargetValue(row) {
     return String(row?.cueId || row?.number || row?.title || '').trim();
@@ -177,7 +175,7 @@ import { createVoicePanel } from './cue-voices.js';
     const currentEditId = state.edit?.mode === 'edit' ? state.edit.cueId : null;
     const seen = new Set();
     const options = state.rows
-      .filter(row => row.cueId !== currentEditId && row.isAudio)
+      .filter(row => row.cueId !== currentEditId && soundType(row.cueType))
       .map(row => {
         const value = rowTargetValue(row);
         if (!value || seen.has(value)) return '';
@@ -197,6 +195,12 @@ import { createVoicePanel } from './cue-voices.js';
     document.querySelectorAll('[data-modifier-field="duration"]').forEach(el => { el.hidden = action === 'stop'; });
     document.querySelectorAll('[data-modifier-field="volume"]').forEach(el => { el.hidden = action !== 'volume'; });
   }
+  function targetLabel(value) {
+    const key = String(value || '').trim().toLowerCase();
+    if (!key) return '';
+    const row = state.rows.find(item => [item.cueId, item.number, item.title].some(v => String(v || '').toLowerCase() === key));
+    return row ? `#${row.number}: ${row.title || 'Untitled'}` : value;
+  }
   function setEditorSections() {
     const id = $('cue-type').value;
     $('sound-fields').hidden = !soundType(id);
@@ -212,7 +216,7 @@ import { createVoicePanel } from './cue-voices.js';
     if (state.locked) return toast('Show mode is locked');
     const row = mode === 'edit' ? state.rows[state.selected] : null;
     const cue = row ? rawCue(row) : {};
-    const defaultTarget = mode === 'create' && state.rows[state.selected]?.isAudio ? state.rows[state.selected] : null;
+    const defaultTarget = mode === 'create' && soundType(state.rows[state.selected]?.cueType) ? state.rows[state.selected] : null;
     state.edit = { mode, targetId: row?.targetId || `manual_${crypto.randomUUID()}`, cueId: cue.id || crypto.randomUUID(), originalType: row?.cueType || null, triggerEditIndex: null };
     $('editor-heading').textContent = mode === 'edit' ? 'Edit Cue' : 'New Cue';
     $('delete-cue').hidden = mode !== 'edit';
@@ -228,11 +232,11 @@ import { createVoicePanel } from './cue-voices.js';
     const action = merge(type(id).payloadDefaults || {}, { actionType: id, cueType: id });
     if (soundType(id)) return { ...action, soundSubtype: 'play_once', playStyle: 'alongside' };
     if (modifierType(id)) return { ...action, modifierAction: 'fade' };
-    return { ...action, oscAction: 'none', oscPlayback: 1, oscCueNumber: '{cueNumber}', oscLevel: 100, oscTransport: 'auto' };
+    return { ...action, oscAction: 'goto', oscPlayback: 1, oscCueNumber: '{cueNumber}', oscLevel: 100, oscTransport: 'auto' };
   }
   function ensureInitialAction(cue, defaultTarget) {
     if (Array.isArray(cue.actions) && cue.actions.length) return cue;
-    const action = cue.id ? { ...cue, actionType: actionKind(cue), cueType: actionKind(cue) } : defaultAction(defaultTarget ? 'modifier' : (types().find(t => t.editor === 'sound')?.id || 'sound'));
+    const action = cue.id ? { ...cue, actionType: actionKind(cue), cueType: actionKind(cue) } : defaultAction(defaultTarget ? 'modifier' : 'lighting');
     if (defaultTarget && modifierType(action.actionType)) action.targetCueId = rowTargetValue(defaultTarget);
     return { ...cue, actions: [action] };
   }
@@ -317,6 +321,12 @@ import { createVoicePanel } from './cue-voices.js';
     readAction,
     writeAction,
     defaultAction,
+    actionTypeLabel: id => type(id).label || id,
+    actionLabel: (action, typeId) => {
+      if (!modifierType(typeId)) return '';
+      const target = action.targetCueId || action.targetCueNumber || action.targetTitle;
+      return `Modify ${targetLabel(target) || target || ''}`.trim();
+    },
     onSelect: () => timecode.load().catch(err => toast(err.message)),
   });
   async function saveEditor({ close = true } = {}) {

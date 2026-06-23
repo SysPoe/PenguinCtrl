@@ -10,31 +10,25 @@ import {
   describeTrigger, isTypingTarget, levelAutomationSig, levelGainAt,
   normalizeTrigger, normalizeTriggers, selectedTriggerIndexes, trackPointerDrag,
 } from './timecode-utils.js';
-
 export function createTimecodeEditor(deps) {
   const { $, state, esc, num, fmtDb, toast, cleanDecimal } = deps;
   const wave = { cache: new Map(), ctx: null, path: '', duration: 0, buffer: null, peaks: [], viewPeaks: [], viewPeaksStart: 0, viewPeaksKey: '', zoom: 1, viewStart: 0, fired: new Set(), activated: new Set(), preview: null, scrubSec: null, canvasCtx: null, canvasScale: 1 };
   const historyFields = ['clip-start', 'clip-end', 'fade-in', 'fade-out', 'volume', 'loop-start', 'loop-end', 'tc-clip-start', 'tc-clip-end', 'tc-fade-in', 'tc-fade-out'];
-
   function dbToGain(db) { return Math.pow(10, Number(db || 0) / 20); }
-
   function clipBounds() {
     const dur = Math.max(0.001, wave.duration);
     const start = Math.max(0, Math.min(dur, num($('clip-start')) ?? 0));
     const end = Math.max(start, Math.min(dur, num($('clip-end')) ?? dur));
     return { start, end, fadeIn: Math.max(0, num($('fade-in')) ?? 0), fadeOut: Math.max(0, num($('fade-out')) ?? 0), volume: dbToGain(num($('volume')) ?? 0) };
   }
-
   function audioContext() {
     wave.ctx ||= new (window.AudioContext || window.webkitAudioContext)();
     return wave.ctx;
   }
-
   function clipSig() {
     const b = clipBounds();
     return `${b.start.toFixed(3)}:${b.end.toFixed(3)}:${b.fadeIn}:${b.fadeOut}:${levelAutomationSig(state.edit?.triggers)}`;
   }
-
   function fadeEnvelope(sec, bounds) {
     const { start, end, fadeIn, fadeOut } = bounds;
     const inGain = fadeIn > 0 ? Math.min(1, Math.max(0, (sec - start) / fadeIn)) : 1;
@@ -62,12 +56,11 @@ export function createTimecodeEditor(deps) {
     if (anchorSec != null && wave.duration && prevZoom !== wave.zoom) {
       const frac = (anchorSec - wave.viewStart) / prevViewDur;
       wave.viewStart = anchorSec - frac * viewDuration();
-    } else keepVisible(playheadSec());
+    } else if (prevZoom !== wave.zoom) keepVisible(playheadSec());
     clampView();
     if ($('wave-zoom')) $('wave-zoom').value = String(wave.zoom);
     scheduleDraw();
   }
-
   function panView(deltaPx, el) {
     if (!wave.duration || !deltaPx) return;
     wave.viewStart += (deltaPx / Math.max(1, el.clientWidth)) * viewDuration();
@@ -81,7 +74,6 @@ export function createTimecodeEditor(deps) {
     if (sec > wave.viewStart + dur) wave.viewStart = sec - dur;
     clampView();
   }
-
   function bindWaveWheel() {
     const wrap = $('clip-wave')?.parentElement;
     if (!wrap) return;
@@ -102,7 +94,6 @@ export function createTimecodeEditor(deps) {
   const { isPlaying, playheadSec, refreshPreviewFromEdits, startPreview, stopPreview } = preview;
   const audioLoader = createAudioLoader({ $, wave, audioContext, samplePeaks, draw: () => scheduleDraw(true, true), stopPreview });
   const load = audioLoader.load;
-
   function syncNewMarkerTime() {
     if (Number.isInteger(state.edit?.triggerEditIndex)) return;
     if (document.activeElement === $('trigger-time')) return;
@@ -145,7 +136,6 @@ export function createTimecodeEditor(deps) {
     if (renderMarkers) renderMarkersLayer();
     return true;
   }
-
   function place(id, sec) { const el = $(id); if (el) el.style.left = `${secToPct(sec)}%`; }
   function placeRange(id, fromSec, toSec) {
     const el = $(id);
@@ -175,7 +165,6 @@ export function createTimecodeEditor(deps) {
     `).join('');
     draw();
   }
-
   function rowClass(index) {
     return `${state.edit?.selectedTriggers?.has(index) ? 'selected' : ''}${wave.activated.has(index) ? ' activated' : ''}`.trim();
   }
@@ -324,7 +313,7 @@ export function createTimecodeEditor(deps) {
     if (isPlaying()) { stopPreview(); wave.scrubSec = playheadSec(); return; }
     wave.fired.clear();
     markTriggersAtOrBefore(playheadSec());
-    startPreview(playheadSec());
+    startPreview(wave.scrubSec ?? playheadSec());
     tick();
   }
 

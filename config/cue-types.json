@@ -31,7 +31,7 @@
     },
     {
       "id": "lighting",
-      "label": "Lighting",
+      "label": "Remote Command",
       "shortLabel": "L",
       "editor": "basic",
       "handler": "trackOnly",

@@ -10,7 +10,7 @@ export function createAudioLoader({ $, wave, audioContext, samplePeaks, draw, st
   }
 
   function resetWave() {
-    Object.assign(wave, { path: '', duration: 0, buffer: null, peaks: [], viewPeaks: [], viewPeaksKey: '', viewStart: 0 });
+    Object.assign(wave, { path: '', duration: 0, buffer: null, peaks: [], viewPeaks: [], viewPeaksKey: '', viewStart: 0, zoom: 1 });
     stopPreview();
     draw();
   }
@@ -44,9 +44,11 @@ export function createAudioLoader({ $, wave, audioContext, samplePeaks, draw, st
         setStatus('Using cached waveform...', true);
       }
       if (seq !== loadSeq) return;
-      Object.assign(wave, cached, { path });
+      const samePath = wave.path === path;
+      const viewStart = samePath ? wave.viewStart : 0;
+      Object.assign(wave, cached, { path, viewStart });
       stopPreview();
-      wave.scrubSec = null;
+      if (!samePath) wave.scrubSec = null;
       wave.fired.clear();
       setStatus('');
     } catch (err) {

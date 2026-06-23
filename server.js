@@ -123,7 +123,7 @@ function cueActions(cue) { return Array.isArray(cue?.actions) ? cue.actions.filt
 function actionSummary(cue, cueType) {
   const actions = cueActions(cue);
   const count = actions.length || 1;
-  if (count === 1) return cueType === 'sound' || cue?.clip ? 'Audio' : cueType === 'modifier' ? 'Modify' : cue?.oscAction && cue.oscAction !== 'none' ? 'OSC' : '-';
+  if (count === 1) return cueType === 'sound' || cue?.clip ? 'Audio' : cueType === 'modifier' ? 'Modify' : cue?.oscAction && cue.oscAction !== 'none' ? 'Remote' : '-';
   const labels = actions.map(action => action.actionType || (action.clip ? 'sound' : action.modifierAction ? 'modifier' : 'lighting'));
   return `${count} actions: ${labels.join(', ')}`;
 }

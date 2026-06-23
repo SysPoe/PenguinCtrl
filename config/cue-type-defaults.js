@@ -6,7 +6,7 @@ function deepClone(value) {
 const BASE_CUE_TYPES = [
   {
     id: 'lighting',
-    label: 'Lighting',
+    label: 'Remote Command',
     shortLabel: 'L',
     description: 'Non-audio cue used for operator tracking.',
     editor: 'basic',

@@ -41,13 +41,12 @@
 
   <main class="workspace">
     <section class="cue-area">
-      <table>
+      <table id="cue-table">
         <thead>
           <tr>
             <th>#</th>
             <th>Title</th>
             <th>Type</th>
-            <th>Status</th>
             <th>Length</th>
           </tr>
         </thead>
@@ -80,7 +79,6 @@
       </header>
       <section class="form-grid">
         <label>Cue Number <input id="cue-number" autocomplete="off"></label>
-        <label>Action Type <select id="cue-type"></select></label>
         <label class="wide">Title <input id="cue-title" required></label>
         <label class="wide">Notes <textarea id="cue-notes"></textarea></label>
       </section>
@@ -88,9 +86,11 @@
         <h2>Actions</h2>
         <div class="cue-action-list" id="cue-action-list"></div>
         <div class="action-row">
+          <label>New Action Type <select id="new-action-type"></select></label>
           <button id="add-action" type="button">Add Action</button>
         </div>
       </section>
+      <input id="cue-type" type="hidden">
       <section id="sound-fields" class="panel">
         <h2>Sound</h2>
         <div class="form-grid">
@@ -120,9 +120,9 @@
         </div>
       </section>
       <section id="lighting-fields" class="panel">
-        <h2>Lighting</h2>
+        <h2>Remote Command</h2>
         <div class="form-grid">
-          <label>OSC Action <select id="osc-action">
+          <label>Action <select id="osc-action">
               <option value="none">None</option>
               <option value="goto">Go To Cue</option>
               <option value="go">Go</option>

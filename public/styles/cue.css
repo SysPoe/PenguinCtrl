@@ -156,6 +156,7 @@ body.locked .file-btn {
 table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 thead {
@@ -165,6 +166,7 @@ thead {
 }
 
 th {
+  position: relative;
   background: #181a1e;
   color: #8994a2;
   text-align: left;
@@ -173,13 +175,33 @@ th {
   border-bottom: 1px solid #333841;
 }
 
+th:first-child {
+  width: 74px;
+}
+
+th:nth-child(3),
+th:nth-child(4) {
+  width: 112px;
+}
+
+.col-resize {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 3;
+}
+
 td {
   padding: 4px 6px;
   border-bottom: 1px solid #22262c;
   white-space: nowrap;
 }
 
-td:nth-child(2) {
+td:nth-child(2),
+td:nth-child(3) {
   max-width: 42vw;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -208,8 +230,16 @@ tbody tr.activated {
 }
 
 tbody tr.played td:first-child::before {
-  content: "✓ ";
+  content: "✓";
   color: #48d275;
+  display: inline-block;
+  width: 14px;
+}
+
+tbody tr:not(.played) td:first-child::before {
+  content: "";
+  display: inline-block;
+  width: 14px;
 }
 
 td:first-child span {

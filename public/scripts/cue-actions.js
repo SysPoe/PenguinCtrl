@@ -1,5 +1,5 @@
 export function createCueActionEditor(ctx) {
-  const { $, state, esc, readAction, writeAction, defaultAction, onSelect } = ctx;
+  const { $, state, esc, readAction, writeAction, defaultAction, actionLabel, actionTypeLabel, onSelect } = ctx;
   const clone = v => structuredClone(v);
 
   function actionType(action) {
@@ -12,9 +12,11 @@ export function createCueActionEditor(ctx) {
 
   function label(action) {
     const type = actionType(action);
+    const custom = actionLabel?.(action, type);
+    if (custom) return custom;
     if (type === 'sound') return `Sound: ${action.clip || 'No clip'}`;
-    if (type === 'modifier') return `Modify: ${action.modifierAction || 'fade'} ${action.targetCueId || ''}`.trim();
-    return `OSC: ${action.oscAction || 'none'} ${action.oscCueNumber || ''}`.trim();
+    if (type === 'modifier') return `Modify: ${action.targetCueId || ''}`.trim();
+    return `Remote: ${action.oscAction || 'none'} ${action.oscCueNumber || ''}`.trim();
   }
 
   function actions() {
@@ -47,6 +49,7 @@ export function createCueActionEditor(ctx) {
     state.edit.actions = (saved.length ? saved : [cue]).map(action => ({
       ...clone(action),
       actionType: actionType(action),
+      cueTypeLabel: actionTypeLabel?.(actionType(action)),
     }));
     state.edit.actionIndex = 0;
     render();
@@ -65,7 +68,7 @@ export function createCueActionEditor(ctx) {
 
   function add() {
     persistCurrent();
-    actions().push(defaultAction('sound'));
+    actions().push(defaultAction($('new-action-type')?.value || 'sound'));
     select(actions().length - 1);
   }
 
@@ -80,7 +83,12 @@ export function createCueActionEditor(ctx) {
 
   function collect() {
     persistCurrent();
-    return actions().map(action => ({ ...clone(action), actionType: actionType(action), cueType: actionType(action) }));
+    return actions().map(action => {
+      const copy = { ...clone(action), actionType: actionType(action), cueType: actionType(action) };
+      delete copy.cueTypeLabel;
+      delete copy.label;
+      return copy;
+    });
   }
 
   function bind() {
