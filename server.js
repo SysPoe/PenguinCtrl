@@ -1,7 +1,7 @@
 import express from 'express';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
-import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
 import { basename, dirname, extname, join } from 'path';
 import { execFile } from 'child_process';
 import { fileURLToPath } from 'url';
@@ -21,22 +21,31 @@ import { createConfigService } from './config/config-service.js';
 import { createCueTypeRegistry } from './config/cue-type-registry.js';
 import { createCueExecutionEngine } from './server-cue-handlers.js';
 import { createOscDispatcher, resolveTemplate } from './server-osc.js';
+import { createVideoRuntime } from './server-video.js';
+import { mediaForCueWindow } from './server-preload.js';
+import {
+  collectMedia, ensureMediaDir, importMediaFiles, listMedia, packageMedia,
+  publicMediaPath, safeMediaName, writeMediaUpload,
+} from './server-media.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3001;
 const CUES_FILE = join(__dirname, 'public', 'cues.json');
 const AUDIO_DIR = join(__dirname, 'public', 'audio');
+const VIDEO_DIR = join(__dirname, 'public', 'video');
 const CONFIG_SCHEMA_FILE = join(__dirname, 'config', 'config-schema.json');
 const CONFIG_VALUES_FILE = join(__dirname, 'config', 'config-values.json');
 const CUE_TYPES_FILE = join(__dirname, 'config', 'cue-types.json');
-if (!existsSync(AUDIO_DIR)) mkdirSync(AUDIO_DIR, { recursive: true });
+ensureMediaDir(AUDIO_DIR);
+ensureMediaDir(VIDEO_DIR);
 
 const configService = createConfigService({ schemaPath: CONFIG_SCHEMA_FILE, valuesPath: CONFIG_VALUES_FILE });
 const cueTypeRegistry = createCueTypeRegistry({ filePath: CUE_TYPES_FILE });
 initAudioConfig(configService);
 const cueExecutionEngine = createCueExecutionEngine({ cueTypeRegistry, playAudioCue: playCue, workspaceRoot: __dirname });
 const dispatchCommand = createOscDispatcher({ getTargets: () => configService.getValue('osc.targets') });
+const videoRuntime = createVideoRuntime({ workspaceRoot: __dirname, broadcast });
 const playedCueIds = new Set();
 const pendingCueExecutions = new Map();
 let cuesCache = {};
@@ -95,18 +104,9 @@ function saveCues(nextCues) {
   refreshAudioCacheHints();
   return cuesCache;
 }
-function publicAudioPath(clip) { return typeof clip === 'string' && clip.startsWith('/') ? join(__dirname, 'public', clip.slice(1)) : clip; }
-function collectAudio(value, paths = new Set()) {
-  if (Array.isArray(value)) value.forEach(item => collectAudio(item, paths));
-  else if (isObject(value)) {
-    if (typeof value.clip === 'string') {
-      const path = publicAudioPath(value.clip);
-      if (path && existsSync(path)) paths.add(path);
-    }
-    Object.values(value).forEach(item => collectAudio(item, paths));
-  }
-  return paths;
-}
+function publicAudioPath(clip) { return publicMediaPath(__dirname, clip, 'audio'); }
+function collectAudio(value) { return collectMedia(value, { kind: 'audio', key: 'clip', workspaceRoot: __dirname }); }
+function collectVideo(value) { return collectMedia(value, { kind: 'video', key: 'videoClip', workspaceRoot: __dirname }); }
 function cueListForType(value) { return Array.isArray(value) ? value.filter(isObject) : (isObject(value) ? [value] : []); }
 function cueSort(number) {
   const match = String(number ?? '').trim().match(/^(\d+)(?:\.(\d+))?$/);
@@ -120,11 +120,32 @@ function duration(cue) {
   return Number.isFinite(end) && end > start ? end - start : null;
 }
 function cueActions(cue) { return Array.isArray(cue?.actions) ? cue.actions.filter(isObject) : []; }
+function actionKind(action) {
+  if (action.videoClip || action.videoPlayStyle) return 'video';
+  if (action.clip || action.soundSubtype) return 'sound';
+  if (action.modifierAction || action.targetCueId || action.targetCueNumber || action.targetTitle) return 'modifier';
+  return action.actionType || action.cueType || 'lighting';
+}
+function hasVideo(cue) {
+  return Boolean(cue?.videoClip || cueActions(cue).some(action => action.videoClip || actionKind(action) === 'video'));
+}
+function cueWithSync(cue) {
+  if (!isObject(cue) || !hasVideo(cue)) return cue;
+  return { ...cue, syncAtMs: Date.now() + 180 };
+}
+function collectVideoClips(value, clips = new Set()) {
+  if (Array.isArray(value)) value.forEach(item => collectVideoClips(item, clips));
+  else if (isObject(value)) {
+    if (typeof value.videoClip === 'string' && value.videoClip.trim()) clips.add(value.videoClip);
+    Object.values(value).forEach(item => collectVideoClips(item, clips));
+  }
+  return clips;
+}
 function actionSummary(cue, cueType) {
   const actions = cueActions(cue);
   const count = actions.length || 1;
-  if (count === 1) return cueType === 'sound' || cue?.clip ? 'Audio' : cueType === 'modifier' ? 'Modify' : cue?.oscAction && cue.oscAction !== 'none' ? 'Remote' : '-';
-  const labels = actions.map(action => action.actionType || (action.clip ? 'sound' : action.modifierAction ? 'modifier' : 'lighting'));
+  if (count === 1) return cueType === 'video' || cue?.videoClip ? 'Video' : cueType === 'sound' || cue?.clip ? 'Audio' : cueType === 'modifier' ? 'Modify' : cue?.oscAction && cue.oscAction !== 'none' ? 'Remote' : '-';
+  const labels = actions.map(actionKind);
   return `${count} actions: ${labels.join(', ')}`;
 }
 function buildCueList(cues) {
@@ -137,15 +158,20 @@ function buildCueList(cues) {
         const number = String(raw.number ?? raw.cueNumber ?? order + idx + 1);
         const fullCue = deepMerge(type.payloadDefaults || {}, raw);
         Object.assign(fullCue, { cueType: type.id, number, cueNumber: number, num: number });
+        const actions = cueActions(fullCue);
+        const kinds = (actions.length ? actions : [fullCue]).map(actionKind);
+        const displayType = ['video', 'sound', 'modifier', 'lighting'].find(kind => kinds.includes(kind)) || type.id;
+        const displayDef = types.find(item => item.id === displayType) || type;
         rows.push({
           id: `${targetId}_${type.id}_${raw.id || number}`, cueId: raw.id || null, targetId,
           cueType: type.id, cueTypeLabel: type.label, cueTypeShortLabel: type.shortLabel,
-          cueTypeColor: type.color, number, cueNum: cueSort(number), title: raw.title || 'Untitled',
+          displayCueType: displayType, displayCueTypeLabel: displayDef.label, cueTypeColor: displayDef.color,
+          number, cueNum: cueSort(number), title: raw.title || 'Untitled',
           description: raw.description || '', position: 'Cue List', sortIndex: order,
           duration: duration(fullCue), subtype: raw.soundSubtype || raw.subtype || null,
-          isAudio: Boolean(fullCue.clip || cueActions(fullCue).some(action => action.clip)),
+          isAudio: kinds.includes('sound'), isVideo: kinds.includes('video'),
           actionSummary: actionSummary(fullCue, type.id),
-          actionCount: cueActions(fullCue).length || 1,
+          actionCount: actions.length || 1,
           fullCue,
         });
       });
@@ -165,6 +191,7 @@ function addCache(entries, cue, order, cueIds = []) {
 }
 function refreshAudioCacheHints() {
   const entries = new Map();
+  const videoClips = new Set();
   const nextOrders = new Map();
   let order = 0;
   for (const [targetId, target] of Object.entries(cuesCache || {})) {
@@ -173,11 +200,19 @@ function refreshAudioCacheHints() {
       const ids = cue.id ? [String(cue.id), `${targetId}_${type.id}_${cue.id}`] : [];
       ids.forEach(id => nextOrders.set(id, order));
       addCache(entries, cue, order, ids);
+      if (cue.videoClip) videoClips.add(cue.videoClip);
       cueActions(cue).forEach(action => addCache(entries, action, order, ids));
+      cueActions(cue).forEach(action => { if (action.videoClip) videoClips.add(action.videoClip); });
     });
   }
   cueOrderById = nextOrders;
   audioUpdateCacheHints([...entries.values()]);
+  videoRuntime?.preload([...videoClips]);
+}
+async function preloadCueWindow(cueId) {
+  const media = mediaForCueWindow(buildCueList(loadCues()), cueId);
+  await Promise.all(media.audio.map(clip => audioPreloadBuffer(publicAudioPath(clip))));
+  videoRuntime.preload(media.video);
 }
 async function preloadCueAudio() {
   const cues = loadCues();
@@ -187,16 +222,15 @@ async function preloadCueAudio() {
 
 function showPackage() {
   const cues = loadCues();
-  const audioFiles = [...collectAudio(cues)].map(path => ({ filename: basename(path), path: `/audio/${basename(path)}`, encoding: 'base64', data: readFileSync(path).toString('base64') }));
-  return { format: 'cusus-show', version: 1, exportedAt: new Date().toISOString(), show: { ...showState, mode: 'edit' }, cues, config: configService.getBundle().values, audioFiles };
+  const audioFiles = packageMedia(collectAudio(cues), '/audio');
+  const videoFiles = packageMedia(collectVideo(cues), '/video');
+  return { format: 'cusus-show', version: 1, exportedAt: new Date().toISOString(), show: { ...showState, mode: 'edit' }, cues, config: configService.getBundle().values, audioFiles, videoFiles };
 }
 function importPackage(buffer, filename) {
   const pkg = JSON.parse(gunzipSync(buffer).toString('utf-8'));
   if (pkg.format !== 'cusus-show' || pkg.version !== 1) throw new Error('Unsupported .cusus show package');
-  for (const file of Array.isArray(pkg.audioFiles) ? pkg.audioFiles : []) {
-    const safe = basename(String(file.filename || file.path || 'audio.bin')).replace(/[^a-zA-Z0-9._\-]/g, '_');
-    if (safe) writeFileSync(join(AUDIO_DIR, safe), Buffer.from(String(file.data || ''), 'base64'));
-  }
+  importMediaFiles(pkg.audioFiles, AUDIO_DIR);
+  importMediaFiles(pkg.videoFiles, VIDEO_DIR);
   if (isObject(pkg.config)) configService.saveValues(pkg.config);
   saveCues(pkg.cues || {});
   Object.assign(showState, { mode: 'edit', name: String(pkg.show?.name || basename(filename, extname(filename)) || 'Imported Show'), file: basename(filename), loadedAt: new Date().toISOString() });
@@ -221,6 +255,7 @@ cueExecutionEngine.registerHandler('oscDispatch', async cue => {
   });
   return { instanceId: null };
 });
+cueExecutionEngine.registerHandler('videoPlay', async cue => videoRuntime.play(cue));
 cueExecutionEngine.registerHandler('modifierCue', async cue => {
   const target = String(cue?.targetCueId || cue?.targetCueNumber || cue?.targetTitle || '').trim().toLowerCase();
   const action = String(cue?.modifierAction || 'fade').toLowerCase();
@@ -233,7 +268,8 @@ cueExecutionEngine.registerHandler('modifierCue', async cue => {
       for (let i = 1; i <= steps; i++) setTimeout(() => setVolume(inst.instanceId, from + (to - from) * i / steps), i * duration * 1000 / steps);
     } else audioFadeOut(inst.instanceId, duration);
   }
-  return { instanceId: null, matched: matches.length };
+  const videoMatches = videoRuntime.controlTarget(target, action, duration);
+  return { instanceId: null, matched: matches.length + videoMatches };
 });
 function rampInstanceVolume(instanceId, targetDb, seconds) {
   if (!instanceId) return;
@@ -324,13 +360,12 @@ app.get('/api/cue-list', (_req, res) => {
   res.json({ cues: buildCueList(cues), show: { ...showState, locked: locked() } });
 });
 app.get('/api/audio/list', (_req, res) => {
-  const clips = readdirSync(AUDIO_DIR).filter(f => /\.(webm|mp3|ogg|wav|flac|aac|m4a)$/i.test(f) && !f.startsWith('tmp_')).sort().map(f => ({ filename: f, path: `/audio/${f}` }));
-  res.json({ clips });
+  res.json({ clips: listMedia(AUDIO_DIR, 'audio') });
 });
 app.post('/api/audio/upload', uploadRaw, async (req, res) => {
   try {
     assertEditable();
-    const safe = basename(normalizeHeader(req.headers['x-filename'], 'upload.bin')).replace(/[^a-zA-Z0-9._\-]/g, '_');
+    const safe = safeMediaName(normalizeHeader(req.headers['x-filename'], 'upload.bin'));
     const input = join(AUDIO_DIR, `tmp_${Date.now()}${extname(safe) || '.bin'}`);
     const outputName = `${safe.replace(/\.[^.]+$/, '')}_${Date.now()}.wav`;
     const output = join(AUDIO_DIR, outputName);
@@ -339,6 +374,15 @@ app.post('/api/audio/upload', uploadRaw, async (req, res) => {
     unlinkSync(input);
     res.json({ path: `/audio/${outputName}`, filename: outputName });
     audioPreloadBuffer(output).catch(err => console.error('Uploaded audio preload failed:', err.message));
+  } catch (err) { fail(res, err); }
+});
+app.get('/api/video/list', (_req, res) => res.json({ clips: listMedia(VIDEO_DIR, 'video') }));
+app.post('/api/video/upload', uploadRaw, (req, res) => {
+  try {
+    assertEditable();
+    const payload = writeMediaUpload(VIDEO_DIR, normalizeHeader(req.headers['x-filename'], 'upload.mp4'), req.body, 'video');
+    res.json(payload);
+    videoRuntime.preload(payload.path);
   } catch (err) { fail(res, err); }
 });
 app.post('/api/show/mode', (req, res) => {
@@ -372,7 +416,8 @@ function broadcast(data) {
   const msg = JSON.stringify(data);
   wss.clients.forEach(client => { if (client.readyState === 1) client.send(msg); });
 }
-function broadcastInstances() { broadcast({ type: 'instances', list: listActive(), waitingCount: pendingCueExecutions.size }); }
+function activeInstances() { return [...listActive(), ...videoRuntime.listActive().map(inst => ({ ...inst, mediaType: 'video', clipUrl: inst.clip, volume: 0, muted: true }))]; }
+function broadcastInstances() { broadcast({ type: 'instances', list: activeInstances(), waitingCount: pendingCueExecutions.size }); }
 function broadcastPending() { broadcast({ type: 'pendingCues', list: pendingList() }); }
 function broadcastPlayed() { broadcast({ type: 'playedCues', ids: [...playedCueIds] }); }
 function broadcastMaster() { broadcast({ type: 'masterVolume', db: safeMasterVolume(), muted: audioIsMasterMuted(), ...masterBounds() }); }
@@ -380,10 +425,12 @@ function broadcastMaster() { broadcast({ type: 'masterVolume', db: safeMasterVol
 function wsHello(ws) {
   ws.send(JSON.stringify({ type: 'meta', ...runtimeMeta() }));
   ws.send(JSON.stringify({ type: 'show', show: { ...showState, locked: locked() } }));
-  ws.send(JSON.stringify({ type: 'instances', list: listActive(), waitingCount: pendingCueExecutions.size }));
+  ws.send(JSON.stringify({ type: 'instances', list: activeInstances(), waitingCount: pendingCueExecutions.size }));
   ws.send(JSON.stringify({ type: 'pendingCues', list: pendingList() }));
   ws.send(JSON.stringify({ type: 'playedCues', ids: [...playedCueIds] }));
   ws.send(JSON.stringify({ type: 'masterVolume', db: safeMasterVolume(), muted: audioIsMasterMuted(), ...masterBounds() }));
+  const videoClips = [...collectVideoClips(loadCues())];
+  if (videoClips.length) ws.send(JSON.stringify({ type: 'videoPreload', clips: videoClips, sentAtMs: Date.now() }));
 }
 async function runCue(ws, msg) {
   if (msg.cueId) {
@@ -394,9 +441,10 @@ async function runCue(ws, msg) {
     pending(msg.cueId, 1);
     broadcastPlayed();
     broadcastPending();
+    preloadCueWindow(msg.cueId).catch(err => console.error('Cue preload failed:', err.message));
   }
   try {
-    const execution = await cueExecutionEngine.execute(msg.cue || null);
+    const execution = await cueExecutionEngine.execute(cueWithSync(msg.cue || null));
     ws.send(JSON.stringify({
       type: 'go_ack',
       instanceId: execution.instanceId ?? null,
@@ -418,19 +466,21 @@ wss.on('connection', ws => {
     try {
       if (msg.type === 'go') await runCue(ws, msg);
       else if (msg.type === 'preload' && msg.clip) await audioPreloadBuffer(publicAudioPath(msg.clip));
+      else if (msg.type === 'videoPreload') videoRuntime.preload(msg.clips || msg.clip);
+      else if (msg.type === 'videoState') { videoRuntime.updateState(msg); broadcastInstances(); }
       else if (msg.type === 'resetPlayed') { playedCueIds.clear(); clearPlayedCacheHints(); broadcastPlayed(); }
-      else if (msg.type === 'fadeOut') { audioFadeOut(msg.instanceId, msg.duration); broadcastInstances(); }
-      else if (msg.type === 'stop') { audioStop(msg.instanceId); broadcastInstances(); }
-      else if (msg.type === 'stopAll') { audioCancelWaitingCues(); pendingCueExecutions.clear(); audioStopAll(); broadcastPending(); broadcastInstances(); }
+      else if (msg.type === 'fadeOut') { audioFadeOut(msg.instanceId, msg.duration); videoRuntime.fadeOut(msg.instanceId, msg.duration); broadcastInstances(); }
+      else if (msg.type === 'stop') { audioStop(msg.instanceId); videoRuntime.stop(msg.instanceId); broadcastInstances(); }
+      else if (msg.type === 'stopAll') { audioCancelWaitingCues(); pendingCueExecutions.clear(); audioStopAll(); videoRuntime.stopAll(); broadcastPending(); broadcastInstances(); }
       else if (msg.type === 'clearQueue') { audioCancelWaitingCues(); pendingCueExecutions.clear(); broadcastPending(); broadcastInstances(); }
       else if (msg.type === 'devamp') { audioDevamp(msg.instanceId); broadcastInstances(); }
       else if (msg.type === 'cancelDevamp') { audioCancelDevamp(msg.instanceId); broadcastInstances(); }
-      else if (msg.type === 'fadeOutAll') { audioCancelWaitingCues(); pendingCueExecutions.clear(); audioFadeOutAll(msg.duration || configService.getValue('ui.cues.defaultManualFadeOutSeconds', 2)); broadcastPending(); setTimeout(broadcastInstances, 100); }
+      else if (msg.type === 'fadeOutAll') { const duration = msg.duration || configService.getValue('ui.cues.defaultManualFadeOutSeconds', 2); audioCancelWaitingCues(); pendingCueExecutions.clear(); audioFadeOutAll(duration); videoRuntime.fadeOutAll(duration); broadcastPending(); setTimeout(broadcastInstances, 100); }
       else if (msg.type === 'setVolume') setVolume(msg.instanceId, msg.db);
       else if (msg.type === 'toggleMute') { audioToggleMute(msg.instanceId); broadcastInstances(); }
       else if (msg.type === 'pause') { audioPause(msg.instanceId); broadcastInstances(); }
       else if (msg.type === 'resume') { await audioResume(msg.instanceId); broadcastInstances(); }
-      else if (msg.type === 'seek') { await audioSeek(msg.instanceId, msg.position); broadcastInstances(); }
+      else if (msg.type === 'seek') { await audioSeek(msg.instanceId, msg.position); videoRuntime.seek(msg.instanceId, msg.position); broadcastInstances(); }
       else if (msg.type === 'masterVolume') { safeMasterVolume(msg.db); broadcastMaster(); }
       else if (msg.type === 'toggleMasterMute') { toggleMasterMute(); broadcastMaster(); }
       else if (msg.type === 'refreshAudioOutput') { await refreshAudioOutput(); broadcastInstances(); }

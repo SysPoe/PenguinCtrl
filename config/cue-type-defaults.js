@@ -47,6 +47,24 @@ const BASE_CUE_TYPES = [
       oscTriggers: [],
     },
   },
+  {
+    id: 'video',
+    label: 'Video',
+    shortLabel: 'V',
+    description: 'Video cue sent to the browser output page.',
+    editor: 'video',
+    handler: 'videoPlay',
+    color: '#38bdf8',
+    order: 30,
+    payloadDefaults: {
+      videoClip: '',
+      videoPlayStyle: 'replace',
+      clipStart: 0,
+      clipEnd: null,
+      fadeIn: 0,
+      fadeOut: 0,
+    },
+  },
 ];
 
 export function getDefaultCueTypes() {

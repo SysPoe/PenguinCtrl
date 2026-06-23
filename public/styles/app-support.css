@@ -78,6 +78,47 @@
   border-bottom: 1px solid #22262c;
 }
 
+.settings-body .config-field label {
+  display: grid;
+  gap: 3px;
+  padding: 5px 6px;
+}
+
+.settings-body .config-field input,
+.settings-body .config-field select,
+.settings-body .config-field textarea {
+  width: 100%;
+  min-height: 32px;
+  background: #111317;
+  border: 1px solid #343941;
+  color: #e9eef2;
+  padding: 4px 6px;
+}
+
+.settings-body .config-field > input,
+.settings-body .config-field > select,
+.settings-body .config-field > textarea {
+  margin: 0 6px 6px;
+  width: calc(100% - 12px);
+}
+
+.settings-body .config-field input:focus,
+.settings-body .config-field select:focus,
+.settings-body .config-field textarea:focus {
+  border-color: #338ad1;
+  outline: 1px solid #338ad1;
+}
+
+.settings-body .config-field textarea {
+  min-height: 86px;
+  resize: vertical;
+}
+
+.settings-body .config-field option {
+  background: #111317;
+  color: #e9eef2;
+}
+
 .target-list {
   display: grid;
 }

@@ -63,6 +63,7 @@
       <button id="go" class="go" type="button" disabled>GO</button>
       <button id="fade-all" class="warn" type="button">Fade All</button>
       <button id="stop-all" class="danger" type="button">Stop All</button>
+      <button id="video-output" type="button">Video Output</button>
       <button id="refresh-output" type="button">Refresh Output</button>
       <button id="reset-played" type="button">Reset Ticks</button>
       <div class="voices">
@@ -132,6 +133,23 @@
           <label>Playback <input id="osc-playback" type="number" min="1" value="1"></label>
           <label>Console Cue <input id="osc-cue" value="{cueNumber}"></label>
           <label>Level <input id="osc-level" type="number" min="0" max="100" value="100"></label>
+        </div>
+      </section>
+      <section id="video-fields" class="panel" hidden>
+        <h2>Video</h2>
+        <div class="form-grid">
+          <label>Clip <select id="video-clip"></select></label>
+          <label>Upload <input id="video-upload" type="file" accept="video/*,.mp4,.mov,.m4v,.mkv,.avi,.webm"></label>
+          <label>Style <select id="video-style">
+              <option value="replace">Replace</option>
+              <option value="alongside">Alongside</option>
+              <option value="fade_all">Fade All</option>
+              <option value="xfade">Crossfade</option>
+            </select></label>
+          <label>Start <input id="video-start" type="number" step="0.001" value="0"></label>
+          <label>End <input id="video-end" type="number" step="0.001"></label>
+          <label>Fade In <input id="video-fade-in" type="number" step="0.001" value="0"></label>
+          <label>Fade Out <input id="video-fade-out" type="number" step="0.001" value="0"></label>
         </div>
       </section>
       <section id="modifier-fields" class="panel">

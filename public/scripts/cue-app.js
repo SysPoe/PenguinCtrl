@@ -5,9 +5,12 @@ import { createCueActionEditor } from './cue-actions.js';
 import { createCueTableRenderer } from './cue-table.js';
 import { createCueClipboard } from './cue-clipboard.js';
 import { createVoicePanel } from './cue-voices.js';
+import { createModifierEditor } from './cue-modifier-editor.js';
+import { createVideoEditor } from './cue-video-editor.js';
+import { cuePreloadWindow } from './cue-preload.js';
 
 (() => {
-  const state = { meta: {}, cues: {}, rows: [], clips: [], selected: -1, selectedRows: new Set(), selectionAnchor: -1, edit: null, ws: null, wsConnected: false, hasFocus: document.hasFocus(), active: [], played: new Set(), pending: new Map(), locked: false, draggingVoice: null, cueClipboard: [] };
+  const state = { meta: {}, cues: {}, rows: [], clips: [], videos: [], selected: -1, selectedRows: new Set(), selectionAnchor: -1, edit: null, ws: null, wsConnected: false, hasFocus: document.hasFocus(), active: [], played: new Set(), pending: new Map(), locked: false, draggingVoice: null, cueClipboard: [] };
   const $ = id => document.getElementById(id);
   const obj = v => v && typeof v === 'object' && !Array.isArray(v);
   const clone = v => structuredClone(v);
@@ -36,14 +39,16 @@ import { createVoicePanel } from './cue-voices.js';
   function types() { return Array.isArray(state.meta.cueTypes) ? state.meta.cueTypes : []; }
   function type(id) { return types().find(t => t.id === id) || types()[0] || { id: 'sound', editor: 'sound', payloadDefaults: {} }; }
   function soundType(id) { return type(id).editor === 'sound'; }
+  function videoType(id) { return type(id).editor === 'video'; }
   function modifierType(id) { return type(id).editor === 'modifier'; }
-  function lightingType(id) { return !soundType(id) && !modifierType(id); }
+  function targetableType(id) { return soundType(id) || videoType(id); }
+  function targetableRow(row) { return Boolean(row?.isAudio || row?.isVideo || targetableType(row?.cueType)); }
+  function lightingType(id) { return !soundType(id) && !videoType(id) && !modifierType(id); }
   function actionKind(action) {
-    if (action?.actionType) return action.actionType;
-    if (action?.cueType) return action.cueType;
+    if (action?.videoClip || action?.videoPlayStyle) return 'video';
     if (action?.clip || action?.soundSubtype) return 'sound';
     if (action?.modifierAction || action?.targetCueId) return 'modifier';
-    return 'lighting';
+    return action?.actionType || action?.cueType || 'lighting';
   }
   function fmtDur(v) {
     const n = Number(v);
@@ -52,10 +57,17 @@ import { createVoicePanel } from './cue-voices.js';
   }
   function fmtDb(v) { const n = Number(v); return Number.isFinite(n) ? `${n >= 0 ? '+' : ''}${n.toFixed(1)} dB` : '+0.0 dB'; }
   function send(msg) { if (state.ws?.readyState === WebSocket.OPEN) state.ws.send(JSON.stringify(msg)); }
+  function preloadRows(index) {
+    const media = cuePreloadWindow(state.rows, index);
+    media.audio.forEach(clip => send({ type: 'preload', clip }));
+    if (media.video.length) send({ type: 'videoPreload', clips: media.video });
+  }
   const timecode = createTimecodeEditor({ $, state, esc, num, fmtDb, toast, cleanDecimal });
   let actionEditor;
   let clipboard;
   const voicePanel = createVoicePanel({ $, state, esc, fmtDb, send });
+  const modifierEditor = createModifierEditor({ $, state, esc, num, targetableRow, rowTargetValue, });
+  const videoEditor = createVideoEditor({ $, state, json, toast });
   function renderStatusBanner() {
     const banner = $('status-banner');
     if (!banner) return;
@@ -98,17 +110,19 @@ import { createVoicePanel } from './cue-voices.js';
     return el?.isContentEditable || ['INPUT', 'SELECT', 'TEXTAREA'].includes(el?.tagName);
   }
   async function loadAll() {
-    const [meta, cues, list, audio] = await Promise.all([
-      json('/api/meta'), json('/api/cues', { cache: 'no-store' }), json('/api/cue-list', { cache: 'no-store' }), json('/api/audio/list', { cache: 'no-store' }),
+    const [meta, cues, list, audio, video] = await Promise.all([
+      json('/api/meta'), json('/api/cues', { cache: 'no-store' }), json('/api/cue-list', { cache: 'no-store' }), json('/api/audio/list', { cache: 'no-store' }), json('/api/video/list', { cache: 'no-store' }),
     ]);
     state.meta = meta;
     state.locked = Boolean(meta.show?.locked || list.show?.locked);
     state.cues = obj(cues.cues) ? cues.cues : {};
     state.rows = Array.isArray(list.cues) ? list.cues : [];
     state.clips = Array.isArray(audio.clips) ? audio.clips : [];
+    state.videos = Array.isArray(video.clips) ? video.clips : [];
     normalizeSelection();
     applyMeta();
     renderClipOptions();
+    videoEditor.renderOptions();
     renderTypeOptions();
     renderRows();
   }
@@ -158,8 +172,7 @@ import { createVoicePanel } from './cue-voices.js';
       state.selectionAnchor = next;
     }
     renderRows();
-    const cue = state.rows[state.selected];
-    if (cue?.fullCue?.clip) send({ type: 'preload', clip: cue.fullCue.clip });
+    preloadRows(state.selected);
   }
   function rawCue(row = state.rows[state.selected]) {
     const list = row && state.cues[row.targetId]?.[row.cueType];
@@ -172,44 +185,15 @@ import { createVoicePanel } from './cue-voices.js';
   function rowTargetValue(row) {
     return String(row?.cueId || row?.number || row?.title || '').trim();
   }
-  function renderTargetCueOptions(selectedValue = '') {
-    const currentEditId = state.edit?.mode === 'edit' ? state.edit.cueId : null;
-    const seen = new Set();
-    const options = state.rows
-      .filter(row => row.cueId !== currentEditId && soundType(row.cueType))
-      .map(row => {
-        const value = rowTargetValue(row);
-        if (!value || seen.has(value)) return '';
-        seen.add(value);
-        const number = row.number ? `${row.number} - ` : '';
-        const typeLabel = row.cueTypeLabel || row.cueType || 'Cue';
-        return `<option value="${esc(value)}">${esc(number + (row.title || 'Untitled'))} (${esc(typeLabel)})</option>`;
-      })
-      .filter(Boolean);
-    const selected = String(selectedValue || '').trim();
-    if (selected && !seen.has(selected)) options.unshift(`<option value="${esc(selected)}">${esc(selected)} (saved target)</option>`);
-    $('target-cue').innerHTML = options.length ? options.join('') : '<option value="">No cues available</option>';
-    $('target-cue').value = selected && [...$('target-cue').options].some(o => o.value === selected) ? selected : ($('target-cue').options[0]?.value || '');
-  }
-  function syncModifierFields() {
-    const action = $('modifier-action').value;
-    document.querySelectorAll('[data-modifier-field="duration"]').forEach(el => { el.hidden = action === 'stop'; });
-    document.querySelectorAll('[data-modifier-field="volume"]').forEach(el => { el.hidden = action !== 'volume'; });
-  }
-  function targetLabel(value) {
-    const key = String(value || '').trim().toLowerCase();
-    if (!key) return '';
-    const row = state.rows.find(item => [item.cueId, item.number, item.title].some(v => String(v || '').toLowerCase() === key));
-    return row ? `#${row.number}: ${row.title || 'Untitled'}` : value;
-  }
   function setEditorSections() {
     const id = $('cue-type').value;
     $('sound-fields').hidden = !soundType(id);
+    $('video-fields').hidden = !videoType(id);
     $('lighting-fields').hidden = !lightingType(id);
     $('modifier-fields').hidden = !modifierType(id);
     if (modifierType(id)) {
-      if (!$('target-cue').options.length) fillModifier({});
-      syncModifierFields();
+      if (!$('target-cue').options.length) modifierEditor.fill({});
+      modifierEditor.syncFields();
     }
     timecode.draw();
   }
@@ -217,7 +201,7 @@ import { createVoicePanel } from './cue-voices.js';
     if (state.locked) return toast('Show mode is locked');
     const row = mode === 'edit' ? state.rows[state.selected] : null;
     const cue = row ? rawCue(row) : {};
-    const defaultTarget = mode === 'create' && soundType(state.rows[state.selected]?.cueType) ? state.rows[state.selected] : null;
+    const defaultTarget = mode === 'create' && targetableRow(state.rows[state.selected]) ? state.rows[state.selected] : null;
     state.edit = { mode, targetId: row?.targetId || `manual_${crypto.randomUUID()}`, cueId: cue.id || crypto.randomUUID(), originalType: row?.cueType || null, triggerEditIndex: null };
     $('editor-heading').textContent = mode === 'edit' ? 'Edit Cue' : 'New Cue';
     $('delete-cue').hidden = mode !== 'edit';
@@ -232,6 +216,7 @@ import { createVoicePanel } from './cue-voices.js';
     const id = types().some(t => t.id === kind) ? kind : 'sound';
     const action = merge(type(id).payloadDefaults || {}, { actionType: id, cueType: id });
     if (soundType(id)) return { ...action, soundSubtype: 'play_once', playStyle: 'alongside' };
+    if (videoType(id)) return { ...action, videoPlayStyle: 'replace' };
     if (modifierType(id)) return { ...action, modifierAction: 'fade' };
     return { ...action, oscAction: 'goto', oscPlayback: 1, oscCueNumber: '{cueNumber}', oscLevel: 100, oscTransport: 'auto' };
   }
@@ -260,33 +245,16 @@ import { createVoicePanel } from './cue-voices.js';
     $('osc-cue').value = cue.oscCueNumber || '{cueNumber}';
     $('osc-level').value = cue.oscLevel ?? 100;
   }
-  function fillModifier(cue, fallbackTarget = '') {
-    renderTargetCueOptions(cue.targetCueId || cue.targetCueNumber || cue.targetTitle || fallbackTarget);
-    $('modifier-action').value = cue.modifierAction || 'fade';
-    $('modifier-duration').value = cue.modifierDuration ?? 2;
-    $('target-volume').value = cue.targetVolumeDb ?? -12;
-    syncModifierFields();
-  }
   function writeAction(action) {
     state.edit.loadingAction = true;
     const kind = actionKind(action);
     $('cue-type').value = kind;
     fillSound(soundType(kind) ? action : {});
+    videoEditor.fill(videoType(kind) ? action : {});
     fillLighting(lightingType(kind) ? action : {});
-    fillModifier(modifierType(kind) ? action : {});
+    modifierEditor.fill(modifierType(kind) ? action : {});
     state.edit.loadingAction = false;
     setEditorSections();
-  }
-  function collectModifier(cue) {
-    const action = $('modifier-action').value;
-    cue.targetCueId = $('target-cue').value.trim();
-    cue.modifierAction = action;
-    delete cue.targetCueNumber;
-    delete cue.targetTitle;
-    delete cue.modifierDuration;
-    delete cue.targetVolumeDb;
-    if (action === 'fade' || action === 'volume') cue.modifierDuration = num($('modifier-duration')) ?? 2;
-    if (action === 'volume') cue.targetVolumeDb = num($('target-volume')) ?? -12;
   }
   function readAction() {
     const id = $('cue-type').value;
@@ -296,7 +264,8 @@ import { createVoicePanel } from './cue-voices.js';
       clipStart: num($('clip-start')) ?? 0, clipEnd: num($('clip-end')), fadeIn: num($('fade-in')) ?? 0, fadeOut: num($('fade-out')) ?? 0,
       volume: num($('volume')) ?? 0, loopStart: num($('loop-start')) ?? 0, loopEnd: num($('loop-end')), oscTriggers: timecode.normalizeTriggers(state.edit.triggers),
     });
-    else if (modifierType(id)) collectModifier(cue);
+    else if (videoType(id)) videoEditor.collect(cue, num);
+    else if (modifierType(id)) modifierEditor.collect(cue);
     else Object.assign(cue, {
       oscAction: $('osc-action').value,
       oscPlayback: num($('osc-playback')) ?? 1,
@@ -324,9 +293,10 @@ import { createVoicePanel } from './cue-voices.js';
     defaultAction,
     actionTypeLabel: id => type(id).label || id,
     actionLabel: (action, typeId) => {
+      if (videoType(typeId)) return `Video: ${action.videoClip || 'No clip'}`;
       if (!modifierType(typeId)) return '';
       const target = action.targetCueId || action.targetCueNumber || action.targetTitle;
-      return `Modify ${targetLabel(target) || target || ''}`.trim();
+      return `Modify ${modifierEditor.targetLabel(target) || target || ''}`.trim();
     },
     onSelect: () => timecode.load().catch(err => toast(err.message)),
   });
@@ -411,6 +381,12 @@ import { createVoicePanel } from './cue-voices.js';
     send({ type: 'go', cueId: row.id, cue: row.fullCue });
     selectRow(state.selected + 1);
   }
+  function openVideoOutput() {
+    const width = window.screen?.availWidth || 1280;
+    const height = window.screen?.availHeight || 720;
+    const win = window.open('/video-output.html', 'cusus-video-output', `popup=yes,left=0,top=0,width=${width},height=${height}`);
+    win?.focus();
+  }
   async function setShowMode() {
     const mode = state.locked ? 'edit' : 'show';
     const payload = await json('/api/show/mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }) });
@@ -443,14 +419,15 @@ import { createVoicePanel } from './cue-voices.js';
     $('go').onclick = go;
     $('fade-all').onclick = () => send({ type: 'fadeOutAll' });
     $('stop-all').onclick = () => send({ type: 'stopAll' });
+    $('video-output').onclick = openVideoOutput;
     $('refresh-output').onclick = () => send({ type: 'refreshAudioOutput' });
     $('reset-played').onclick = () => send({ type: 'resetPlayed' });
     $('master').oninput = e => { $('master-label').textContent = fmtDb(e.target.value); send({ type: 'masterVolume', db: Number(e.target.value) }); };
     $('master-mute').onclick = () => send({ type: 'toggleMasterMute' });
     $('cue-type').onchange = () => { setEditorSections(); timecode.load().catch(err => toast(err.message)); };
-    $('modifier-action').onchange = syncModifierFields;
+    $('modifier-action').onchange = modifierEditor.syncFields;
     $('cue-number').addEventListener('input', () => cleanCueNumber($('cue-number')));
-    ['clip-start', 'clip-end', 'fade-in', 'fade-out', 'loop-start', 'loop-end', 'modifier-duration'].forEach(id => $(id).addEventListener('input', () => { cleanDecimal($(id), false); timecode.applyEdits(); }));
+    ['clip-start', 'clip-end', 'fade-in', 'fade-out', 'loop-start', 'loop-end', 'modifier-duration', 'video-start', 'video-end', 'video-fade-in', 'video-fade-out'].forEach(id => $(id).addEventListener('input', () => { cleanDecimal($(id), false); timecode.applyEdits(); }));
     $('volume').addEventListener('input', () => { cleanDecimal($('volume'), true); timecode.applyEdits(); });
     $('target-volume').addEventListener('input', () => cleanDecimal($('target-volume'), true));
     $('cue-form').onsubmit = e => { e.preventDefault(); saveAndCloseCue(); };
@@ -459,6 +436,7 @@ import { createVoicePanel } from './cue-voices.js';
     $('cue-editor').addEventListener('cancel', e => { e.preventDefault(); saveAndCloseCue(); }); $('timecode-editor').addEventListener('cancel', e => { e.preventDefault(); saveAndCloseTimecode(); });
     $('sound-clip').onchange = () => timecode.load().catch(err => toast(err.message));
     $('sound-upload').onchange = e => { if (e.target.files[0]) uploadClip(e.target.files[0]).catch(err => toast(err.message)); e.target.value = ''; };
+    videoEditor.bind();
     installDropTarget();
     actionEditor.bind();
     $('open-timecode').onclick = openTimecodeEditor;

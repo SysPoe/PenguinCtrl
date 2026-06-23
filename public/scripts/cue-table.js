@@ -37,7 +37,7 @@ export function createCueTableRenderer({ $, state, esc, fmtDur, selectedIndexes 
       <tr data-i="${i}" aria-selected="${state.selectedRows.has(i)}" class="${state.selectedRows.has(i) ? 'selected' : ''} ${state.played.has(cue.id) ? 'played' : ''}">
         <td><span style="--c:${esc(cue.cueTypeColor || '#777')}">${esc(cue.number)}</span></td>
         <td>${esc(cue.title || 'Untitled')}</td>
-        <td>${esc(cue.cueTypeLabel || cue.cueType)}</td>
+        <td>${esc(cue.displayCueTypeLabel || cue.cueTypeLabel || cue.cueType)}</td>
         <td>${fmtDur(cue.duration)}</td>
       </tr>`).join('');
     $('go').disabled = state.selected < 0;

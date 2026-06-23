@@ -31,7 +31,7 @@ function normalizeType(rawType, index) {
     label,
     shortLabel,
     description: typeof rawType.description === 'string' ? rawType.description : '',
-    editor: ['sound', 'modifier'].includes(rawType.editor) ? rawType.editor : 'basic',
+    editor: ['sound', 'video', 'modifier'].includes(rawType.editor) ? rawType.editor : 'basic',
     handler: typeof rawType.handler === 'string' && rawType.handler.trim() ? rawType.handler.trim() : 'trackOnly',
     color: typeof rawType.color === 'string' && rawType.color.trim() ? rawType.color : '#8f8f8f',
     order: Number.isFinite(Number(rawType.order)) ? Number(rawType.order) : (index + 1) * 10,

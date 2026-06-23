@@ -262,8 +262,8 @@ td:first-child span {
   background: #15171b;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: auto 120px 86px 35px minmax(0, 1fr);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-rows: auto 120px 70px 70px minmax(0, 1fr);
   gap: 0;
   min-width: 0;
   overflow-x: hidden;
@@ -324,12 +324,21 @@ input[type=range] {
 
 .sidecar>.warn,
 .sidecar>.danger {
+  grid-column: span 3;
   min-height: 86px;
   font-size: 24px;
   font-weight: 700;
 }
 
+#video-output,
+#refresh-output,
+#reset-played {
+  grid-column: span 2;
+}
+
 #stop-all,
+#video-output,
+#refresh-output,
 #reset-played {
   border-left: 1px solid #333841;
 }
@@ -361,15 +370,15 @@ input[type=range] {
   gap: 0;
 }
 
-.voice strong,
-.voice span {
+.voice>strong,
+.voice>span {
   padding: 3px 6px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.voice span {
+.voice>span {
   color: #a8b1bd;
   font-size: 12px;
 }
@@ -383,6 +392,16 @@ input[type=range] {
 
 .voice button[data-a="fade"].fading {
   background: linear-gradient(90deg, #493811 var(--fade-progress), #1b1d21 0);
+}
+
+.video-voice {
+  grid-template-columns: 1fr 1fr;
+}
+
+.video-voice strong,
+.video-voice span,
+.video-voice input {
+  grid-column: 1 / -1;
 }
 
 .voice-wave {

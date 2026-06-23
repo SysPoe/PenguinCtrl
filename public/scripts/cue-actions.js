@@ -3,11 +3,10 @@ export function createCueActionEditor(ctx) {
   const clone = v => structuredClone(v);
 
   function actionType(action) {
-    if (action?.actionType) return action.actionType;
-    if (action?.cueType) return action.cueType;
+    if (action?.videoClip || action?.videoPlayStyle) return 'video';
     if (action?.clip || action?.soundSubtype) return 'sound';
     if (action?.modifierAction || action?.targetCueId) return 'modifier';
-    return 'lighting';
+    return action?.actionType || action?.cueType || 'lighting';
   }
 
   function label(action) {

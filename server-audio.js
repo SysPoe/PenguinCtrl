@@ -120,7 +120,8 @@ function stopInstanceNodes(inst) {
 function scheduleEnd(inst) {
   if (inst.loop) return;
   const remaining = Math.max(0, (inst.endAt || inst.duration) - inst.position);
-  const timer = setTimeout(() => clearInstance(inst.instanceId), remaining * 1000 + 40);
+  const startDelay = ctx ? Math.max(0, inst.startedAt - ctx.currentTime) : 0;
+  const timer = setTimeout(() => clearInstance(inst.instanceId), (startDelay + remaining) * 1000 + 40);
   inst.timers.add(timer);
 }
 
@@ -149,6 +150,8 @@ function assertPlayableRange(cue, buffer, start, end) {
 async function startSource(inst, offset = inst.position || 0) {
   const audioCtx = getCtx();
   await ensureRunning(audioCtx);
+  const delay = Math.max(0, Number(inst.startAtMs || 0) - Date.now()) / 1000;
+  const t0 = audioCtx.currentTime + delay;
   const source = audioCtx.createBufferSource();
   source.buffer = inst.buffer;
   source.loop = inst.loop;
@@ -158,7 +161,6 @@ async function startSource(inst, offset = inst.position || 0) {
   const targetGain = dbToGain(inst.volume);
   const fadeIn = Math.max(0, Number(inst.cue?.fadeIn || 0));
   const fadeOut = Math.max(0, Number(inst.cue?.fadeOut || 0));
-  const t0 = audioCtx.currentTime;
   const playLen = Math.max(0.01, inst.endAt - offset);
   gain.gain.cancelScheduledValues(t0);
   gain.gain.setValueAtTime(0, t0);
@@ -173,9 +175,9 @@ async function startSource(inst, offset = inst.position || 0) {
   gain.connect(masterGain);
   inst.source = source;
   inst.gain = gain;
-  inst.startedAt = audioCtx.currentTime;
+  inst.startedAt = t0;
   inst.position = offset;
-  source.start(audioCtx.currentTime, offset, inst.loop ? undefined : Math.max(0.01, inst.endAt - offset));
+  source.start(t0, offset, inst.loop ? undefined : Math.max(0.01, inst.endAt - offset));
   scheduleEnd(inst);
 }
 
@@ -198,6 +200,9 @@ export async function playCue(cue) {
   const start = Math.max(0, Number(cue.clipStart || 0));
   const end = Number.isFinite(Number(cue.clipEnd)) ? Math.min(buffer.duration, Number(cue.clipEnd)) : buffer.duration;
   assertPlayableRange(cue, buffer, start, end);
+  const startAtMs = Number(cue.syncAtMs || cue.startAtMs);
+  const lateBy = Number.isFinite(startAtMs) ? Math.max(0, (Date.now() - startAtMs) / 1000) : 0;
+  const offset = Math.min(Math.max(start, start + lateBy), Math.max(start, end - 0.01));
   const instanceId = `aud_${Date.now()}_${nextId++}`;
   const loop = cue.soundSubtype === 'vamp';
   const inst = {
@@ -213,7 +218,8 @@ export async function playCue(cue) {
     clipStart: start,
     clipEnd: end,
     endAt: end,
-    position: start,
+    position: offset,
+    startAtMs: Number.isFinite(startAtMs) ? startAtMs : null,
     loop,
     loopStart: Number(cue.loopStart ?? start),
     loopEnd: Number(cue.loopEnd ?? end),
@@ -223,10 +229,10 @@ export async function playCue(cue) {
     muted: false,
     paused: false,
     timers: new Set(),
-    firedTriggers: firedTriggerSet(cue.oscTriggers, start),
+    firedTriggers: firedTriggerSet(cue.oscTriggers, offset),
   };
   try {
-    await startSource(inst, start);
+    await startSource(inst, offset);
     active.set(instanceId, inst);
   } catch (err) {
     stopInstanceNodes(inst);
