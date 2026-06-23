@@ -11,6 +11,8 @@
     href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Atkinson+Hyperlegible+Mono:wght@400;600;700&display=swap"
     rel="stylesheet">
   <link rel="stylesheet" href="styles/cue.css">
+  <link rel="stylesheet" href="styles/cue-editor.css">
+  <link rel="stylesheet" href="styles/cue-separation.css">
   <link rel="stylesheet" href="styles/app-support.css">
   <link rel="stylesheet" href="styles/timecode-wave.css">
 </head>
@@ -77,9 +79,16 @@
       </header>
       <section class="form-grid">
         <label>Cue Number <input id="cue-number" autocomplete="off"></label>
-        <label>Type <select id="cue-type"></select></label>
+        <label>Action Type <select id="cue-type"></select></label>
         <label class="wide">Title <input id="cue-title" required></label>
         <label class="wide">Notes <textarea id="cue-notes"></textarea></label>
+      </section>
+      <section id="actions-fields" class="panel">
+        <h2>Actions</h2>
+        <div class="cue-action-list" id="cue-action-list"></div>
+        <div class="action-row">
+          <button id="add-action" type="button">Add Action</button>
+        </div>
       </section>
       <section id="sound-fields" class="panel">
         <h2>Sound</h2>
@@ -104,15 +113,15 @@
           <label>Loop Start <input id="loop-start" type="number" step="0.001" value="0"></label>
           <label>Loop End <input id="loop-end" type="number" step="0.001"></label>
           <div class="wide action-row">
-            <button id="open-timecode" type="button">Timecode</button>
+            <button id="open-timecode" type="button">Markers</button>
             <span id="sound-timecode-summary">No markers</span>
           </div>
         </div>
       </section>
       <section id="lighting-fields" class="panel">
-        <h2>Timecode</h2>
+        <h2>Lighting</h2>
         <div class="form-grid">
-          <label>Remote Action <select id="osc-action">
+          <label>OSC Action <select id="osc-action">
               <option value="none">None</option>
               <option value="goto">Go To Cue</option>
               <option value="go">Go</option>

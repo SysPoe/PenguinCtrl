@@ -6,9 +6,17 @@ function isObject(value) {
 }
 
 function inferCueType(cue) {
+  if (typeof cue?.actionType === 'string' && cue.actionType.trim()) return cue.actionType.trim();
   if (typeof cue?.cueType === 'string' && cue.cueType.trim()) return cue.cueType.trim();
   if (cue.soundSubtype || cue.clip) return 'sound';
+  if (cue.modifierAction || cue.targetCueId || cue.targetCueNumber || cue.targetTitle) return 'modifier';
   return 'lighting';
+}
+
+function actionList(rawCue) {
+  const explicit = Array.isArray(rawCue?.actions) ? rawCue.actions.filter(isObject) : [];
+  if (explicit.length) return explicit;
+  return [rawCue];
 }
 
 export function createCueExecutionEngine({ cueTypeRegistry, playAudioCue, workspaceRoot }) {
@@ -46,35 +54,27 @@ export function createCueExecutionEngine({ cueTypeRegistry, playAudioCue, worksp
     handlerRegistry.set(name, fn);
   }
 
-  async function execute(rawCue) {
-    if (!isObject(rawCue)) {
-      const fallback = handlerRegistry.get('trackOnly');
-      return {
-        cueType: 'lighting',
-        handlerName: 'trackOnly',
-        ...(await fallback({}, null)),
-      };
-    }
+  function resolveHandler(cue, cueType, typeDef) {
+    const fallbackHandlerName = cueType === 'sound' || cue.soundSubtype || cue.clip ? 'audioPlay' : 'trackOnly';
+    const lightingAction = String(cue.oscAction || '').trim().toLowerCase();
+    const hasLightingAction = cueType === 'lighting' && lightingAction && lightingAction !== 'none';
+    return (hasLightingAction ? 'oscDispatch' : null)
+      || (typeof cue.handler === 'string' && cue.handler.trim())
+      || (typeDef && typeof typeDef.handler === 'string' && typeDef.handler.trim())
+      || fallbackHandlerName;
+  }
 
-    const cue = { ...rawCue };
+  async function executeAction(rawAction, rootCue) {
+    const cue = { ...rootCue, ...rawAction };
+    delete cue.actions;
     const cueType = inferCueType(cue);
     cue.cueType = cueType;
 
     const typeDef = cueTypeRegistry.getType(cueType);
-    const fallbackHandlerName = cueType === 'sound' || cue.soundSubtype || cue.clip ? 'audioPlay' : 'trackOnly';
-    const lightingAction = String(cue.oscAction || '').trim().toLowerCase();
-    const hasLightingAction = cueType === 'lighting' && lightingAction && lightingAction !== 'none';
-    const handlerName =
-      (hasLightingAction ? 'oscDispatch' : null)
-      || (typeDef && typeof typeDef.handler === 'string' && typeDef.handler.trim())
-      || (typeof cue.handler === 'string' && cue.handler.trim())
-      || fallbackHandlerName;
-
+    const handlerName = resolveHandler(cue, cueType, typeDef);
     const handler = handlerRegistry.get(handlerName);
     if (!handler) {
-      throw new Error(
-        `No cue handler registered for "${handlerName}" (cue type "${cueType}")`
-      );
+      throw new Error(`No cue handler registered for "${handlerName}" (cue type "${cueType}")`);
     }
 
     const result = await handler(cue, typeDef || null);
@@ -82,6 +82,30 @@ export function createCueExecutionEngine({ cueTypeRegistry, playAudioCue, worksp
       cueType,
       handlerName,
       ...(isObject(result) ? result : { instanceId: null }),
+    };
+  }
+
+  async function execute(rawCue) {
+    if (!isObject(rawCue)) {
+      const fallback = handlerRegistry.get('trackOnly');
+      return {
+        cueType: 'lighting',
+        handlerName: 'trackOnly',
+        actions: [],
+        ...(await fallback({}, null)),
+      };
+    }
+
+    const results = [];
+    for (const action of actionList(rawCue)) {
+      results.push(await executeAction(action, rawCue));
+    }
+    const firstResult = results[0] || { cueType: inferCueType(rawCue), handlerName: 'trackOnly', instanceId: null };
+    return {
+      cueType: firstResult.cueType,
+      handlerName: firstResult.handlerName,
+      instanceId: firstResult.instanceId ?? null,
+      actions: results,
     };
   }
 

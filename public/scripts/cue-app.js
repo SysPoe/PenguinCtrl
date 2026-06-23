@@ -1,6 +1,10 @@
 import { createTimecodeEditor } from './cue-timecode.js';
 import { renderClipOptions as renderClipSelectOptions } from './cue-clip-options.js';
 import { createAudioUploads } from './audio-drop-upload.js';
+import { createCueActionEditor } from './cue-actions.js';
+import { createCueTableRenderer } from './cue-table.js';
+import { createCueClipboard } from './cue-clipboard.js';
+import { createVoicePanel } from './cue-voices.js';
 
 (() => {
   const state = { meta: {}, cues: {}, rows: [], clips: [], selected: -1, selectedRows: new Set(), selectionAnchor: -1, edit: null, ws: null, wsConnected: false, hasFocus: document.hasFocus(), active: [], played: new Set(), pending: new Map(), locked: false, draggingVoice: null, cueClipboard: [] };
@@ -33,6 +37,14 @@ import { createAudioUploads } from './audio-drop-upload.js';
   function type(id) { return types().find(t => t.id === id) || types()[0] || { id: 'sound', editor: 'sound', payloadDefaults: {} }; }
   function soundType(id) { return type(id).editor === 'sound'; }
   function modifierType(id) { return type(id).editor === 'modifier'; }
+  function lightingType(id) { return !soundType(id) && !modifierType(id); }
+  function actionKind(action) {
+    if (action?.actionType) return action.actionType;
+    if (action?.cueType) return action.cueType;
+    if (action?.clip || action?.soundSubtype) return 'sound';
+    if (action?.modifierAction || action?.targetCueId) return 'modifier';
+    return 'lighting';
+  }
   function fmtDur(v) {
     const n = Number(v);
     if (!Number.isFinite(n) || n <= 0) return '-';
@@ -41,6 +53,9 @@ import { createAudioUploads } from './audio-drop-upload.js';
   function fmtDb(v) { const n = Number(v); return Number.isFinite(n) ? `${n >= 0 ? '+' : ''}${n.toFixed(1)} dB` : '+0.0 dB'; }
   function send(msg) { if (state.ws?.readyState === WebSocket.OPEN) state.ws.send(JSON.stringify(msg)); }
   const timecode = createTimecodeEditor({ $, state, esc, num, fmtDb, toast, cleanDecimal });
+  let actionEditor;
+  let clipboard;
+  const voicePanel = createVoicePanel({ $, state, esc, fmtDb, send });
   function renderStatusBanner() {
     const banner = $('status-banner');
     if (!banner) return;
@@ -110,21 +125,7 @@ import { createAudioUploads } from './audio-drop-upload.js';
     document.body.classList.toggle('locked', state.locked);
     ['btn-new', 'btn-edit', 'btn-bump', 'show-import'].forEach(id => { const el = $(id); if (el) el.disabled = state.locked; });
   }
-  function renderRows() {
-    $('empty').hidden = state.rows.length > 0;
-    $('cue-body').innerHTML = state.rows.map((cue, i) => `
-      <tr data-i="${i}" aria-selected="${state.selectedRows.has(i)}" class="${state.selectedRows.has(i) ? 'selected' : ''} ${state.played.has(cue.id) ? 'played' : ''}">
-        <td><span style="--c:${esc(cue.cueTypeColor || '#777')}">${esc(cue.number)}</span></td>
-        <td>${esc(cue.title || 'Untitled')}</td>
-        <td>${esc(cue.cueTypeLabel || cue.cueType)}</td>
-        <td>${state.pending.get(cue.id) ? 'Waiting' : cue.isAudio ? 'Audio' : '-'}</td>
-        <td>${fmtDur(cue.duration)}</td>
-      </tr>`).join('');
-    $('go').disabled = state.selected < 0;
-    $('btn-edit').disabled = state.locked || state.selected < 0;
-    $('btn-copy').disabled = selectedIndexes().length < 1;
-    $('btn-paste').disabled = state.locked;
-  }
+  const renderRows = createCueTableRenderer({ $, state, esc, fmtDur, selectedIndexes });
   function renderTypeOptions() {
     $('cue-type').innerHTML = types().map(t => `<option value="${esc(t.id)}">${esc(t.label || t.id)}</option>`).join('');
   }
@@ -199,7 +200,7 @@ import { createAudioUploads } from './audio-drop-upload.js';
   function setEditorSections() {
     const id = $('cue-type').value;
     $('sound-fields').hidden = !soundType(id);
-    $('lighting-fields').hidden = true;
+    $('lighting-fields').hidden = !lightingType(id);
     $('modifier-fields').hidden = !modifierType(id);
     if (modifierType(id)) {
       if (!$('target-cue').options.length) fillModifier({});
@@ -218,13 +219,22 @@ import { createAudioUploads } from './audio-drop-upload.js';
     $('cue-number').value = cue.number ?? row?.number ?? nextNumber();
     $('cue-title').value = cue.title || '';
     $('cue-notes').value = cue.description || '';
-    $('cue-type').value = row?.cueType || types().find(t => t.editor === 'sound')?.id || types()[0]?.id || 'sound';
-    fillSound(cue);
-    fillLighting(cue);
-    fillModifier(cue, rowTargetValue(defaultTarget));
-    setEditorSections();
+    actionEditor.load(ensureInitialAction(cue, defaultTarget));
     $('cue-editor').showModal();
     timecode.load().catch(err => toast(err.message));
+  }
+  function defaultAction(kind = 'sound') {
+    const id = types().some(t => t.id === kind) ? kind : 'sound';
+    const action = merge(type(id).payloadDefaults || {}, { actionType: id, cueType: id });
+    if (soundType(id)) return { ...action, soundSubtype: 'play_once', playStyle: 'alongside' };
+    if (modifierType(id)) return { ...action, modifierAction: 'fade' };
+    return { ...action, oscAction: 'none', oscPlayback: 1, oscCueNumber: '{cueNumber}', oscLevel: 100, oscTransport: 'auto' };
+  }
+  function ensureInitialAction(cue, defaultTarget) {
+    if (Array.isArray(cue.actions) && cue.actions.length) return cue;
+    const action = cue.id ? { ...cue, actionType: actionKind(cue), cueType: actionKind(cue) } : defaultAction(defaultTarget ? 'modifier' : (types().find(t => t.editor === 'sound')?.id || 'sound'));
+    if (defaultTarget && modifierType(action.actionType)) action.targetCueId = rowTargetValue(defaultTarget);
+    return { ...cue, actions: [action] };
   }
   function fillSound(cue) {
     renderClipOptions(cue.clip || '');
@@ -252,6 +262,16 @@ import { createAudioUploads } from './audio-drop-upload.js';
     $('target-volume').value = cue.targetVolumeDb ?? -12;
     syncModifierFields();
   }
+  function writeAction(action) {
+    state.edit.loadingAction = true;
+    const kind = actionKind(action);
+    $('cue-type').value = kind;
+    fillSound(soundType(kind) ? action : {});
+    fillLighting(lightingType(kind) ? action : {});
+    fillModifier(modifierType(kind) ? action : {});
+    state.edit.loadingAction = false;
+    setEditorSections();
+  }
   function collectModifier(cue) {
     const action = $('modifier-action').value;
     cue.targetCueId = $('target-cue').value.trim();
@@ -263,20 +283,42 @@ import { createAudioUploads } from './audio-drop-upload.js';
     if (action === 'fade' || action === 'volume') cue.modifierDuration = num($('modifier-duration')) ?? 2;
     if (action === 'volume') cue.targetVolumeDb = num($('target-volume')) ?? -12;
   }
-  function collectCue() {
+  function readAction() {
     const id = $('cue-type').value;
-    const base = state.edit.mode === 'edit' && state.edit.originalType === id ? rawCue() : {};
-    const cue = { ...base, id: state.edit.cueId, title: $('cue-title').value.trim(), description: $('cue-notes').value.trim(), number: $('cue-number').value.trim() };
+    const cue = defaultAction(id);
     if (soundType(id)) Object.assign(cue, {
       soundSubtype: $('sound-subtype').value, playStyle: $('play-style').value, clip: $('sound-clip').value || undefined,
       clipStart: num($('clip-start')) ?? 0, clipEnd: num($('clip-end')), fadeIn: num($('fade-in')) ?? 0, fadeOut: num($('fade-out')) ?? 0,
       volume: num($('volume')) ?? 0, loopStart: num($('loop-start')) ?? 0, loopEnd: num($('loop-end')), oscTriggers: timecode.normalizeTriggers(state.edit.triggers),
     });
     else if (modifierType(id)) collectModifier(cue);
-    const merged = merge(type(id).payloadDefaults || {}, cue);
-    if (modifierType(id)) collectModifier(merged);
-    return { typeId: id, cue: merged };
+    else Object.assign(cue, {
+      oscAction: $('osc-action').value,
+      oscPlayback: num($('osc-playback')) ?? 1,
+      oscCueNumber: $('osc-cue').value.trim() || '{cueNumber}',
+      oscLevel: num($('osc-level')) ?? 100,
+      oscTransport: 'auto',
+    });
+    return { ...cue, actionType: id, cueType: id };
   }
+  function collectCue() {
+    const actions = actionEditor.collect();
+    const typeId = actionKind(actions[0]);
+    const base = state.edit.mode === 'edit' && state.edit.originalType === typeId ? rawCue() : {};
+    const cue = { ...base, ...actions[0], id: state.edit.cueId, title: $('cue-title').value.trim(), description: $('cue-notes').value.trim(), number: $('cue-number').value.trim(), actions };
+    cue.actionType = typeId;
+    cue.cueType = typeId;
+    return { typeId, cue: merge(type(typeId).payloadDefaults || {}, cue) };
+  }
+  actionEditor = createCueActionEditor({
+    $,
+    state,
+    esc,
+    readAction,
+    writeAction,
+    defaultAction,
+    onSelect: () => timecode.load().catch(err => toast(err.message)),
+  });
   async function saveEditor({ close = true } = {}) {
     const title = $('cue-title').value.trim();
     if (!title) throw new Error('Cue title is required');
@@ -296,6 +338,7 @@ import { createAudioUploads } from './audio-drop-upload.js';
     await json('/api/cues', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(state.cues) });
     if (reload) await loadAll();
   }
+  clipboard = createCueClipboard({ $, state, clone, toast, persist, selectedIndexes, rawCue, actionKind });
   async function deleteCue() {
     if (!confirm('Delete this cue?')) return;
     const target = state.cues[state.edit.targetId];
@@ -320,43 +363,6 @@ import { createAudioUploads } from './audio-drop-upload.js';
       if (includeTimecode && Array.isArray(cue.oscTriggers)) cue.oscTriggers.forEach(trigger => { trigger.oscCueNumber = bumpCueField(trigger.oscCueNumber); });
     });
     await persist();
-  }
-  function cueClipboardPayload() {
-    return selectedIndexes().map(i => {
-      const row = state.rows[i];
-      return row ? { cueType: row.cueType, cue: rawCue(row) } : null;
-    }).filter(item => item?.cue && item.cueType);
-  }
-  async function copyCues() {
-    const payload = cueClipboardPayload();
-    if (!payload.length) return;
-    state.cueClipboard = payload.map(clone);
-    const text = JSON.stringify({ format: 'cusus-cues', cues: state.cueClipboard });
-    await navigator.clipboard?.writeText(text).catch(() => { });
-    toast(`${payload.length} cue${payload.length === 1 ? '' : 's'} copied`);
-  }
-  async function pasteCues() {
-    if (state.locked) return toast('Show mode is locked');
-    let payload = state.cueClipboard;
-    const text = await navigator.clipboard?.readText().catch(() => '');
-    if (text) {
-      try {
-        const parsed = JSON.parse(text);
-        if (parsed?.format === 'cusus-cues' && Array.isArray(parsed.cues)) payload = parsed.cues;
-      } catch { }
-    }
-    if (!Array.isArray(payload) || !payload.length) return toast('No copied cues');
-    const base = Number(state.rows[state.selected]?.number ?? state.rows.at(-1)?.number ?? 0);
-    payload.forEach((item, offset) => {
-      const typeId = item.cueType || item.typeId || $('cue-type')?.value || 'sound';
-      const targetId = `manual_${crypto.randomUUID()}`;
-      const cue = clone(item.cue || {});
-      cue.id = crypto.randomUUID();
-      if (Number.isFinite(base)) cue.number = String(base + offset + 1);
-      state.cues[targetId] = { [typeId]: [cue] };
-    });
-    await persist();
-    toast(`${payload.length} cue${payload.length === 1 ? '' : 's'} pasted`);
   }
   function connect() {
     state.ws = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`);
@@ -383,24 +389,10 @@ import { createAudioUploads } from './audio-drop-upload.js';
       if (msg.type === 'cuesChanged') loadAll();
       if (msg.type === 'playedCues') { state.played = new Set(msg.ids || []); renderRows(); }
       if (msg.type === 'pendingCues') { state.pending = new Map((msg.list || []).map(x => [x.cueId, x.count])); renderRows(); }
-      if (msg.type === 'instances') { state.active = msg.list || []; renderVoices(); }
+      if (msg.type === 'instances') { state.active = msg.list || []; voicePanel.renderVoices(); }
       if (msg.type === 'masterVolume') { state.meta.masterVolume = msg; applyMeta(); }
       if (msg.type === 'runtimeError') toast(msg.message);
     };
-  }
-  function renderVoices() {
-    if (state.draggingVoice && !state.active.some(inst => inst.instanceId === state.draggingVoice)) state.draggingVoice = null;
-    if (state.draggingVoice) {
-      state.active.forEach(inst => {
-        const voiceEl = $(`voice-${inst.instanceId}`);
-        const seek = voiceEl?.querySelector('.seek i');
-        const label = voiceEl?.querySelector('[data-volume-label]');
-        if (seek) seek.style.width = `${Math.min(100, ((inst.position - inst.clipStart) / Math.max(0.01, inst.clipEnd - inst.clipStart)) * 100)}%`;
-        if (label && state.draggingVoice !== inst.instanceId) label.textContent = fmtDb(inst.volume);
-      });
-      return;
-    }
-    $('voices').innerHTML = state.active.length ? state.active.map(inst => `<article id="voice-${esc(inst.instanceId)}" class="voice" data-id="${esc(inst.instanceId)}"><strong>${esc(inst.title || inst.clipUrl)}</strong><span data-volume-label>${fmtDb(inst.volume)}</span><input type="range" min="${$('master').min}" max="${$('master').max}" step="0.5" value="${esc(inst.volume)}"><div class="seek"><i style="width:${Math.min(100, ((inst.position - inst.clipStart) / Math.max(0.01, inst.clipEnd - inst.clipStart)) * 100)}%"></i></div><button data-a="pause">${inst.paused ? 'Play' : 'Pause'}</button><button data-a="fade">Fade</button><button data-a="stop">Stop</button></article>`).join('') : '<p>No active voices</p>';
   }
   function go() {
     const row = state.rows[state.selected];
@@ -418,18 +410,22 @@ import { createAudioUploads } from './audio-drop-upload.js';
     if (!state.edit || !soundType($('cue-type').value)) return;
     timecode.open();
   }
+  let lastCueClick = { index: -1, at: 0 };
   function bind() {
-    $('cue-body').addEventListener('click', e => { const row = e.target.closest('tr'); if (row) selectRow(Number(row.dataset.i), e.shiftKey, e.ctrlKey || e.metaKey); });
-    $('cue-body').addEventListener('dblclick', e => {
+    $('cue-body').addEventListener('click', e => {
       const row = e.target.closest('tr');
       if (!row) return;
-      selectRow(Number(row.dataset.i));
-      openEditor('edit');
+      const index = Number(row.dataset.i);
+      const now = performance.now();
+      const isDoubleClick = lastCueClick.index === index && now - lastCueClick.at < 450;
+      lastCueClick = { index, at: now };
+      selectRow(index, e.shiftKey, e.ctrlKey || e.metaKey);
+      if (isDoubleClick) openEditor('edit');
     });
     $('btn-new').onclick = () => openEditor('create');
     $('btn-edit').onclick = () => openEditor('edit');
-    $('btn-copy').onclick = () => copyCues().catch(err => toast(err.message));
-    $('btn-paste').onclick = () => pasteCues().catch(err => toast(err.message));
+    $('btn-copy').onclick = () => clipboard.copy().catch(err => toast(err.message));
+    $('btn-paste').onclick = () => clipboard.paste().catch(err => toast(err.message));
     $('btn-bump').onclick = e => bumpCues(e.shiftKey).catch(err => toast(err.message));
     $('btn-show-mode').onclick = setShowMode;
     $('go').onclick = go;
@@ -451,25 +447,19 @@ import { createAudioUploads } from './audio-drop-upload.js';
     $('sound-clip').onchange = () => timecode.load().catch(err => toast(err.message));
     $('sound-upload').onchange = e => { if (e.target.files[0]) uploadClip(e.target.files[0]).catch(err => toast(err.message)); e.target.value = ''; };
     installDropTarget();
+    actionEditor.bind();
     $('open-timecode').onclick = openTimecodeEditor;
     $('show-import').onchange = async e => { const file = e.target.files[0]; if (file) await json('/api/show/import', { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', 'X-Filename': file.name }, body: file }).then(loadAll).catch(err => toast(err.message)); };
     $('btn-export').onclick = () => location.href = '/api/show/export';
-    $('voices').addEventListener('pointerdown', e => { const voiceEl = e.target.closest('.voice'); if (voiceEl && e.target.type === 'range') state.draggingVoice = voiceEl.dataset.id; }, true);
-    $('voices').addEventListener('pointerup', () => { state.draggingVoice = null; }, true);
-    $('voices').addEventListener('pointercancel', () => { state.draggingVoice = null; }, true);
-    document.addEventListener('pointerup', () => { state.draggingVoice = null; });
-    document.addEventListener('pointercancel', () => { state.draggingVoice = null; });
-    $('voices').addEventListener('input', e => { const voiceEl = e.target.closest('.voice'); if (voiceEl && e.target.type === 'range') { const label = voiceEl.querySelector('[data-volume-label]'); if (label) label.textContent = fmtDb(e.target.value); send({ type: 'setVolume', instanceId: voiceEl.dataset.id, db: Number(e.target.value) }); } });
-    $('voices').addEventListener('click', e => { const btn = e.target.closest('button'); const voiceEl = e.target.closest('.voice'); if (!btn || !voiceEl) return; send(btn.dataset.a === 'stop' ? { type: 'stop', instanceId: voiceEl.dataset.id } : btn.dataset.a === 'fade' ? { type: 'fadeOut', instanceId: voiceEl.dataset.id } : { type: btn.textContent === 'Play' ? 'resume' : 'pause', instanceId: voiceEl.dataset.id }); });
-    $('voices').addEventListener('pointerdown', e => { const seek = e.target.closest('.seek'); const voiceEl = e.target.closest('.voice'); if (!seek || !voiceEl) return; const inst = state.active.find(x => x.instanceId === voiceEl.dataset.id); if (!inst) return; const move = ev => { const r = seek.getBoundingClientRect(); send({ type: 'seek', instanceId: voiceEl.dataset.id, position: inst.clipStart + Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)) * (inst.clipEnd - inst.clipStart) }); }; seek.setPointerCapture(e.pointerId); move(e); seek.onpointermove = move; seek.onpointerup = seek.onpointercancel = () => { seek.onpointermove = null; }; });
+    voicePanel.bindVoicePanel();
     timecode.bind();
     document.addEventListener('keydown', e => {
       if (typingTarget(e.target)) return;
       if (e.ctrlKey || e.metaKey) {
         const activeDialog = document.querySelector('dialog[open]');
         if ($('timecode-editor')?.open) return;
-        if (e.key.toLowerCase() === 'c') { e.preventDefault(); copyCues().catch(err => toast(err.message)); }
-        if (e.key.toLowerCase() === 'v') { e.preventDefault(); pasteCues().catch(err => toast(err.message)); }
+        if (e.key.toLowerCase() === 'c') { e.preventDefault(); clipboard.copy().catch(err => toast(err.message)); }
+        if (e.key.toLowerCase() === 'v') { e.preventDefault(); clipboard.paste().catch(err => toast(err.message)); }
         if (e.key.toLowerCase() === 'a' && !activeDialog) {
           e.preventDefault();
           state.selectedRows = new Set(state.rows.map((_row, i) => i));

@@ -112,7 +112,42 @@
         "title": "amogos",
         "description": "",
         "number": "1",
-        "clip": "/audio/UNCUT_trailer_BGM_1782109454874.wav"
+        "clip": "/audio/UNCUT_trailer_BGM_1782109454874.wav",
+        "actions": [
+          {
+            "soundSubtype": "play_once",
+            "playStyle": "alongside",
+            "clipStart": 0,
+            "clipEnd": 151.432,
+            "fadeIn": 2.63,
+            "fadeOut": 11.615,
+            "volume": 0,
+            "loopStart": 0,
+            "loopEnd": 151.432,
+            "oscStartTrigger": {
+              "oscAction": "none",
+              "oscPlayback": 1,
+              "oscCueNumber": "{cueNumber}",
+              "oscLevel": 100,
+              "oscTransport": "auto"
+            },
+            "oscTriggers": [],
+            "actionType": "sound",
+            "cueType": "sound",
+            "clip": "/audio/UNCUT_trailer_BGM_1782109454874.wav"
+          },
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ],
+        "actionType": "sound",
+        "cueType": "sound"
       }
     ]
   },

@@ -4,7 +4,6 @@ import { WebSocketServer } from 'ws';
 import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'fs';
 import { basename, dirname, extname, join } from 'path';
 import { execFile } from 'child_process';
-import dgram from 'node:dgram';
 import { fileURLToPath } from 'url';
 import { gzipSync, gunzipSync } from 'zlib';
 import ffmpegStatic from 'ffmpeg-static';
@@ -20,6 +19,7 @@ import {
 import { createConfigService } from './config/config-service.js';
 import { createCueTypeRegistry } from './config/cue-type-registry.js';
 import { createCueExecutionEngine } from './server-cue-handlers.js';
+import { createOscDispatcher, resolveTemplate } from './server-osc.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -35,7 +35,7 @@ const configService = createConfigService({ schemaPath: CONFIG_SCHEMA_FILE, valu
 const cueTypeRegistry = createCueTypeRegistry({ filePath: CUE_TYPES_FILE });
 initAudioConfig(configService);
 const cueExecutionEngine = createCueExecutionEngine({ cueTypeRegistry, playAudioCue: playCue, workspaceRoot: __dirname });
-const udpSocket = dgram.createSocket('udp4');
+const dispatchCommand = createOscDispatcher({ getTargets: () => configService.getValue('osc.targets') });
 const playedCueIds = new Set();
 const pendingCueExecutions = new Map();
 let cuesCache = {};
@@ -118,6 +118,14 @@ function duration(cue) {
   const start = Number(cue?.clipStart ?? 0), end = Number(cue?.clipEnd);
   return Number.isFinite(end) && end > start ? end - start : null;
 }
+function cueActions(cue) { return Array.isArray(cue?.actions) ? cue.actions.filter(isObject) : []; }
+function actionSummary(cue, cueType) {
+  const actions = cueActions(cue);
+  const count = actions.length || 1;
+  if (count === 1) return cueType === 'sound' || cue?.clip ? 'Audio' : cueType === 'modifier' ? 'Modify' : cue?.oscAction && cue.oscAction !== 'none' ? 'OSC' : '-';
+  const labels = actions.map(action => action.actionType || (action.clip ? 'sound' : action.modifierAction ? 'modifier' : 'lighting'));
+  return `${count} actions: ${labels.join(', ')}`;
+}
 function buildCueList(cues) {
   const types = cueTypeRegistry.listTypes();
   const rows = [];
@@ -134,7 +142,10 @@ function buildCueList(cues) {
           cueTypeColor: type.color, number, cueNum: cueSort(number), title: raw.title || 'Untitled',
           description: raw.description || '', position: 'Cue List', sortIndex: order,
           duration: duration(fullCue), subtype: raw.soundSubtype || raw.subtype || null,
-          isAudio: Boolean(fullCue.clip), fullCue,
+          isAudio: Boolean(fullCue.clip || cueActions(fullCue).some(action => action.clip)),
+          actionSummary: actionSummary(fullCue, type.id),
+          actionCount: cueActions(fullCue).length || 1,
+          fullCue,
         });
       });
     }
@@ -161,6 +172,7 @@ function refreshAudioCacheHints() {
       const ids = cue.id ? [String(cue.id), `${targetId}_${type.id}_${cue.id}`] : [];
       ids.forEach(id => nextOrders.set(id, order));
       addCache(entries, cue, order, ids);
+      cueActions(cue).forEach(action => addCache(entries, action, order, ids));
     });
   }
   cueOrderById = nextOrders;
@@ -190,70 +202,6 @@ function importPackage(buffer, filename) {
   return { cues: cuesCache, show: { ...showState, locked: false } };
 }
 
-function port(value, fallback) { const n = Number(value); return Number.isFinite(n) ? Math.max(1, Math.min(65535, Math.round(n))) : fallback; }
-function targets() {
-  const raw = configService.getValue('osc.targets');
-  return (Array.isArray(raw) && raw.length ? raw : [{ ip: '127.0.0.1', oscPort: 8000, remotePort: 6553 }]).map(t => ({
-    ip: String(t?.ip || '127.0.0.1').trim() || '127.0.0.1',
-    oscPort: port(t?.oscPort, 8000),
-    remotePort: Number(t?.remotePort) === -1 ? -1 : port(t?.remotePort, 6553),
-  }));
-}
-function pad(value) {
-  const raw = Buffer.from(`${String(value ?? '')}\0`, 'utf8');
-  const padding = (4 - (raw.length % 4)) % 4;
-  return padding ? Buffer.concat([raw, Buffer.alloc(padding)]) : raw;
-}
-function osc(address, args = []) {
-  const tags = [','];
-  const buffers = [];
-  for (const arg of args) {
-    if (typeof arg === 'number' && Number.isFinite(arg)) {
-      const buf = Buffer.alloc(4);
-      Number.isInteger(arg) ? (tags.push('i'), buf.writeInt32BE(arg, 0)) : (tags.push('f'), buf.writeFloatBE(arg, 0));
-      buffers.push(buf);
-    } else {
-      tags.push('s');
-      buffers.push(pad(arg));
-    }
-  }
-  return Buffer.concat([pad(address), pad(tags.join('')), ...buffers]);
-}
-function parseCueNumber(raw) {
-  const match = String(raw ?? '').trim().match(/^(\d+)(?:\.(\d+))?$/);
-  if (!match) throw new Error(`Invalid cue number "${raw}"`);
-  return `${Number(match[1])}.${((match[2] || '0') + '00').slice(0, 2)}`;
-}
-function resolveTemplate(value, cue) {
-  const raw = String(value ?? '{cueNumber}');
-  if (!raw.includes('{cueNumber')) return raw;
-  const number = Number(cue?.number ?? cue?.cueNumber ?? cue?.num ?? 1);
-  return raw.replace(/\{cueNumber(?:([+-])(\d+(?:\.\d+)?))?\}/g, (_m, op, amount) => String((number + (op === '-' ? -1 : 1) * Number(amount || 0)).toFixed(2).replace(/\.?0+$/, '')));
-}
-function sendUdp(payload, host, udpPort) {
-  return new Promise((resolve, reject) => udpSocket.send(payload, udpPort, host, err => err ? reject(err) : resolve()));
-}
-async function dispatchCommand({ action, playback, cueNumber, level, setLevel, transport }) {
-  if (action === 'none' && !setLevel) return;
-  const jobs = targets().map(t => {
-    const useRemote = transport !== 'osc' && t.remotePort > 0;
-    if (useRemote) {
-      const sends = [];
-      if (action !== 'none') {
-        const command = action === 'go' ? `${playback}G` : action === 'back' ? `${playback}S` : action === 'release' ? `${playback}R` : action === 'level' ? `${playback},${level}L` : `${playback},${parseCueNumber(cueNumber)}J`;
-        sends.push(sendUdp(Buffer.from(command, 'ascii'), t.ip, t.remotePort));
-      }
-      if (setLevel && action !== 'level') sends.push(sendUdp(Buffer.from(`${playback},${level}L`, 'ascii'), t.ip, t.remotePort));
-      return Promise.allSettled(sends);
-    }
-    const parsed = action === 'goto' ? parseCueNumber(cueNumber) : cueNumber;
-    const address = action === 'go' ? `/pb/${playback}/go` : action === 'release' ? `/pb/${playback}/release` : action === 'level' ? `/pb/${playback}` : `/pb/${playback}/${parsed}`;
-    const sends = action === 'none' ? [] : [sendUdp(osc(address, [action === 'level' ? level : 1]), t.ip, t.oscPort)];
-    if (setLevel && action !== 'level') sends.push(sendUdp(osc(`/pb/${playback}`, [level]), t.ip, t.oscPort));
-    return Promise.allSettled(sends);
-  });
-  await Promise.allSettled(jobs);
-}
 cueExecutionEngine.registerHandler('oscDispatch', async cue => {
   const action = String(cue?.oscAction || 'go').trim().toLowerCase();
   if (action === 'volume_up' || action === 'volume_down') {
@@ -448,7 +396,13 @@ async function runCue(ws, msg) {
   }
   try {
     const execution = await cueExecutionEngine.execute(msg.cue || null);
-    ws.send(JSON.stringify({ type: 'go_ack', instanceId: execution.instanceId ?? null, cueType: execution.cueType, handler: execution.handlerName }));
+    ws.send(JSON.stringify({
+      type: 'go_ack',
+      instanceId: execution.instanceId ?? null,
+      cueType: execution.cueType,
+      handler: execution.handlerName,
+      actions: execution.actions || [],
+    }));
   } finally {
     if (msg.cueId) pending(msg.cueId, -1);
     broadcastPending();

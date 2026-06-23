@@ -1,0 +1,201 @@
+.topbar {
+  background: #16191e;
+}
+
+.brand {
+  min-height: 42px;
+  border-right: 1px solid #333841;
+}
+
+.brand strong {
+  min-width: 78px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #1f252b;
+}
+
+.brand span {
+  display: inline-flex;
+  align-items: center;
+  border-left: 1px solid #2c323a;
+}
+
+.tools {
+  background: #111317;
+}
+
+.tools button,
+.tools a,
+.tools .file-btn {
+  background: transparent;
+}
+
+.tools button:hover,
+.tools a:hover,
+.tools .file-btn:hover {
+  background: #20262d;
+}
+
+.workspace {
+  background: #0c0e11;
+}
+
+.cue-area {
+  background: #101215;
+}
+
+thead th {
+  height: 34px;
+  background: #20242a;
+  border-right: 1px solid #303640;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+thead th:last-child,
+tbody td:last-child {
+  border-right: 0;
+}
+
+tbody td {
+  height: 38px;
+  border-right: 1px solid #1c2229;
+}
+
+tbody tr:nth-child(even) {
+  background: #12161b;
+}
+
+tbody tr:hover {
+  background: #202832;
+}
+
+tbody tr.selected {
+  background: #0f3858;
+  box-shadow: inset 3px 0 #42a5ff;
+}
+
+.sidecar {
+  background: #101317;
+}
+
+.master {
+  background: #1c2127;
+  border-bottom: 1px solid #3a414b;
+}
+
+.sidecar > button {
+  background: #161b20;
+}
+
+.sidecar > button + button,
+.voices {
+  border-top: 1px solid #303740;
+}
+
+.sidecar > .go {
+  background: #12693c;
+  border-color: #2bbb68;
+}
+
+.sidecar > .warn {
+  background: #493811;
+  border-color: #9d7924;
+}
+
+.sidecar > .danger {
+  background: #4d171b;
+  border-color: #a8323e;
+}
+
+.voices h2,
+.panel h2 {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  background: #20242a;
+  color: #c3ccd6;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.voice {
+  background: #12161b;
+  border-bottom-color: #2a313a;
+}
+
+.voice:nth-child(even) {
+  background: #151a20;
+}
+
+.fullscreen header {
+  background: #1d2228;
+}
+
+.fullscreen header h1 {
+  padding-left: 12px;
+}
+
+.fullscreen footer {
+  background: #1b2026;
+}
+
+.fullscreen form > .form-grid {
+  background: #12161b;
+  border-bottom: 1px solid #333841;
+}
+
+.panel {
+  background: #101317;
+}
+
+.panel .form-grid {
+  background: #12161b;
+}
+
+.form-grid label {
+  border-right: 1px solid #222832;
+  border-bottom: 1px solid #222832;
+}
+
+.form-grid label:nth-child(2n),
+.form-grid .wide {
+  border-right: 0;
+}
+
+.cue-action-list {
+  background: #151a20;
+}
+
+.trigger-list div,
+.trigger-list span,
+.cue-action-list div,
+.cue-action-list span {
+  border-right: 1px solid #222832;
+}
+
+input,
+select,
+textarea {
+  background: #090b0e;
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid #42a5ff;
+  outline-offset: -2px;
+}
+
+@media (max-width: 820px) {
+  .brand strong {
+    min-width: 64px;
+  }
+
+  .form-grid label {
+    border-right: 0;
+  }
+}
