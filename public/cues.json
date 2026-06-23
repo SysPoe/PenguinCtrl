@@ -616,6 +616,13 @@
             "oscCueNumber": "{cueNumber}",
             "oscLevel": 100,
             "oscTransport": "auto"
+          },
+          {
+            "modifierAction": "fade",
+            "actionType": "modifier",
+            "cueType": "modifier",
+            "targetCueId": "42e296be-8ade-4f57-bfe1-55b870bbe2da",
+            "modifierDuration": 2
           }
         ]
       }

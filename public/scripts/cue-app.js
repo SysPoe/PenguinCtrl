@@ -119,6 +119,7 @@ import { createVoicePanel } from './cue-voices.js';
     $('master').value = m.db ?? 0;
     $('master-label').textContent = fmtDb($('master').value);
     $('master-mute').textContent = m.muted ? 'Unmute' : 'Mute';
+    $('master-mute').classList.toggle('muted', Boolean(m.muted));
     $('show-status').textContent = state.locked ? 'Show mode: edits locked' : 'Edit mode';
     $('btn-show-mode').textContent = state.locked ? 'Edit Mode' : 'Show Mode';
     document.body.classList.toggle('locked', state.locked);
@@ -422,7 +423,8 @@ import { createVoicePanel } from './cue-voices.js';
   }
   let lastCueClick = { index: -1, at: 0 };
   function bind() {
-    $('cue-body').addEventListener('click', e => {
+    $('cue-body').addEventListener('pointerdown', e => {
+      if (e.button !== 0) return;
       const row = e.target.closest('tr');
       if (!row) return;
       const index = Number(row.dataset.i);

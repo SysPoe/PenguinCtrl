@@ -61,6 +61,11 @@ function applyMasterGain() {
   masterGain.gain.setValueAtTime(masterMuted ? 0 : dbToGain(masterDbValue), ctx.currentTime);
 }
 
+async function ensureRunning(audioCtx) {
+  if (audioCtx.state !== 'suspended') return;
+  await audioCtx.resume();
+}
+
 function decodeViaFfmpeg(filePath) {
   const out = join(tmpdir(), `cusus-${Date.now()}-${Math.random().toString(36).slice(2)}.wav`);
   const sampleRate = Number(configValue('audio.buffer.sampleRate', 48000)) || 48000;
@@ -134,8 +139,16 @@ function firedTriggerSet(triggers, position) {
   return fired;
 }
 
-function startSource(inst, offset = inst.position || 0) {
+function assertPlayableRange(cue, buffer, start, end) {
+  if (start >= buffer.duration || end <= start) {
+    const label = cue?.title || cue?.id || cue?.clip || 'audio cue';
+    throw new Error(`Audio cue "${label}" has no playable clip range`);
+  }
+}
+
+async function startSource(inst, offset = inst.position || 0) {
   const audioCtx = getCtx();
+  await ensureRunning(audioCtx);
   const source = audioCtx.createBufferSource();
   source.buffer = inst.buffer;
   source.loop = inst.loop;
@@ -184,6 +197,7 @@ export async function playCue(cue) {
   const buffer = await loadBuffer(cue.clip);
   const start = Math.max(0, Number(cue.clipStart || 0));
   const end = Number.isFinite(Number(cue.clipEnd)) ? Math.min(buffer.duration, Number(cue.clipEnd)) : buffer.duration;
+  assertPlayableRange(cue, buffer, start, end);
   const instanceId = `aud_${Date.now()}_${nextId++}`;
   const loop = cue.soundSubtype === 'vamp';
   const inst = {
@@ -211,8 +225,13 @@ export async function playCue(cue) {
     timers: new Set(),
     firedTriggers: firedTriggerSet(cue.oscTriggers, start),
   };
-  active.set(instanceId, inst);
-  startSource(inst, start);
+  try {
+    await startSource(inst, start);
+    active.set(instanceId, inst);
+  } catch (err) {
+    stopInstanceNodes(inst);
+    throw err;
+  }
   if (cue.oscStartTrigger && triggerCallback) triggerCallback(cue.oscStartTrigger, cue);
   return instanceId;
 }
@@ -254,8 +273,14 @@ export async function refreshAudioOutput() {
     masterGain = null;
     for (const { inst, paused } of snapshots) {
       if (!active.has(inst.instanceId)) continue;
-      inst.buffer = await loadBuffer(inst.clip);
-      if (!paused) startSource(inst, inst.position);
+      try {
+        inst.buffer = await loadBuffer(inst.clip);
+        if (!paused) await startSource(inst, inst.position);
+      } catch (err) {
+        active.delete(inst.instanceId);
+        stopInstanceNodes(inst);
+        throw err;
+      }
     }
     return true;
   } finally {
@@ -310,7 +335,13 @@ export async function resume(instanceId) {
   const inst = active.get(instanceId);
   if (!inst || !inst.paused) return;
   inst.paused = false;
-  startSource(inst, inst.position);
+  try {
+    await startSource(inst, inst.position);
+  } catch (err) {
+    inst.paused = true;
+    stopInstanceNodes(inst);
+    throw err;
+  }
 }
 
 export async function seek(instanceId, position) {
@@ -318,8 +349,14 @@ export async function seek(instanceId, position) {
   if (!inst) return;
   const next = Math.max(inst.clipStart, Math.min(inst.endAt, Number(position) || inst.clipStart));
   clearInstance(instanceId);
-  active.set(instanceId, { ...inst, position: next, paused: false, timers: new Set(), firedTriggers: firedTriggerSet(inst.cue?.oscTriggers, next) });
-  startSource(active.get(instanceId), next);
+  const nextInst = { ...inst, position: next, paused: false, timers: new Set(), firedTriggers: firedTriggerSet(inst.cue?.oscTriggers, next) };
+  try {
+    await startSource(nextInst, next);
+    active.set(instanceId, nextInst);
+  } catch (err) {
+    stopInstanceNodes(nextInst);
+    throw err;
+  }
 }
 
 export function listActive() {
@@ -335,8 +372,11 @@ export function listActive() {
       duration: inst.duration,
       clipStart: inst.clipStart,
       clipEnd: inst.clipEnd,
+      fadeIn: Number(inst.cue?.fadeIn || 0),
+      fadeOut: Number(inst.cue?.fadeOut || 0),
       loopStart: inst.loopStart,
       loopEnd: inst.loopEnd,
+      oscTriggers: Array.isArray(inst.cue?.oscTriggers) ? inst.cue.oscTriggers : [],
       isVamp: inst.loop,
       paused: inst.paused,
       muted: inst.muted,
