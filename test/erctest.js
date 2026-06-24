@@ -1,7 +1,7 @@
 import { createSocket } from 'dgram';
 
 // Configuration
-const QUICKQ_IP = '192.168.200.1';
+const QUICKQ_IP = '10.99.231.233';
 const REMOTE_PORT = 6553;
 
 // Create UDP client
@@ -9,7 +9,7 @@ const client = createSocket('udp4');
 
 // Command Syntax: [Playback Number],[Cue Number]J
 const playback = 1; // Target Playback
-const cue = 1.5;       // Target Cue ID
+const cue = 1;       // Target Cue ID
 const command = `${playback},${cue}J`;
 
 console.log(`Sending Jump Command: "${command}" to ${QUICKQ_IP}:${REMOTE_PORT}...`);

@@ -192,32 +192,7 @@
     ]
   },
   "manual_6ffc229b-b8ee-4be1-ab9a-e59e0aed054c": {
-    "lighting": [
-      {
-        "actionType": "lighting",
-        "cueType": "lighting",
-        "oscAction": "goto",
-        "oscPlayback": 1,
-        "oscCueNumber": "{cueNumber}",
-        "oscLevel": 100,
-        "oscTransport": "auto",
-        "id": "ec4370b2-b13f-49d1-beef-192f12ed6f61",
-        "title": "RED <- 1 dancer USC facing back",
-        "description": "",
-        "number": "1.1",
-        "actions": [
-          {
-            "actionType": "lighting",
-            "cueType": "lighting",
-            "oscAction": "goto",
-            "oscPlayback": 1,
-            "oscCueNumber": "{cueNumber}",
-            "oscLevel": 100,
-            "oscTransport": "auto"
-          }
-        ]
-      }
-    ]
+    "lighting": []
   },
   "manual_83d8822d-873e-4ebb-9018-f4c07cca9a7e": {
     "lighting": [
@@ -232,7 +207,7 @@
         "id": "1c8d3116-17b4-40fa-b68d-35a916c3df1b",
         "title": "BLACKOUT <- Nadia flips coin DSC",
         "description": "",
-        "number": "1.2",
+        "number": "1.1",
         "actions": [
           {
             "actionType": "lighting",
@@ -249,7 +224,7 @@
             "cueType": "modifier",
             "targetCueId": "ac2f7252-fad9-481b-8aa9-a7a963f1a6d7",
             "targetActionIndex": 1,
-            "modifierDuration": 2
+            "modifierDuration": 0.5
           }
         ]
       }
@@ -292,7 +267,7 @@
         "clipEnd": 172.918,
         "fadeIn": 0.04,
         "fadeOut": 0,
-        "volume": 0,
+        "volume": 2.5,
         "loopStart": 0,
         "loopEnd": 172.918,
         "oscStartTrigger": {
@@ -318,7 +293,7 @@
             "clipEnd": 172.918,
             "fadeIn": 0.04,
             "fadeOut": 0,
-            "volume": 0,
+            "volume": 2.5,
             "loopStart": 0,
             "loopEnd": 172.918,
             "oscStartTrigger": {
@@ -347,32 +322,7 @@
     ]
   },
   "manual_2a1108ff-ba4b-4b08-8734-6500835384fa": {
-    "lighting": [
-      {
-        "actionType": "lighting",
-        "cueType": "lighting",
-        "oscAction": "goto",
-        "oscPlayback": 1,
-        "oscCueNumber": "{cueNumber}",
-        "oscLevel": 100,
-        "oscTransport": "auto",
-        "id": "336a6b98-f418-4c1d-b8ba-63b6ca81ae34",
-        "title": "PINK <- 1 dancer CS",
-        "description": "",
-        "number": "3.1",
-        "actions": [
-          {
-            "actionType": "lighting",
-            "cueType": "lighting",
-            "oscAction": "goto",
-            "oscPlayback": 1,
-            "oscCueNumber": "{cueNumber}",
-            "oscLevel": 100,
-            "oscTransport": "auto"
-          }
-        ]
-      }
-    ]
+    "lighting": []
   },
   "manual_09de187e-eca5-4051-96d4-936c4315b844": {
     "lighting": [
@@ -385,9 +335,9 @@
         "oscLevel": 100,
         "oscTransport": "auto",
         "id": "dbf59dba-f754-4e92-b26d-5fcf33b8834a",
-        "title": "3 SPOTS <- ??? 1:28-1:57",
+        "title": "3 SPOTS <- 1:28-1:57 16 THEN 15 THEN 14",
         "description": "",
-        "number": "3.2",
+        "number": "3.1",
         "actions": [
           {
             "actionType": "lighting",
@@ -486,7 +436,7 @@
         "clipEnd": 256.929,
         "fadeIn": 0,
         "fadeOut": 0,
-        "volume": 0,
+        "volume": 14,
         "loopStart": 0,
         "loopEnd": 256.929,
         "oscStartTrigger": {
@@ -511,7 +461,7 @@
             "clipEnd": 256.929,
             "fadeIn": 0,
             "fadeOut": 0,
-            "volume": 0,
+            "volume": 14,
             "loopStart": 0,
             "loopEnd": 256.929,
             "oscStartTrigger": {
@@ -561,9 +511,9 @@
         "oscLevel": 100,
         "oscTransport": "auto",
         "id": "edd710a4-92bc-49c5-ace3-a53324309e75",
-        "title": "BLACKOUT <- ???",
+        "title": "BLACKOUT <- END",
         "description": "",
-        "number": "5.9",
+        "number": "5.1",
         "actions": [
           {
             "actionType": "lighting",
@@ -658,32 +608,7 @@
     ]
   },
   "manual_8c01ecd8-1f58-4e87-afa3-642efd906b5b": {
-    "lighting": [
-      {
-        "actionType": "lighting",
-        "cueType": "lighting",
-        "oscAction": "goto",
-        "oscPlayback": 1,
-        "oscCueNumber": "{cueNumber}",
-        "oscLevel": 100,
-        "oscTransport": "auto",
-        "id": "957e7598-8254-4312-99a8-cf443adbf3ba",
-        "title": "DARK BLUE <- Nadia in front of drama blocks",
-        "description": "",
-        "number": "6.1",
-        "actions": [
-          {
-            "actionType": "lighting",
-            "cueType": "lighting",
-            "oscAction": "goto",
-            "oscPlayback": 1,
-            "oscCueNumber": "{cueNumber}",
-            "oscLevel": 100,
-            "oscTransport": "auto"
-          }
-        ]
-      }
-    ]
+    "lighting": []
   },
   "manual_865b907a-23cd-48e9-b22c-9191845484e5": {
     "lighting": [
@@ -696,9 +621,9 @@
         "oscLevel": 100,
         "oscTransport": "auto",
         "id": "8e9ba120-7624-4185-8f92-061870daa247",
-        "title": "WHITE <- Tyler enters",
+        "title": "WHITE <- Tyler enters ~3m",
         "description": "",
-        "number": "6.2",
+        "number": "6.1",
         "actions": [
           {
             "actionType": "lighting",
@@ -726,7 +651,7 @@
         "id": "2ef447b3-11f2-42a4-93b9-17f3a4edab92",
         "title": "BLACKOUT <- Dancers holding hands DSC",
         "description": "",
-        "number": "6.3",
+        "number": "6.2",
         "actions": [
           {
             "actionType": "lighting",
@@ -871,7 +796,7 @@
         "actionType": "sound",
         "cueType": "sound",
         "id": "901cc684-c233-4854-8bb9-51fbaa3a8cdb",
-        "title": "7. Wave – Dance Company",
+        "title": "7. Wave – Dance Company THEY START OFF STAGE",
         "description": "",
         "number": "8",
         "actions": [
@@ -1048,32 +973,7 @@
     ]
   },
   "manual_f93f856f-1cb4-4066-89c1-9562c792fa69": {
-    "lighting": [
-      {
-        "actionType": "lighting",
-        "cueType": "lighting",
-        "oscAction": "goto",
-        "oscPlayback": 1,
-        "oscCueNumber": "{cueNumber}",
-        "oscLevel": 100,
-        "oscTransport": "auto",
-        "id": "587870c0-255c-4c1b-8c64-298c8d8a2dfe",
-        "title": "WHITE <- Dancer CS",
-        "description": "",
-        "number": "10.1",
-        "actions": [
-          {
-            "actionType": "lighting",
-            "cueType": "lighting",
-            "oscAction": "goto",
-            "oscPlayback": 1,
-            "oscCueNumber": "{cueNumber}",
-            "oscLevel": 100,
-            "oscTransport": "auto"
-          }
-        ]
-      }
-    ]
+    "lighting": []
   },
   "manual_273376a9-445d-4d3e-87b5-654b07ab0c6a": {
     "lighting": [
@@ -1088,7 +988,7 @@
         "id": "9e68aaf4-482e-4aaa-beeb-b9cf98c42d5e",
         "title": "BLUE <- 1:25?",
         "description": "",
-        "number": "10.2",
+        "number": "10.1",
         "actions": [
           {
             "actionType": "lighting",
@@ -1116,7 +1016,7 @@
         "id": "1c748e3f-b41a-4f44-8abc-6bd7f219f1cc",
         "title": "BLACKOUT <- Dancer exits SL",
         "description": "",
-        "number": "10.3",
+        "number": "10.2",
         "actions": [
           {
             "actionType": "lighting",
@@ -1170,7 +1070,7 @@
             "clipEnd": 100.521,
             "fadeIn": 0,
             "fadeOut": 0,
-            "volume": 0,
+            "volume": 4.5,
             "loopStart": 0,
             "loopEnd": 100.521,
             "oscStartTrigger": {
@@ -1190,32 +1090,7 @@
     ]
   },
   "manual_d06571a3-dc2d-4299-b5f9-cee0533adce1": {
-    "lighting": [
-      {
-        "actionType": "lighting",
-        "cueType": "lighting",
-        "oscAction": "goto",
-        "oscPlayback": 1,
-        "oscCueNumber": "{cueNumber}",
-        "oscLevel": 100,
-        "oscTransport": "auto",
-        "id": "e7e5ca87-ddb8-46b6-8db8-a819ad0dc5ac",
-        "title": "WARM YELLOW <- Dancers crouching",
-        "description": "",
-        "number": "11.1",
-        "actions": [
-          {
-            "actionType": "lighting",
-            "cueType": "lighting",
-            "oscAction": "goto",
-            "oscPlayback": 1,
-            "oscCueNumber": "{cueNumber}",
-            "oscLevel": 100,
-            "oscTransport": "auto"
-          }
-        ]
-      }
-    ]
+    "lighting": []
   },
   "manual_a4f5a2e9-53ca-46be-933e-a167a12147ec": {
     "lighting": [
@@ -1230,7 +1105,7 @@
         "id": "ee22cb5e-ef17-4877-93f0-bee9f5137b0b",
         "title": "BLACKOUT <- Frozen pose",
         "description": "",
-        "number": "11.2",
+        "number": "11.1",
         "actions": [
           {
             "actionType": "lighting",
@@ -1305,32 +1180,7 @@
     ]
   },
   "manual_4ab68097-df87-4270-83d9-ef246423669d": {
-    "lighting": [
-      {
-        "actionType": "lighting",
-        "cueType": "lighting",
-        "oscAction": "goto",
-        "oscPlayback": 1,
-        "oscCueNumber": "{cueNumber}",
-        "oscLevel": 100,
-        "oscTransport": "auto",
-        "id": "9c4c7f1a-cbe8-46f5-8928-32ce31ba71b4",
-        "title": "DARK BLUE CYC NO FACE <- 2 Dancers CS",
-        "description": "",
-        "number": "12.1",
-        "actions": [
-          {
-            "actionType": "lighting",
-            "cueType": "lighting",
-            "oscAction": "goto",
-            "oscPlayback": 1,
-            "oscCueNumber": "{cueNumber}",
-            "oscLevel": 100,
-            "oscTransport": "auto"
-          }
-        ]
-      }
-    ]
+    "lighting": []
   },
   "manual_808dab21-15de-4379-80b6-512a67c0ce8b": {
     "lighting": [
@@ -1343,9 +1193,9 @@
         "oscLevel": 100,
         "oscTransport": "auto",
         "id": "1c4e4cab-2549-4c0f-8daa-6db47ab417f1",
-        "title": "BLACKOUT <- ???",
+        "title": "BLACKOUT <- RUNNING OFF",
         "description": "",
-        "number": "12.9",
+        "number": "12.1",
         "actions": [
           {
             "actionType": "lighting",
@@ -1429,9 +1279,9 @@
         "oscLevel": 100,
         "oscTransport": "auto",
         "id": "9d650974-f8d1-44ac-96ca-0506f3fee18e",
-        "title": "BLACKOUT <- ???",
+        "title": "BLACKOUT <- LEAVING STAGE",
         "description": "",
-        "number": "13.9",
+        "number": "13.1",
         "actions": [
           {
             "actionType": "lighting",
@@ -1543,7 +1393,7 @@
         "oscLevel": 100,
         "oscTransport": "auto",
         "id": "e3e08a94-3735-4b62-9a99-12aea4275872",
-        "title": "BLACKOUT <- Exit stage right",
+        "title": "BLACKOUT <- Exit stage right AFTER DROP - HOLD",
         "description": "",
         "number": "14.2",
         "actions": [
@@ -1629,9 +1479,9 @@
         "oscLevel": 100,
         "oscTransport": "auto",
         "id": "c3490325-4b50-44d2-a3d1-8190b81b8527",
-        "title": "BLACKOUT <- ???",
+        "title": "Soft Pink <- Caitlin exit",
         "description": "",
-        "number": "15.9",
+        "number": "15.1",
         "actions": [
           {
             "actionType": "lighting",
@@ -1641,14 +1491,6 @@
             "oscCueNumber": "{cueNumber}",
             "oscLevel": 100,
             "oscTransport": "auto"
-          },
-          {
-            "modifierAction": "fade",
-            "actionType": "modifier",
-            "cueType": "modifier",
-            "targetCueId": "5fbe0f29-935d-41cd-aa8b-998390a4acdd",
-            "targetActionIndex": 2,
-            "modifierDuration": 2
           }
         ]
       }
@@ -1715,32 +1557,7 @@
     ]
   },
   "manual_38007abb-d508-4f46-a89c-7c8841ac0489": {
-    "lighting": [
-      {
-        "actionType": "lighting",
-        "cueType": "lighting",
-        "oscAction": "goto",
-        "oscPlayback": 1,
-        "oscCueNumber": "{cueNumber}",
-        "oscLevel": 100,
-        "oscTransport": "auto",
-        "id": "1a7c45c4-8313-4336-b818-d569c813a06c",
-        "title": "RED WASH <- Dancer in position",
-        "description": "",
-        "number": "16.1",
-        "actions": [
-          {
-            "actionType": "lighting",
-            "cueType": "lighting",
-            "oscAction": "goto",
-            "oscPlayback": 1,
-            "oscCueNumber": "{cueNumber}",
-            "oscLevel": 100,
-            "oscTransport": "auto"
-          }
-        ]
-      }
-    ]
+    "lighting": []
   },
   "manual_fb8e1c59-312d-4ab4-8666-6359e33e2410": {
     "lighting": [
@@ -1755,7 +1572,7 @@
         "id": "05bf4155-ed54-4991-b2b5-bb289f8c2fe6",
         "title": "Gradually make wash darker red <- 2:20 to 3:00",
         "description": "",
-        "number": "16.2",
+        "number": "16.1",
         "actions": [
           {
             "actionType": "lighting",
@@ -1783,7 +1600,7 @@
         "id": "8e732637-d16a-406c-a968-99944daefa05",
         "title": "Spotlight on dancers USR <- 3:10",
         "description": "",
-        "number": "16.3",
+        "number": "16.2",
         "actions": [
           {
             "actionType": "lighting",
@@ -1809,7 +1626,7 @@
         "oscLevel": 100,
         "oscTransport": "auto",
         "id": "c559c78f-cc1d-41b2-9641-855e73514d37",
-        "title": "Fade out Spot <- 3:40",
+        "title": "Blackout",
         "description": "",
         "number": "16.4",
         "actions": [
@@ -2123,6 +1940,154 @@
             "actionType": "sound",
             "cueType": "sound",
             "clip": "/audio/3_-_Desperado_1782173581039.wav"
+          }
+        ]
+      }
+    ]
+  },
+  "manual_b3fe4025-14d8-4188-8304-ddee4c727b8d": {
+    "lighting": [
+      {
+        "actionType": "lighting",
+        "cueType": "lighting",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto",
+        "id": "f9125a54-2b64-4a32-a7bc-a1be12d2e96a",
+        "title": "blsckout",
+        "description": "",
+        "number": "2.1",
+        "actions": [
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ]
+      }
+    ]
+  },
+  "manual_0e5b6b99-29a5-4eb8-b2e7-a18e80fba3c8": {
+    "lighting": [
+      {
+        "actionType": "lighting",
+        "cueType": "lighting",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto",
+        "id": "cc67208e-ac1c-4572-92ef-4f3b7cd52afd",
+        "title": "spots off 1:57",
+        "description": "",
+        "number": "3.2",
+        "actions": [
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ]
+      }
+    ]
+  },
+  "manual_1dc3580f-a14b-45b0-86bb-809a98cfb6bc": {
+    "lighting": [
+      {
+        "actionType": "lighting",
+        "cueType": "lighting",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto",
+        "id": "be565946-3104-4cc0-b55d-fca747a8704f",
+        "title": "Blackotu <- both exit",
+        "description": "",
+        "number": "15.3",
+        "actions": [
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "modifierAction": "fade",
+            "actionType": "modifier",
+            "cueType": "modifier",
+            "targetCueId": "5fbe0f29-935d-41cd-aa8b-998390a4acdd",
+            "targetActionIndex": 2,
+            "modifierDuration": 2
+          }
+        ]
+      }
+    ]
+  },
+  "manual_c86d54b6-701c-442f-a1ae-040b2081cc09": {
+    "lighting": [
+      {
+        "actionType": "lighting",
+        "cueType": "lighting",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto",
+        "id": "643def98-bc94-45ad-b626-ec272499e34e",
+        "title": "Hit pink <- both on stage",
+        "description": "",
+        "number": "15.2",
+        "actions": [
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ]
+      }
+    ]
+  },
+  "manual_a559882c-94c5-4574-adb3-12ac31222dcc": {
+    "lighting": [
+      {
+        "actionType": "lighting",
+        "cueType": "lighting",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto",
+        "id": "81eebb2b-fee1-4938-bc2c-be446a9153d2",
+        "title": "3:40 Spot off NO EFFECT",
+        "description": "",
+        "number": "16.3",
+        "actions": [
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
           }
         ]
       }

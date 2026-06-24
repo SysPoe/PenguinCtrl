@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'fs';
 import { basename, extname, join } from 'path';
 
 const EXTENSIONS = {
@@ -56,17 +56,6 @@ export function writeMediaUpload(dir, filename, body, kind) {
   const outputName = `${sourceName.replace(/\.[^.]+$/, '')}_${nowMs()}${ext}`;
   writeFileSync(join(dir, outputName), body);
   return { path: `/${kind}/${outputName}`, filename: outputName };
-}
-
-export function packageMedia(paths, publicPrefix) {
-  return [...paths]
-    .filter(path => !/^https?:\/\//i.test(path))
-    .map(path => ({
-      filename: basename(path),
-      path: `${publicPrefix}/${basename(path)}`,
-      encoding: 'base64',
-      data: readFileSync(path).toString('base64'),
-    }));
 }
 
 export function importMediaFiles(files, dir) {

@@ -2,10 +2,9 @@ import express from 'express';
 import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import { existsSync, readFileSync, unlinkSync, writeFileSync } from 'fs';
-import { basename, dirname, extname, join } from 'path';
+import { dirname, join } from 'path';
 import { execFile } from 'child_process';
 import { fileURLToPath } from 'url';
-import { gzipSync, gunzipSync } from 'zlib';
 import ffmpegStatic from 'ffmpeg-static';
 import {
   initAudioConfig, playCue, fadeOut as audioFadeOut, stop as audioStop, stopAll as audioStopAll,
@@ -23,8 +22,9 @@ import { createCueExecutionEngine } from './server-cue-handlers.js';
 import { createOscDispatcher, resolveTemplate } from './server-osc.js';
 import { createVideoRuntime } from './server-video.js';
 import { mediaForCueWindow } from './server-preload.js';
+import { createShowPackageService } from './server-show-package.js';
 import {
-  collectMedia, ensureMediaDir, importMediaFiles, listMedia, packageMedia,
+  collectMedia, ensureMediaDir, listMedia,
   publicMediaPath, safeMediaName, writeMediaUpload,
 } from './server-media.js';
 
@@ -106,7 +106,15 @@ function saveCues(nextCues) {
 }
 function publicAudioPath(clip) { return publicMediaPath(__dirname, clip, 'audio'); }
 function collectAudio(value) { return collectMedia(value, { kind: 'audio', key: 'clip', workspaceRoot: __dirname }); }
-function collectVideo(value) { return collectMedia(value, { kind: 'video', key: 'videoClip', workspaceRoot: __dirname }); }
+const showPackageService = createShowPackageService({
+  workspaceRoot: __dirname,
+  loadCues,
+  saveCues,
+  configService,
+  showState,
+  audioDir: AUDIO_DIR,
+  videoDir: VIDEO_DIR,
+});
 function cueListForType(value) { return Array.isArray(value) ? value.filter(isObject) : (isObject(value) ? [value] : []); }
 function cueSort(number) {
   const match = String(number ?? '').trim().match(/^(\d+)(?:\.(\d+))?$/);
@@ -220,23 +228,6 @@ async function preloadCueAudio() {
   refreshAudioCacheHints();
   for (const path of collectAudio(cues)) await audioPreloadBuffer(path);
 }
-function showPackage() {
-  const cues = loadCues();
-  const audioFiles = packageMedia(collectAudio(cues), '/audio');
-  const videoFiles = packageMedia(collectVideo(cues), '/video');
-  return { format: 'cusus-show', version: 1, exportedAt: new Date().toISOString(), show: { ...showState, mode: 'edit' }, cues, config: configService.getBundle().values, audioFiles, videoFiles };
-}
-function importPackage(buffer, filename) {
-  const pkg = JSON.parse(gunzipSync(buffer).toString('utf-8'));
-  if (pkg.format !== 'cusus-show' || pkg.version !== 1) throw new Error('Unsupported .cusus show package');
-  importMediaFiles(pkg.audioFiles, AUDIO_DIR);
-  importMediaFiles(pkg.videoFiles, VIDEO_DIR);
-  if (isObject(pkg.config)) configService.saveValues(pkg.config);
-  saveCues(pkg.cues || {});
-  Object.assign(showState, { mode: 'edit', name: String(pkg.show?.name || basename(filename, extname(filename)) || 'Imported Show'), file: basename(filename), loadedAt: new Date().toISOString() });
-  return { cues: cuesCache, show: { ...showState, locked: false } };
-}
-
 cueExecutionEngine.registerHandler('oscDispatch', async cue => {
   const action = String(cue?.oscAction || 'go').trim().toLowerCase();
   if (action === 'volume_up' || action === 'volume_down') {
@@ -395,14 +386,15 @@ app.post('/api/show/mode', (req, res) => {
   broadcast({ type: 'show', show: { ...showState, locked: locked() } });
   res.json({ success: true, show: { ...showState, locked: locked() } });
 });
-app.get('/api/show/export', (_req, res) => {
+app.get('/api/show/export', async (_req, res) => {
   const name = String(showState.name || 'show').replace(/[^a-zA-Z0-9._\-]+/g, '-') || 'show';
   res.setHeader('Content-Type', 'application/vnd.cusus.show');
   res.setHeader('Content-Disposition', `attachment; filename="${name}.cusus"`);
-  res.send(gzipSync(Buffer.from(JSON.stringify(showPackage()), 'utf-8')));
+  try { await showPackageService.sendPackage(res); }
+  catch (err) { if (!res.headersSent) fail(res, err); else console.error('Show export failed:', err); }
 });
 app.post('/api/show/import', express.raw({ type: () => true, limit: '2048mb' }), (req, res) => {
-  try { assertEditable(); const result = importPackage(req.body, normalizeHeader(req.headers['x-filename'], 'Imported Show.cusus')); broadcast({ type: 'meta', ...runtimeMeta() }); broadcast({ type: 'cuesChanged' }); res.json({ success: true, ...result }); }
+  try { assertEditable(); const result = showPackageService.importPackage(req.body, normalizeHeader(req.headers['x-filename'], 'Imported Show.cusus')); broadcast({ type: 'meta', ...runtimeMeta() }); broadcast({ type: 'cuesChanged' }); res.json({ success: true, ...result }); }
   catch (err) { fail(res, err); }
 });
 
