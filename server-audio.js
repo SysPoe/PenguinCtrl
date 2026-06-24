@@ -22,6 +22,10 @@ let currentOrder = 0;
 const playedCueIds = new Set();
 let refreshingOutput = false;
 
+function nowMs() {
+  return Math.round(performance.timeOrigin + performance.now());
+}
+
 function dbToGain(db) {
   return Math.pow(10, Number(db || 0) / 20);
 }
@@ -90,7 +94,7 @@ async function ensureRunning(audioCtx) {
 }
 
 function decodeViaFfmpeg(filePath) {
-  const out = join(tmpdir(), `cusus-${Date.now()}-${Math.random().toString(36).slice(2)}.wav`);
+  const out = join(tmpdir(), `cusus-${nowMs()}-${Math.random().toString(36).slice(2)}.wav`);
   const sampleRate = Number(configValue('audio.buffer.sampleRate', 48000)) || 48000;
   const channels = Number(configValue('audio.buffer.channels', 2)) || 2;
   return new Promise((resolve, reject) => {
@@ -174,7 +178,7 @@ async function startSource(inst, offset = inst.position || 0) {
   try {
     const audioCtx = getCtx();
     await ensureRunning(audioCtx);
-    const delay = Math.max(0, Number(inst.startAtMs || 0) - Date.now()) / 1000;
+    const delay = Math.max(0, Number(inst.startAtMs || 0) - nowMs()) / 1000;
     const t0 = audioCtx.currentTime + delay;
     const source = audioCtx.createBufferSource();
     source.buffer = inst.buffer;
@@ -228,9 +232,9 @@ export async function playCue(cue) {
   const end = Number.isFinite(Number(cue.clipEnd)) ? Math.min(buffer.duration, Number(cue.clipEnd)) : buffer.duration;
   assertPlayableRange(cue, buffer, start, end);
   const startAtMs = Number(cue.syncAtMs || cue.startAtMs);
-  const lateBy = Number.isFinite(startAtMs) ? Math.max(0, (Date.now() - startAtMs) / 1000) : 0;
+  const lateBy = Number.isFinite(startAtMs) ? Math.max(0, (nowMs() - startAtMs) / 1000) : 0;
   const offset = Math.min(Math.max(start, start + lateBy), Math.max(start, end - 0.01));
-  const instanceId = `aud_${Date.now()}_${nextId++}`;
+  const instanceId = `aud_${nowMs()}_${nextId++}`;
   const loop = cue.soundSubtype === 'vamp';
   const inst = {
     instanceId,
@@ -277,7 +281,7 @@ export function fadeOut(instanceId, duration = 2) {
   if (now == null) return;
   const seconds = Math.max(0.05, Number(duration) || 2);
   inst.fadeMode = 'fadeOut';
-  inst.fadeStartedAt = Date.now();
+  inst.fadeStartedAt = nowMs();
   inst.fadeDuration = seconds;
   inst.gain.gain.cancelScheduledValues(now);
   inst.gain.gain.setValueAtTime(inst.gain.gain.value, now);

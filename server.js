@@ -72,6 +72,7 @@ function assertEditable() {
 function fail(res, err) { res.status(err?.statusCode || 500).json({ error: err?.message || 'Request failed' }); }
 function normalizeHeader(value, fallback = '') { return String((Array.isArray(value) ? value[0] : value) ?? fallback).trim() || fallback; }
 function ffmpegEnv() { const env = { ...process.env }; delete env.LD_LIBRARY_PATH; return env; }
+function nowMs() { return Math.round(performance.timeOrigin + performance.now()); }
 function getUploadLimit() { return `${Math.max(1, Number(configService.getValue('audio.upload.maxMb', 300)) || 300)}mb`; }
 function masterBounds() {
   const minDb = Number(configService.getValue('audio.masterVolume.minDb', -40));
@@ -131,7 +132,7 @@ function hasVideo(cue) {
 }
 function cueWithSync(cue) {
   if (!isObject(cue) || !hasVideo(cue)) return cue;
-  return { ...cue, syncAtMs: Date.now() + 180 };
+  return { ...cue, syncAtMs: nowMs() + 180 };
 }
 function collectVideoClips(value, clips = new Set()) {
   if (Array.isArray(value)) value.forEach(item => collectVideoClips(item, clips));
@@ -368,8 +369,8 @@ app.post('/api/audio/upload', uploadRaw, async (req, res) => {
   try {
     assertEditable();
     const safe = safeMediaName(normalizeHeader(req.headers['x-filename'], 'upload.bin'));
-    const input = join(AUDIO_DIR, `tmp_${Date.now()}${extname(safe) || '.bin'}`);
-    const outputName = `${safe.replace(/\.[^.]+$/, '')}_${Date.now()}.wav`;
+    const input = join(AUDIO_DIR, `tmp_${nowMs()}${extname(safe) || '.bin'}`);
+    const outputName = `${safe.replace(/\.[^.]+$/, '')}_${nowMs()}.wav`;
     const output = join(AUDIO_DIR, outputName);
     writeFileSync(input, req.body);
     await new Promise((resolve, reject) => execFile(ffmpegStatic, ['-y', '-i', input, '-vn', '-ar', String(configService.getValue('audio.buffer.sampleRate', 48000)), '-ac', String(configService.getValue('audio.buffer.channels', 2)), '-c:a', 'pcm_s16le', output], { env: ffmpegEnv() }, (err, _out, stderr) => err ? reject(new Error(stderr || err.message)) : resolve()));
@@ -419,7 +420,7 @@ function broadcast(data) {
   wss.clients.forEach(client => { if (client.readyState === 1) client.send(msg); });
 }
 function activeInstances() { return [...listActive(), ...videoRuntime.listActive().map(inst => ({ ...inst, mediaType: inst.mediaType || 'video', clipUrl: inst.clip, volume: 0, muted: true }))]; }
-function broadcastInstances() { broadcast({ type: 'instances', list: activeInstances(), waitingCount: pendingCueExecutions.size }); }
+function broadcastInstances() { broadcast({ type: 'instances', list: activeInstances(), waitingCount: pendingCueExecutions.size, sentAtMs: nowMs() }); }
 function broadcastPending() { broadcast({ type: 'pendingCues', list: pendingList() }); }
 function broadcastPlayed() { broadcast({ type: 'playedCues', ids: [...playedCueIds] }); }
 function broadcastMaster() { broadcast({ type: 'masterVolume', db: safeMasterVolume(), muted: audioIsMasterMuted(), ...masterBounds() }); }
@@ -427,12 +428,12 @@ function broadcastMaster() { broadcast({ type: 'masterVolume', db: safeMasterVol
 function wsHello(ws) {
   ws.send(JSON.stringify({ type: 'meta', ...runtimeMeta() }));
   ws.send(JSON.stringify({ type: 'show', show: { ...showState, locked: locked() } }));
-  ws.send(JSON.stringify({ type: 'instances', list: activeInstances(), waitingCount: pendingCueExecutions.size }));
+  ws.send(JSON.stringify({ type: 'instances', list: activeInstances(), waitingCount: pendingCueExecutions.size, sentAtMs: nowMs() }));
   ws.send(JSON.stringify({ type: 'pendingCues', list: pendingList() }));
   ws.send(JSON.stringify({ type: 'playedCues', ids: [...playedCueIds] }));
   ws.send(JSON.stringify({ type: 'masterVolume', db: safeMasterVolume(), muted: audioIsMasterMuted(), ...masterBounds() }));
   const videoClips = [...collectVideoClips(loadCues())];
-  if (videoClips.length) ws.send(JSON.stringify({ type: 'videoPreload', clips: videoClips, sentAtMs: Date.now() }));
+  if (videoClips.length) ws.send(JSON.stringify({ type: 'videoPreload', clips: videoClips, sentAtMs: nowMs() }));
 }
 async function runCue(ws, msg) {
   if (msg.cueId) {

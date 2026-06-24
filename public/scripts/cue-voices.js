@@ -4,6 +4,10 @@ export function createVoicePanel({ $, state, esc, fmtDb, send }) {
   const waveforms = createActiveVoiceWaveforms();
   let renderedIds = null;
 
+  function nowMs() {
+    return performance.timeOrigin + performance.now();
+  }
+
   function renderVoices() {
     if (state.draggingVoice && !state.active.some(inst => inst.instanceId === state.draggingVoice)) {
       state.draggingVoice = null;
@@ -97,7 +101,7 @@ export function createVoicePanel({ $, state, esc, fmtDb, send }) {
 
   function fadeProgress(inst) {
     if (inst.fadeMode !== 'fadeOut' || !inst.fadeStartedAt || !inst.fadeDuration) return 0;
-    const elapsed = (Date.now() - Number(inst.fadeStartedAt)) / 1000;
+    const elapsed = (nowMs() - Number(inst.fadeStartedAt)) / 1000;
     return Math.max(0, Math.min(100, (elapsed / Number(inst.fadeDuration)) * 100));
   }
 

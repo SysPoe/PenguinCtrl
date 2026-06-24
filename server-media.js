@@ -6,6 +6,10 @@ const EXTENSIONS = {
   video: /\.(mp4|m4v|mov|webm|mkv|avi|png|jpe?g|gif|webp|avif|bmp|svg)$/i,
 };
 
+function nowMs() {
+  return Math.round(performance.timeOrigin + performance.now());
+}
+
 function isObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
@@ -49,7 +53,7 @@ export function writeMediaUpload(dir, filename, body, kind) {
   const ext = extname(safe) || (kind === 'video' ? '.mp4' : '.bin');
   const sourceName = extname(safe) ? safe : `${safe}${ext}`;
   if (!EXTENSIONS[kind].test(sourceName)) throw new Error(`Unsupported ${kind} file type: ${safe}`);
-  const outputName = `${sourceName.replace(/\.[^.]+$/, '')}_${Date.now()}${ext}`;
+  const outputName = `${sourceName.replace(/\.[^.]+$/, '')}_${nowMs()}${ext}`;
   writeFileSync(join(dir, outputName), body);
   return { path: `/${kind}/${outputName}`, filename: outputName };
 }

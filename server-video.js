@@ -3,6 +3,10 @@ import { basename, join } from 'path';
 
 const VIDEO_LEAD_MS = 140;
 
+function nowMs() {
+  return Math.round(performance.timeOrigin + performance.now());
+}
+
 function videoClip(cue) {
   return String(cue?.videoClip || (cue?.cueType === 'video' ? cue?.clip : '') || '').trim();
 }
@@ -38,7 +42,7 @@ export function createVideoRuntime({ workspaceRoot, broadcast }) {
   let nextId = 1;
 
   function send(type, payload = {}) {
-    broadcast({ type, ...payload, sentAtMs: Date.now() });
+    broadcast({ type, ...payload, sentAtMs: nowMs() });
   }
 
   function normalize(cue) {
@@ -51,9 +55,10 @@ export function createVideoRuntime({ workspaceRoot, broadcast }) {
     const rawEnd = Number(cue.clipEnd);
     const clipEnd = Number.isFinite(rawEnd) && rawEnd > clipStart ? rawEnd : null;
     const playDuration = cueDuration({ ...cue, clipStart, clipEnd });
-    const startAtMs = Math.max(Date.now(), Number(cue.syncAtMs || cue.startAtMs || Date.now() + VIDEO_LEAD_MS));
+    const requestedStartAtMs = Number(cue.syncAtMs || cue.startAtMs);
+    const startAtMs = Number.isFinite(requestedStartAtMs) ? requestedStartAtMs : nowMs() + VIDEO_LEAD_MS;
     return {
-      instanceId: `vid_${Date.now()}_${nextId++}`,
+      instanceId: `vid_${nowMs()}_${nextId++}`,
       cueId: cue.id || null,
       actionIndex: cue.actionIndex || null,
       cueNumber: cue.number || cue.cueNumber || null,
@@ -73,13 +78,13 @@ export function createVideoRuntime({ workspaceRoot, broadcast }) {
   function scheduleCleanup(inst) {
     const playDuration = inst.clipEnd != null ? inst.clipEnd - inst.clipStart : inst.playDuration;
     if (!playDuration) return;
-    const delay = Math.max(0, inst.startAtMs - Date.now()) + playDuration * 1000 + 250;
+    const delay = Math.max(0, inst.startAtMs - nowMs()) + playDuration * 1000 + 250;
     inst.cleanupTimer = setTimeout(() => active.delete(inst.instanceId), delay);
   }
 
   function positionFor(inst) {
     if (!inst) return 0;
-    const elapsed = Math.max(0, (Date.now() - inst.startAtMs) / 1000);
+    const elapsed = Math.max(0, (nowMs() - inst.startAtMs) / 1000);
     return Math.min(inst.clipEnd ?? inst.duration ?? Number.MAX_SAFE_INTEGER, inst.clipStart + elapsed);
   }
 
@@ -114,7 +119,7 @@ export function createVideoRuntime({ workspaceRoot, broadcast }) {
     const seconds = Math.max(0.05, Number(duration) || 2);
     if (inst) {
       inst.fadeMode = 'fadeOut';
-      inst.fadeStartedAt = Date.now();
+      inst.fadeStartedAt = nowMs();
       inst.fadeDuration = seconds;
       setTimeout(() => active.delete(instanceId), seconds * 1000 + 100);
     }
@@ -131,7 +136,7 @@ export function createVideoRuntime({ workspaceRoot, broadcast }) {
     const start = inst.clipStart;
     const end = inst.clipEnd ?? inst.duration ?? Number.MAX_SAFE_INTEGER;
     inst.position = Math.max(start, Math.min(end, Number(position) || start));
-    inst.startAtMs = Date.now() - Math.max(0, inst.position - inst.clipStart) * 1000;
+    inst.startAtMs = nowMs() - Math.max(0, inst.position - inst.clipStart) * 1000;
     send('videoAction', { action: 'seek', instanceId, position: inst.position });
   }
 
@@ -147,7 +152,6 @@ export function createVideoRuntime({ workspaceRoot, broadcast }) {
     if (Number.isFinite(duration) && duration > 0) inst.duration = duration;
     if (Number.isFinite(position)) {
       inst.position = Math.max(inst.clipStart, Math.min(inst.clipEnd ?? inst.duration ?? Number.MAX_SAFE_INTEGER, position));
-      inst.startAtMs = Date.now() - Math.max(0, inst.position - inst.clipStart) * 1000;
     }
   }
 
@@ -180,6 +184,7 @@ export function createVideoRuntime({ workspaceRoot, broadcast }) {
       clip: inst.clip,
       clipUrl: inst.clip,
       mediaType: inst.mediaType,
+      startAtMs: inst.startAtMs,
       clipStart: inst.clipStart,
       clipEnd: inst.clipEnd,
       duration: inst.duration,
