@@ -11,7 +11,7 @@
     "masterVolume": {
       "defaultDb": 0,
       "minDb": -40,
-      "maxDb": 6
+      "maxDb": 15
     }
   },
   "realtime": {

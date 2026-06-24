@@ -42,7 +42,7 @@ import { cuePreloadWindow } from './cue-preload.js';
   function videoType(id) { return type(id).editor === 'video'; }
   function modifierType(id) { return type(id).editor === 'modifier'; }
   function targetableType(id) { return soundType(id) || videoType(id); }
-  function targetableRow(row) { return Boolean(row?.isAudio || row?.isVideo || targetableType(row?.cueType)); }
+  function targetableRow(row) { return Boolean(row?.isAudio || row?.isVideo || row?.isImage || targetableType(row?.cueType)); }
   function lightingType(id) { return !soundType(id) && !videoType(id) && !modifierType(id); }
   function actionKind(action) {
     if (action?.actionType === 'image' || action?.cueType === 'image') return 'image';
@@ -130,7 +130,7 @@ import { cuePreloadWindow } from './cue-preload.js';
   function applyMeta() {
     const m = state.meta.masterVolume || {};
     $('master').min = m.minDb ?? -40;
-    $('master').max = m.maxDb ?? 6;
+    $('master').max = m.maxDb ?? 15;
     $('master').value = m.db ?? 0;
     $('master-label').textContent = fmtDb($('master').value);
     $('master-mute').textContent = m.muted ? 'Unmute' : 'Mute';

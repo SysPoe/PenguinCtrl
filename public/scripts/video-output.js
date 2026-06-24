@@ -159,7 +159,7 @@
 
   function syncInstances(list) {
     (Array.isArray(list) ? list : [])
-      .filter(inst => inst.mediaType === 'video')
+      .filter(inst => inst.mediaType === 'video' || inst.mediaType === 'image')
       .filter(inst => inst.fadeMode !== 'fadeOut' && !isSuppressed(inst.instanceId))
       .forEach(inst => play({ ...inst, clip: inst.clip || inst.clipUrl, fadeIn: 0, positionAtMs: Date.now() }));
   }

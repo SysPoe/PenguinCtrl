@@ -7,6 +7,11 @@ function videoClip(cue) {
   return String(cue?.videoClip || (cue?.cueType === 'video' ? cue?.clip : '') || '').trim();
 }
 
+function mediaType(cue, clip) {
+  if (cue?.cueType === 'image') return 'image';
+  return /\.(png|jpe?g|gif|webp|avif|bmp|svg)(?:[?#].*)?$/i.test(String(clip || '')) ? 'image' : 'video';
+}
+
 function asPublicClip(clip) {
   return clip.startsWith('/video/') ? clip : `/video/${basename(clip)}`;
 }
@@ -54,6 +59,7 @@ export function createVideoRuntime({ workspaceRoot, broadcast }) {
       cueNumber: cue.number || cue.cueNumber || null,
       title: cue.title || '',
       clip: /^https?:\/\//i.test(clip) ? clip : asPublicClip(clip),
+      mediaType: mediaType(cue, clip),
       clipStart,
       clipEnd,
       fadeIn: Math.max(0, seconds(cue.fadeIn, 0)),
@@ -173,6 +179,7 @@ export function createVideoRuntime({ workspaceRoot, broadcast }) {
       title: inst.title,
       clip: inst.clip,
       clipUrl: inst.clip,
+      mediaType: inst.mediaType,
       clipStart: inst.clipStart,
       clipEnd: inst.clipEnd,
       duration: inst.duration,

@@ -248,6 +248,7 @@
             "actionType": "modifier",
             "cueType": "modifier",
             "targetCueId": "ac2f7252-fad9-481b-8aa9-a7a963f1a6d7",
+            "targetActionIndex": 1,
             "modifierDuration": 2
           }
         ]
@@ -420,6 +421,7 @@
             "actionType": "modifier",
             "cueType": "modifier",
             "targetCueId": "42e296be-8ade-4f57-bfe1-55b870bbe2da",
+            "targetActionIndex": 1,
             "modifierDuration": 2
           },
           {
@@ -431,7 +433,8 @@
             "oscLevel": 100,
             "oscTransport": "auto"
           }
-        ]
+        ],
+        "targetActionIndex": 1
       }
     ]
   },
@@ -517,6 +520,7 @@
             "actionType": "modifier",
             "cueType": "modifier",
             "targetCueId": "345828c5-f678-4ead-bf1b-ebd9f1d2631e",
+            "targetActionIndex": 1,
             "modifierDuration": 2
           },
           {
@@ -528,7 +532,8 @@
             "oscLevel": 100,
             "oscTransport": "auto"
           }
-        ]
+        ],
+        "targetActionIndex": 1
       }
     ]
   },
@@ -622,6 +627,7 @@
             "actionType": "modifier",
             "cueType": "modifier",
             "targetCueId": "5ed884f3-237d-42fb-8a41-b71096bb4f50",
+            "targetActionIndex": 1,
             "modifierDuration": 2
           }
         ]
@@ -776,6 +782,7 @@
             "actionType": "modifier",
             "cueType": "modifier",
             "targetCueId": "059dd5d9-eda6-48c5-b486-4169cf7203ba",
+            "targetActionIndex": 1,
             "modifierDuration": 2
           }
         ]
@@ -874,6 +881,7 @@
             "actionType": "modifier",
             "cueType": "modifier",
             "targetCueId": "c6da37fb-e010-42dd-9183-95aa35bed2ad",
+            "targetActionIndex": 1,
             "modifierDuration": 2
           }
         ]
@@ -970,6 +978,7 @@
             "actionType": "modifier",
             "cueType": "modifier",
             "targetCueId": "901cc684-c233-4854-8bb9-51fbaa3a8cdb",
+            "targetActionIndex": 1,
             "modifierDuration": 2
           }
         ]
@@ -1143,6 +1152,7 @@
             "actionType": "modifier",
             "cueType": "modifier",
             "targetCueId": "39779e26-e2cf-4f0a-bd64-352567dc5761",
+            "targetActionIndex": 2,
             "modifierDuration": 2
           }
         ]
@@ -1193,7 +1203,7 @@
             "oscTriggers": [],
             "actionType": "sound",
             "cueType": "sound",
-            "clip": "/audio/9_-_Global_Dance_1782260854929.wav"
+            "clip": "/audio/9_-_Global_Dance_FIXED_1782262096815.wav"
           }
         ]
       }
@@ -1256,6 +1266,7 @@
             "actionType": "modifier",
             "cueType": "modifier",
             "targetCueId": "e2e85128-8e51-49a6-ab3f-5f75fa97ad9a",
+            "targetActionIndex": 2,
             "modifierDuration": 2
           }
         ]
@@ -1370,6 +1381,7 @@
             "actionType": "modifier",
             "cueType": "modifier",
             "targetCueId": "da29a910-7c03-4d10-bbbd-19e5000eeacc",
+            "targetActionIndex": 2,
             "modifierDuration": 2
           }
         ]
@@ -1454,6 +1466,7 @@
             "actionType": "modifier",
             "cueType": "modifier",
             "targetCueId": "8c476969-cd77-464a-af2c-7154077079de",
+            "targetActionIndex": 2,
             "modifierDuration": 2
           }
         ]
@@ -1567,6 +1580,7 @@
             "actionType": "modifier",
             "cueType": "modifier",
             "targetCueId": "4a2fa583-2309-45c7-8c24-29c19f896635",
+            "targetActionIndex": 2,
             "modifierDuration": 2
           }
         ]
@@ -1652,6 +1666,7 @@
             "actionType": "modifier",
             "cueType": "modifier",
             "targetCueId": "5fbe0f29-935d-41cd-aa8b-998390a4acdd",
+            "targetActionIndex": 2,
             "modifierDuration": 2
           }
         ]
@@ -2037,8 +2052,8 @@
             "videoPlayStyle": "replace",
             "clipStart": 0,
             "clipEnd": 0,
-            "fadeIn": 0,
-            "fadeOut": 0,
+            "fadeIn": 1,
+            "fadeOut": 1,
             "actionType": "image",
             "cueType": "image"
           }
@@ -2057,7 +2072,7 @@
         "oscLevel": 100,
         "oscTransport": "auto",
         "id": "4160f1af-5d62-4585-9146-667900467d5c",
-        "title": "Start blackout",
+        "title": "end of acknowledgement",
         "description": "",
         "number": "0.3",
         "actions": [
@@ -2069,6 +2084,14 @@
             "oscCueNumber": "{cueNumber}",
             "oscLevel": 100,
             "oscTransport": "auto"
+          },
+          {
+            "modifierAction": "fade",
+            "actionType": "modifier",
+            "cueType": "modifier",
+            "targetCueId": "24574703-1ab5-4d1e-b5ed-435555c81054",
+            "targetActionIndex": 2,
+            "modifierDuration": 1
           }
         ]
       }

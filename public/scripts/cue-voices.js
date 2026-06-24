@@ -25,7 +25,7 @@ export function createVoicePanel({ $, state, esc, fmtDb, send }) {
 
   function updateVoice(inst) {
     const voiceEl = $(`voice-${inst.instanceId}`);
-    if (inst.mediaType === 'video') {
+    if (inst.mediaType === 'video' || inst.mediaType === 'image') {
       updateVideoVoice(voiceEl, inst);
       return;
     }
@@ -44,7 +44,7 @@ export function createVoicePanel({ $, state, esc, fmtDb, send }) {
   }
 
   function voiceHtml(inst) {
-    if (inst.mediaType === 'video') return videoVoiceHtml(inst);
+    if (inst.mediaType === 'video' || inst.mediaType === 'image') return videoVoiceHtml(inst);
     const progress = fadeProgress(inst);
     return `<article id="voice-${esc(inst.instanceId)}" class="voice" data-id="${esc(inst.instanceId)}">
       <strong>${esc(inst.title || inst.clipUrl)}</strong>

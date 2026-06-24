@@ -127,7 +127,7 @@ function actionKind(action) {
   return action.actionType || action.cueType || 'lighting';
 }
 function hasVideo(cue) {
-  return Boolean(cue?.videoClip || cueActions(cue).some(action => action.videoClip || actionKind(action) === 'video'));
+  return Boolean(cue?.videoClip || ['video', 'image'].includes(actionKind(cue)) || cueActions(cue).some(action => action.videoClip || ['video', 'image'].includes(actionKind(action))));
 }
 function cueWithSync(cue) {
   if (!isObject(cue) || !hasVideo(cue)) return cue;
@@ -169,7 +169,7 @@ function buildCueList(cues) {
           number, cueNum: cueSort(number), title: raw.title || 'Untitled',
           description: raw.description || '', position: 'Cue List', sortIndex: order,
           duration: duration(fullCue), subtype: raw.soundSubtype || raw.subtype || null,
-          isAudio: kinds.includes('sound'), isVideo: kinds.includes('video'),
+          isAudio: kinds.includes('sound'), isVideo: kinds.includes('video'), isImage: kinds.includes('image'),
           actionSummary: actionSummary(fullCue, type.id),
           actionCount: actions.length || 1,
           fullCue,
@@ -418,7 +418,7 @@ function broadcast(data) {
   const msg = JSON.stringify(data);
   wss.clients.forEach(client => { if (client.readyState === 1) client.send(msg); });
 }
-function activeInstances() { return [...listActive(), ...videoRuntime.listActive().map(inst => ({ ...inst, mediaType: 'video', clipUrl: inst.clip, volume: 0, muted: true }))]; }
+function activeInstances() { return [...listActive(), ...videoRuntime.listActive().map(inst => ({ ...inst, mediaType: inst.mediaType || 'video', clipUrl: inst.clip, volume: 0, muted: true }))]; }
 function broadcastInstances() { broadcast({ type: 'instances', list: activeInstances(), waitingCount: pendingCueExecutions.size }); }
 function broadcastPending() { broadcast({ type: 'pendingCues', list: pendingList() }); }
 function broadcastPlayed() { broadcast({ type: 'playedCues', ids: [...playedCueIds] }); }
