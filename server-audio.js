@@ -4,6 +4,7 @@ import { existsSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import ffmpegStatic from 'ffmpeg-static';
+import { createAudioContext, resetAudioOutput, useSilentAudioOutput } from './server-audio-output.js';
 
 const active = new Map();
 const bufferCache = new Map();
@@ -38,6 +39,28 @@ async function ensureAudioApi() {
   mediaDevicesRef = mod.mediaDevices;
 }
 
+function resetCtx({ retryOutput = false } = {}) {
+  if (ctx && ctx.state !== 'closed') ctx.close().catch(() => { });
+  ctx = null;
+  masterGain = null;
+  if (retryOutput) resetAudioOutput();
+}
+
+function switchToSilentOutput(err) {
+  if (!useSilentAudioOutput(err)) return false;
+  resetCtx();
+  return true;
+}
+
+function currentTimeOrNull() {
+  try {
+    return getCtx().currentTime;
+  } catch (err) {
+    if (!switchToSilentOutput(err)) throw err;
+    return getCtx().currentTime;
+  }
+}
+
 function getCtx() {
   const sampleRate = Number(configValue('audio.buffer.sampleRate', 48000)) || 48000;
   if (!ctx || ctx.state === 'closed' || ctx.sampleRate !== sampleRate) {
@@ -45,7 +68,7 @@ function getCtx() {
       try { ctx.close(); } catch { }
     }
     if (!AudioContextCtor) throw new Error('Audio backend is not available');
-    ctx = new AudioContextCtor({ latencyHint: 'playback', sampleRate });
+    ctx = createAudioContext(AudioContextCtor, sampleRate);
     masterGain = null;
   }
   if (!masterGain) {
@@ -148,37 +171,43 @@ function assertPlayableRange(cue, buffer, start, end) {
 }
 
 async function startSource(inst, offset = inst.position || 0) {
-  const audioCtx = getCtx();
-  await ensureRunning(audioCtx);
-  const delay = Math.max(0, Number(inst.startAtMs || 0) - Date.now()) / 1000;
-  const t0 = audioCtx.currentTime + delay;
-  const source = audioCtx.createBufferSource();
-  source.buffer = inst.buffer;
-  source.loop = inst.loop;
-  source.loopStart = inst.loopStart;
-  source.loopEnd = inst.loopEnd;
-  const gain = audioCtx.createGain();
-  const targetGain = dbToGain(inst.volume);
-  const fadeIn = Math.max(0, Number(inst.cue?.fadeIn || 0));
-  const fadeOut = Math.max(0, Number(inst.cue?.fadeOut || 0));
-  const playLen = Math.max(0.01, inst.endAt - offset);
-  gain.gain.cancelScheduledValues(t0);
-  gain.gain.setValueAtTime(0, t0);
-  if (fadeIn > 0 && offset < inst.clipStart + fadeIn) gain.gain.linearRampToValueAtTime(targetGain, t0 + (inst.clipStart + fadeIn - offset));
-  else gain.gain.setValueAtTime(targetGain, t0);
-  if (fadeOut > 0 && inst.endAt - fadeOut > offset) {
-    const rampAt = t0 + (inst.endAt - fadeOut - offset);
-    gain.gain.setValueAtTime(targetGain, rampAt);
-    gain.gain.linearRampToValueAtTime(0.0001, t0 + playLen);
+  try {
+    const audioCtx = getCtx();
+    await ensureRunning(audioCtx);
+    const delay = Math.max(0, Number(inst.startAtMs || 0) - Date.now()) / 1000;
+    const t0 = audioCtx.currentTime + delay;
+    const source = audioCtx.createBufferSource();
+    source.buffer = inst.buffer;
+    source.loop = inst.loop;
+    source.loopStart = inst.loopStart;
+    source.loopEnd = inst.loopEnd;
+    const gain = audioCtx.createGain();
+    const targetGain = dbToGain(inst.volume);
+    const fadeIn = Math.max(0, Number(inst.cue?.fadeIn || 0));
+    const fadeOut = Math.max(0, Number(inst.cue?.fadeOut || 0));
+    const playLen = Math.max(0.01, inst.endAt - offset);
+    gain.gain.cancelScheduledValues(t0);
+    gain.gain.setValueAtTime(0, t0);
+    if (fadeIn > 0 && offset < inst.clipStart + fadeIn) gain.gain.linearRampToValueAtTime(targetGain, t0 + (inst.clipStart + fadeIn - offset));
+    else gain.gain.setValueAtTime(targetGain, t0);
+    if (fadeOut > 0 && inst.endAt - fadeOut > offset) {
+      const rampAt = t0 + (inst.endAt - fadeOut - offset);
+      gain.gain.setValueAtTime(targetGain, rampAt);
+      gain.gain.linearRampToValueAtTime(0.0001, t0 + playLen);
+    }
+    source.connect(gain);
+    gain.connect(masterGain);
+    inst.source = source;
+    inst.gain = gain;
+    inst.startedAt = t0;
+    inst.position = offset;
+    source.start(t0, offset, inst.loop ? undefined : Math.max(0.01, inst.endAt - offset));
+    scheduleEnd(inst);
+  } catch (err) {
+    if (!switchToSilentOutput(err)) throw err;
+    stopInstanceNodes(inst);
+    await startSource(inst, offset);
   }
-  source.connect(gain);
-  gain.connect(masterGain);
-  inst.source = source;
-  inst.gain = gain;
-  inst.startedAt = t0;
-  inst.position = offset;
-  source.start(t0, offset, inst.loop ? undefined : Math.max(0.01, inst.endAt - offset));
-  scheduleEnd(inst);
 }
 
 export function initAudioConfig(configService) {
@@ -186,9 +215,7 @@ export function initAudioConfig(configService) {
   configService.onChange(() => {
     bufferCache.clear();
     stopAll();
-    if (ctx && ctx.state !== 'closed') ctx.close().catch(() => { });
-    ctx = null;
-    masterGain = null;
+    resetCtx({ retryOutput: true });
   });
 }
 
@@ -209,6 +236,7 @@ export async function playCue(cue) {
     instanceId,
     cue: { ...cue },
     cueId: cue.id || null,
+    actionIndex: cue.actionIndex || null,
     cueNumber: cue.number || cue.cueNumber || null,
     title: cue.title || '',
     clip: cue.clip,
@@ -245,22 +273,31 @@ export async function playCue(cue) {
 export function fadeOut(instanceId, duration = 2) {
   const inst = active.get(instanceId);
   if (!inst?.gain) return;
-  const audioCtx = getCtx();
+  const now = currentTimeOrNull();
+  if (now == null) return;
   const seconds = Math.max(0.05, Number(duration) || 2);
   inst.fadeMode = 'fadeOut';
   inst.fadeStartedAt = Date.now();
   inst.fadeDuration = seconds;
-  inst.gain.gain.cancelScheduledValues(audioCtx.currentTime);
-  inst.gain.gain.setValueAtTime(inst.gain.gain.value, audioCtx.currentTime);
-  inst.gain.gain.linearRampToValueAtTime(0.0001, audioCtx.currentTime + seconds);
+  inst.gain.gain.cancelScheduledValues(now);
+  inst.gain.gain.setValueAtTime(inst.gain.gain.value, now);
+  inst.gain.gain.linearRampToValueAtTime(0.0001, now + seconds);
   inst.timers.add(setTimeout(() => clearInstance(instanceId), seconds * 1000 + 50));
 }
 
 export function stop(instanceId) { clearInstance(instanceId); }
 export function stopAll() { [...active.keys()].forEach(clearInstance); }
 export function fadeOutAll(duration = 2) { [...active.keys()].forEach(id => fadeOut(id, duration)); }
-export function devamp(instanceId) { const inst = active.get(instanceId); if (inst) { inst.loop = false; inst.source.loop = false; } }
-export function cancelDevamp(instanceId) { const inst = active.get(instanceId); if (inst) { inst.loop = true; inst.source.loop = true; } }
+export function devamp(instanceId) {
+  const inst = active.get(instanceId);
+  if (inst) Object.assign(inst, { loop: false });
+  if (inst?.source) inst.source.loop = false;
+}
+export function cancelDevamp(instanceId) {
+  const inst = active.get(instanceId);
+  if (inst) Object.assign(inst, { loop: true });
+  if (inst?.source) inst.source.loop = true;
+}
 export function cancelWaitingCues() { }
 
 export async function refreshAudioOutput() {
@@ -277,6 +314,7 @@ export async function refreshAudioOutput() {
     if (ctx && ctx.state !== 'closed') await ctx.close().catch(() => { });
     ctx = null;
     masterGain = null;
+    resetAudioOutput();
     for (const { inst, paused } of snapshots) {
       if (!active.has(inst.instanceId)) continue;
       try {
@@ -299,14 +337,16 @@ export function setVolume(instanceId, db) {
   if (!inst?.gain) return;
   inst.volume = Number(db) || 0;
   inst.cue.volume = inst.volume;
-  inst.gain.gain.setValueAtTime(dbToGain(inst.volume), getCtx().currentTime);
+  const now = currentTimeOrNull();
+  if (now != null) inst.gain.gain.setValueAtTime(dbToGain(inst.volume), now);
 }
 
 export function setMuted(instanceId, muted) {
   const inst = active.get(instanceId);
   if (!inst?.gain) return;
   inst.muted = Boolean(muted);
-  inst.gain.gain.setValueAtTime(inst.muted ? 0 : dbToGain(inst.volume), getCtx().currentTime);
+  const now = currentTimeOrNull();
+  if (now != null) inst.gain.gain.setValueAtTime(inst.muted ? 0 : dbToGain(inst.volume), now);
 }
 
 export function toggleMute(instanceId) {
@@ -331,8 +371,8 @@ export function isMasterMuted() { return masterMuted; }
 export function pause(instanceId) {
   const inst = active.get(instanceId);
   if (!inst || inst.paused) return;
-  const audioCtx = getCtx();
-  inst.position = Math.min(inst.endAt, inst.position + (audioCtx.currentTime - inst.startedAt));
+  const now = currentTimeOrNull();
+  inst.position = now == null ? positionFor(inst) : Math.min(inst.endAt, inst.position + (now - inst.startedAt));
   clearInstance(instanceId);
   active.set(instanceId, { ...inst, paused: true, timers: new Set(), source: null, gain: null });
 }
@@ -370,6 +410,7 @@ export function listActive() {
     return {
       instanceId: inst.instanceId,
       cueId: inst.cueId,
+      actionIndex: inst.actionIndex,
       cueNumber: inst.cueNumber,
       title: inst.title,
       clip: inst.clip,

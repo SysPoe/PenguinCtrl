@@ -1052,7 +1052,7 @@
             "oscTriggers": [],
             "actionType": "sound",
             "cueType": "sound",
-            "clip": "/audio/8_-_Final_Show_1782173581058.wav"
+            "clip": "/audio/8_-_Final_Show_FIXED_1782260764684.wav"
           }
         ]
       }
@@ -1177,12 +1177,12 @@
             "soundSubtype": "play_once",
             "playStyle": "alongside",
             "clipStart": 0,
-            "clipEnd": 0,
+            "clipEnd": 100.521,
             "fadeIn": 0,
             "fadeOut": 0,
             "volume": 0,
             "loopStart": 0,
-            "loopEnd": 0,
+            "loopEnd": 100.521,
             "oscStartTrigger": {
               "oscAction": "none",
               "oscPlayback": 1,
@@ -1192,7 +1192,8 @@
             },
             "oscTriggers": [],
             "actionType": "sound",
-            "cueType": "sound"
+            "cueType": "sound",
+            "clip": "/audio/9_-_Global_Dance_1782260854929.wav"
           }
         ]
       }
@@ -1824,6 +1825,22 @@
             "oscCueNumber": "{cueNumber}",
             "oscLevel": 100,
             "oscTransport": "auto"
+          },
+          {
+            "modifierAction": "fade",
+            "actionType": "modifier",
+            "cueType": "modifier",
+            "targetCueId": "9895435b-8cfe-4209-8311-9ec080c4e68f",
+            "targetActionIndex": 2,
+            "modifierDuration": 2
+          },
+          {
+            "modifierAction": "fade",
+            "actionType": "modifier",
+            "cueType": "modifier",
+            "targetCueId": "9895435b-8cfe-4209-8311-9ec080c4e68f",
+            "targetActionIndex": 3,
+            "modifierDuration": 2
           }
         ]
       }
@@ -1977,6 +1994,72 @@
         "title": "Speech",
         "description": "",
         "number": "17.03",
+        "actions": [
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          }
+        ]
+      }
+    ]
+  },
+  "manual_fce56297-edaa-400d-8b72-6eeb181eb25a": {
+    "lighting": [
+      {
+        "actionType": "lighting",
+        "cueType": "lighting",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto",
+        "id": "24574703-1ab5-4d1e-b5ed-435555c81054",
+        "title": "acknowledgement of country",
+        "description": "",
+        "number": "0.2",
+        "actions": [
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "videoClip": "/video/0_-_Acknowledgement_of_Country__1782260991421.png",
+            "videoPlayStyle": "replace",
+            "clipStart": 0,
+            "clipEnd": 0,
+            "fadeIn": 0,
+            "fadeOut": 0,
+            "actionType": "image",
+            "cueType": "image"
+          }
+        ]
+      }
+    ]
+  },
+  "manual_bdf44e88-db56-4acd-8628-a0fb58e20779": {
+    "lighting": [
+      {
+        "actionType": "lighting",
+        "cueType": "lighting",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto",
+        "id": "4160f1af-5d62-4585-9146-667900467d5c",
+        "title": "Start blackout",
+        "description": "",
+        "number": "0.3",
         "actions": [
           {
             "actionType": "lighting",

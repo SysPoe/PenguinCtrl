@@ -50,6 +50,7 @@ export function createVideoRuntime({ workspaceRoot, broadcast }) {
     return {
       instanceId: `vid_${Date.now()}_${nextId++}`,
       cueId: cue.id || null,
+      actionIndex: cue.actionIndex || null,
       cueNumber: cue.number || cue.cueNumber || null,
       title: cue.title || '',
       clip: /^https?:\/\//i.test(clip) ? clip : asPublicClip(clip),
@@ -144,10 +145,12 @@ export function createVideoRuntime({ workspaceRoot, broadcast }) {
     }
   }
 
-  function controlTarget(target, action, duration) {
+  function controlTarget(target, action, duration, targetActionIndex = null) {
     const key = String(target || '').trim().toLowerCase();
-    if (!key) return 0;
-    const matches = [...active.values()].filter(inst => [inst.cueId, inst.cueNumber, inst.title].some(v => String(v || '').toLowerCase() === key));
+    const actionIndex = Number(targetActionIndex) || null;
+    if (!key || !actionIndex) return 0;
+    const matches = [...active.values()].filter(inst => [inst.cueId, inst.cueNumber, inst.title].some(v => String(v || '').toLowerCase() === key)
+      && Number(inst.actionIndex) === actionIndex);
     matches.forEach(inst => action === 'stop' ? stop(inst.instanceId) : fadeOut(inst.instanceId, duration));
     return matches.length;
   }
@@ -165,6 +168,7 @@ export function createVideoRuntime({ workspaceRoot, broadcast }) {
     listActive: () => [...active.values()].map(inst => ({
       instanceId: inst.instanceId,
       cueId: inst.cueId,
+      actionIndex: inst.actionIndex,
       cueNumber: inst.cueNumber,
       title: inst.title,
       clip: inst.clip,

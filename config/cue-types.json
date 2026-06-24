@@ -57,6 +57,23 @@
       }
     },
     {
+      "id": "image",
+      "label": "Image",
+      "shortLabel": "I",
+      "editor": "video",
+      "handler": "videoPlay",
+      "color": "#a78bfa",
+      "order": 26,
+      "payloadDefaults": {
+        "videoClip": "",
+        "videoPlayStyle": "replace",
+        "clipStart": 0,
+        "clipEnd": null,
+        "fadeIn": 0,
+        "fadeOut": 0
+      }
+    },
+    {
       "id": "modifier",
       "label": "Modifier",
       "shortLabel": "M",

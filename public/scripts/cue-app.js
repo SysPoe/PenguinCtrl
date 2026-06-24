@@ -45,6 +45,7 @@ import { cuePreloadWindow } from './cue-preload.js';
   function targetableRow(row) { return Boolean(row?.isAudio || row?.isVideo || targetableType(row?.cueType)); }
   function lightingType(id) { return !soundType(id) && !videoType(id) && !modifierType(id); }
   function actionKind(action) {
+    if (action?.actionType === 'image' || action?.cueType === 'image') return 'image';
     if (action?.videoClip || action?.videoPlayStyle) return 'video';
     if (action?.clip || action?.soundSubtype) return 'sound';
     if (action?.modifierAction || action?.targetCueId) return 'modifier';
@@ -293,10 +294,10 @@ import { cuePreloadWindow } from './cue-preload.js';
     defaultAction,
     actionTypeLabel: id => type(id).label || id,
     actionLabel: (action, typeId) => {
-      if (videoType(typeId)) return `Video: ${action.videoClip || 'No clip'}`;
+      if (videoType(typeId)) return `${type(typeId).label}: ${action.videoClip || 'No clip'}`;
       if (!modifierType(typeId)) return '';
-      const target = action.targetCueId || action.targetCueNumber || action.targetTitle;
-      return `Modify ${modifierEditor.targetLabel(target) || target || ''}`.trim();
+      const target = action.targetCueId;
+      return `Modify ${modifierEditor.targetLabel(target, action.targetActionIndex) || target || ''}`.trim();
     },
     onSelect: () => timecode.load().catch(err => toast(err.message)),
   });

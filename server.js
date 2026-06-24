@@ -81,7 +81,6 @@ function masterBounds() {
 function clampMaster(db) { const b = masterBounds(); const n = Number(db); return Number.isFinite(n) ? Math.min(b.maxDb, Math.max(b.minDb, n)) : 0; }
 function safeMasterVolume(db) { try { return masterVolume(db === undefined ? undefined : clampMaster(db)); } catch { return Number(db || 0); } }
 safeMasterVolume(configService.getValue('audio.masterVolume.defaultDb', 0));
-
 function runtimeMeta() {
   return {
     config: configService.getClientConfig(),
@@ -121,9 +120,10 @@ function duration(cue) {
 }
 function cueActions(cue) { return Array.isArray(cue?.actions) ? cue.actions.filter(isObject) : []; }
 function actionKind(action) {
+  if (action?.actionType === 'image' || action?.cueType === 'image') return 'image';
   if (action.videoClip || action.videoPlayStyle) return 'video';
   if (action.clip || action.soundSubtype) return 'sound';
-  if (action.modifierAction || action.targetCueId || action.targetCueNumber || action.targetTitle) return 'modifier';
+  if (action.modifierAction || action.targetCueId) return 'modifier';
   return action.actionType || action.cueType || 'lighting';
 }
 function hasVideo(cue) {
@@ -219,7 +219,6 @@ async function preloadCueAudio() {
   refreshAudioCacheHints();
   for (const path of collectAudio(cues)) await audioPreloadBuffer(path);
 }
-
 function showPackage() {
   const cues = loadCues();
   const audioFiles = packageMedia(collectAudio(cues), '/audio');
@@ -257,9 +256,12 @@ cueExecutionEngine.registerHandler('oscDispatch', async cue => {
 });
 cueExecutionEngine.registerHandler('videoPlay', async cue => videoRuntime.play(cue));
 cueExecutionEngine.registerHandler('modifierCue', async cue => {
-  const target = String(cue?.targetCueId || cue?.targetCueNumber || cue?.targetTitle || '').trim().toLowerCase();
+  const target = String(cue?.targetCueId || '').trim().toLowerCase();
+  const targetActionIndex = Number(cue?.targetActionIndex) || null;
   const action = String(cue?.modifierAction || 'fade').toLowerCase();
-  const matches = listActive().filter(inst => [inst.cueId, inst.cueNumber, inst.title].some(v => String(v || '').toLowerCase() === target));
+  if (!target || !targetActionIndex) return { instanceId: null, matched: 0 };
+  const matches = listActive().filter(inst => [inst.cueId, inst.cueNumber, inst.title].some(v => String(v || '').toLowerCase() === target)
+    && Number(inst.actionIndex) === targetActionIndex);
   const duration = Math.max(0.05, Number(cue?.modifierDuration) || 2);
   for (const inst of matches) {
     if (action === 'stop') audioStop(inst.instanceId);
@@ -268,7 +270,7 @@ cueExecutionEngine.registerHandler('modifierCue', async cue => {
       for (let i = 1; i <= steps; i++) setTimeout(() => setVolume(inst.instanceId, from + (to - from) * i / steps), i * duration * 1000 / steps);
     } else audioFadeOut(inst.instanceId, duration);
   }
-  const videoMatches = videoRuntime.controlTarget(target, action, duration);
+  const videoMatches = videoRuntime.controlTarget(target, action, duration, targetActionIndex);
   return { instanceId: null, matched: matches.length + videoMatches };
 });
 function rampInstanceVolume(instanceId, targetDb, seconds) {

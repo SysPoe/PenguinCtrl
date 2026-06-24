@@ -3,7 +3,7 @@ import { basename, extname, join } from 'path';
 
 const EXTENSIONS = {
   audio: /\.(webm|mp3|ogg|wav|flac|aac|m4a)$/i,
-  video: /\.(mp4|m4v|mov|webm|mkv|avi)$/i,
+  video: /\.(mp4|m4v|mov|webm|mkv|avi|png|jpe?g|gif|webp|avif|bmp|svg)$/i,
 };
 
 function isObject(value) {

@@ -10,7 +10,7 @@ function inferCueType(cue) {
   if (typeof cue?.cueType === 'string' && cue.cueType.trim()) return cue.cueType.trim();
   if (cue.videoClip || cue.videoPlayStyle) return 'video';
   if (cue.soundSubtype || cue.clip) return 'sound';
-  if (cue.modifierAction || cue.targetCueId || cue.targetCueNumber || cue.targetTitle) return 'modifier';
+  if (cue.modifierAction || cue.targetCueId) return 'modifier';
   return 'lighting';
 }
 
@@ -65,9 +65,10 @@ export function createCueExecutionEngine({ cueTypeRegistry, playAudioCue, worksp
       || fallbackHandlerName;
   }
 
-  async function executeAction(rawAction, rootCue) {
+  async function executeAction(rawAction, rootCue, actionIndex = null) {
     const cue = { ...rootCue, ...rawAction };
     delete cue.actions;
+    if (actionIndex) cue.actionIndex = actionIndex;
     const cueType = inferCueType(cue);
     cue.cueType = cueType;
 
@@ -80,6 +81,7 @@ export function createCueExecutionEngine({ cueTypeRegistry, playAudioCue, worksp
 
     const result = await handler(cue, typeDef || null);
     return {
+      actionIndex,
       cueType,
       handlerName,
       ...(isObject(result) ? result : { instanceId: null }),
@@ -98,7 +100,8 @@ export function createCueExecutionEngine({ cueTypeRegistry, playAudioCue, worksp
     }
 
     const results = [];
-    results.push(...await Promise.all(actionList(rawCue).map(action => executeAction(action, rawCue))));
+    const actions = actionList(rawCue);
+    results.push(...await Promise.all(actions.map((action, index) => executeAction(action, rawCue, actions.length > 1 ? index + 1 : null))));
     const firstResult = results[0] || { cueType: inferCueType(rawCue), handlerName: 'trackOnly', instanceId: null };
     return {
       cueType: firstResult.cueType,
