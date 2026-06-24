@@ -42,7 +42,7 @@ export function createCueTableRenderer({ $, state, esc, fmtDur, selectedIndexes 
       </tr>`).join('');
     $('go').disabled = state.selected < 0;
     $('btn-edit').disabled = state.locked || state.selected < 0;
-    $('btn-copy').disabled = selectedIndexes().length < 1;
+    $('btn-copy').disabled = state.locked || selectedIndexes().length < 1;
     $('btn-paste').disabled = state.locked;
   };
 }

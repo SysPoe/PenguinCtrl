@@ -6,11 +6,12 @@ function isObject(value) {
 }
 
 function inferCueType(cue) {
-  if (typeof cue?.actionType === 'string' && cue.actionType.trim()) return cue.actionType.trim();
-  if (typeof cue?.cueType === 'string' && cue.cueType.trim()) return cue.cueType.trim();
+  if (cue?.actionType === 'image' || cue?.cueType === 'image') return 'image';
   if (cue.videoClip || cue.videoPlayStyle) return 'video';
   if (cue.soundSubtype || cue.clip) return 'sound';
   if (cue.modifierAction || cue.targetCueId) return 'modifier';
+  if (typeof cue?.actionType === 'string' && cue.actionType.trim()) return cue.actionType.trim();
+  if (typeof cue?.cueType === 'string' && cue.cueType.trim()) return cue.cueType.trim();
   return 'lighting';
 }
 
@@ -18,6 +19,19 @@ function actionList(rawCue) {
   const explicit = Array.isArray(rawCue?.actions) ? rawCue.actions.filter(isObject) : [];
   if (explicit.length) return explicit;
   return [rawCue];
+}
+
+function inheritedCueFields(rootCue) {
+  return {
+    id: rootCue?.id,
+    title: rootCue?.title,
+    description: rootCue?.description,
+    number: rootCue?.number,
+    cueNumber: rootCue?.cueNumber,
+    num: rootCue?.num,
+    syncAtMs: rootCue?.syncAtMs,
+    startAtMs: rootCue?.startAtMs,
+  };
 }
 
 export function createCueExecutionEngine({ cueTypeRegistry, playAudioCue, workspaceRoot }) {
@@ -66,8 +80,7 @@ export function createCueExecutionEngine({ cueTypeRegistry, playAudioCue, worksp
   }
 
   async function executeAction(rawAction, rootCue, actionIndex = null) {
-    const cue = { ...rootCue, ...rawAction };
-    delete cue.actions;
+    const cue = { ...inheritedCueFields(rootCue), ...rawAction };
     if (actionIndex) cue.actionIndex = actionIndex;
     const cueType = inferCueType(cue);
     cue.cueType = cueType;

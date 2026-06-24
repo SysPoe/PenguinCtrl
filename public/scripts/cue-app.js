@@ -138,7 +138,7 @@ import { cuePreloadWindow } from './cue-preload.js';
     $('show-status').textContent = state.locked ? 'Show mode: edits locked' : 'Edit mode';
     $('btn-show-mode').textContent = state.locked ? 'Edit Mode' : 'Show Mode';
     document.body.classList.toggle('locked', state.locked);
-    ['btn-new', 'btn-edit', 'btn-bump', 'show-import'].forEach(id => { const el = $(id); if (el) el.disabled = state.locked; });
+    ['btn-new', 'btn-edit', 'btn-copy', 'btn-bump', 'video-output', 'show-import'].forEach(id => { const el = $(id); if (el) el.disabled = state.locked; });
   }
   const renderRows = createCueTableRenderer({ $, state, esc, fmtDur, selectedIndexes });
   function renderTypeOptions() {
@@ -383,6 +383,7 @@ import { cuePreloadWindow } from './cue-preload.js';
     selectRow(state.selected + 1);
   }
   function openVideoOutput() {
+    if (state.locked) return toast('Show mode is locked');
     const width = window.screen?.availWidth || 1280;
     const height = window.screen?.availHeight || 720;
     const win = window.open('/video-output.html', 'cusus-video-output', `popup=yes,left=0,top=0,width=${width},height=${height}`);
@@ -450,7 +451,7 @@ import { cuePreloadWindow } from './cue-preload.js';
       if (e.ctrlKey || e.metaKey) {
         const activeDialog = document.querySelector('dialog[open]');
         if ($('timecode-editor')?.open) return;
-        if (e.key.toLowerCase() === 'c') { e.preventDefault(); clipboard.copy().catch(err => toast(err.message)); }
+        if (e.key.toLowerCase() === 'c') { e.preventDefault(); if (!state.locked) clipboard.copy().catch(err => toast(err.message)); }
         if (e.key.toLowerCase() === 'v') { e.preventDefault(); clipboard.paste().catch(err => toast(err.message)); }
         if (e.key.toLowerCase() === 'a' && !activeDialog) {
           e.preventDefault();

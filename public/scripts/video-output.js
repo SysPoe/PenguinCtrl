@@ -6,7 +6,7 @@
   const MIN_SYNC_RATE = 0.85;
   const MAX_SYNC_RATE = 1.15;
   const SYNC_DEADBAND = 0.025;
-  const VIDEO_SYNC_OFFSET_MS = 500;
+  const VIDEO_SYNC_OFFSET_MS = 300;
   let serverClockOffsetMs = 0;
   let ws = null;
 
@@ -27,10 +27,14 @@
     return /\.(png|jpe?g|gif|webp|avif|bmp|svg)(?:[?#].*)?$/i.test(String(src || ''));
   }
 
+  function isVideoLayer(layer) {
+    return layer.tagName === 'VIDEO';
+  }
+
   function preload(src) {
     if (!src || cache.has(src)) return cache.get(src);
     const layer = isImage(src) ? new Image() : document.createElement('video');
-    if (layer.tagName === 'VIDEO') Object.assign(layer, { preload: 'auto', muted: true, playsInline: true });
+    if (isVideoLayer(layer)) Object.assign(layer, { preload: 'auto', muted: true, playsInline: true });
     layer.src = src;
     if (layer.load) layer.load();
     cache.set(src, layer);
@@ -48,9 +52,9 @@
     const layer = takePreloaded(inst.clip);
     layer.className = 'video-layer';
     layer.dataset.instanceId = inst.instanceId;
-    if (layer.tagName === 'VIDEO') Object.assign(layer, { muted: true, playsInline: true, preload: 'auto' });
+    if (isVideoLayer(layer)) Object.assign(layer, { muted: true, playsInline: true, preload: 'auto' });
     layer.style.transitionDuration = `${Math.max(0, Number(inst.fadeIn || 0))}s`;
-    if (layer.tagName === 'VIDEO') {
+    if (isVideoLayer(layer)) {
       layer.onloadedmetadata = () => sendState(inst.instanceId, layer);
       layer.ontimeupdate = () => sendState(inst.instanceId, layer);
       layer.onended = () => { suppressInstance(inst.instanceId); sendState(inst.instanceId, layer, true); removeLayer(inst.instanceId); };
@@ -60,7 +64,7 @@
   }
 
   function ready(layer) {
-    if (layer.tagName !== 'VIDEO') return layer.complete ? Promise.resolve() : new Promise((resolve, reject) => {
+    if (!isVideoLayer(layer)) return layer.complete ? Promise.resolve() : new Promise((resolve, reject) => {
       layer.onload = () => resolve();
       layer.onerror = () => reject(new Error('Image preload failed'));
     });
@@ -73,6 +77,7 @@
 
   function sendState(instanceId, layer, ended = false) {
     if (ws?.readyState !== WebSocket.OPEN) return;
+    if (!isVideoLayer(layer)) return;
     ws.send(JSON.stringify({
       type: 'videoState',
       instanceId,
@@ -102,15 +107,17 @@
     clearTimeout(item.cleanup);
     clearInterval(item.syncTimer);
     clearInterval(item.logTimer);
-    try { item.layer.pause(); } catch { }
-    try { item.layer.playbackRate = 1; } catch { }
+    if (isVideoLayer(item.layer)) {
+      try { item.layer.pause(); } catch { }
+      try { item.layer.playbackRate = 1; } catch { }
+    }
     item.layer.remove();
     active.delete(instanceId);
   }
 
   function logSync(instanceId) {
     const item = active.get(instanceId);
-    if (!item || item.layer.tagName !== 'VIDEO') return;
+    if (!item || !isVideoLayer(item.layer)) return;
     const target = targetPosition(item.inst);
     const actual = item.layer.currentTime;
     const drift = target - actual;
@@ -141,7 +148,7 @@
 
   function seek(instanceId, position) {
     const item = active.get(instanceId);
-    if (!item || item.layer.tagName !== 'VIDEO') return;
+    if (!item || !isVideoLayer(item.layer)) return;
     item.seekPosition = Math.max(0, Number(position) || 0);
     item.inst = { ...item.inst, position: item.seekPosition, startAtMs: serverNowMs() - Math.max(0, item.seekPosition - Number(item.inst?.clipStart || 0)) * 1000 };
     try { item.layer.currentTime = Math.max(0, Number(position) || 0); } catch { }
@@ -155,13 +162,19 @@
     return Math.max(min, Math.min(max, value));
   }
 
+  function finiteNumber(value) {
+    if (value == null || value === '') return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+
   function targetPosition(inst, atMs = serverNowMs()) {
     const start = Math.max(0, Number(inst.clipStart || 0));
-    const end = Number(inst.clipEnd ?? inst.duration);
+    const end = finiteNumber(inst.clipEnd ?? inst.duration);
     const startAtMs = Number(inst.startAtMs);
     let position = Number.isFinite(startAtMs) ? start + Math.max(0, (atMs - startAtMs - VIDEO_SYNC_OFFSET_MS) / 1000) : Number(inst.position);
     if (!Number.isFinite(position)) position = start;
-    return clamp(position, start, Number.isFinite(end) ? end : Number.MAX_SAFE_INTEGER);
+    return clamp(position, start, end ?? Number.MAX_SAFE_INTEGER);
   }
 
   function syncRate(drift) {
@@ -171,15 +184,15 @@
 
   function correctDrift(instanceId) {
     const item = active.get(instanceId);
-    if (!item || item.layer.tagName !== 'VIDEO' || item.layer.paused) return;
+    if (!item || !isVideoLayer(item.layer) || item.layer.paused) return;
     const rate = syncRate(targetPosition(item.inst) - item.layer.currentTime);
     if (Math.abs((item.layer.playbackRate || 1) - rate) > 0.005) item.layer.playbackRate = rate;
   }
 
   function armEndTimers(inst) {
     const item = active.get(inst.instanceId);
-    const end = Number(inst.clipEnd ?? inst.duration);
-    if (!item || !Number.isFinite(end)) return;
+    const end = finiteNumber(inst.clipEnd ?? inst.duration);
+    if (!item || end == null) return;
     clearTimeout(item.fadeTimer);
     clearTimeout(item.cleanup);
     const remainingMs = Math.max(0, (end - targetPosition(inst)) * 1000);
@@ -207,8 +220,8 @@
       if (!active.has(inst.instanceId)) return;
       try {
         await ready(layer);
-        layer.currentTime = item.seekPosition ?? targetPosition(item.inst);
-        if (layer.play) {
+        if (isVideoLayer(layer)) {
+          layer.currentTime = item.seekPosition ?? targetPosition(item.inst);
           await layer.play();
           item.syncTimer = setInterval(() => correctDrift(inst.instanceId), 250);
           item.logTimer = setInterval(() => logSync(inst.instanceId), 1000);

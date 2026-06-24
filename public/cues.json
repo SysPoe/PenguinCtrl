@@ -385,7 +385,7 @@
         "oscLevel": 100,
         "oscTransport": "auto",
         "id": "dbf59dba-f754-4e92-b26d-5fcf33b8834a",
-        "title": "3 SPOTS <- ???",
+        "title": "3 SPOTS <- ??? 1:28-1:57",
         "description": "",
         "number": "3.2",
         "actions": [
@@ -439,67 +439,7 @@
     ]
   },
   "manual_658addc7-6ea6-45ff-85fc-7e6603893c64": {
-    "sound": [
-      {
-        "soundSubtype": "play_once",
-        "playStyle": "alongside",
-        "clipStart": 0.095,
-        "clipEnd": 111.862,
-        "fadeIn": 0,
-        "fadeOut": 0,
-        "volume": 0,
-        "loopStart": 0,
-        "loopEnd": 111.862,
-        "oscStartTrigger": {
-          "oscAction": "none",
-          "oscPlayback": 1,
-          "oscCueNumber": "{cueNumber}",
-          "oscLevel": 100,
-          "oscTransport": "auto"
-        },
-        "oscTriggers": [],
-        "actionType": "sound",
-        "cueType": "sound",
-        "clip": "/audio/3_-_Desperado_1782173581039.wav",
-        "id": "345828c5-f678-4ead-bf1b-ebd9f1d2631e",
-        "title": "ALL DANCERS ON STAGE <- 3. Desperado – Senior Dance Company",
-        "description": "",
-        "number": "4",
-        "actions": [
-          {
-            "soundSubtype": "play_once",
-            "playStyle": "alongside",
-            "clipStart": 0.095,
-            "clipEnd": 111.862,
-            "fadeIn": 0,
-            "fadeOut": 0,
-            "volume": 0,
-            "loopStart": 0,
-            "loopEnd": 111.862,
-            "oscStartTrigger": {
-              "oscAction": "none",
-              "oscPlayback": 1,
-              "oscCueNumber": "{cueNumber}",
-              "oscLevel": 100,
-              "oscTransport": "auto"
-            },
-            "oscTriggers": [],
-            "actionType": "sound",
-            "cueType": "sound",
-            "clip": "/audio/3_-_Desperado_1782173581039.wav"
-          },
-          {
-            "actionType": "lighting",
-            "cueType": "lighting",
-            "oscAction": "goto",
-            "oscPlayback": 1,
-            "oscCueNumber": "{cueNumber}",
-            "oscLevel": 100,
-            "oscTransport": "auto"
-          }
-        ]
-      }
-    ]
+    "sound": []
   },
   "manual_f17a9e1e-869d-4ddc-b02f-4b513c93341c": {
     "modifier": [
@@ -509,7 +449,7 @@
         "targetVolumeDb": -12,
         "actionType": "modifier",
         "cueType": "modifier",
-        "targetCueId": "345828c5-f678-4ead-bf1b-ebd9f1d2631e",
+        "targetCueId": "ba21e298-d5c8-4f8d-ac54-1a1c077d25e4",
         "id": "b1e1c677-506e-4190-a6ef-ccd3c2da5d03",
         "title": "BLACKOUT <- End in clump CS",
         "description": "",
@@ -519,8 +459,8 @@
             "modifierAction": "fade",
             "actionType": "modifier",
             "cueType": "modifier",
-            "targetCueId": "345828c5-f678-4ead-bf1b-ebd9f1d2631e",
-            "targetActionIndex": 1,
+            "targetCueId": "ba21e298-d5c8-4f8d-ac54-1a1c077d25e4",
+            "targetActionIndex": 2,
             "modifierDuration": 2
           },
           {
@@ -533,7 +473,7 @@
             "oscTransport": "auto"
           }
         ],
-        "targetActionIndex": 1
+        "targetActionIndex": 2
       }
     ]
   },
@@ -543,12 +483,12 @@
         "soundSubtype": "play_once",
         "playStyle": "alongside",
         "clipStart": 0,
-        "clipEnd": 0,
+        "clipEnd": 256.929,
         "fadeIn": 0,
         "fadeOut": 0,
         "volume": 0,
         "loopStart": 0,
-        "loopEnd": 0,
+        "loopEnd": 256.929,
         "oscStartTrigger": {
           "oscAction": "none",
           "oscPlayback": 1,
@@ -568,12 +508,12 @@
             "soundSubtype": "play_once",
             "playStyle": "alongside",
             "clipStart": 0,
-            "clipEnd": 0,
+            "clipEnd": 256.929,
             "fadeIn": 0,
             "fadeOut": 0,
             "volume": 0,
             "loopStart": 0,
-            "loopEnd": 0,
+            "loopEnd": 256.929,
             "oscStartTrigger": {
               "oscAction": "none",
               "oscPlayback": 1,
@@ -583,7 +523,8 @@
             },
             "oscTriggers": [],
             "actionType": "sound",
-            "cueType": "sound"
+            "cueType": "sound",
+            "clip": "/audio/4_-_Shell_Necklace_AUDIO_1782272865820.wav"
           },
           {
             "actionType": "lighting",
@@ -593,8 +534,19 @@
             "oscCueNumber": "{cueNumber}",
             "oscLevel": 100,
             "oscTransport": "auto"
+          },
+          {
+            "videoClip": "/video/4_-_Shell_Necklace_VIDEO_1782274151008.mp4",
+            "videoPlayStyle": "replace",
+            "clipStart": 0,
+            "clipEnd": 0,
+            "fadeIn": 0,
+            "fadeOut": 0,
+            "actionType": "video",
+            "cueType": "video"
           }
-        ]
+        ],
+        "clip": "/audio/4_-_Shell_Necklace_AUDIO_1782272865820.wav"
       }
     ]
   },
@@ -628,6 +580,14 @@
             "cueType": "modifier",
             "targetCueId": "5ed884f3-237d-42fb-8a41-b71096bb4f50",
             "targetActionIndex": 1,
+            "modifierDuration": 2
+          },
+          {
+            "modifierAction": "fade",
+            "actionType": "modifier",
+            "cueType": "modifier",
+            "targetCueId": "5ed884f3-237d-42fb-8a41-b71096bb4f50",
+            "targetActionIndex": 3,
             "modifierDuration": 2
           }
         ]
@@ -894,12 +854,12 @@
         "soundSubtype": "play_once",
         "playStyle": "alongside",
         "clipStart": 0,
-        "clipEnd": 0,
+        "clipEnd": 276.736,
         "fadeIn": 0,
         "fadeOut": 0,
         "volume": 0,
         "loopStart": 0,
-        "loopEnd": 0,
+        "loopEnd": 276.736,
         "oscStartTrigger": {
           "oscAction": "none",
           "oscPlayback": 1,
@@ -919,12 +879,12 @@
             "soundSubtype": "play_once",
             "playStyle": "alongside",
             "clipStart": 0,
-            "clipEnd": 0,
+            "clipEnd": 276.736,
             "fadeIn": 0,
             "fadeOut": 0,
             "volume": 0,
             "loopStart": 0,
-            "loopEnd": 0,
+            "loopEnd": 276.736,
             "oscStartTrigger": {
               "oscAction": "none",
               "oscPlayback": 1,
@@ -934,7 +894,8 @@
             },
             "oscTriggers": [],
             "actionType": "sound",
-            "cueType": "sound"
+            "cueType": "sound",
+            "clip": "/audio/7_-_Water_1782272987461.wav"
           },
           {
             "actionType": "lighting",
@@ -944,8 +905,19 @@
             "oscCueNumber": "{cueNumber}",
             "oscLevel": 100,
             "oscTransport": "auto"
+          },
+          {
+            "videoClip": "/video/7_-_Water_VIDEO_1782274646092.mp4",
+            "videoPlayStyle": "replace",
+            "clipStart": 0,
+            "clipEnd": 0,
+            "fadeIn": 0,
+            "fadeOut": 0,
+            "actionType": "video",
+            "cueType": "video"
           }
-        ]
+        ],
+        "clip": "/audio/7_-_Water_1782272987461.wav"
       }
     ]
   },
@@ -960,9 +932,9 @@
         "oscLevel": 100,
         "oscTransport": "auto",
         "id": "4cf4c5be-ebae-4328-b03f-807d4a153e7d",
-        "title": "Blackout <- ???",
+        "title": "Blackout <- Music ends, students lying down",
         "description": "",
-        "number": "8.9",
+        "number": "8.1",
         "actions": [
           {
             "actionType": "lighting",
@@ -979,6 +951,14 @@
             "cueType": "modifier",
             "targetCueId": "901cc684-c233-4854-8bb9-51fbaa3a8cdb",
             "targetActionIndex": 1,
+            "modifierDuration": 2
+          },
+          {
+            "modifierAction": "fade",
+            "actionType": "modifier",
+            "cueType": "modifier",
+            "targetCueId": "901cc684-c233-4854-8bb9-51fbaa3a8cdb",
+            "targetActionIndex": 3,
             "modifierDuration": 2
           }
         ]
@@ -1416,12 +1396,12 @@
             "soundSubtype": "play_once",
             "playStyle": "alongside",
             "clipStart": 0,
-            "clipEnd": 0,
+            "clipEnd": 256.847,
             "fadeIn": 0,
             "fadeOut": 0,
             "volume": 0,
             "loopStart": 0,
-            "loopEnd": 0,
+            "loopEnd": 256.847,
             "oscStartTrigger": {
               "oscAction": "none",
               "oscPlayback": 1,
@@ -1431,7 +1411,8 @@
             },
             "oscTriggers": [],
             "actionType": "sound",
-            "cueType": "sound"
+            "cueType": "sound",
+            "clip": "/audio/11_-_Casio_1782272806233.wav"
           }
         ]
       }
@@ -2092,6 +2073,56 @@
             "targetCueId": "24574703-1ab5-4d1e-b5ed-435555c81054",
             "targetActionIndex": 2,
             "modifierDuration": 1
+          }
+        ]
+      }
+    ]
+  },
+  "manual_7db4de08-3798-4c88-87fd-9221d082f166": {
+    "lighting": [
+      {
+        "actionType": "lighting",
+        "cueType": "lighting",
+        "oscAction": "goto",
+        "oscPlayback": 1,
+        "oscCueNumber": "{cueNumber}",
+        "oscLevel": 100,
+        "oscTransport": "auto",
+        "id": "ba21e298-d5c8-4f8d-ac54-1a1c077d25e4",
+        "title": "3.Desperado – Senior Dance Company",
+        "description": "",
+        "number": "4",
+        "actions": [
+          {
+            "actionType": "lighting",
+            "cueType": "lighting",
+            "oscAction": "goto",
+            "oscPlayback": 1,
+            "oscCueNumber": "{cueNumber}",
+            "oscLevel": 100,
+            "oscTransport": "auto"
+          },
+          {
+            "soundSubtype": "play_once",
+            "playStyle": "alongside",
+            "clipStart": 0,
+            "clipEnd": 111.862,
+            "fadeIn": 0,
+            "fadeOut": 0,
+            "volume": 0,
+            "loopStart": 0,
+            "loopEnd": 111.862,
+            "oscStartTrigger": {
+              "oscAction": "none",
+              "oscPlayback": 1,
+              "oscCueNumber": "{cueNumber}",
+              "oscLevel": 100,
+              "oscTransport": "auto"
+            },
+            "oscTriggers": [],
+            "actionType": "sound",
+            "cueType": "sound",
+            "clip": "/audio/3_-_Desperado_1782173581039.wav"
           }
         ]
       }
