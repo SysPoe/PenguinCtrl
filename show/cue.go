@@ -1,5 +1,7 @@
 package show
 
+import "github.com/google/uuid"
+
 type Cue struct {
 	ID          CueID
 	Order       float64
@@ -19,7 +21,12 @@ type Cue struct {
 	Notes    string
 }
 
-type CueID string
+type CueID uuid.UUID
+
+func NewCueID() CueID {
+	id, _ := uuid.NewV7()
+	return CueID(id)
+}
 
 type CueType int
 
