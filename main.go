@@ -1,7 +1,6 @@
 package main
 
 import (
-	"image"
 	"image/color"
 	"log"
 	"os"
@@ -68,18 +67,19 @@ func run(window *app.Window) error {
 
 			paint.Fill(gtx.Ops, th.Bg)
 
-			// Fix all text appearing gray even when you set it to black (???)
-			gtx.Constraints.Min = image.Point{}
-
 			layout.Stack{}.Layout(gtx,
+				// Main application layout
 				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{
 						Axis: layout.Vertical,
 					}.Layout(gtx,
+						// Top Bar
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							return topBar.Layout(th, gtx)
-						}))
+						}),
+					)
 				}),
+				// Top Bar Submenus
 				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 					return tbCtx.Layout(th, gtx)
 				}),

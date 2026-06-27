@@ -55,6 +55,18 @@ func MakeMeasuredBtn(th *material.Theme, wid *widget.Clickable, txt string, size
 	})
 }
 
+func (tb *TopBar) setAllFalse() {
+	tb.showAddCue = false
+	tb.showFile = false
+	tb.showEdit = false
+	tb.showCue = false
+	tb.showBulk = false
+	tb.showView = false
+	tb.showOutputs = false
+	tb.showShow = false
+	tb.showTools = false
+}
+
 func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context) layout.Dimensions {
 	barHeight := gtx.Dp(unit.Dp(TOP_BAR_HEIGHT))
 
@@ -78,31 +90,49 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context) layout.Dimensio
 	)
 
 	if tb.btnAddCue.Clicked(gtx) {
-		tb.showAddCue = !tb.showAddCue
+		oval := tb.showAddCue
+		tb.setAllFalse()
+		tb.showAddCue = !oval
 	}
 	if tb.btnFile.Clicked(gtx) {
-		tb.showFile = !tb.showFile
+		oval := tb.showFile
+		tb.setAllFalse()
+		tb.showFile = !oval
 	}
 	if tb.btnEdit.Clicked(gtx) {
-		tb.showEdit = !tb.showEdit
+		oval := tb.showEdit
+		tb.setAllFalse()
+		tb.showEdit = !oval
 	}
 	if tb.btnCue.Clicked(gtx) {
-		tb.showCue = !tb.showCue
+		oval := tb.showCue
+		tb.setAllFalse()
+		tb.showCue = !oval
 	}
 	if tb.btnBulk.Clicked(gtx) {
-		tb.showBulk = !tb.showBulk
+		oval := tb.showBulk
+		tb.setAllFalse()
+		tb.showBulk = !oval
 	}
 	if tb.btnView.Clicked(gtx) {
-		tb.showView = !tb.showView
+		oval := tb.showView
+		tb.setAllFalse()
+		tb.showView = !oval
 	}
 	if tb.btnOutputs.Clicked(gtx) {
-		tb.showOutputs = !tb.showOutputs
+		oval := tb.showOutputs
+		tb.setAllFalse()
+		tb.showOutputs = !oval
 	}
 	if tb.btnShow.Clicked(gtx) {
-		tb.showShow = !tb.showShow
+		oval := tb.showShow
+		tb.setAllFalse()
+		tb.showShow = !oval
 	}
 	if tb.btnTools.Clicked(gtx) {
-		tb.showTools = !tb.showTools
+		oval := tb.showTools
+		tb.setAllFalse()
+		tb.showTools = !oval
 	}
 
 	var addCueSize image.Point
