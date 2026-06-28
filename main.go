@@ -18,7 +18,7 @@ import (
 
 var topBar ui.TopBar
 var tbCtx ui.TbContext
-var cues []show.Cue
+var manager *show.ShowManager = show.NewShowManager()
 
 func main() {
 	tbCtx = ui.TbContext{
@@ -81,7 +81,7 @@ func run(window *app.Window) error {
 				}),
 				// Top Bar Submenus
 				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-					return tbCtx.Layout(th, gtx)
+					return tbCtx.Layout(th, gtx, manager)
 				}),
 			)
 			e.Frame(gtx.Ops)

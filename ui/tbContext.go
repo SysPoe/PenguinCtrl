@@ -2,13 +2,12 @@ package ui
 
 import (
 	"image"
-	"image/color"
 
 	"gioui.org/layout"
 	"gioui.org/op"
-	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"github.com/SysPoe/CuSus/show"
 )
 
 type TbContext struct {
@@ -49,141 +48,145 @@ type TbContext struct {
 	btnEditFindNext       widget.Clickable
 	btnEditFindPrevious   widget.Clickable
 	btnEditPreferences    widget.Clickable
+
+	cueEditUI CueEditUI
 }
 
-func (ctx *TbContext) anyButtonClicked(gtx layout.Context) bool {
-	buttons := []*widget.Clickable{
-		&ctx.btnCueTypeSound,
-		&ctx.btnCueTypeVideo,
-		&ctx.btnCueTypeImage,
-		&ctx.btnCueTypeRemote,
-		&ctx.btnCueTypeWait,
-		&ctx.btnCueTypeMediaControl,
-		&ctx.btnCueTypeOutputControl,
-		&ctx.btnFileNew,
-		&ctx.btnFileOpen,
-		&ctx.btnFileOpenRecent,
-		&ctx.btnFileSave,
-		&ctx.btnFileSaveAs,
-		&ctx.btnFileRevealShow,
-		&ctx.btnFileRevealVideo,
-		&ctx.btnFileRevealAudio,
-		&ctx.btnFileRevealImages,
-		&ctx.btnFileImport,
-		&ctx.btnFileExport,
-		&ctx.btnFileBackups,
-		&ctx.btnFileCloseShow,
-		&ctx.btnEditUndo,
-		&ctx.btnEditRedo,
-		&ctx.btnEditCut,
-		&ctx.btnEditCopy,
-		&ctx.btnEditPaste,
-		&ctx.btnEditDuplicate,
-		&ctx.btnEditDelete,
-		&ctx.btnEditSelectAll,
-		&ctx.btnEditClearSelection,
-		&ctx.btnEditFind,
-		&ctx.btnEditFindNext,
-		&ctx.btnEditFindPrevious,
-		&ctx.btnEditPreferences,
-	}
-
-	for _, btn := range buttons {
-		if btn.Clicked(gtx) {
-			return true
-		}
-	}
-	return false
-}
-
-func MakeBtn(th *material.Theme, wid *widget.Clickable, txt string) layout.FlexChild {
-	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-		btn := material.Button(th, wid, txt)
-		btn.Inset.Right = unit.Dp(200 - btn.Layout(gtx).Size.X)
-		btn.Background = color.NRGBA{
-			R: uint8(float32(th.Bg.R) * float32(1.5)),
-			G: uint8(float32(th.Bg.G) * float32(1.5)),
-			B: uint8(float32(th.Bg.B) * float32(1.5)),
-			A: 255,
-		}
-		return btn.Layout(gtx)
-	})
-}
-
-func (ctx *TbContext) Layout(th *material.Theme, gtx layout.Context) layout.Dimensions {
-	if ctx.anyButtonClicked(gtx) {
+func (ctx *TbContext) handleButtonClicks(gtx layout.Context, manager *show.ShowManager) {
+	if ctx.btnCueTypeSound.Clicked(gtx) {
+		c := show.NewSoundCue()
+		ctx.cueEditUI.cue = c
+		ctx.cueEditUI.cType = show.CueTypeSound
+		ctx.cueEditUI.show = true
+		manager.AddCue(c)
 		ctx.TopBar.setAllFalse()
 	}
+	if ctx.btnCueTypeVideo.Clicked(gtx) {
+		c := show.NewVideoCue()
+		ctx.cueEditUI.cue = c
+		ctx.cueEditUI.cType = show.CueTypeVideo
+		ctx.cueEditUI.show = true
+		manager.AddCue(c)
+		ctx.TopBar.setAllFalse()
+	}
+	if ctx.btnCueTypeImage.Clicked(gtx) {
+		c := show.NewImageCue()
+		ctx.cueEditUI.cue = c
+		ctx.cueEditUI.cType = show.CueTypeImage
+		ctx.cueEditUI.show = true
+		manager.AddCue(c)
+		ctx.TopBar.setAllFalse()
+	}
+	if ctx.btnCueTypeRemote.Clicked(gtx) {
+		c := show.NewRemoteCue()
+		ctx.cueEditUI.cue = c
+		ctx.cueEditUI.cType = show.CueTypeRemote
+		ctx.cueEditUI.show = true
+		manager.AddCue(c)
+		ctx.TopBar.setAllFalse()
+	}
+	if ctx.btnCueTypeWait.Clicked(gtx) {
+		c := show.NewWaitCue()
+		ctx.cueEditUI.cue = c
+		ctx.cueEditUI.cType = show.CueTypeWait
+		ctx.cueEditUI.show = true
+		manager.AddCue(c)
+		ctx.TopBar.setAllFalse()
+	}
+	if ctx.btnCueTypeMediaControl.Clicked(gtx) {
+		c := show.NewMediaControlCue()
+		ctx.cueEditUI.cue = c
+		ctx.cueEditUI.cType = show.CueTypeMediaControl
+		ctx.cueEditUI.show = true
+		manager.AddCue(c)
+		ctx.TopBar.setAllFalse()
+	}
+	if ctx.btnCueTypeOutputControl.Clicked(gtx) {
+		c := show.NewOutputControlCue()
+		ctx.cueEditUI.cue = c
+		ctx.cueEditUI.cType = show.CueTypeOutputControl
+		ctx.cueEditUI.show = true
+		manager.AddCue(c)
+		ctx.TopBar.setAllFalse()
+	}
+}
+
+func (ctx *TbContext) Layout(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.Dimensions {
+	ctx.handleButtonClicks(gtx, manager)
 
 	return layout.Stack{}.Layout(gtx,
 		// addCue
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-			defer op.Offset(image.Pt(ctx.TopBar.AddCuePos.X, TOP_BAR_HEIGHT)).Push(gtx.Ops).Pop()
+			defer op.Offset(image.Pt(ctx.TopBar.addCuePos.X, TOP_BAR_HEIGHT)).Push(gtx.Ops).Pop()
 			if ctx.TopBar.showAddCue {
 				return layout.Flex{
 					Axis:      layout.Vertical,
 					Alignment: layout.Baseline,
 				}.Layout(gtx,
-					MakeBtn(th, &ctx.btnCueTypeSound, "Sound"),
-					MakeBtn(th, &ctx.btnCueTypeVideo, "Video"),
-					MakeBtn(th, &ctx.btnCueTypeImage, "Image"),
-					MakeBtn(th, &ctx.btnCueTypeRemote, "Remote"),
-					MakeBtn(th, &ctx.btnCueTypeWait, "Wait"),
-					MakeBtn(th, &ctx.btnCueTypeMediaControl, "Media Control"),
-					MakeBtn(th, &ctx.btnCueTypeOutputControl, "Output Control"),
+					makeFixedWidthBtn(th, &ctx.btnCueTypeSound, "Sound", 200),
+					makeFixedWidthBtn(th, &ctx.btnCueTypeVideo, "Video", 200),
+					makeFixedWidthBtn(th, &ctx.btnCueTypeImage, "Image", 200),
+					makeFixedWidthBtn(th, &ctx.btnCueTypeRemote, "Remote", 200),
+					makeFixedWidthBtn(th, &ctx.btnCueTypeWait, "Wait", 200),
+					makeFixedWidthBtn(th, &ctx.btnCueTypeMediaControl, "Media Control", 200),
+					makeFixedWidthBtn(th, &ctx.btnCueTypeOutputControl, "Output Control", 200),
 				)
 			}
 			return layout.Dimensions{}
 		}),
 		// file
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-			defer op.Offset(image.Pt(ctx.TopBar.FilePos.X, TOP_BAR_HEIGHT)).Push(gtx.Ops).Pop()
+			defer op.Offset(image.Pt(ctx.TopBar.filePos.X, TOP_BAR_HEIGHT)).Push(gtx.Ops).Pop()
 			if ctx.TopBar.showFile {
 				return layout.Flex{
 					Axis:      layout.Vertical,
 					Alignment: layout.Baseline,
 				}.Layout(gtx,
-					MakeBtn(th, &ctx.btnFileNew, "New"),
-					MakeBtn(th, &ctx.btnFileOpen, "Open"),
-					MakeBtn(th, &ctx.btnFileOpenRecent, "Open Recent"),
-					MakeBtn(th, &ctx.btnFileSave, "Save"),
-					MakeBtn(th, &ctx.btnFileSaveAs, "Save As"),
-					MakeBtn(th, &ctx.btnFileRevealShow, "Reveal Show Folder"),
-					MakeBtn(th, &ctx.btnFileRevealVideo, "Reveal Video Folder"),
-					MakeBtn(th, &ctx.btnFileRevealAudio, "Reveal Audio Folder"),
-					MakeBtn(th, &ctx.btnFileRevealImages, "Reveal Images Folder"),
-					MakeBtn(th, &ctx.btnFileImport, "Import .cusus"),
-					MakeBtn(th, &ctx.btnFileExport, "Export .cusus"),
-					MakeBtn(th, &ctx.btnFileBackups, "Backups"),
-					MakeBtn(th, &ctx.btnFileCloseShow, "Close Show"),
+					makeFixedWidthBtn(th, &ctx.btnFileNew, "New", 200),
+					makeFixedWidthBtn(th, &ctx.btnFileOpen, "Open", 200),
+					makeFixedWidthBtn(th, &ctx.btnFileOpenRecent, "Open Recent", 200),
+					makeFixedWidthBtn(th, &ctx.btnFileSave, "Save", 200),
+					makeFixedWidthBtn(th, &ctx.btnFileSaveAs, "Save As", 200),
+					makeFixedWidthBtn(th, &ctx.btnFileRevealShow, "Reveal Show Folder", 200),
+					makeFixedWidthBtn(th, &ctx.btnFileRevealVideo, "Reveal Video Folder", 200),
+					makeFixedWidthBtn(th, &ctx.btnFileRevealAudio, "Reveal Audio Folder", 200),
+					makeFixedWidthBtn(th, &ctx.btnFileRevealImages, "Reveal Images Folder", 200),
+					makeFixedWidthBtn(th, &ctx.btnFileImport, "Import .cusus", 200),
+					makeFixedWidthBtn(th, &ctx.btnFileExport, "Export .cusus", 200),
+					makeFixedWidthBtn(th, &ctx.btnFileBackups, "Backups", 200),
+					makeFixedWidthBtn(th, &ctx.btnFileCloseShow, "Close Show", 200),
 				)
 			}
 			return layout.Dimensions{}
 		}),
 		// edit
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-			defer op.Offset(image.Pt(ctx.TopBar.EditPos.X, TOP_BAR_HEIGHT)).Push(gtx.Ops).Pop()
+			defer op.Offset(image.Pt(ctx.TopBar.editPos.X, TOP_BAR_HEIGHT)).Push(gtx.Ops).Pop()
 			if ctx.TopBar.showEdit {
 				return layout.Flex{
 					Axis:      layout.Vertical,
 					Alignment: layout.Baseline,
 				}.Layout(gtx,
-					MakeBtn(th, &ctx.btnEditUndo, "Undo"),
-					MakeBtn(th, &ctx.btnEditRedo, "Redo"),
-					MakeBtn(th, &ctx.btnEditCut, "Cut"),
-					MakeBtn(th, &ctx.btnEditCopy, "Copy"),
-					MakeBtn(th, &ctx.btnEditPaste, "Paste"),
-					MakeBtn(th, &ctx.btnEditDuplicate, "Duplicate"),
-					MakeBtn(th, &ctx.btnEditDelete, "Delete"),
-					MakeBtn(th, &ctx.btnEditSelectAll, "Select All"),
-					MakeBtn(th, &ctx.btnEditClearSelection, "Clear Selection"),
-					MakeBtn(th, &ctx.btnEditFind, "Find"),
-					MakeBtn(th, &ctx.btnEditFindNext, "Find Next"),
-					MakeBtn(th, &ctx.btnEditFindPrevious, "Find Previous"),
-					MakeBtn(th, &ctx.btnEditPreferences, "Preferences"),
+					makeFixedWidthBtn(th, &ctx.btnEditUndo, "Undo", 200),
+					makeFixedWidthBtn(th, &ctx.btnEditRedo, "Redo", 200),
+					makeFixedWidthBtn(th, &ctx.btnEditCut, "Cut", 200),
+					makeFixedWidthBtn(th, &ctx.btnEditCopy, "Copy", 200),
+					makeFixedWidthBtn(th, &ctx.btnEditPaste, "Paste", 200),
+					makeFixedWidthBtn(th, &ctx.btnEditDuplicate, "Duplicate", 200),
+					makeFixedWidthBtn(th, &ctx.btnEditDelete, "Delete", 200),
+					makeFixedWidthBtn(th, &ctx.btnEditSelectAll, "Select All", 200),
+					makeFixedWidthBtn(th, &ctx.btnEditClearSelection, "Clear Selection", 200),
+					makeFixedWidthBtn(th, &ctx.btnEditFind, "Find", 200),
+					makeFixedWidthBtn(th, &ctx.btnEditFindNext, "Find Next", 200),
+					makeFixedWidthBtn(th, &ctx.btnEditFindPrevious, "Find Previous", 200),
+					makeFixedWidthBtn(th, &ctx.btnEditPreferences, "Preferences", 200),
 				)
 			}
 			return layout.Dimensions{}
+		}),
+		// cueEditUI
+		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+			return ctx.cueEditUI.Layout(th, gtx, manager)
 		}),
 	)
 }

@@ -15,15 +15,15 @@ import (
 const TOP_BAR_HEIGHT int = 40
 
 type TopBar struct {
-	AddCuePos  image.Point
-	FilePos    image.Point
-	EditPos    image.Point
-	CuePos     image.Point
-	BulkPos    image.Point
-	ViewPos    image.Point
-	OutputsPos image.Point
-	ShowPos    image.Point
-	ToolsPos   image.Point
+	addCuePos  image.Point
+	filePos    image.Point
+	editPos    image.Point
+	cuePos     image.Point
+	bulkPos    image.Point
+	viewPos    image.Point
+	outputsPos image.Point
+	showPos    image.Point
+	toolsPos   image.Point
 
 	showAddCue  bool
 	showFile    bool
@@ -44,15 +44,6 @@ type TopBar struct {
 	btnOutputs widget.Clickable
 	btnShow    widget.Clickable
 	btnTools   widget.Clickable
-}
-
-func MakeMeasuredBtn(th *material.Theme, wid *widget.Clickable, txt string, size *image.Point) layout.FlexChild {
-	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-		btn := material.Button(th, wid, txt)
-		dims := btn.Layout(gtx)
-		*size = dims.Size
-		return dims
-	})
 }
 
 func (tb *TopBar) setAllFalse() {
@@ -149,31 +140,31 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context) layout.Dimensio
 		x := startX
 		y := barHeight
 
-		tb.AddCuePos = image.Pt(x, y)
+		tb.addCuePos = image.Pt(x, y)
 		x += addCueSize.X
 
-		tb.FilePos = image.Pt(x, y)
+		tb.filePos = image.Pt(x, y)
 		x += fileSize.X
 
-		tb.EditPos = image.Pt(x, y)
+		tb.editPos = image.Pt(x, y)
 		x += editSize.X
 
-		tb.CuePos = image.Pt(x, y)
+		tb.cuePos = image.Pt(x, y)
 		x += cueSize.X
 
-		tb.BulkPos = image.Pt(x, y)
+		tb.bulkPos = image.Pt(x, y)
 		x += bulkSize.X
 
-		tb.ViewPos = image.Pt(x, y)
+		tb.viewPos = image.Pt(x, y)
 		x += viewSize.X
 
-		tb.OutputsPos = image.Pt(x, y)
+		tb.outputsPos = image.Pt(x, y)
 		x += outputsSize.X
 
-		tb.ShowPos = image.Pt(x, y)
+		tb.showPos = image.Pt(x, y)
 		x += showSize.X
 
-		tb.ToolsPos = image.Pt(x, y)
+		tb.toolsPos = image.Pt(x, y)
 	}
 
 	return layout.Flex{
@@ -188,14 +179,14 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context) layout.Dimensio
 			title.TextSize = unit.Sp(float32(TOP_BAR_HEIGHT) * 0.6)
 			return title.Layout(gtx)
 		}),
-		MakeMeasuredBtn(th, &tb.btnAddCue, "Add Cue", &addCueSize),
-		MakeMeasuredBtn(th, &tb.btnFile, "File", &fileSize),
-		MakeMeasuredBtn(th, &tb.btnEdit, "Edit", &editSize),
-		MakeMeasuredBtn(th, &tb.btnCue, "Cue", &cueSize),
-		MakeMeasuredBtn(th, &tb.btnBulk, "Bulk", &bulkSize),
-		MakeMeasuredBtn(th, &tb.btnView, "View", &viewSize),
-		MakeMeasuredBtn(th, &tb.btnOutputs, "Outputs", &outputsSize),
-		MakeMeasuredBtn(th, &tb.btnShow, "Show", &showSize),
-		MakeMeasuredBtn(th, &tb.btnTools, "Tools", &toolsSize),
+		makeMeasuredBtn(th, &tb.btnAddCue, "Add Cue", &addCueSize),
+		makeMeasuredBtn(th, &tb.btnFile, "File", &fileSize),
+		makeMeasuredBtn(th, &tb.btnEdit, "Edit", &editSize),
+		makeMeasuredBtn(th, &tb.btnCue, "Cue", &cueSize),
+		makeMeasuredBtn(th, &tb.btnBulk, "Bulk", &bulkSize),
+		makeMeasuredBtn(th, &tb.btnView, "View", &viewSize),
+		makeMeasuredBtn(th, &tb.btnOutputs, "Outputs", &outputsSize),
+		makeMeasuredBtn(th, &tb.btnShow, "Show", &showSize),
+		makeMeasuredBtn(th, &tb.btnTools, "Tools", &toolsSize),
 	)
 }

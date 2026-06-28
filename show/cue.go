@@ -4,7 +4,6 @@ import "github.com/google/uuid"
 
 type Cue struct {
 	ID          CueID
-	Order       float64
 	CueNumber   string
 	Title       string
 	Description string

@@ -7,14 +7,11 @@ type MediaControlPlay struct {
 	// Used by fade_to, set_volume, duck, etc.
 	LevelDB *float64
 
-	// Used by fade/volume changes.
-	DurationMS int64
-
 	// Used by seek.
 	SeekToMS *int64
 
-	// Optional fade duration for stop.
-	FadeOutMS int64
+	// Optional fade duration for stop and fade/volume changes.
+	FadeMS int64
 
 	Curve FadeCurve
 }
