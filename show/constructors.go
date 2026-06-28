@@ -71,10 +71,6 @@ func NewRemoteCue() Cue {
 			Playback:  "",
 			CueNumber: "",
 			Level:     "",
-			Address:   "",
-			Args:      []RemoteValue{},
-			Host:      "",
-			Port:      0,
 		},
 	})
 }

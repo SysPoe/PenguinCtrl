@@ -1,22 +1,176 @@
 package ui
 
 import (
-	"fmt"
 	"image"
 	"image/color"
 
+	"gioui.org/io/event"
+	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"gioui.org/unit"
+	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"github.com/SysPoe/CuSus/show"
+	"github.com/SysPoe/CuSus/utils"
 )
 
 type CueEditUI struct {
 	cue   show.Cue
 	cType show.CueType
 	show  bool
+
+	btnTabGeneral    widget.Clickable
+	btnTabTiming     widget.Clickable
+	btnTabLink       widget.Clickable
+	btnTabMedia      widget.Clickable
+	btnTabTimecode   widget.Clickable
+	btnTabRemote     widget.Clickable
+	btnTabWait       widget.Clickable
+	btnTabMediaCtrl  widget.Clickable
+	btnTabOutputCtrl widget.Clickable
+
+	btnCancel widget.Clickable
+	btnSave   widget.Clickable
+
+	activeTab int
+
+	modalTag struct{}
+}
+
+const (
+	TabGeneral = iota
+	TabTiming
+	TabLink
+	TabMedia
+	TabTimecode
+	TabRemote
+	TabWait
+	TabMediaCtrl
+	TabOutputCtrl
+)
+
+func (ctx *CueEditUI) DrawTopBar(th *material.Theme, gtx layout.Context) layout.FlexChild {
+	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		barHeight := 40
+
+		colorActive := color.NRGBA{
+			R: th.ContrastBg.R * 2,
+			G: th.ContrastBg.G * 2,
+			B: th.ContrastBg.B * 2,
+			A: 255,
+		}
+		colorInactive := th.ContrastBg
+		colorBg := color.NRGBA{
+			R: uint8(float32(th.Bg.R) * float32(1.5)),
+			G: uint8(float32(th.Bg.G) * float32(1.5)),
+			B: uint8(float32(th.Bg.B) * float32(1.5)),
+			A: 255,
+		}
+
+		gtx.Constraints.Min.Y = barHeight
+		gtx.Constraints.Max.Y = barHeight
+
+		// Make bg
+		paint.FillShape(
+			gtx.Ops, colorBg,
+			clip.Rect{Max: image.Point{
+				X: gtx.Constraints.Max.X,
+				Y: barHeight,
+			}}.Op(),
+		)
+
+		sub := []layout.FlexChild{
+			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+				title := material.Body1(th, "Cue Editor")
+				title.Color = th.Fg
+				title.TextSize = unit.Sp(float32(TOP_BAR_HEIGHT) * 0.6)
+				return title.Layout(gtx)
+			}),
+			makeBtnWithColor(th, &ctx.btnTabGeneral, "General", utils.Ter(ctx.activeTab == TabGeneral, colorActive, colorInactive)),
+			makeBtnWithColor(th, &ctx.btnTabTiming, "Timing", utils.Ter(ctx.activeTab == TabTiming, colorActive, colorInactive)),
+			makeBtnWithColor(th, &ctx.btnTabLink, "Link", utils.Ter(ctx.activeTab == TabLink, colorActive, colorInactive)),
+		}
+
+		if ctx.cType == show.CueTypeImage || ctx.cType == show.CueTypeVideo || ctx.cType == show.CueTypeSound {
+			sub = append(sub, makeBtnWithColor(th, &ctx.btnTabMedia, "Media", utils.Ter(ctx.activeTab == TabMedia, colorActive, colorInactive)))
+			sub = append(sub, makeBtnWithColor(th, &ctx.btnTabTimecode, "Timecode", utils.Ter(ctx.activeTab == TabTimecode, colorActive, colorInactive)))
+		}
+
+		if ctx.cType == show.CueTypeRemote {
+			sub = append(sub, makeBtnWithColor(th, &ctx.btnTabRemote, "Remote", utils.Ter(ctx.activeTab == TabRemote, colorActive, colorInactive)))
+		}
+
+		if ctx.cType == show.CueTypeWait {
+			sub = append(sub, makeBtnWithColor(th, &ctx.btnTabWait, "Wait", utils.Ter(ctx.activeTab == TabWait, colorActive, colorInactive)))
+		}
+
+		if ctx.cType == show.CueTypeMediaControl {
+			sub = append(sub, makeBtnWithColor(th, &ctx.btnTabMediaCtrl, "Media Ctrl", utils.Ter(ctx.activeTab == TabMediaCtrl, colorActive, colorInactive)))
+		}
+
+		if ctx.cType == show.CueTypeOutputControl {
+			sub = append(sub, makeBtnWithColor(th, &ctx.btnTabOutputCtrl, "Output Ctrl", utils.Ter(ctx.activeTab == TabOutputCtrl, colorActive, colorInactive)))
+		}
+
+		if ctx.btnTabGeneral.Clicked(gtx) {
+			ctx.activeTab = TabGeneral
+		}
+		if ctx.btnTabTiming.Clicked(gtx) {
+			ctx.activeTab = TabTiming
+		}
+		if ctx.btnTabLink.Clicked(gtx) {
+			ctx.activeTab = TabLink
+		}
+		if ctx.btnTabMedia.Clicked(gtx) {
+			ctx.activeTab = TabMedia
+		}
+		if ctx.btnTabTimecode.Clicked(gtx) {
+			ctx.activeTab = TabTimecode
+		}
+		if ctx.btnTabRemote.Clicked(gtx) {
+			ctx.activeTab = TabRemote
+		}
+		if ctx.btnTabWait.Clicked(gtx) {
+			ctx.activeTab = TabWait
+		}
+		if ctx.btnTabMediaCtrl.Clicked(gtx) {
+			ctx.activeTab = TabMediaCtrl
+		}
+		if ctx.btnTabOutputCtrl.Clicked(gtx) {
+			ctx.activeTab = TabOutputCtrl
+		}
+
+		return layout.Flex{
+			Axis:      layout.Horizontal,
+			Alignment: layout.Middle,
+		}.Layout(gtx,
+			sub...,
+		)
+	})
+}
+
+func (ctx *CueEditUI) DrawBottomBar(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.FlexChild {
+	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		if ctx.btnCancel.Clicked(gtx) {
+			ctx.show = false
+		}
+
+		if ctx.btnSave.Clicked(gtx) {
+			manager.ReplaceCue(ctx.cue)
+			ctx.show = false
+		}
+
+		return layout.Flex{
+			Axis:      layout.Horizontal,
+			Alignment: layout.Middle,
+		}.Layout(gtx,
+			makeFlexedBtnWithColor(th, &ctx.btnCancel, "Cancel", color.NRGBA{R: 100, A: 255}, 1),
+			makeFlexedBtnWithColor(th, &ctx.btnSave, "Save", color.NRGBA{G: 100, A: 255}, 1),
+		)
+	})
 }
 
 func (ctx *CueEditUI) Layout(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.Dimensions {
@@ -24,11 +178,11 @@ func (ctx *CueEditUI) Layout(th *material.Theme, gtx layout.Context, manager *sh
 		return layout.Dimensions{}
 	}
 
-	margin := image.Pt(100, 100)
+	margin := image.Pt(0, 0)
 	widthHeight := image.Pt(gtx.Constraints.Max.X-margin.X*2, gtx.Constraints.Max.Y-margin.Y*2)
 	border_w := 2
-	border_radius := 20
-	padding := 20
+	border_radius := 0
+	padding := 0
 
 	// Draw border and background
 	defer op.Offset(image.Pt(
@@ -43,14 +197,25 @@ func (ctx *CueEditUI) Layout(th *material.Theme, gtx layout.Context, manager *sh
 		NE:   border_radius + border_w,
 	}.Op(gtx.Ops))
 
+	// Prevent clicks from going through to the underlying UI
+	hitArea := clip.Rect(image.Rectangle{Max: image.Pt(widthHeight.X+border_w*2, widthHeight.Y+border_w*2)}).Push(gtx.Ops)
+	event.Op(gtx.Ops, &ctx.modalTag)
+	hitArea.Pop()
+	for {
+		_, ok := gtx.Event(pointer.Filter{
+			Target:  &ctx.modalTag,
+			Kinds:   pointer.Press | pointer.Release | pointer.Move | pointer.Drag | pointer.Scroll | pointer.Enter | pointer.Leave | pointer.Cancel,
+			ScrollX: pointer.ScrollRange{Min: -1 << 20, Max: 1 << 20},
+			ScrollY: pointer.ScrollRange{Min: -1 << 20, Max: 1 << 20},
+		})
+		if !ok {
+			break
+		}
+	}
+
 	defer op.Offset(image.Pt(border_w, border_w)).Push(gtx.Ops).Pop()
 
-	paint.FillShape(gtx.Ops, color.NRGBA{
-		R: uint8(float32(th.Bg.R) * float32(1.5)),
-		G: uint8(float32(th.Bg.G) * float32(1.5)),
-		B: uint8(float32(th.Bg.B) * float32(1.5)),
-		A: 255,
-	}, clip.RRect{
+	paint.FillShape(gtx.Ops, th.Bg, clip.RRect{
 		Rect: image.Rectangle{Max: widthHeight},
 		SE:   border_radius,
 		SW:   border_radius,
@@ -59,18 +224,17 @@ func (ctx *CueEditUI) Layout(th *material.Theme, gtx layout.Context, manager *sh
 	}.Op(gtx.Ops))
 
 	defer op.Offset(image.Pt(padding, padding)).Push(gtx.Ops).Pop()
+	gtx.Constraints.Min.X = widthHeight.X - padding*2
+	gtx.Constraints.Max.X = widthHeight.X - padding*2
+	gtx.Constraints.Min.Y = widthHeight.Y - padding*2
+	gtx.Constraints.Max.Y = widthHeight.Y - padding*2
 
 	// Return acutal layout
 	return layout.Flex{
 		Axis: layout.Vertical,
 	}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return material.H6(th, "Cue Edit UI").Layout(gtx)
-			})
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return material.Body1(th, "This is the Cue Edit UI. Cue Type: "+fmt.Sprint(ctx.cType)).Layout(gtx)
-		}),
+		ctx.DrawTopBar(th, gtx),
+		ctx.DrawBody(th, gtx),
+		ctx.DrawBottomBar(th, gtx, manager),
 	)
 }

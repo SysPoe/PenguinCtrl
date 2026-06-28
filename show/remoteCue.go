@@ -8,12 +8,6 @@ type RemotePlay struct {
 	CueNumber string
 
 	Level string
-
-	Address string
-	Args    []RemoteValue
-
-	Host string
-	Port int
 }
 
 type RemoteProtocol int

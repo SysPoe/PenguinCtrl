@@ -114,6 +114,10 @@ func (ctx *TbContext) handleButtonClicks(gtx layout.Context, manager *show.ShowM
 func (ctx *TbContext) Layout(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.Dimensions {
 	ctx.handleButtonClicks(gtx, manager)
 
+	if ctx.TopBar.showAddCue || ctx.TopBar.showFile || ctx.TopBar.showEdit || ctx.TopBar.showCue || ctx.TopBar.showBulk || ctx.TopBar.showView || ctx.TopBar.showOutputs || ctx.TopBar.showShow || ctx.TopBar.showTools {
+		ctx.cueEditUI.show = false
+	}
+
 	return layout.Stack{}.Layout(gtx,
 		// addCue
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {

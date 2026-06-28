@@ -10,6 +10,28 @@ import (
 	"gioui.org/widget/material"
 )
 
+func makeBtn(th *material.Theme, wid *widget.Clickable, txt string) layout.FlexChild {
+	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return material.Button(th, wid, txt).Layout(gtx)
+	})
+}
+
+func makeBtnWithColor(th *material.Theme, wid *widget.Clickable, txt string, bgColor color.NRGBA) layout.FlexChild {
+	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		btn := material.Button(th, wid, txt)
+		btn.Background = bgColor
+		return btn.Layout(gtx)
+	})
+}
+
+func makeFlexedBtnWithColor(th *material.Theme, wid *widget.Clickable, txt string, bgColor color.NRGBA, weight float32) layout.FlexChild {
+	return layout.Flexed(weight, func(gtx layout.Context) layout.Dimensions {
+		btn := material.Button(th, wid, txt)
+		btn.Background = bgColor
+		return btn.Layout(gtx)
+	})
+}
+
 func makeFixedWidthBtn(th *material.Theme, wid *widget.Clickable, txt string, width int) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		btn := material.Button(th, wid, txt)
