@@ -46,9 +46,28 @@ func makeFixedWidthBtn(th *material.Theme, wid *widget.Clickable, txt string, wi
 	})
 }
 
+func makeFixedWidthBtnWithColor(th *material.Theme, wid *widget.Clickable, txt string, width int, bgColor color.NRGBA) layout.FlexChild {
+	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		btn := material.Button(th, wid, txt)
+		btn.Background = bgColor
+		btn.Inset.Right = unit.Dp(width - btn.Layout(gtx).Size.X)
+		return btn.Layout(gtx)
+	})
+}
+
 func makeMeasuredBtn(th *material.Theme, wid *widget.Clickable, txt string, size *image.Point) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		btn := material.Button(th, wid, txt)
+		dims := btn.Layout(gtx)
+		*size = dims.Size
+		return dims
+	})
+}
+
+func makeMeasuredBtnWithColor(th *material.Theme, wid *widget.Clickable, txt string, size *image.Point, bgColor color.NRGBA) layout.FlexChild {
+	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		btn := material.Button(th, wid, txt)
+		btn.Background = bgColor
 		dims := btn.Layout(gtx)
 		*size = dims.Size
 		return dims

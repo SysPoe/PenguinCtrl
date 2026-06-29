@@ -19,6 +19,11 @@ import (
 var topBar ui.TopBar
 var tbCtx ui.TbContext
 var manager *show.ShowManager = show.NewShowManager()
+var dropdown *ui.Dropdown = ui.NewDropdown([]ui.DropdownItem{
+	{Label: "Item 1", Value: "value1"},
+	{Label: "Item 2", Value: "value2"},
+	{Label: "Item 3", Value: "value3"},
+}, 0)
 
 func main() {
 	tbCtx = ui.TbContext{
@@ -82,6 +87,10 @@ func run(window *app.Window) error {
 				// Top Bar Submenus
 				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 					return tbCtx.Layout(th, gtx, manager)
+				}),
+				// Test
+				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+					return dropdown.Layout(th, gtx)
 				}),
 			)
 			e.Frame(gtx.Ops)
