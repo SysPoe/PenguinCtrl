@@ -53,8 +53,10 @@ func (f *Float) Layout(th *material.Theme, gtx layout.Context) layout.Dimensions
 
 	previous := f.editor.Text()
 	editor := material.Editor(th, &f.editor, f.Hint)
-	editor.TextSize = unit.Sp(14)
-	dims := layout.UniformInset(unit.Dp(8)).Layout(gtx, editor.Layout)
+	editor.TextSize = unit.Sp(18)
+	dims := editorField(th, gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.UniformInset(unit.Dp(8)).Layout(gtx, editor.Layout)
+	})
 
 	if text := f.editor.Text(); text != previous {
 		f.text = text

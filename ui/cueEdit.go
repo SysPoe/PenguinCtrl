@@ -22,6 +22,8 @@ type CueEditUI struct {
 	cType show.CueType
 	show  bool
 
+	pickFile func(extensions []string, selected func(path string))
+
 	btnTabGeneral    widget.Clickable
 	btnTabTiming     widget.Clickable
 	btnTabLink       widget.Clickable

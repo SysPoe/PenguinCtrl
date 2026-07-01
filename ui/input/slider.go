@@ -1,7 +1,6 @@
 package input
 
 import (
-	"image/color"
 	"math"
 
 	"gioui.org/layout"
@@ -61,16 +60,18 @@ func (s *Slider) Layout(th *material.Theme, gtx layout.Context) layout.Dimension
 	}
 
 	previous := s.slider.Value
-	dims := layout.Inset{
-		Top:    unit.Dp(8),
-		Bottom: unit.Dp(8),
-		Left:   unit.Dp(4),
-		Right:  unit.Dp(4),
-	}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		gtx.Constraints.Min.X = max(gtx.Constraints.Min.X, gtx.Dp(unit.Dp(160)))
-		slider := material.Slider(th, &s.slider)
-		slider.Color = color.NRGBA{R: 0x40, G: 0x40, B: 0x40, A: 0xFF}
-		return slider.Layout(gtx)
+	dims := inputField(th, gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Inset{
+			Top:    unit.Dp(8),
+			Bottom: unit.Dp(8),
+			Left:   unit.Dp(4),
+			Right:  unit.Dp(4),
+		}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			gtx.Constraints.Min.X = max(gtx.Constraints.Min.X, gtx.Dp(unit.Dp(160)))
+			slider := material.Slider(th, &s.slider)
+			slider.Color = selectedInputSurface(th)
+			return slider.Layout(gtx)
+		})
 	})
 
 	if s.slider.Value != previous {

@@ -2,7 +2,15 @@ module github.com/SysPoe/CuSus
 
 go 1.26.4
 
-require gioui.org v0.10.0
+require (
+	gioui.org v0.10.0
+	gioui.org/x v0.10.0
+)
+
+require (
+	git.wow.st/gmp/jni v0.0.0-20210610011705-34026c7e22d0 // indirect
+	github.com/godbus/dbus/v5 v5.0.6 // indirect
+)
 
 require (
 	gioui.org/shader v1.0.8 // indirect

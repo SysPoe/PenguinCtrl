@@ -45,8 +45,8 @@ func (c *Checkbox) Layout(th *material.Theme, gtx layout.Context) layout.Dimensi
 	previous := c.checkbox.Value
 	checkBox := material.CheckBox(th, &c.checkbox, c.Label)
 	checkBox.Color = color.NRGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xDE}
-	checkBox.IconColor = color.NRGBA{R: 0x40, G: 0x40, B: 0x40, A: 0xFF}
-	dims := checkBox.Layout(gtx)
+	checkBox.IconColor = selectedInputSurface(th)
+	dims := inputField(th, gtx, checkBox.Layout)
 
 	if c.checkbox.Value != previous {
 		c.Checked = c.checkbox.Value

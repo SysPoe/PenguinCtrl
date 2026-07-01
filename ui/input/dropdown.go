@@ -53,16 +53,16 @@ func (d *Dropdown) notifyEventListeners() {
 }
 
 func (d *Dropdown) Layout(th *material.Theme, gtx layout.Context) layout.Dimensions {
-	regBg := color.NRGBA{R: 0x20, G: 0x20, B: 0x20, A: 0xFF}
-	selBg := color.NRGBA{R: 0x40, G: 0x40, B: 0x40, A: 0xFF}
-	nonSelBg := color.NRGBA{R: 0x20, G: 0x20, B: 0x20, A: 0xFF}
+	regBg := inputSurface(th)
+	selBg := selectedInputSurface(th)
+	nonSelBg := inputSurface(th)
 
 	if d.expandedBtn.Clicked(gtx) {
 		d.expanded = !d.expanded
 	}
 
 	subs := []layout.FlexChild{
-		fixedWidthBtnWithColor(th, &d.expandedBtn, d.getSelectedLabel()+utils.Ter(d.expanded, "▼", " ▶"), 200, regBg),
+		fixedWidthBtnWithColor(th, &d.expandedBtn, d.getSelectedLabel()+utils.Ter(d.expanded, "▼", " ▶"), inputDefaultWidth, regBg),
 	}
 
 	if d.expanded {
@@ -73,9 +73,9 @@ func (d *Dropdown) Layout(th *material.Theme, gtx layout.Context) layout.Dimensi
 				d.notifyEventListeners()
 			}
 			if d.Selected == i {
-				subs = append(subs, fixedWidthBtnWithColor(th, &d.choicesBtns[i], item.Label, 200, selBg))
+				subs = append(subs, fixedWidthBtnWithColor(th, &d.choicesBtns[i], item.Label, inputDefaultWidth, selBg))
 			} else {
-				subs = append(subs, fixedWidthBtnWithColor(th, &d.choicesBtns[i], item.Label, 200, nonSelBg))
+				subs = append(subs, fixedWidthBtnWithColor(th, &d.choicesBtns[i], item.Label, inputDefaultWidth, nonSelBg))
 			}
 		}
 	}
@@ -85,17 +85,18 @@ func (d *Dropdown) Layout(th *material.Theme, gtx layout.Context) layout.Dimensi
 	)
 }
 
-func fixedWidthBtnWithColor(th *material.Theme, wid *widget.Clickable, txt string, width int, bgColor color.NRGBA) layout.FlexChild {
+func fixedWidthBtnWithColor(th *material.Theme, wid *widget.Clickable, txt string, width unit.Dp, bgColor color.NRGBA) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		btn := material.Button(th, wid, txt)
 		btn.Background = bgColor
+		btn.TextSize = unit.Sp(18)
 		setFixedWidth(&gtx, width)
 		return btn.Layout(gtx)
 	})
 }
 
-func setFixedWidth(gtx *layout.Context, width int) {
-	widthPx := gtx.Dp(unit.Dp(width))
+func setFixedWidth(gtx *layout.Context, width unit.Dp) {
+	widthPx := gtx.Dp(width)
 	widthPx = max(widthPx, gtx.Constraints.Min.X)
 	widthPx = min(widthPx, gtx.Constraints.Max.X)
 	gtx.Constraints.Min.X = widthPx

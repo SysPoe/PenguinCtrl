@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"image/color"
 	"log"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/paint"
 	"gioui.org/widget/material"
+	"gioui.org/x/explorer"
 
 	"github.com/SysPoe/CuSus/show"
 	"github.com/SysPoe/CuSus/ui"
@@ -56,9 +58,50 @@ func NewTheme() *material.Theme {
 func run(window *app.Window) error {
 	var ops op.Ops
 	th := NewTheme()
+	expl := explorer.NewExplorer(window)
+	uiActions := make(chan func(), 16)
+
+	tbCtx.PickFile = func(extensions []string, selected func(path string)) {
+		go func() {
+			file, err := expl.ChooseFile(extensions...)
+			if err != nil {
+				if !errors.Is(err, explorer.ErrUserDecline) {
+					log.Printf("pick file: %v", err)
+				}
+				return
+			}
+			defer file.Close()
+
+			path := ""
+			switch f := file.(type) {
+			case *explorer.File:
+				path = f.URI()
+			case *os.File:
+				path = f.Name()
+			}
+			if path == "" || selected == nil {
+				return
+			}
+
+			uiActions <- func() { selected(path) }
+			window.Invalidate()
+		}()
+	}
 
 	for {
-		switch e := window.Event().(type) {
+		e := window.Event()
+		expl.ListenEvents(e)
+		for {
+			select {
+			case action := <-uiActions:
+				action()
+			default:
+				goto actionsDone
+			}
+		}
+	actionsDone:
+
+		switch e := e.(type) {
 		case app.DestroyEvent:
 			return e.Err
 

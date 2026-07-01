@@ -46,8 +46,10 @@ func (m *Multiline) Layout(th *material.Theme, gtx layout.Context) layout.Dimens
 
 	previous := m.editor.Text()
 	editor := material.Editor(th, &m.editor, m.Hint)
-	editor.TextSize = unit.Sp(14)
-	dims := layout.UniformInset(unit.Dp(8)).Layout(gtx, editor.Layout)
+	editor.TextSize = unit.Sp(18)
+	dims := editorField(th, gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.UniformInset(unit.Dp(8)).Layout(gtx, editor.Layout)
+	})
 
 	if value := m.editor.Text(); value != previous {
 		m.Value = value

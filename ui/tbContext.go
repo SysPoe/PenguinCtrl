@@ -11,6 +11,8 @@ import (
 type TbContext struct {
 	TopBar *TopBar
 
+	PickFile func(extensions []string, selected func(path string))
+
 	btnCueTypeSound         widget.Clickable
 	btnCueTypeVideo         widget.Clickable
 	btnCueTypeImage         widget.Clickable
@@ -110,6 +112,7 @@ func (ctx *TbContext) handleButtonClicks(gtx layout.Context, manager *show.ShowM
 }
 
 func (ctx *TbContext) Layout(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.Dimensions {
+	ctx.cueEditUI.pickFile = ctx.PickFile
 	ctx.handleButtonClicks(gtx, manager)
 
 	if ctx.TopBar.showAddCue || ctx.TopBar.showFile || ctx.TopBar.showEdit || ctx.TopBar.showCue || ctx.TopBar.showBulk || ctx.TopBar.showView || ctx.TopBar.showOutputs || ctx.TopBar.showShow || ctx.TopBar.showTools {

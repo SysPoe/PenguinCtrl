@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"fmt"
+	"image/color"
 	"strconv"
 	"strings"
 
@@ -38,19 +40,6 @@ func (ctx *CueEditUI) DrawBody(th *material.Theme, gtx layout.Context) layout.Fl
 	return layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 		return layout.Dimensions{}
 	})
-}
-
-type cueEditPageState struct {
-	initialized bool
-	cueID       show.CueID
-	list        layout.List
-
-	text      map[string]*input.Text
-	multiline map[string]*input.Multiline
-	integer   map[string]*input.Integer
-	float     map[string]*input.Float
-	checkbox  map[string]*input.Checkbox
-	dropdown  map[string]*input.Dropdown
 }
 
 type cueEditFormRow struct {
@@ -133,6 +122,9 @@ var (
 		"Fullscreen",
 		"Exit Fullscreen",
 	}
+	soundFileExtensions = []string{".wav", ".mp3", ".flac", ".ogg", ".aiff", ".aif", ".m4a"}
+	videoFileExtensions = []string{".mp4", ".mov", ".mkv", ".webm", ".avi"}
+	imageFileExtensions = []string{".png", ".jpg", ".jpeg", ".webp", ".gif"}
 )
 
 func (ctx *CueEditUI) ensurePageInputs() {
@@ -179,114 +171,13 @@ func (ctx *CueEditUI) ensureCuePlay() {
 	}
 }
 
-func newCueEditPageState(cue show.Cue) cueEditPageState {
-	state := cueEditPageState{
-		initialized: true,
-		cueID:       cue.ID,
-		list:        layout.List{Axis: layout.Vertical},
-		text:        map[string]*input.Text{},
-		multiline:   map[string]*input.Multiline{},
-		integer:     map[string]*input.Integer{},
-		float:       map[string]*input.Float{},
-		checkbox:    map[string]*input.Checkbox{},
-		dropdown:    map[string]*input.Dropdown{},
-	}
-
-	state.text["cueNumber"] = input.NewText("Cue Number", cue.CueNumber)
-	state.text["title"] = input.NewText("Title", cue.Title)
-	state.multiline["description"] = input.NewMultiline("Description", cue.Description)
-	state.checkbox["disabled"] = input.NewCheckbox("Disabled", cue.Disabled)
-	state.text["hexColor"] = input.NewText("Hex Color", cue.HexColor)
-	state.text["tags"] = input.NewText("Tags", strings.Join(cue.Tags, ", "))
-	state.multiline["notes"] = input.NewMultiline("Notes", cue.Notes)
-
-	state.integer["preWaitMS"] = input.NewInteger("Pre Wait MS", int(cue.Timing.PreWaitMS))
-	state.integer["postWaitMS"] = input.NewInteger("Post Wait MS", int(cue.Timing.PostWaitMS))
-
-	state.dropdown["linkMode"] = newEnumDropdown(cueLinkModeLabels, int(cue.Link.Mode))
-	state.dropdown["linkTargetKind"] = newEnumDropdown(cueTargetKindLabels, int(cue.Link.Target.Kind))
-	state.text["linkTargetCueID"] = input.NewText("Target Cue ID", cueIDString(cue.Link.Target.CueID))
-
-	if cue.Play.Sound != nil {
-		state.text["soundFile"] = input.NewText("File", cue.Play.Sound.File)
-		state.integer["soundClipStartMS"] = input.NewInteger("Clip Start MS", int(cue.Play.Sound.ClipStartMS))
-		state.integer["soundClipEndMS"] = input.NewInteger("Clip End MS", int(cue.Play.Sound.ClipEndMS))
-		state.integer["soundFadeInMS"] = input.NewInteger("Fade In MS", int(cue.Play.Sound.FadeInMS))
-		state.integer["soundFadeOutMS"] = input.NewInteger("Fade Out MS", int(cue.Play.Sound.FadeOutMS))
-		state.float["soundLevelDB"] = input.NewFloat("Level dB", cue.Play.Sound.LevelDB)
-	}
-	if cue.Play.Video != nil {
-		state.text["videoFile"] = input.NewText("File", cue.Play.Video.File)
-		state.text["videoOutputID"] = input.NewText("Output ID", cue.Play.Video.OutputID)
-		state.integer["videoClipStartMS"] = input.NewInteger("Clip Start MS", int(cue.Play.Video.ClipStartMS))
-		state.integer["videoClipEndMS"] = input.NewInteger("Clip End MS", int(cue.Play.Video.ClipEndMS))
-		state.integer["videoFadeInMS"] = input.NewInteger("Fade In MS", int(cue.Play.Video.FadeInMS))
-		state.integer["videoFadeOutMS"] = input.NewInteger("Fade Out MS", int(cue.Play.Video.FadeOutMS))
-		state.float["videoLevelDB"] = input.NewFloat("Level dB", cue.Play.Video.LevelDB)
-	}
-	if cue.Play.Image != nil {
-		state.text["imageFile"] = input.NewText("File", cue.Play.Image.File)
-		state.text["imageOutputID"] = input.NewText("Output ID", cue.Play.Image.OutputID)
-		state.integer["imageFadeInMS"] = input.NewInteger("Fade In MS", int(cue.Play.Image.FadeInMS))
-		state.integer["imageFadeOutMS"] = input.NewInteger("Fade Out MS", int(cue.Play.Image.FadeOutMS))
-		state.integer["imageDurationMS"] = input.NewInteger("Duration MS", int(cue.Play.Image.DurationMS))
-	}
-	if cue.Play.Remote != nil {
-		state.dropdown["remoteProtocol"] = newEnumDropdown(remoteProtocolLabels, int(cue.Play.Remote.Protocol))
-		state.dropdown["remoteAction"] = newEnumDropdown(remoteActionLabels, int(cue.Play.Remote.Action))
-		state.text["remotePlayback"] = input.NewText("Playback", cue.Play.Remote.Playback)
-		state.text["remoteCueNumber"] = input.NewText("Cue Number", cue.Play.Remote.CueNumber)
-		state.text["remoteLevel"] = input.NewText("Level", cue.Play.Remote.Level)
-	}
-	if cue.Play.Wait != nil {
-		state.dropdown["waitKind"] = newEnumDropdown(waitKindLabels, int(cue.Play.Wait.Kind))
-		state.integer["waitDurationMS"] = input.NewInteger("Duration MS", int(cue.Play.Wait.DurationMS))
-		state.dropdown["waitTargetKind"] = newEnumDropdown(cueTargetKindLabels, int(cue.Play.Wait.Target.Kind))
-		state.text["waitTargetCueID"] = input.NewText("Target Cue ID", cueIDString(cue.Play.Wait.Target.CueID))
-		state.dropdown["waitMediaTargetKind"] = newEnumDropdown(mediaTargetKindLabels, int(cue.Play.Wait.Media.Kind))
-		state.text["waitMediaCueID"] = input.NewText("Media Cue ID", cueIDString(cue.Play.Wait.Media.CueID))
-		state.text["waitMediaInstanceID"] = input.NewText("Instance ID", cue.Play.Wait.Media.InstanceID)
-		state.text["waitMediaOutputID"] = input.NewText("Output ID", cue.Play.Wait.Media.OutputID)
-	}
-	if cue.Play.MediaControl != nil {
-		mediaControl := cue.Play.MediaControl
-		levelDB := 0.0
-		if mediaControl.LevelDB != nil {
-			levelDB = *mediaControl.LevelDB
-		}
-		seekToMS := 0
-		if mediaControl.SeekToMS != nil {
-			seekToMS = int(*mediaControl.SeekToMS)
-		}
-
-		state.dropdown["mediaCtrlAction"] = newEnumDropdown(mediaControlActionLabels, int(mediaControl.Action))
-		state.dropdown["mediaCtrlTargetKind"] = newEnumDropdown(mediaTargetKindLabels, int(mediaControl.Target.Kind))
-		state.text["mediaCtrlCueID"] = input.NewText("Target Cue ID", cueIDString(mediaControl.Target.CueID))
-		state.text["mediaCtrlInstanceID"] = input.NewText("Instance ID", mediaControl.Target.InstanceID)
-		state.text["mediaCtrlOutputID"] = input.NewText("Output ID", mediaControl.Target.OutputID)
-		state.float["mediaCtrlLevelDB"] = input.NewFloat("Level dB", levelDB)
-		state.integer["mediaCtrlSeekToMS"] = input.NewInteger("Seek To MS", seekToMS)
-		state.integer["mediaCtrlFadeMS"] = input.NewInteger("Fade MS", int(mediaControl.FadeMS))
-		state.dropdown["mediaCtrlCurve"] = newEnumDropdown(fadeCurveLabels, int(mediaControl.Curve))
-	}
-	if cue.Play.OutputControl != nil {
-		state.dropdown["outputCtrlAction"] = newEnumDropdown(outputControlActionLabels, int(cue.Play.OutputControl.Action))
-		state.text["outputCtrlOutputID"] = input.NewText("Output ID", cue.Play.OutputControl.OutputID)
-		state.integer["outputCtrlFadeOutMS"] = input.NewInteger("Fade Out MS", int(cue.Play.OutputControl.FadeOutMS))
-		state.integer["outputCtrlFadeInMS"] = input.NewInteger("Fade In MS", int(cue.Play.OutputControl.FadeInMS))
-		state.text["outputCtrlMessage"] = input.NewText("Message", cue.Play.OutputControl.Message)
-	}
-
-	return state
-}
-
 func (ctx *CueEditUI) renderGeneralTab(th *material.Theme, gtx layout.Context) layout.FlexChild {
 	return ctx.renderForm(th, []cueEditFormRow{
 		textRow(th, "Cue Number", ctx.page.text["cueNumber"], func(value string) { ctx.cue.CueNumber = value }),
 		textRow(th, "Title", ctx.page.text["title"], func(value string) { ctx.cue.Title = value }),
 		multilineRow(th, "Description", ctx.page.multiline["description"], func(value string) { ctx.cue.Description = value }),
 		checkboxRow(th, "", ctx.page.checkbox["disabled"], func(value bool) { ctx.cue.Disabled = value }),
-		textRow(th, "Hex Color", ctx.page.text["hexColor"], func(value string) { ctx.cue.HexColor = value }),
+		colourRow(th, "Color", ctx.page.colour["color"], func(value color.NRGBA) { ctx.cue.HexColor = formatHexColor(value) }),
 		textRow(th, "Tags", ctx.page.text["tags"], func(value string) { ctx.cue.Tags = splitTags(value) }),
 		multilineRow(th, "Notes", ctx.page.multiline["notes"], func(value string) { ctx.cue.Notes = value }),
 	})
@@ -320,7 +211,7 @@ func (ctx *CueEditUI) renderMediaTab(th *material.Theme, gtx layout.Context) lay
 	rows := []cueEditFormRow{}
 	if play := ctx.cue.Play.Sound; play != nil {
 		rows = append(rows,
-			textRow(th, "File", ctx.page.text["soundFile"], func(value string) { play.File = value }),
+			ctx.fileRow(th, "File", ctx.page.text["soundFile"], ctx.page.button["soundFileBrowse"], soundFileExtensions, func(value string) { play.File = value }),
 			integerRow(th, "Clip Start MS", ctx.page.integer["soundClipStartMS"], func(value int) { play.ClipStartMS = int64(value) }),
 			integerRow(th, "Clip End MS", ctx.page.integer["soundClipEndMS"], func(value int) { play.ClipEndMS = int64(value) }),
 			integerRow(th, "Fade In MS", ctx.page.integer["soundFadeInMS"], func(value int) { play.FadeInMS = int64(value) }),
@@ -330,7 +221,7 @@ func (ctx *CueEditUI) renderMediaTab(th *material.Theme, gtx layout.Context) lay
 	}
 	if play := ctx.cue.Play.Video; play != nil {
 		rows = append(rows,
-			textRow(th, "File", ctx.page.text["videoFile"], func(value string) { play.File = value }),
+			ctx.fileRow(th, "File", ctx.page.text["videoFile"], ctx.page.button["videoFileBrowse"], videoFileExtensions, func(value string) { play.File = value }),
 			textRow(th, "Output ID", ctx.page.text["videoOutputID"], func(value string) { play.OutputID = value }),
 			integerRow(th, "Clip Start MS", ctx.page.integer["videoClipStartMS"], func(value int) { play.ClipStartMS = int64(value) }),
 			integerRow(th, "Clip End MS", ctx.page.integer["videoClipEndMS"], func(value int) { play.ClipEndMS = int64(value) }),
@@ -341,7 +232,7 @@ func (ctx *CueEditUI) renderMediaTab(th *material.Theme, gtx layout.Context) lay
 	}
 	if play := ctx.cue.Play.Image; play != nil {
 		rows = append(rows,
-			textRow(th, "File", ctx.page.text["imageFile"], func(value string) { play.File = value }),
+			ctx.fileRow(th, "File", ctx.page.text["imageFile"], ctx.page.button["imageFileBrowse"], imageFileExtensions, func(value string) { play.File = value }),
 			textRow(th, "Output ID", ctx.page.text["imageOutputID"], func(value string) { play.OutputID = value }),
 			integerRow(th, "Fade In MS", ctx.page.integer["imageFadeInMS"], func(value int) { play.FadeInMS = int64(value) }),
 			integerRow(th, "Fade Out MS", ctx.page.integer["imageFadeOutMS"], func(value int) { play.FadeOutMS = int64(value) }),
@@ -415,10 +306,10 @@ func (ctx *CueEditUI) renderMediaCtrlTab(th *material.Theme, gtx layout.Context)
 	}
 	rows = appendMediaTargetRows(rows, th, ctx.page, "mediaCtrl", &play.Target)
 	if mediaControlActionUsesLevel(play.Action) {
-		rows = append(rows, floatRow(th, "Level dB", ctx.page.float["mediaCtrlLevelDB"], func(value float64) { play.LevelDB = float64Ptr(value) }))
+		rows = append(rows, floatRow(th, "Level dB", ctx.page.float["mediaCtrlLevelDB"], func(value float64) { play.LevelDB = &value }))
 	}
 	if play.Action == show.MediaControlSeek {
-		rows = append(rows, integerRow(th, "Seek To MS", ctx.page.integer["mediaCtrlSeekToMS"], func(value int) { play.SeekToMS = int64Ptr(int64(value)) }))
+		rows = append(rows, integerRow(th, "Seek To MS", ctx.page.integer["mediaCtrlSeekToMS"], func(value int) { play.SeekToMS = ptr(int64(value)) }))
 	}
 	rows = append(rows,
 		integerRow(th, "Fade MS", ctx.page.integer["mediaCtrlFadeMS"], func(value int) { play.FadeMS = int64(value) }),
@@ -446,17 +337,19 @@ func (ctx *CueEditUI) renderForm(th *material.Theme, rows []cueEditFormRow) layo
 		return layout.UniformInset(unit.Dp(16)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return ctx.page.list.Layout(gtx, len(rows), func(gtx layout.Context, index int) layout.Dimensions {
 				row := rows[index]
-				return layout.Inset{Bottom: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					children := []layout.FlexChild{}
 					if row.label != "" {
 						children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							label := material.Body2(th, row.label)
-							label.TextSize = unit.Sp(13)
-							return layout.Inset{Bottom: unit.Dp(4)}.Layout(gtx, label.Layout)
+							label := material.Body2(th, row.label+":")
+							label.TextSize = unit.Sp(18)
+							gtx.Constraints.Min.X = gtx.Dp(unit.Dp(120))
+							gtx.Constraints.Max.X = gtx.Dp(unit.Dp(120))
+							return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8)}.Layout(gtx, label.Layout)
 						}))
 					}
 					children = append(children, layout.Rigid(row.layout))
-					return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+					return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, children...)
 				})
 			})
 		})
@@ -468,54 +361,6 @@ func textRow(th *material.Theme, label string, field *input.Text, apply func(val
 		dims := field.Layout(th, gtx)
 		apply(field.Value)
 		return dims
-	}}
-}
-
-func multilineRow(th *material.Theme, label string, field *input.Multiline, apply func(value string)) cueEditFormRow {
-	return cueEditFormRow{label: label, layout: func(gtx layout.Context) layout.Dimensions {
-		dims := field.Layout(th, gtx)
-		apply(field.Value)
-		return dims
-	}}
-}
-
-func checkboxRow(th *material.Theme, label string, field *input.Checkbox, apply func(value bool)) cueEditFormRow {
-	return cueEditFormRow{label: label, layout: func(gtx layout.Context) layout.Dimensions {
-		dims := field.Layout(th, gtx)
-		apply(field.Checked)
-		return dims
-	}}
-}
-
-func integerRow(th *material.Theme, label string, field *input.Integer, apply func(value int)) cueEditFormRow {
-	return cueEditFormRow{label: label, layout: func(gtx layout.Context) layout.Dimensions {
-		dims := field.Layout(th, gtx)
-		apply(field.Value)
-		return dims
-	}}
-}
-
-func floatRow(th *material.Theme, label string, field *input.Float, apply func(value float64)) cueEditFormRow {
-	return cueEditFormRow{label: label, layout: func(gtx layout.Context) layout.Dimensions {
-		dims := field.Layout(th, gtx)
-		apply(field.Value)
-		return dims
-	}}
-}
-
-func dropdownRow(th *material.Theme, label string, field *input.Dropdown, apply func(selected int)) cueEditFormRow {
-	return cueEditFormRow{label: label, layout: func(gtx layout.Context) layout.Dimensions {
-		dims := field.Layout(th, gtx)
-		if field.Selected >= 0 && field.Selected < len(field.Items) {
-			apply(field.Selected)
-		}
-		return dims
-	}}
-}
-
-func staticRow(th *material.Theme, label, text string) cueEditFormRow {
-	return cueEditFormRow{label: label, layout: func(gtx layout.Context) layout.Dimensions {
-		return material.Body1(th, text).Layout(gtx)
 	}}
 }
 
@@ -593,6 +438,41 @@ func parseCueID(value string, target *show.CueID) {
 	*target = show.CueID(id)
 }
 
+func parseHexColor(value string) color.NRGBA {
+	value = strings.TrimPrefix(strings.TrimSpace(value), "#")
+	if len(value) != 6 && len(value) != 8 {
+		return color.NRGBA{A: 0xFF}
+	}
+
+	parsed, err := strconv.ParseUint(value, 16, 32)
+	if err != nil {
+		return color.NRGBA{A: 0xFF}
+	}
+
+	if len(value) == 6 {
+		return color.NRGBA{
+			R: uint8(parsed >> 16),
+			G: uint8(parsed >> 8),
+			B: uint8(parsed),
+			A: 0xFF,
+		}
+	}
+
+	return color.NRGBA{
+		R: uint8(parsed >> 24),
+		G: uint8(parsed >> 16),
+		B: uint8(parsed >> 8),
+		A: uint8(parsed),
+	}
+}
+
+func formatHexColor(value color.NRGBA) string {
+	if value.A == 0xFF {
+		return fmt.Sprintf("#%02X%02X%02X", value.R, value.G, value.B)
+	}
+	return fmt.Sprintf("#%02X%02X%02X%02X", value.R, value.G, value.B, value.A)
+}
+
 func waitKindUsesMediaTarget(kind show.WaitKind) bool {
 	return kind == show.WaitMediaStart ||
 		kind == show.WaitMediaEnd ||
@@ -608,22 +488,19 @@ func mediaControlActionUsesLevel(action show.MediaControlAction) bool {
 
 func syncMediaControlOptionals(play *show.MediaControlPlay, state cueEditPageState) {
 	if mediaControlActionUsesLevel(play.Action) {
-		play.LevelDB = float64Ptr(state.float["mediaCtrlLevelDB"].Value)
+		play.LevelDB = &state.float["mediaCtrlLevelDB"].Value
 	} else {
 		play.LevelDB = nil
 	}
 
 	if play.Action == show.MediaControlSeek {
-		play.SeekToMS = int64Ptr(int64(state.integer["mediaCtrlSeekToMS"].Value))
+		play.SeekToMS = ptr(int64(state.integer["mediaCtrlSeekToMS"].Value))
 	} else {
 		play.SeekToMS = nil
 	}
 }
 
-func float64Ptr(value float64) *float64 {
-	return &value
-}
-
-func int64Ptr(value int64) *int64 {
+// Fixes being unable to do e.g. &int64(5) in Go. So you would do ptr(int64(5)) instead.
+func ptr[T any](value T) *T {
 	return &value
 }
