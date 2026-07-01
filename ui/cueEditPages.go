@@ -439,14 +439,15 @@ func parseCueID(value string, target *show.CueID) {
 }
 
 func parseHexColor(value string) color.NRGBA {
+	defaultColor := color.NRGBA{R: 0xFF, A: 0xFF}
 	value = strings.TrimPrefix(strings.TrimSpace(value), "#")
 	if len(value) != 6 && len(value) != 8 {
-		return color.NRGBA{A: 0xFF}
+		return defaultColor
 	}
 
 	parsed, err := strconv.ParseUint(value, 16, 32)
 	if err != nil {
-		return color.NRGBA{A: 0xFF}
+		return defaultColor
 	}
 
 	if len(value) == 6 {
