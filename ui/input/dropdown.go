@@ -1,9 +1,10 @@
-package ui
+package input
 
 import (
 	"image/color"
 
 	"gioui.org/layout"
+	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"github.com/SysPoe/CuSus/utils"
@@ -61,7 +62,7 @@ func (d *Dropdown) Layout(th *material.Theme, gtx layout.Context) layout.Dimensi
 	}
 
 	subs := []layout.FlexChild{
-		makeFixedWidthBtnWithColor(th, &d.expandedBtn, d.getSelectedLabel()+utils.Ter(d.expanded, "▼", " ▶"), 200, regBg),
+		fixedWidthBtnWithColor(th, &d.expandedBtn, d.getSelectedLabel()+utils.Ter(d.expanded, "▼", " ▶"), 200, regBg),
 	}
 
 	if d.expanded {
@@ -72,9 +73,9 @@ func (d *Dropdown) Layout(th *material.Theme, gtx layout.Context) layout.Dimensi
 				d.notifyEventListeners()
 			}
 			if d.Selected == i {
-				subs = append(subs, makeFixedWidthBtnWithColor(th, &d.choicesBtns[i], item.Label, 200, selBg))
+				subs = append(subs, fixedWidthBtnWithColor(th, &d.choicesBtns[i], item.Label, 200, selBg))
 			} else {
-				subs = append(subs, makeFixedWidthBtnWithColor(th, &d.choicesBtns[i], item.Label, 200, nonSelBg))
+				subs = append(subs, fixedWidthBtnWithColor(th, &d.choicesBtns[i], item.Label, 200, nonSelBg))
 			}
 		}
 	}
@@ -82,4 +83,21 @@ func (d *Dropdown) Layout(th *material.Theme, gtx layout.Context) layout.Dimensi
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		subs...,
 	)
+}
+
+func fixedWidthBtnWithColor(th *material.Theme, wid *widget.Clickable, txt string, width int, bgColor color.NRGBA) layout.FlexChild {
+	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		btn := material.Button(th, wid, txt)
+		btn.Background = bgColor
+		setFixedWidth(&gtx, width)
+		return btn.Layout(gtx)
+	})
+}
+
+func setFixedWidth(gtx *layout.Context, width int) {
+	widthPx := gtx.Dp(unit.Dp(width))
+	widthPx = max(widthPx, gtx.Constraints.Min.X)
+	widthPx = min(widthPx, gtx.Constraints.Max.X)
+	gtx.Constraints.Min.X = widthPx
+	gtx.Constraints.Max.X = widthPx
 }

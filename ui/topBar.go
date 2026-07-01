@@ -179,14 +179,14 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context) layout.Dimensio
 			title.TextSize = unit.Sp(float32(TOP_BAR_HEIGHT) * 0.6)
 			return title.Layout(gtx)
 		}),
-		makeMeasuredBtn(th, &tb.btnAddCue, "Add Cue", &addCueSize),
-		makeMeasuredBtn(th, &tb.btnFile, "File", &fileSize),
-		makeMeasuredBtn(th, &tb.btnEdit, "Edit", &editSize),
-		makeMeasuredBtn(th, &tb.btnCue, "Cue", &cueSize),
-		makeMeasuredBtn(th, &tb.btnBulk, "Bulk", &bulkSize),
-		makeMeasuredBtn(th, &tb.btnView, "View", &viewSize),
-		makeMeasuredBtn(th, &tb.btnOutputs, "Outputs", &outputsSize),
-		makeMeasuredBtn(th, &tb.btnShow, "Show", &showSize),
-		makeMeasuredBtn(th, &tb.btnTools, "Tools", &toolsSize),
+		MakeMeasuredBtn(th, &tb.btnAddCue, "Add Cue", &addCueSize),
+		MakeMeasuredBtn(th, &tb.btnFile, "File", &fileSize),
+		MakeMeasuredBtn(th, &tb.btnEdit, "Edit", &editSize),
+		MakeMeasuredBtn(th, &tb.btnCue, "Cue", &cueSize),
+		MakeMeasuredBtn(th, &tb.btnBulk, "Bulk", &bulkSize),
+		MakeMeasuredBtn(th, &tb.btnView, "View", &viewSize),
+		MakeMeasuredBtn(th, &tb.btnOutputs, "Outputs", &outputsSize),
+		MakeMeasuredBtn(th, &tb.btnShow, "Show", &showSize),
+		MakeMeasuredBtn(th, &tb.btnTools, "Tools", &toolsSize),
 	)
 }

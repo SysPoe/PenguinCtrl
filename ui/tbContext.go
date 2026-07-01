@@ -1,8 +1,6 @@
 package ui
 
 import (
-	"image"
-
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/widget"
@@ -121,69 +119,69 @@ func (ctx *TbContext) Layout(th *material.Theme, gtx layout.Context, manager *sh
 	return layout.Stack{}.Layout(gtx,
 		// addCue
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-			defer op.Offset(image.Pt(ctx.TopBar.addCuePos.X, TOP_BAR_HEIGHT)).Push(gtx.Ops).Pop()
+			defer op.Offset(ctx.TopBar.addCuePos).Push(gtx.Ops).Pop()
 			if ctx.TopBar.showAddCue {
 				return layout.Flex{
 					Axis:      layout.Vertical,
 					Alignment: layout.Baseline,
 				}.Layout(gtx,
-					makeFixedWidthBtn(th, &ctx.btnCueTypeSound, "Sound", 200),
-					makeFixedWidthBtn(th, &ctx.btnCueTypeVideo, "Video", 200),
-					makeFixedWidthBtn(th, &ctx.btnCueTypeImage, "Image", 200),
-					makeFixedWidthBtn(th, &ctx.btnCueTypeRemote, "Remote", 200),
-					makeFixedWidthBtn(th, &ctx.btnCueTypeWait, "Wait", 200),
-					makeFixedWidthBtn(th, &ctx.btnCueTypeMediaControl, "Media Control", 200),
-					makeFixedWidthBtn(th, &ctx.btnCueTypeOutputControl, "Output Control", 200),
+					MakeFixedWidthBtn(th, &ctx.btnCueTypeSound, "Sound", 200),
+					MakeFixedWidthBtn(th, &ctx.btnCueTypeVideo, "Video", 200),
+					MakeFixedWidthBtn(th, &ctx.btnCueTypeImage, "Image", 200),
+					MakeFixedWidthBtn(th, &ctx.btnCueTypeRemote, "Remote", 200),
+					MakeFixedWidthBtn(th, &ctx.btnCueTypeWait, "Wait", 200),
+					MakeFixedWidthBtn(th, &ctx.btnCueTypeMediaControl, "Media Control", 200),
+					MakeFixedWidthBtn(th, &ctx.btnCueTypeOutputControl, "Output Control", 200),
 				)
 			}
 			return layout.Dimensions{}
 		}),
 		// file
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-			defer op.Offset(image.Pt(ctx.TopBar.filePos.X, TOP_BAR_HEIGHT)).Push(gtx.Ops).Pop()
+			defer op.Offset(ctx.TopBar.filePos).Push(gtx.Ops).Pop()
 			if ctx.TopBar.showFile {
 				return layout.Flex{
 					Axis:      layout.Vertical,
 					Alignment: layout.Baseline,
 				}.Layout(gtx,
-					makeFixedWidthBtn(th, &ctx.btnFileNew, "New", 200),
-					makeFixedWidthBtn(th, &ctx.btnFileOpen, "Open", 200),
-					makeFixedWidthBtn(th, &ctx.btnFileOpenRecent, "Open Recent", 200),
-					makeFixedWidthBtn(th, &ctx.btnFileSave, "Save", 200),
-					makeFixedWidthBtn(th, &ctx.btnFileSaveAs, "Save As", 200),
-					makeFixedWidthBtn(th, &ctx.btnFileRevealShow, "Reveal Show Folder", 200),
-					makeFixedWidthBtn(th, &ctx.btnFileRevealVideo, "Reveal Video Folder", 200),
-					makeFixedWidthBtn(th, &ctx.btnFileRevealAudio, "Reveal Audio Folder", 200),
-					makeFixedWidthBtn(th, &ctx.btnFileRevealImages, "Reveal Images Folder", 200),
-					makeFixedWidthBtn(th, &ctx.btnFileImport, "Import .cusus", 200),
-					makeFixedWidthBtn(th, &ctx.btnFileExport, "Export .cusus", 200),
-					makeFixedWidthBtn(th, &ctx.btnFileBackups, "Backups", 200),
-					makeFixedWidthBtn(th, &ctx.btnFileCloseShow, "Close Show", 200),
+					MakeFixedWidthBtn(th, &ctx.btnFileNew, "New", 200),
+					MakeFixedWidthBtn(th, &ctx.btnFileOpen, "Open", 200),
+					MakeFixedWidthBtn(th, &ctx.btnFileOpenRecent, "Open Recent", 200),
+					MakeFixedWidthBtn(th, &ctx.btnFileSave, "Save", 200),
+					MakeFixedWidthBtn(th, &ctx.btnFileSaveAs, "Save As", 200),
+					MakeFixedWidthBtn(th, &ctx.btnFileRevealShow, "Reveal Show Folder", 200),
+					MakeFixedWidthBtn(th, &ctx.btnFileRevealVideo, "Reveal Video Folder", 200),
+					MakeFixedWidthBtn(th, &ctx.btnFileRevealAudio, "Reveal Audio Folder", 200),
+					MakeFixedWidthBtn(th, &ctx.btnFileRevealImages, "Reveal Images Folder", 200),
+					MakeFixedWidthBtn(th, &ctx.btnFileImport, "Import .cusus", 200),
+					MakeFixedWidthBtn(th, &ctx.btnFileExport, "Export .cusus", 200),
+					MakeFixedWidthBtn(th, &ctx.btnFileBackups, "Backups", 200),
+					MakeFixedWidthBtn(th, &ctx.btnFileCloseShow, "Close Show", 200),
 				)
 			}
 			return layout.Dimensions{}
 		}),
 		// edit
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-			defer op.Offset(image.Pt(ctx.TopBar.editPos.X, TOP_BAR_HEIGHT)).Push(gtx.Ops).Pop()
+			defer op.Offset(ctx.TopBar.editPos).Push(gtx.Ops).Pop()
 			if ctx.TopBar.showEdit {
 				return layout.Flex{
 					Axis:      layout.Vertical,
 					Alignment: layout.Baseline,
 				}.Layout(gtx,
-					makeFixedWidthBtn(th, &ctx.btnEditUndo, "Undo", 200),
-					makeFixedWidthBtn(th, &ctx.btnEditRedo, "Redo", 200),
-					makeFixedWidthBtn(th, &ctx.btnEditCut, "Cut", 200),
-					makeFixedWidthBtn(th, &ctx.btnEditCopy, "Copy", 200),
-					makeFixedWidthBtn(th, &ctx.btnEditPaste, "Paste", 200),
-					makeFixedWidthBtn(th, &ctx.btnEditDuplicate, "Duplicate", 200),
-					makeFixedWidthBtn(th, &ctx.btnEditDelete, "Delete", 200),
-					makeFixedWidthBtn(th, &ctx.btnEditSelectAll, "Select All", 200),
-					makeFixedWidthBtn(th, &ctx.btnEditClearSelection, "Clear Selection", 200),
-					makeFixedWidthBtn(th, &ctx.btnEditFind, "Find", 200),
-					makeFixedWidthBtn(th, &ctx.btnEditFindNext, "Find Next", 200),
-					makeFixedWidthBtn(th, &ctx.btnEditFindPrevious, "Find Previous", 200),
-					makeFixedWidthBtn(th, &ctx.btnEditPreferences, "Preferences", 200),
+					MakeFixedWidthBtn(th, &ctx.btnEditUndo, "Undo", 200),
+					MakeFixedWidthBtn(th, &ctx.btnEditRedo, "Redo", 200),
+					MakeFixedWidthBtn(th, &ctx.btnEditCut, "Cut", 200),
+					MakeFixedWidthBtn(th, &ctx.btnEditCopy, "Copy", 200),
+					MakeFixedWidthBtn(th, &ctx.btnEditPaste, "Paste", 200),
+					MakeFixedWidthBtn(th, &ctx.btnEditDuplicate, "Duplicate", 200),
+					MakeFixedWidthBtn(th, &ctx.btnEditDelete, "Delete", 200),
+					MakeFixedWidthBtn(th, &ctx.btnEditSelectAll, "Select All", 200),
+					MakeFixedWidthBtn(th, &ctx.btnEditClearSelection, "Clear Selection", 200),
+					MakeFixedWidthBtn(th, &ctx.btnEditFind, "Find", 200),
+					MakeFixedWidthBtn(th, &ctx.btnEditFindNext, "Find Next", 200),
+					MakeFixedWidthBtn(th, &ctx.btnEditFindPrevious, "Find Previous", 200),
+					MakeFixedWidthBtn(th, &ctx.btnEditPreferences, "Preferences", 200),
 				)
 			}
 			return layout.Dimensions{}
