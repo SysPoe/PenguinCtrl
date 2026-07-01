@@ -11,9 +11,9 @@ func NewCue(cueType CueType, title string, play CuePlay) Cue {
 		},
 		Play: play,
 		Link: CueLink{
-			Mode: CueLinkManual,
+			Mode: CueLinkStartAdvance,
 			Target: CueTarget{
-				Kind: CueTargetNone,
+				Kind: CueTargetNext,
 			},
 		},
 		HexColor: "",
