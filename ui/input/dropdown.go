@@ -8,7 +8,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
-	"github.com/SysPoe/CuSus/utils"
+	"github.com/syspoe/cusus/utils"
 )
 
 type Dropdown struct {

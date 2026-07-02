@@ -3,7 +3,7 @@ package show
 type WaitPlay struct {
 	Kind WaitKind
 
-	DurationMS int64
+	DurationMs int64
 
 	Target CueTarget
 	Media  MediaTarget

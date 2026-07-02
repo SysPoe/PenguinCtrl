@@ -1,13 +1,15 @@
 package show
 
+import "image/color"
+
 func NewCue(cueType CueType, title string, play CuePlay) Cue {
 	return Cue{
 		ID:    NewCueID(),
 		Title: title,
 		Type:  cueType,
 		Timing: CueTiming{
-			PreWaitMS:  0,
-			PostWaitMS: 0,
+			PreWaitMs:  0,
+			PostWaitMs: 0,
 		},
 		Play: play,
 		Link: CueLink{
@@ -16,8 +18,8 @@ func NewCue(cueType CueType, title string, play CuePlay) Cue {
 				Kind: CueTargetNext,
 			},
 		},
-		HexColor: "",
-		Tags:     []string{},
+		Color: color.NRGBA{R: 0xFF, A: 0xFF},
+		Tags:  []string{},
 	}
 }
 
@@ -25,10 +27,10 @@ func NewSoundCue() Cue {
 	return NewCue(CueTypeSound, "", CuePlay{
 		Sound: &SoundPlay{
 			File:        "",
-			ClipStartMS: 0,
-			ClipEndMS:   0,
-			FadeInMS:    0,
-			FadeOutMS:   0,
+			ClipStartMs: 0,
+			ClipEndMs:   0,
+			FadeInMs:    0,
+			FadeOutMs:   0,
 			LevelDB:     0,
 			Timecode:    []TimecodeMarker{},
 		},
@@ -40,10 +42,10 @@ func NewVideoCue() Cue {
 		Video: &VideoPlay{
 			File:        "",
 			OutputID:    "",
-			ClipStartMS: 0,
-			ClipEndMS:   0,
-			FadeInMS:    0,
-			FadeOutMS:   0,
+			ClipStartMs: 0,
+			ClipEndMs:   0,
+			FadeInMs:    0,
+			FadeOutMs:   0,
 			LevelDB:     0,
 			Timecode:    []TimecodeMarker{},
 		},
@@ -55,9 +57,9 @@ func NewImageCue() Cue {
 		Image: &ImagePlay{
 			File:       "",
 			OutputID:   "",
-			FadeInMS:   0,
-			FadeOutMS:  0,
-			DurationMS: 0,
+			FadeInMs:   0,
+			FadeOutMs:  0,
+			DurationMs: 0,
 			Timecode:   []TimecodeMarker{},
 		},
 	})
@@ -79,7 +81,7 @@ func NewWaitCue() Cue {
 	return NewCue(CueTypeWait, "", CuePlay{
 		Wait: &WaitPlay{
 			Kind:       WaitDuration,
-			DurationMS: 1000,
+			DurationMs: 1000,
 			Target: CueTarget{
 				Kind: CueTargetNone,
 			},
@@ -96,8 +98,8 @@ func NewMediaControlCue() Cue {
 			Action:   MediaControlPause,
 			Target:   MediaTarget{Kind: MediaTargetAllMedia},
 			LevelDB:  nil,
-			SeekToMS: nil,
-			FadeMS:   0,
+			SeekToMs: nil,
+			FadeMs:   0,
 			Curve:    FadeCurveLinear,
 		},
 	})
@@ -108,8 +110,8 @@ func NewOutputControlCue() Cue {
 		OutputControl: &OutputControlPlay{
 			Action:    OutputControlTestPattern,
 			OutputID:  "",
-			FadeOutMS: 0,
-			FadeInMS:  0,
+			FadeOutMs: 0,
+			FadeInMs:  0,
 			Message:   "",
 		},
 	})

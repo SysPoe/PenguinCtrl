@@ -8,10 +8,10 @@ type MediaControlPlay struct {
 	LevelDB *float64
 
 	// Used by seek.
-	SeekToMS *int64
+	SeekToMs *int64
 
 	// Optional fade duration for stop and fade/volume changes.
-	FadeMS int64
+	FadeMs int64
 
 	Curve FadeCurve
 }
@@ -42,8 +42,8 @@ type OutputControlPlay struct {
 
 	OutputID string
 
-	FadeOutMS int64
-	FadeInMS  int64
+	FadeOutMs int64
+	FadeInMs  int64
 
 	Message string
 }

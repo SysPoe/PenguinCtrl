@@ -12,7 +12,7 @@ import (
 	"gioui.org/widget/material"
 )
 
-const TOP_BAR_HEIGHT int = 40
+const topBarHeight int = 40
 const menuWidth int = 200
 
 type TopBar struct {
@@ -60,7 +60,7 @@ func (tb *TopBar) setAllFalse() {
 }
 
 func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context) layout.Dimensions {
-	barHeight := gtx.Dp(unit.Dp(TOP_BAR_HEIGHT))
+	barHeight := gtx.Dp(unit.Dp(topBarHeight))
 
 	gtx.Constraints.Min.Y = barHeight
 	gtx.Constraints.Max.Y = barHeight
@@ -190,17 +190,17 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context) layout.Dimensio
 			setButtonPositions(gtx.Constraints.Max.X, windowWidth)
 
 			title := stableBody1(th, "CuSus ඞා")
-			title.TextSize = unit.Sp(float32(TOP_BAR_HEIGHT) * 0.6)
+			title.TextSize = unit.Sp(float32(topBarHeight) * 0.6)
 			return layoutStableText(gtx, title.Layout)
 		}),
-		MakeMeasuredBtn(th, &tb.btnAddCue, "Add Cue", &addCueSize),
-		MakeMeasuredBtn(th, &tb.btnFile, "File", &fileSize),
-		MakeMeasuredBtn(th, &tb.btnEdit, "Edit", &editSize),
-		MakeMeasuredBtn(th, &tb.btnCue, "Cue", &cueSize),
-		MakeMeasuredBtn(th, &tb.btnBulk, "Bulk", &bulkSize),
-		MakeMeasuredBtn(th, &tb.btnView, "View", &viewSize),
-		MakeMeasuredBtn(th, &tb.btnOutputs, "Outputs", &outputsSize),
-		MakeMeasuredBtn(th, &tb.btnShow, "Show", &showSize),
-		MakeMeasuredBtn(th, &tb.btnTools, "Tools", &toolsSize),
+		makeMeasuredBtn(th, &tb.btnAddCue, "Add Cue", &addCueSize),
+		makeMeasuredBtn(th, &tb.btnFile, "File", &fileSize),
+		makeMeasuredBtn(th, &tb.btnEdit, "Edit", &editSize),
+		makeMeasuredBtn(th, &tb.btnCue, "Cue", &cueSize),
+		makeMeasuredBtn(th, &tb.btnBulk, "Bulk", &bulkSize),
+		makeMeasuredBtn(th, &tb.btnView, "View", &viewSize),
+		makeMeasuredBtn(th, &tb.btnOutputs, "Outputs", &outputsSize),
+		makeMeasuredBtn(th, &tb.btnShow, "Show", &showSize),
+		makeMeasuredBtn(th, &tb.btnTools, "Tools", &toolsSize),
 	)
 }

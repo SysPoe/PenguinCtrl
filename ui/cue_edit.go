@@ -13,8 +13,8 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
-	"github.com/SysPoe/CuSus/show"
-	"github.com/SysPoe/CuSus/utils"
+	"github.com/syspoe/cusus/show"
+	"github.com/syspoe/cusus/utils"
 )
 
 type CueEditUI struct {
@@ -44,20 +44,20 @@ type CueEditUI struct {
 }
 
 const (
-	TabGeneral = iota
-	TabTiming
-	TabLink
-	TabMedia
-	TabTimecode
-	TabRemote
-	TabWait
-	TabMediaCtrl
-	TabOutputCtrl
+	tabGeneral = iota
+	tabTiming
+	tabLink
+	tabMedia
+	tabTimecode
+	tabRemote
+	tabWait
+	tabMediaCtrl
+	tabOutputCtrl
 )
 
-func (ctx *CueEditUI) DrawTopBar(th *material.Theme, gtx layout.Context) layout.FlexChild {
+func (ctx *CueEditUI) drawTopBar(th *material.Theme, gtx layout.Context) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-		barHeight := gtx.Dp(unit.Dp(TOP_BAR_HEIGHT))
+		barHeight := gtx.Dp(unit.Dp(topBarHeight))
 
 		colorActive := color.NRGBA{
 			R: th.ContrastBg.R * 2,
@@ -88,61 +88,61 @@ func (ctx *CueEditUI) DrawTopBar(th *material.Theme, gtx layout.Context) layout.
 		sub := []layout.FlexChild{
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 				title := stableBody1(th, "Cue Editor")
-				title.TextSize = unit.Sp(float32(TOP_BAR_HEIGHT) * 0.6)
+				title.TextSize = unit.Sp(float32(topBarHeight) * 0.6)
 				return layoutStableText(gtx, title.Layout)
 			}),
-			MakeBtnWithColor(th, &ctx.btnTabGeneral, "General", utils.Ter(ctx.activeTab == TabGeneral, colorActive, colorInactive)),
-			MakeBtnWithColor(th, &ctx.btnTabTiming, "Timing", utils.Ter(ctx.activeTab == TabTiming, colorActive, colorInactive)),
-			MakeBtnWithColor(th, &ctx.btnTabLink, "Link", utils.Ter(ctx.activeTab == TabLink, colorActive, colorInactive)),
+			makeBtnWithColor(th, &ctx.btnTabGeneral, "General", utils.Ter(ctx.activeTab == tabGeneral, colorActive, colorInactive)),
+			makeBtnWithColor(th, &ctx.btnTabTiming, "Timing", utils.Ter(ctx.activeTab == tabTiming, colorActive, colorInactive)),
+			makeBtnWithColor(th, &ctx.btnTabLink, "Link", utils.Ter(ctx.activeTab == tabLink, colorActive, colorInactive)),
 		}
 
 		if ctx.cType == show.CueTypeImage || ctx.cType == show.CueTypeVideo || ctx.cType == show.CueTypeSound {
-			sub = append(sub, MakeBtnWithColor(th, &ctx.btnTabMedia, "Media", utils.Ter(ctx.activeTab == TabMedia, colorActive, colorInactive)))
-			sub = append(sub, MakeBtnWithColor(th, &ctx.btnTabTimecode, "Timecode", utils.Ter(ctx.activeTab == TabTimecode, colorActive, colorInactive)))
+			sub = append(sub, makeBtnWithColor(th, &ctx.btnTabMedia, "Media", utils.Ter(ctx.activeTab == tabMedia, colorActive, colorInactive)))
+			sub = append(sub, makeBtnWithColor(th, &ctx.btnTabTimecode, "Timecode", utils.Ter(ctx.activeTab == tabTimecode, colorActive, colorInactive)))
 		}
 
 		if ctx.cType == show.CueTypeRemote {
-			sub = append(sub, MakeBtnWithColor(th, &ctx.btnTabRemote, "Remote", utils.Ter(ctx.activeTab == TabRemote, colorActive, colorInactive)))
+			sub = append(sub, makeBtnWithColor(th, &ctx.btnTabRemote, "Remote", utils.Ter(ctx.activeTab == tabRemote, colorActive, colorInactive)))
 		}
 
 		if ctx.cType == show.CueTypeWait {
-			sub = append(sub, MakeBtnWithColor(th, &ctx.btnTabWait, "Wait", utils.Ter(ctx.activeTab == TabWait, colorActive, colorInactive)))
+			sub = append(sub, makeBtnWithColor(th, &ctx.btnTabWait, "Wait", utils.Ter(ctx.activeTab == tabWait, colorActive, colorInactive)))
 		}
 
 		if ctx.cType == show.CueTypeMediaControl {
-			sub = append(sub, MakeBtnWithColor(th, &ctx.btnTabMediaCtrl, "Media Ctrl", utils.Ter(ctx.activeTab == TabMediaCtrl, colorActive, colorInactive)))
+			sub = append(sub, makeBtnWithColor(th, &ctx.btnTabMediaCtrl, "Media Ctrl", utils.Ter(ctx.activeTab == tabMediaCtrl, colorActive, colorInactive)))
 		}
 
 		if ctx.cType == show.CueTypeOutputControl {
-			sub = append(sub, MakeBtnWithColor(th, &ctx.btnTabOutputCtrl, "Output Ctrl", utils.Ter(ctx.activeTab == TabOutputCtrl, colorActive, colorInactive)))
+			sub = append(sub, makeBtnWithColor(th, &ctx.btnTabOutputCtrl, "Output Ctrl", utils.Ter(ctx.activeTab == tabOutputCtrl, colorActive, colorInactive)))
 		}
 
 		if ctx.btnTabGeneral.Clicked(gtx) {
-			ctx.activeTab = TabGeneral
+			ctx.activeTab = tabGeneral
 		}
 		if ctx.btnTabTiming.Clicked(gtx) {
-			ctx.activeTab = TabTiming
+			ctx.activeTab = tabTiming
 		}
 		if ctx.btnTabLink.Clicked(gtx) {
-			ctx.activeTab = TabLink
+			ctx.activeTab = tabLink
 		}
 		if ctx.btnTabMedia.Clicked(gtx) {
-			ctx.activeTab = TabMedia
+			ctx.activeTab = tabMedia
 		}
 		if ctx.btnTabTimecode.Clicked(gtx) {
-			ctx.activeTab = TabTimecode
+			ctx.activeTab = tabTimecode
 		}
 		if ctx.btnTabRemote.Clicked(gtx) {
-			ctx.activeTab = TabRemote
+			ctx.activeTab = tabRemote
 		}
 		if ctx.btnTabWait.Clicked(gtx) {
-			ctx.activeTab = TabWait
+			ctx.activeTab = tabWait
 		}
 		if ctx.btnTabMediaCtrl.Clicked(gtx) {
-			ctx.activeTab = TabMediaCtrl
+			ctx.activeTab = tabMediaCtrl
 		}
 		if ctx.btnTabOutputCtrl.Clicked(gtx) {
-			ctx.activeTab = TabOutputCtrl
+			ctx.activeTab = tabOutputCtrl
 		}
 
 		return layout.Flex{
@@ -154,7 +154,7 @@ func (ctx *CueEditUI) DrawTopBar(th *material.Theme, gtx layout.Context) layout.
 	})
 }
 
-func (ctx *CueEditUI) DrawBottomBar(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.FlexChild {
+func (ctx *CueEditUI) drawBottomBar(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		if ctx.btnCancel.Clicked(gtx) {
 			ctx.show = false
@@ -169,8 +169,8 @@ func (ctx *CueEditUI) DrawBottomBar(th *material.Theme, gtx layout.Context, mana
 			Axis:      layout.Horizontal,
 			Alignment: layout.Middle,
 		}.Layout(gtx,
-			MakeFlexedBtnWithColor(th, &ctx.btnCancel, "Cancel", color.NRGBA{R: 100, A: 255}, 1),
-			MakeFlexedBtnWithColor(th, &ctx.btnSave, "Save", color.NRGBA{G: 100, A: 255}, 1),
+			makeFlexedBtnWithColor(th, &ctx.btnCancel, "Cancel", color.NRGBA{R: 100, A: 255}, 1),
+			makeFlexedBtnWithColor(th, &ctx.btnSave, "Save", color.NRGBA{G: 100, A: 255}, 1),
 		)
 	})
 }
@@ -235,8 +235,8 @@ func (ctx *CueEditUI) Layout(th *material.Theme, gtx layout.Context, manager *sh
 	return layout.Flex{
 		Axis: layout.Vertical,
 	}.Layout(gtx,
-		ctx.DrawTopBar(th, gtx),
-		ctx.DrawBody(th, gtx),
-		ctx.DrawBottomBar(th, gtx, manager),
+		ctx.drawTopBar(th, gtx),
+		ctx.drawBody(th, gtx),
+		ctx.drawBottomBar(th, gtx, manager),
 	)
 }

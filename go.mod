@@ -1,4 +1,4 @@
-module github.com/SysPoe/CuSus
+module github.com/syspoe/cusus
 
 go 1.26.4
 

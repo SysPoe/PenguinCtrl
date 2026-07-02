@@ -1,6 +1,10 @@
 package show
 
-import "github.com/google/uuid"
+import (
+	"image/color"
+
+	"github.com/google/uuid"
+)
 
 type Cue struct {
 	ID          CueID
@@ -15,9 +19,9 @@ type Cue struct {
 	Play   CuePlay
 	Link   CueLink
 
-	HexColor string
-	Tags     []string
-	Notes    string
+	Color color.NRGBA
+	Tags  []string
+	Notes string
 }
 
 type CueID uuid.UUID
@@ -51,8 +55,8 @@ type CuePlay struct {
 }
 
 type CueTiming struct {
-	PreWaitMS  int64
-	PostWaitMS int64
+	PreWaitMs  int64
+	PostWaitMs int64
 }
 
 type CueLink struct {

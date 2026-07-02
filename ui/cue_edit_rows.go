@@ -7,7 +7,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
-	"github.com/SysPoe/CuSus/ui/input"
+	"github.com/syspoe/cusus/ui/input"
 )
 
 func (ctx *CueEditUI) fileRow(th *material.Theme, label string, field *input.Text, browse *widget.Clickable, extensions []string, apply func(value string)) cueEditFormRow {

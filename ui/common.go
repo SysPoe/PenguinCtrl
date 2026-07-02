@@ -13,25 +13,25 @@ import (
 	"gioui.org/widget/material"
 )
 
-func MakeBtn(th *material.Theme, wid *widget.Clickable, txt string) layout.FlexChild {
+func makeBtn(th *material.Theme, wid *widget.Clickable, txt string) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layoutButton(th, gtx, wid, txt, th.ContrastBg)
 	})
 }
 
-func MakeBtnWithColor(th *material.Theme, wid *widget.Clickable, txt string, bgColor color.NRGBA) layout.FlexChild {
+func makeBtnWithColor(th *material.Theme, wid *widget.Clickable, txt string, bgColor color.NRGBA) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layoutButton(th, gtx, wid, txt, bgColor)
 	})
 }
 
-func MakeFlexedBtnWithColor(th *material.Theme, wid *widget.Clickable, txt string, bgColor color.NRGBA, weight float32) layout.FlexChild {
+func makeFlexedBtnWithColor(th *material.Theme, wid *widget.Clickable, txt string, bgColor color.NRGBA, weight float32) layout.FlexChild {
 	return layout.Flexed(weight, func(gtx layout.Context) layout.Dimensions {
 		return layoutCenteredButton(th, gtx, wid, txt, bgColor)
 	})
 }
 
-func MakeFixedWidthBtn(th *material.Theme, wid *widget.Clickable, txt string, width int) layout.FlexChild {
+func makeFixedWidthBtn(th *material.Theme, wid *widget.Clickable, txt string, width int) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		bg := color.NRGBA{
 			R: uint8(float32(th.Bg.R) * float32(1.5)),
@@ -50,7 +50,7 @@ func opaqueForeground(th *material.Theme) color.NRGBA {
 	return color.NRGBA{R: th.Fg.R, G: th.Fg.G, B: th.Fg.B, A: 0xFF}
 }
 
-func MakeFixedWidthBtnWithColor(th *material.Theme, wid *widget.Clickable, txt string, width int, bgColor color.NRGBA) layout.FlexChild {
+func makeFixedWidthBtnWithColor(th *material.Theme, wid *widget.Clickable, txt string, width int, bgColor color.NRGBA) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		setFixedWidth(&gtx, width)
 		return menuButton(th, wid, bgColor).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -67,7 +67,7 @@ func setFixedWidth(gtx *layout.Context, width int) {
 	gtx.Constraints.Max.X = widthPx
 }
 
-func MakeMeasuredBtn(th *material.Theme, wid *widget.Clickable, txt string, size *image.Point) layout.FlexChild {
+func makeMeasuredBtn(th *material.Theme, wid *widget.Clickable, txt string, size *image.Point) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		dims := layoutButton(th, gtx, wid, txt, th.ContrastBg)
 		*size = dims.Size
@@ -75,7 +75,7 @@ func MakeMeasuredBtn(th *material.Theme, wid *widget.Clickable, txt string, size
 	})
 }
 
-func MakeMeasuredBtnWithColor(th *material.Theme, wid *widget.Clickable, txt string, size *image.Point, bgColor color.NRGBA) layout.FlexChild {
+func makeMeasuredBtnWithColor(th *material.Theme, wid *widget.Clickable, txt string, size *image.Point, bgColor color.NRGBA) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		dims := layoutButton(th, gtx, wid, txt, bgColor)
 		*size = dims.Size
@@ -120,6 +120,8 @@ func layoutCenteredButtonLabel(th *material.Theme, gtx layout.Context, txt strin
 	})
 }
 
+
+// Fix inconsistent subpixel positioning``
 func layoutStableText(gtx layout.Context, w layout.Widget) layout.Dimensions {
 	stack := op.Affine(f32.Affine2D{}.Offset(f32.Pt(0.5, 0))).Push(gtx.Ops)
 	defer stack.Pop()
@@ -136,4 +138,24 @@ func stableBody2(th *material.Theme, txt string) material.LabelStyle {
 	label := material.Body2(th, txt)
 	label.Color = opaqueForeground(th)
 	return label
+}
+
+func contrastColor(c color.NRGBA) color.NRGBA {
+	brightness := 0.299*float64(c.R) + 0.587*float64(c.G) + 0.114*float64(c.B)
+
+	if brightness > 128 {
+		return color.NRGBA{R: 0, G: 0, B: 0, A: c.A}
+	}
+	return color.NRGBA{R: 255, G: 255, B: 255, A: c.A}
+}
+
+func applyAlpha(c color.NRGBA, bg color.NRGBA) color.NRGBA {
+	alpha := float64(c.A) / 255.0
+	invAlpha := 1.0 - alpha
+
+	r := uint8(float64(c.R)*alpha + float64(bg.R)*invAlpha)
+	g := uint8(float64(c.G)*alpha + float64(bg.G)*invAlpha)
+	b := uint8(float64(c.B)*alpha + float64(bg.B)*invAlpha)
+
+	return color.NRGBA{R: r, G: g, B: b, A: 255}
 }

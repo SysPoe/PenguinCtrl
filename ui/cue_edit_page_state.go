@@ -5,8 +5,8 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/widget"
-	"github.com/SysPoe/CuSus/show"
-	"github.com/SysPoe/CuSus/ui/input"
+	"github.com/syspoe/cusus/show"
+	"github.com/syspoe/cusus/ui/input"
 )
 
 type cueEditPageState struct {
@@ -43,12 +43,12 @@ func newCueEditPageState(cue show.Cue) cueEditPageState {
 	state.text["title"] = input.NewText("Title", cue.Title)
 	state.multiline["description"] = input.NewMultiline("Description", cue.Description)
 	state.checkbox["disabled"] = input.NewCheckbox("Disabled", cue.Disabled)
-	state.colour["color"] = input.NewColourPicker("Color", parseHexColor(cue.HexColor))
+	state.colour["color"] = input.NewColourPicker("Color", cue.Color)
 	state.text["tags"] = input.NewText("Tags", strings.Join(cue.Tags, ", "))
 	state.multiline["notes"] = input.NewMultiline("Notes", cue.Notes)
 
-	state.integer["preWaitMS"] = input.NewInteger("Pre Wait MS", int(cue.Timing.PreWaitMS))
-	state.integer["postWaitMS"] = input.NewInteger("Post Wait MS", int(cue.Timing.PostWaitMS))
+	state.integer["preWaitMs"] = input.NewInteger("Pre Wait MS", int(cue.Timing.PreWaitMs))
+	state.integer["postWaitMs"] = input.NewInteger("Post Wait MS", int(cue.Timing.PostWaitMs))
 
 	state.dropdown["linkMode"] = newEnumDropdown(cueLinkModeLabels, int(cue.Link.Mode))
 	state.dropdown["linkTargetKind"] = newEnumDropdown(cueTargetKindLabels, int(cue.Link.Target.Kind))
@@ -57,29 +57,29 @@ func newCueEditPageState(cue show.Cue) cueEditPageState {
 	if cue.Play.Sound != nil {
 		state.text["soundFile"] = input.NewText("File", cue.Play.Sound.File)
 		state.button["soundFileBrowse"] = new(widget.Clickable)
-		state.integer["soundClipStartMS"] = input.NewInteger("Clip Start MS", int(cue.Play.Sound.ClipStartMS))
-		state.integer["soundClipEndMS"] = input.NewInteger("Clip End MS", int(cue.Play.Sound.ClipEndMS))
-		state.integer["soundFadeInMS"] = input.NewInteger("Fade In MS", int(cue.Play.Sound.FadeInMS))
-		state.integer["soundFadeOutMS"] = input.NewInteger("Fade Out MS", int(cue.Play.Sound.FadeOutMS))
+		state.integer["soundClipStartMs"] = input.NewInteger("Clip Start MS", int(cue.Play.Sound.ClipStartMs))
+		state.integer["soundClipEndMs"] = input.NewInteger("Clip End MS", int(cue.Play.Sound.ClipEndMs))
+		state.integer["soundFadeInMs"] = input.NewInteger("Fade In MS", int(cue.Play.Sound.FadeInMs))
+		state.integer["soundFadeOutMs"] = input.NewInteger("Fade Out MS", int(cue.Play.Sound.FadeOutMs))
 		state.float["soundLevelDB"] = input.NewFloat("Level dB", cue.Play.Sound.LevelDB)
 	}
 	if cue.Play.Video != nil {
 		state.text["videoFile"] = input.NewText("File", cue.Play.Video.File)
 		state.button["videoFileBrowse"] = new(widget.Clickable)
 		state.text["videoOutputID"] = input.NewText("Output ID", cue.Play.Video.OutputID)
-		state.integer["videoClipStartMS"] = input.NewInteger("Clip Start MS", int(cue.Play.Video.ClipStartMS))
-		state.integer["videoClipEndMS"] = input.NewInteger("Clip End MS", int(cue.Play.Video.ClipEndMS))
-		state.integer["videoFadeInMS"] = input.NewInteger("Fade In MS", int(cue.Play.Video.FadeInMS))
-		state.integer["videoFadeOutMS"] = input.NewInteger("Fade Out MS", int(cue.Play.Video.FadeOutMS))
+		state.integer["videoClipStartMs"] = input.NewInteger("Clip Start MS", int(cue.Play.Video.ClipStartMs))
+		state.integer["videoClipEndMs"] = input.NewInteger("Clip End MS", int(cue.Play.Video.ClipEndMs))
+		state.integer["videoFadeInMs"] = input.NewInteger("Fade In MS", int(cue.Play.Video.FadeInMs))
+		state.integer["videoFadeOutMs"] = input.NewInteger("Fade Out MS", int(cue.Play.Video.FadeOutMs))
 		state.float["videoLevelDB"] = input.NewFloat("Level dB", cue.Play.Video.LevelDB)
 	}
 	if cue.Play.Image != nil {
 		state.text["imageFile"] = input.NewText("File", cue.Play.Image.File)
 		state.button["imageFileBrowse"] = new(widget.Clickable)
 		state.text["imageOutputID"] = input.NewText("Output ID", cue.Play.Image.OutputID)
-		state.integer["imageFadeInMS"] = input.NewInteger("Fade In MS", int(cue.Play.Image.FadeInMS))
-		state.integer["imageFadeOutMS"] = input.NewInteger("Fade Out MS", int(cue.Play.Image.FadeOutMS))
-		state.integer["imageDurationMS"] = input.NewInteger("Duration MS", int(cue.Play.Image.DurationMS))
+		state.integer["imageFadeInMs"] = input.NewInteger("Fade In MS", int(cue.Play.Image.FadeInMs))
+		state.integer["imageFadeOutMs"] = input.NewInteger("Fade Out MS", int(cue.Play.Image.FadeOutMs))
+		state.integer["imageDurationMs"] = input.NewInteger("Duration MS", int(cue.Play.Image.DurationMs))
 	}
 	if cue.Play.Remote != nil {
 		state.dropdown["remoteProtocol"] = newEnumDropdown(remoteProtocolLabels, int(cue.Play.Remote.Protocol))
@@ -90,7 +90,7 @@ func newCueEditPageState(cue show.Cue) cueEditPageState {
 	}
 	if cue.Play.Wait != nil {
 		state.dropdown["waitKind"] = newEnumDropdown(waitKindLabels, int(cue.Play.Wait.Kind))
-		state.integer["waitDurationMS"] = input.NewInteger("Duration MS", int(cue.Play.Wait.DurationMS))
+		state.integer["waitDurationMs"] = input.NewInteger("Duration MS", int(cue.Play.Wait.DurationMs))
 		state.dropdown["waitTargetKind"] = newEnumDropdown(cueTargetKindLabels, int(cue.Play.Wait.Target.Kind))
 		state.text["waitTargetCueID"] = input.NewText("Target Cue ID", cueIDString(cue.Play.Wait.Target.CueID))
 		state.dropdown["waitMediaTargetKind"] = newEnumDropdown(mediaTargetKindLabels, int(cue.Play.Wait.Media.Kind))
@@ -104,9 +104,9 @@ func newCueEditPageState(cue show.Cue) cueEditPageState {
 		if mediaControl.LevelDB != nil {
 			levelDB = *mediaControl.LevelDB
 		}
-		seekToMS := 0
-		if mediaControl.SeekToMS != nil {
-			seekToMS = int(*mediaControl.SeekToMS)
+		seekToMs := 0
+		if mediaControl.SeekToMs != nil {
+			seekToMs = int(*mediaControl.SeekToMs)
 		}
 
 		state.dropdown["mediaCtrlAction"] = newEnumDropdown(mediaControlActionLabels, int(mediaControl.Action))
@@ -115,15 +115,15 @@ func newCueEditPageState(cue show.Cue) cueEditPageState {
 		state.text["mediaCtrlInstanceID"] = input.NewText("Instance ID", mediaControl.Target.InstanceID)
 		state.text["mediaCtrlOutputID"] = input.NewText("Output ID", mediaControl.Target.OutputID)
 		state.float["mediaCtrlLevelDB"] = input.NewFloat("Level dB", levelDB)
-		state.integer["mediaCtrlSeekToMS"] = input.NewInteger("Seek To MS", seekToMS)
-		state.integer["mediaCtrlFadeMS"] = input.NewInteger("Fade MS", int(mediaControl.FadeMS))
+		state.integer["mediaCtrlSeekToMs"] = input.NewInteger("Seek To MS", seekToMs)
+		state.integer["mediaCtrlFadeMs"] = input.NewInteger("Fade MS", int(mediaControl.FadeMs))
 		state.dropdown["mediaCtrlCurve"] = newEnumDropdown(fadeCurveLabels, int(mediaControl.Curve))
 	}
 	if cue.Play.OutputControl != nil {
 		state.dropdown["outputCtrlAction"] = newEnumDropdown(outputControlActionLabels, int(cue.Play.OutputControl.Action))
 		state.text["outputCtrlOutputID"] = input.NewText("Output ID", cue.Play.OutputControl.OutputID)
-		state.integer["outputCtrlFadeOutMS"] = input.NewInteger("Fade Out MS", int(cue.Play.OutputControl.FadeOutMS))
-		state.integer["outputCtrlFadeInMS"] = input.NewInteger("Fade In MS", int(cue.Play.OutputControl.FadeInMS))
+		state.integer["outputCtrlFadeOutMs"] = input.NewInteger("Fade Out MS", int(cue.Play.OutputControl.FadeOutMs))
+		state.integer["outputCtrlFadeInMs"] = input.NewInteger("Fade In MS", int(cue.Play.OutputControl.FadeInMs))
 		state.text["outputCtrlMessage"] = input.NewText("Message", cue.Play.OutputControl.Message)
 	}
 

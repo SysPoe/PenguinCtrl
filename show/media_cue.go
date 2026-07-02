@@ -3,11 +3,11 @@ package show
 type SoundPlay struct {
 	File string
 
-	ClipStartMS int64
-	ClipEndMS   int64
+	ClipStartMs int64
+	ClipEndMs   int64
 
-	FadeInMS  int64
-	FadeOutMS int64
+	FadeInMs  int64
+	FadeOutMs int64
 
 	LevelDB float64
 
@@ -21,11 +21,11 @@ type VideoPlay struct {
 
 	OutputID string
 
-	ClipStartMS int64
-	ClipEndMS   int64
+	ClipStartMs int64
+	ClipEndMs   int64
 
-	FadeInMS  int64
-	FadeOutMS int64
+	FadeInMs  int64
+	FadeOutMs int64
 
 	LevelDB float64
 
@@ -39,16 +39,16 @@ type ImagePlay struct {
 
 	OutputID string
 
-	FadeInMS  int64
-	FadeOutMS int64
+	FadeInMs  int64
+	FadeOutMs int64
 
-	DurationMS int64
+	DurationMs int64
 
 	Timecode []TimecodeMarker
 }
 
 type TimecodeMarker struct {
-	TimeMS   int64
+	TimeMs   int64
 	Disabled bool
 
 	Type   CueType

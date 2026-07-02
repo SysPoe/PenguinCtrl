@@ -15,24 +15,24 @@ import (
 	"gioui.org/widget/material"
 	"gioui.org/x/explorer"
 
-	"github.com/SysPoe/CuSus/show"
-	"github.com/SysPoe/CuSus/ui"
+	"github.com/syspoe/cusus/show"
+	"github.com/syspoe/cusus/ui"
 )
 
 var topBar ui.TopBar
-var tbCtx ui.TbContext
+var tbCtx ui.TBContext
 var manager *show.ShowManager = show.NewShowManager()
 
 func main() {
-	tbCtx = ui.TbContext{
+	tbCtx = ui.TBContext{
 		TopBar: &topBar,
 	}
 	go func() {
 		window := new(app.Window)
 		window.Option(
 			app.Title("CuSus"),
-			app.Size(unit.Dp(960), unit.Dp(640)),
-			app.MinSize(unit.Dp(360), unit.Dp(320)),
+			app.Size(unit.Dp(1300), unit.Dp(720)),
+			app.MinSize(unit.Dp(1300), unit.Dp(720)),
 		)
 		if err := run(window); err != nil {
 			log.Fatal(err)
@@ -42,7 +42,7 @@ func main() {
 	app.Main()
 }
 
-func NewTheme() *material.Theme {
+func newTheme() *material.Theme {
 	th := material.NewTheme()
 	th.Face = font.Typeface("Times New Roman, Noto Sans Sinhala, sans-serif")
 
@@ -62,7 +62,7 @@ func NewTheme() *material.Theme {
 
 func run(window *app.Window) error {
 	var ops op.Ops
-	th := NewTheme()
+	th := newTheme()
 	expl := explorer.NewExplorer(window)
 	uiActions := make(chan func(), 16)
 
@@ -124,6 +124,9 @@ func run(window *app.Window) error {
 						// Top Bar
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							return topBar.Layout(th, gtx)
+						}),
+						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+							return ui.Main(th, gtx, manager)
 						}),
 					)
 				}),

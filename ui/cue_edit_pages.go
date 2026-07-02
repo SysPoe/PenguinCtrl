@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"fmt"
 	"image/color"
 	"strconv"
 	"strings"
@@ -9,32 +8,32 @@ import (
 	"gioui.org/layout"
 	"gioui.org/unit"
 	"gioui.org/widget/material"
-	"github.com/SysPoe/CuSus/show"
-	"github.com/SysPoe/CuSus/ui/input"
 	"github.com/google/uuid"
+	"github.com/syspoe/cusus/show"
+	"github.com/syspoe/cusus/ui/input"
 )
 
-func (ctx *CueEditUI) DrawBody(th *material.Theme, gtx layout.Context) layout.FlexChild {
+func (ctx *CueEditUI) drawBody(th *material.Theme, gtx layout.Context) layout.FlexChild {
 	ctx.ensurePageInputs()
 
 	switch ctx.activeTab {
-	case TabGeneral:
+	case tabGeneral:
 		return ctx.renderGeneralTab(th, gtx)
-	case TabTiming:
+	case tabTiming:
 		return ctx.renderTimingTab(th, gtx)
-	case TabLink:
+	case tabLink:
 		return ctx.renderLinkTab(th, gtx)
-	case TabMedia:
+	case tabMedia:
 		return ctx.renderMediaTab(th, gtx)
-	case TabTimecode:
+	case tabTimecode:
 		return ctx.renderTimecodeTab(th, gtx)
-	case TabRemote:
+	case tabRemote:
 		return ctx.renderRemoteTab(th, gtx)
-	case TabWait:
+	case tabWait:
 		return ctx.renderWaitTab(th, gtx)
-	case TabMediaCtrl:
+	case tabMediaCtrl:
 		return ctx.renderMediaCtrlTab(th, gtx)
-	case TabOutputCtrl:
+	case tabOutputCtrl:
 		return ctx.renderOutputCtrlTab(th, gtx)
 	}
 	return layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
@@ -134,7 +133,7 @@ func (ctx *CueEditUI) ensurePageInputs() {
 
 	ctx.ensureCuePlay()
 	ctx.cType = ctx.cue.Type
-	ctx.activeTab = TabGeneral
+	ctx.activeTab = tabGeneral
 	ctx.page = newCueEditPageState(ctx.cue)
 }
 
@@ -177,7 +176,7 @@ func (ctx *CueEditUI) renderGeneralTab(th *material.Theme, gtx layout.Context) l
 		textRow(th, "Title", ctx.page.text["title"], func(value string) { ctx.cue.Title = value }),
 		multilineRow(th, "Description", ctx.page.multiline["description"], func(value string) { ctx.cue.Description = value }),
 		checkboxRow(th, "", ctx.page.checkbox["disabled"], func(value bool) { ctx.cue.Disabled = value }),
-		colourRow(th, "Color", ctx.page.colour["color"], func(value color.NRGBA) { ctx.cue.HexColor = formatHexColor(value) }),
+		colourRow(th, "Color", ctx.page.colour["color"], func(value color.NRGBA) { ctx.cue.Color = value }),
 		textRow(th, "Tags", ctx.page.text["tags"], func(value string) { ctx.cue.Tags = splitTags(value) }),
 		multilineRow(th, "Notes", ctx.page.multiline["notes"], func(value string) { ctx.cue.Notes = value }),
 	})
@@ -185,8 +184,8 @@ func (ctx *CueEditUI) renderGeneralTab(th *material.Theme, gtx layout.Context) l
 
 func (ctx *CueEditUI) renderTimingTab(th *material.Theme, gtx layout.Context) layout.FlexChild {
 	return ctx.renderForm(th, []cueEditFormRow{
-		integerRow(th, "Pre Wait MS", ctx.page.integer["preWaitMS"], func(value int) { ctx.cue.Timing.PreWaitMS = int64(value) }),
-		integerRow(th, "Post Wait MS", ctx.page.integer["postWaitMS"], func(value int) { ctx.cue.Timing.PostWaitMS = int64(value) }),
+		integerRow(th, "Pre Wait MS", ctx.page.integer["preWaitMs"], func(value int) { ctx.cue.Timing.PreWaitMs = int64(value) }),
+		integerRow(th, "Post Wait MS", ctx.page.integer["postWaitMs"], func(value int) { ctx.cue.Timing.PostWaitMs = int64(value) }),
 	})
 }
 
@@ -212,10 +211,10 @@ func (ctx *CueEditUI) renderMediaTab(th *material.Theme, gtx layout.Context) lay
 	if play := ctx.cue.Play.Sound; play != nil {
 		rows = append(rows,
 			ctx.fileRow(th, "File", ctx.page.text["soundFile"], ctx.page.button["soundFileBrowse"], soundFileExtensions, func(value string) { play.File = value }),
-			integerRow(th, "Clip Start MS", ctx.page.integer["soundClipStartMS"], func(value int) { play.ClipStartMS = int64(value) }),
-			integerRow(th, "Clip End MS", ctx.page.integer["soundClipEndMS"], func(value int) { play.ClipEndMS = int64(value) }),
-			integerRow(th, "Fade In MS", ctx.page.integer["soundFadeInMS"], func(value int) { play.FadeInMS = int64(value) }),
-			integerRow(th, "Fade Out MS", ctx.page.integer["soundFadeOutMS"], func(value int) { play.FadeOutMS = int64(value) }),
+			integerRow(th, "Clip Start MS", ctx.page.integer["soundClipStartMs"], func(value int) { play.ClipStartMs = int64(value) }),
+			integerRow(th, "Clip End MS", ctx.page.integer["soundClipEndMs"], func(value int) { play.ClipEndMs = int64(value) }),
+			integerRow(th, "Fade In MS", ctx.page.integer["soundFadeInMs"], func(value int) { play.FadeInMs = int64(value) }),
+			integerRow(th, "Fade Out MS", ctx.page.integer["soundFadeOutMs"], func(value int) { play.FadeOutMs = int64(value) }),
 			floatRow(th, "Level dB", ctx.page.float["soundLevelDB"], func(value float64) { play.LevelDB = value }),
 		)
 	}
@@ -223,10 +222,10 @@ func (ctx *CueEditUI) renderMediaTab(th *material.Theme, gtx layout.Context) lay
 		rows = append(rows,
 			ctx.fileRow(th, "File", ctx.page.text["videoFile"], ctx.page.button["videoFileBrowse"], videoFileExtensions, func(value string) { play.File = value }),
 			textRow(th, "Output ID", ctx.page.text["videoOutputID"], func(value string) { play.OutputID = value }),
-			integerRow(th, "Clip Start MS", ctx.page.integer["videoClipStartMS"], func(value int) { play.ClipStartMS = int64(value) }),
-			integerRow(th, "Clip End MS", ctx.page.integer["videoClipEndMS"], func(value int) { play.ClipEndMS = int64(value) }),
-			integerRow(th, "Fade In MS", ctx.page.integer["videoFadeInMS"], func(value int) { play.FadeInMS = int64(value) }),
-			integerRow(th, "Fade Out MS", ctx.page.integer["videoFadeOutMS"], func(value int) { play.FadeOutMS = int64(value) }),
+			integerRow(th, "Clip Start MS", ctx.page.integer["videoClipStartMs"], func(value int) { play.ClipStartMs = int64(value) }),
+			integerRow(th, "Clip End MS", ctx.page.integer["videoClipEndMs"], func(value int) { play.ClipEndMs = int64(value) }),
+			integerRow(th, "Fade In MS", ctx.page.integer["videoFadeInMs"], func(value int) { play.FadeInMs = int64(value) }),
+			integerRow(th, "Fade Out MS", ctx.page.integer["videoFadeOutMs"], func(value int) { play.FadeOutMs = int64(value) }),
 			floatRow(th, "Level dB", ctx.page.float["videoLevelDB"], func(value float64) { play.LevelDB = value }),
 		)
 	}
@@ -234,9 +233,9 @@ func (ctx *CueEditUI) renderMediaTab(th *material.Theme, gtx layout.Context) lay
 		rows = append(rows,
 			ctx.fileRow(th, "File", ctx.page.text["imageFile"], ctx.page.button["imageFileBrowse"], imageFileExtensions, func(value string) { play.File = value }),
 			textRow(th, "Output ID", ctx.page.text["imageOutputID"], func(value string) { play.OutputID = value }),
-			integerRow(th, "Fade In MS", ctx.page.integer["imageFadeInMS"], func(value int) { play.FadeInMS = int64(value) }),
-			integerRow(th, "Fade Out MS", ctx.page.integer["imageFadeOutMS"], func(value int) { play.FadeOutMS = int64(value) }),
-			integerRow(th, "Duration MS", ctx.page.integer["imageDurationMS"], func(value int) { play.DurationMS = int64(value) }),
+			integerRow(th, "Fade In MS", ctx.page.integer["imageFadeInMs"], func(value int) { play.FadeInMs = int64(value) }),
+			integerRow(th, "Fade Out MS", ctx.page.integer["imageFadeOutMs"], func(value int) { play.FadeOutMs = int64(value) }),
+			integerRow(th, "Duration MS", ctx.page.integer["imageDurationMs"], func(value int) { play.DurationMs = int64(value) }),
 		)
 	}
 	if len(rows) == 0 {
@@ -278,7 +277,7 @@ func (ctx *CueEditUI) renderWaitTab(th *material.Theme, gtx layout.Context) layo
 		dropdownRow(th, "Kind", ctx.page.dropdown["waitKind"], func(selected int) { play.Kind = show.WaitKind(selected) }),
 	}
 	if play.Kind == show.WaitDuration {
-		rows = append(rows, integerRow(th, "Duration MS", ctx.page.integer["waitDurationMS"], func(value int) { play.DurationMS = int64(value) }))
+		rows = append(rows, integerRow(th, "Duration MS", ctx.page.integer["waitDurationMs"], func(value int) { play.DurationMs = int64(value) }))
 	} else {
 		rows = append(rows,
 			dropdownRow(th, "Target", ctx.page.dropdown["waitTargetKind"], func(selected int) { play.Target.Kind = show.CueTargetKind(selected) }),
@@ -312,10 +311,10 @@ func (ctx *CueEditUI) renderMediaCtrlTab(th *material.Theme, gtx layout.Context)
 		rows = append(rows, floatRow(th, "Level dB", ctx.page.float["mediaCtrlLevelDB"], func(value float64) { play.LevelDB = &value }))
 	}
 	if play.Action == show.MediaControlSeek {
-		rows = append(rows, integerRow(th, "Seek To MS", ctx.page.integer["mediaCtrlSeekToMS"], func(value int) { play.SeekToMS = ptr(int64(value)) }))
+		rows = append(rows, integerRow(th, "Seek To MS", ctx.page.integer["mediaCtrlSeekToMs"], func(value int) { play.SeekToMs = ptr(int64(value)) }))
 	}
 	rows = append(rows,
-		integerRow(th, "Fade MS", ctx.page.integer["mediaCtrlFadeMS"], func(value int) { play.FadeMS = int64(value) }),
+		integerRow(th, "Fade MS", ctx.page.integer["mediaCtrlFadeMs"], func(value int) { play.FadeMs = int64(value) }),
 		dropdownRow(th, "Curve", ctx.page.dropdown["mediaCtrlCurve"], func(selected int) { play.Curve = show.FadeCurve(selected) }),
 	)
 	return ctx.renderForm(th, rows)
@@ -329,8 +328,8 @@ func (ctx *CueEditUI) renderOutputCtrlTab(th *material.Theme, gtx layout.Context
 	return ctx.renderForm(th, []cueEditFormRow{
 		dropdownRow(th, "Action", ctx.page.dropdown["outputCtrlAction"], func(selected int) { play.Action = show.OutputControlAction(selected) }),
 		textRow(th, "Output ID", ctx.page.text["outputCtrlOutputID"], func(value string) { play.OutputID = value }),
-		integerRow(th, "Fade Out MS", ctx.page.integer["outputCtrlFadeOutMS"], func(value int) { play.FadeOutMS = int64(value) }),
-		integerRow(th, "Fade In MS", ctx.page.integer["outputCtrlFadeInMS"], func(value int) { play.FadeInMS = int64(value) }),
+		integerRow(th, "Fade Out MS", ctx.page.integer["outputCtrlFadeOutMs"], func(value int) { play.FadeOutMs = int64(value) }),
+		integerRow(th, "Fade In MS", ctx.page.integer["outputCtrlFadeInMs"], func(value int) { play.FadeInMs = int64(value) }),
 		textRow(th, "Message", ctx.page.text["outputCtrlMessage"], func(value string) { play.Message = value }),
 	})
 }
@@ -451,42 +450,6 @@ func parseCueID(value string, target *show.CueID) {
 	*target = show.CueID(id)
 }
 
-func parseHexColor(value string) color.NRGBA {
-	defaultColor := color.NRGBA{R: 0xFF, A: 0xFF}
-	value = strings.TrimPrefix(strings.TrimSpace(value), "#")
-	if len(value) != 6 && len(value) != 8 {
-		return defaultColor
-	}
-
-	parsed, err := strconv.ParseUint(value, 16, 32)
-	if err != nil {
-		return defaultColor
-	}
-
-	if len(value) == 6 {
-		return color.NRGBA{
-			R: uint8(parsed >> 16),
-			G: uint8(parsed >> 8),
-			B: uint8(parsed),
-			A: 0xFF,
-		}
-	}
-
-	return color.NRGBA{
-		R: uint8(parsed >> 24),
-		G: uint8(parsed >> 16),
-		B: uint8(parsed >> 8),
-		A: uint8(parsed),
-	}
-}
-
-func formatHexColor(value color.NRGBA) string {
-	if value.A == 0xFF {
-		return fmt.Sprintf("#%02X%02X%02X", value.R, value.G, value.B)
-	}
-	return fmt.Sprintf("#%02X%02X%02X%02X", value.R, value.G, value.B, value.A)
-}
-
 func waitKindUsesMediaTarget(kind show.WaitKind) bool {
 	return kind == show.WaitMediaStart ||
 		kind == show.WaitMediaEnd ||
@@ -508,9 +471,9 @@ func syncMediaControlOptionals(play *show.MediaControlPlay, state cueEditPageSta
 	}
 
 	if play.Action == show.MediaControlSeek {
-		play.SeekToMS = ptr(int64(state.integer["mediaCtrlSeekToMS"].Value))
+		play.SeekToMs = ptr(int64(state.integer["mediaCtrlSeekToMs"].Value))
 	} else {
-		play.SeekToMS = nil
+		play.SeekToMs = nil
 	}
 }
 

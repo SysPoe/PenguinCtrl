@@ -5,10 +5,10 @@ import (
 	"gioui.org/op"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
-	"github.com/SysPoe/CuSus/show"
+	"github.com/syspoe/cusus/show"
 )
 
-type TbContext struct {
+type TBContext struct {
 	TopBar *TopBar
 
 	PickFile func(extensions []string, selected func(path string))
@@ -52,7 +52,7 @@ type TbContext struct {
 	cueEditUI CueEditUI
 }
 
-func (ctx *TbContext) handleButtonClicks(gtx layout.Context, manager *show.ShowManager) {
+func (ctx *TBContext) handleButtonClicks(gtx layout.Context, manager *show.ShowManager) {
 	if ctx.btnCueTypeSound.Clicked(gtx) {
 		c := show.NewSoundCue()
 		ctx.cueEditUI.cue = c
@@ -111,7 +111,7 @@ func (ctx *TbContext) handleButtonClicks(gtx layout.Context, manager *show.ShowM
 	}
 }
 
-func (ctx *TbContext) Layout(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.Dimensions {
+func (ctx *TBContext) Layout(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.Dimensions {
 	ctx.cueEditUI.pickFile = ctx.PickFile
 	ctx.handleButtonClicks(gtx, manager)
 
@@ -128,13 +128,13 @@ func (ctx *TbContext) Layout(th *material.Theme, gtx layout.Context, manager *sh
 					Axis:      layout.Vertical,
 					Alignment: layout.Baseline,
 				}.Layout(gtx,
-					MakeFixedWidthBtn(th, &ctx.btnCueTypeSound, "Sound", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnCueTypeVideo, "Video", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnCueTypeImage, "Image", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnCueTypeRemote, "Remote", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnCueTypeWait, "Wait", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnCueTypeMediaControl, "Media Control", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnCueTypeOutputControl, "Output Control", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnCueTypeSound, "Sound", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnCueTypeVideo, "Video", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnCueTypeImage, "Image", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnCueTypeRemote, "Remote", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnCueTypeWait, "Wait", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnCueTypeMediaControl, "Media Control", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnCueTypeOutputControl, "Output Control", menuWidth),
 				)
 			}
 			return layout.Dimensions{}
@@ -147,19 +147,19 @@ func (ctx *TbContext) Layout(th *material.Theme, gtx layout.Context, manager *sh
 					Axis:      layout.Vertical,
 					Alignment: layout.Baseline,
 				}.Layout(gtx,
-					MakeFixedWidthBtn(th, &ctx.btnFileNew, "New", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnFileOpen, "Open", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnFileOpenRecent, "Open Recent", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnFileSave, "Save", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnFileSaveAs, "Save As", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnFileRevealShow, "Reveal Show Folder", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnFileRevealVideo, "Reveal Video Folder", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnFileRevealAudio, "Reveal Audio Folder", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnFileRevealImages, "Reveal Images Folder", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnFileImport, "Import .cusus", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnFileExport, "Export .cusus", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnFileBackups, "Backups", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnFileCloseShow, "Close Show", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnFileNew, "New", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnFileOpen, "Open", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnFileOpenRecent, "Open Recent", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnFileSave, "Save", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnFileSaveAs, "Save As", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnFileRevealShow, "Reveal Show Folder", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnFileRevealVideo, "Reveal Video Folder", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnFileRevealAudio, "Reveal Audio Folder", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnFileRevealImages, "Reveal Images Folder", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnFileImport, "Import .cusus", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnFileExport, "Export .cusus", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnFileBackups, "Backups", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnFileCloseShow, "Close Show", menuWidth),
 				)
 			}
 			return layout.Dimensions{}
@@ -172,19 +172,19 @@ func (ctx *TbContext) Layout(th *material.Theme, gtx layout.Context, manager *sh
 					Axis:      layout.Vertical,
 					Alignment: layout.Baseline,
 				}.Layout(gtx,
-					MakeFixedWidthBtn(th, &ctx.btnEditUndo, "Undo", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnEditRedo, "Redo", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnEditCut, "Cut", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnEditCopy, "Copy", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnEditPaste, "Paste", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnEditDuplicate, "Duplicate", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnEditDelete, "Delete", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnEditSelectAll, "Select All", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnEditClearSelection, "Clear Selection", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnEditFind, "Find", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnEditFindNext, "Find Next", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnEditFindPrevious, "Find Previous", menuWidth),
-					MakeFixedWidthBtn(th, &ctx.btnEditPreferences, "Preferences", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnEditUndo, "Undo", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnEditRedo, "Redo", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnEditCut, "Cut", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnEditCopy, "Copy", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnEditPaste, "Paste", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnEditDuplicate, "Duplicate", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnEditDelete, "Delete", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnEditSelectAll, "Select All", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnEditClearSelection, "Clear Selection", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnEditFind, "Find", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnEditFindNext, "Find Next", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnEditFindPrevious, "Find Previous", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnEditPreferences, "Preferences", menuWidth),
 				)
 			}
 			return layout.Dimensions{}
