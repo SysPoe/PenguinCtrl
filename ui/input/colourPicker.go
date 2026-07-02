@@ -186,7 +186,11 @@ func colourSlider(th *material.Theme, slider *Slider) layout.FlexChild {
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				gtx.Constraints.Min.X = gtx.Dp(unit.Dp(40))
-				return layout.UniformInset(unit.Dp(8)).Layout(gtx, material.Body2(th, slider.Label).Layout)
+				return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					label := material.Body2(th, slider.Label)
+					label.Color = inputTextColor(th)
+					return layoutStableText(gtx, label.Layout)
+				})
 			}),
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 				return slider.Layout(th, gtx)

@@ -11,6 +11,7 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/paint"
+	"gioui.org/unit"
 	"gioui.org/widget/material"
 	"gioui.org/x/explorer"
 
@@ -28,7 +29,11 @@ func main() {
 	}
 	go func() {
 		window := new(app.Window)
-		window.Option(app.Title("CuSus"))
+		window.Option(
+			app.Title("CuSus"),
+			app.Size(unit.Dp(960), unit.Dp(640)),
+			app.MinSize(unit.Dp(360), unit.Dp(320)),
+		)
 		if err := run(window); err != nil {
 			log.Fatal(err)
 		}

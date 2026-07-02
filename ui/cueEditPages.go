@@ -247,7 +247,10 @@ func (ctx *CueEditUI) renderMediaTab(th *material.Theme, gtx layout.Context) lay
 
 func (ctx *CueEditUI) renderTimecodeTab(th *material.Theme, gtx layout.Context) layout.FlexChild {
 	return layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-		return layout.UniformInset(unit.Dp(16)).Layout(gtx, material.Body1(th, "Timecode marker editing is not implemented yet.").Layout)
+		label := stableBody1(th, "Timecode marker editing is not implemented yet.")
+		return layout.UniformInset(unit.Dp(16)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layoutStableText(gtx, label.Layout)
+		})
 	})
 }
 
@@ -341,15 +344,25 @@ func (ctx *CueEditUI) renderForm(th *material.Theme, rows []cueEditFormRow) layo
 					children := []layout.FlexChild{}
 					if row.label != "" {
 						children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							label := material.Body2(th, row.label+":")
+							label := stableBody2(th, row.label+":")
 							label.TextSize = unit.Sp(18)
-							gtx.Constraints.Min.X = gtx.Dp(unit.Dp(120))
-							gtx.Constraints.Max.X = gtx.Dp(unit.Dp(120))
-							return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8)}.Layout(gtx, label.Layout)
+							labelWidth := gtx.Dp(unit.Dp(120))
+							maxLabelWidth := gtx.Constraints.Max.X / 3
+							if maxLabelWidth > 0 && labelWidth > maxLabelWidth {
+								labelWidth = maxLabelWidth
+							}
+							if labelWidth < 0 {
+								labelWidth = 0
+							}
+							gtx.Constraints.Min.X = labelWidth
+							gtx.Constraints.Max.X = labelWidth
+							return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								return layoutStableText(gtx, label.Layout)
+							})
 						}))
 					}
-					children = append(children, layout.Rigid(row.layout))
-					return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, children...)
+					children = append(children, layout.Flexed(1, row.layout))
+					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Start}.Layout(gtx, children...)
 				})
 			})
 		})

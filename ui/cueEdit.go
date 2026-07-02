@@ -87,10 +87,9 @@ func (ctx *CueEditUI) DrawTopBar(th *material.Theme, gtx layout.Context) layout.
 
 		sub := []layout.FlexChild{
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-				title := material.Body1(th, "Cue Editor")
-				title.Color = th.Fg
+				title := stableBody1(th, "Cue Editor")
 				title.TextSize = unit.Sp(float32(TOP_BAR_HEIGHT) * 0.6)
-				return title.Layout(gtx)
+				return layoutStableText(gtx, title.Layout)
 			}),
 			MakeBtnWithColor(th, &ctx.btnTabGeneral, "General", utils.Ter(ctx.activeTab == TabGeneral, colorActive, colorInactive)),
 			MakeBtnWithColor(th, &ctx.btnTabTiming, "Timing", utils.Ter(ctx.activeTab == TabTiming, colorActive, colorInactive)),

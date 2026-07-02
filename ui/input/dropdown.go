@@ -4,6 +4,7 @@ import (
 	"image/color"
 
 	"gioui.org/layout"
+	"gioui.org/text"
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
@@ -87,11 +88,19 @@ func (d *Dropdown) Layout(th *material.Theme, gtx layout.Context) layout.Dimensi
 
 func fixedWidthBtnWithColor(th *material.Theme, wid *widget.Clickable, txt string, width unit.Dp, bgColor color.NRGBA) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-		btn := material.Button(th, wid, txt)
-		btn.Background = bgColor
-		btn.TextSize = unit.Sp(18)
 		setFixedWidth(&gtx, width)
-		return btn.Layout(gtx)
+		btn := material.ButtonLayout(th, wid)
+		btn.Background = bgColor
+		return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: unit.Dp(10), Bottom: unit.Dp(10), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				gtx.Constraints.Min.X = gtx.Constraints.Max.X
+				label := material.Body1(th, txt)
+				label.Alignment = text.Middle
+				label.Color = inputTextColor(th)
+				label.TextSize = unit.Sp(18)
+				return layoutStableText(gtx, label.Layout)
+			})
+		})
 	})
 }
 

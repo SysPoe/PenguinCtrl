@@ -13,6 +13,7 @@ import (
 )
 
 const TOP_BAR_HEIGHT int = 40
+const menuWidth int = 200
 
 type TopBar struct {
 	addCuePos  image.Point
@@ -135,36 +136,50 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context) layout.Dimensio
 	var outputsSize image.Point
 	var showSize image.Point
 	var toolsSize image.Point
+	windowWidth := gtx.Constraints.Max.X
 
-	setButtonPositions := func(startX int) {
+	setButtonPositions := func(startX int, windowWidth int) {
 		x := startX
 		y := barHeight
+		maxMenuX := windowWidth - gtx.Dp(unit.Dp(menuWidth))
+		if maxMenuX < 0 {
+			maxMenuX = 0
+		}
+		menuX := func(x int) int {
+			if x > maxMenuX {
+				return maxMenuX
+			}
+			if x < 0 {
+				return 0
+			}
+			return x
+		}
 
-		tb.addCuePos = image.Pt(x, y)
+		tb.addCuePos = image.Pt(menuX(x), y)
 		x += addCueSize.X
 
-		tb.filePos = image.Pt(x, y)
+		tb.filePos = image.Pt(menuX(x), y)
 		x += fileSize.X
 
-		tb.editPos = image.Pt(x, y)
+		tb.editPos = image.Pt(menuX(x), y)
 		x += editSize.X
 
-		tb.cuePos = image.Pt(x, y)
+		tb.cuePos = image.Pt(menuX(x), y)
 		x += cueSize.X
 
-		tb.bulkPos = image.Pt(x, y)
+		tb.bulkPos = image.Pt(menuX(x), y)
 		x += bulkSize.X
 
-		tb.viewPos = image.Pt(x, y)
+		tb.viewPos = image.Pt(menuX(x), y)
 		x += viewSize.X
 
-		tb.outputsPos = image.Pt(x, y)
+		tb.outputsPos = image.Pt(menuX(x), y)
 		x += outputsSize.X
 
-		tb.showPos = image.Pt(x, y)
+		tb.showPos = image.Pt(menuX(x), y)
 		x += showSize.X
 
-		tb.toolsPos = image.Pt(x, y)
+		tb.toolsPos = image.Pt(menuX(x), y)
 	}
 
 	return layout.Flex{
@@ -172,12 +187,11 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context) layout.Dimensio
 		Alignment: layout.Middle,
 	}.Layout(gtx,
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			setButtonPositions(gtx.Constraints.Max.X)
+			setButtonPositions(gtx.Constraints.Max.X, windowWidth)
 
-			title := material.Body1(th, "CuSus ඞා")
-			title.Color = th.Fg
+			title := stableBody1(th, "CuSus ඞා")
 			title.TextSize = unit.Sp(float32(TOP_BAR_HEIGHT) * 0.6)
-			return title.Layout(gtx)
+			return layoutStableText(gtx, title.Layout)
 		}),
 		MakeMeasuredBtn(th, &tb.btnAddCue, "Add Cue", &addCueSize),
 		MakeMeasuredBtn(th, &tb.btnFile, "File", &fileSize),

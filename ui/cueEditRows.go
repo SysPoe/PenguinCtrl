@@ -30,7 +30,9 @@ func (ctx *CueEditUI) fileRow(th *material.Theme, label string, field *input.Tex
 				if ctx.pickFile == nil {
 					gtx = gtx.Disabled()
 				}
-				return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, material.Button(th, browse, "Browse").Layout)
+				return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layoutCenteredButton(th, gtx, browse, "Browse", th.ContrastBg)
+				})
 			}),
 		)
 		apply(field.Value)
@@ -90,6 +92,7 @@ func dropdownRow(th *material.Theme, label string, field *input.Dropdown, apply 
 
 func staticRow(th *material.Theme, label, text string) cueEditFormRow {
 	return cueEditFormRow{label: label, layout: func(gtx layout.Context) layout.Dimensions {
-		return material.Body1(th, text).Layout(gtx)
+		label := stableBody1(th, text)
+		return layoutStableText(gtx, label.Layout)
 	}}
 }
