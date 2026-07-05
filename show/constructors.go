@@ -18,7 +18,7 @@ func NewCue(cueType CueType, title string, play CuePlay) Cue {
 				Kind: CueTargetNext,
 			},
 		},
-		Color: color.NRGBA{R: 0xFF, A: 0xFF},
+		Color: color.NRGBA{R: 0x7B, G: 0x2C, B: 0xBF, A: 0},
 		Tags:  []string{},
 	}
 }

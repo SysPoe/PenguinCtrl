@@ -43,6 +43,21 @@ func NewDropdown(items []DropdownItem, selected int) *Dropdown {
 	}
 }
 
+func (d *Dropdown) SetItems(items []DropdownItem, selected int) {
+	d.Items = items
+	if len(d.choicesBtns) != len(items) {
+		d.choicesBtns = make([]widget.Clickable, len(items))
+	}
+	if selected < 0 || selected >= len(items) {
+		selected = 0
+	}
+	d.Selected = selected
+	if len(items) == 0 {
+		d.Selected = -1
+		d.expanded = false
+	}
+}
+
 func (d *Dropdown) AddEventListener(listener func(selectedIndex int, selectedValue DropdownItem)) {
 	d.eventListeners = append(d.eventListeners, listener)
 }

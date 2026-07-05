@@ -236,7 +236,7 @@ func (ctx *CueEditUI) Layout(th *material.Theme, gtx layout.Context, manager *sh
 		Axis: layout.Vertical,
 	}.Layout(gtx,
 		ctx.drawTopBar(th, gtx),
-		ctx.drawBody(th, gtx),
+		ctx.drawBody(th, gtx, manager),
 		ctx.drawBottomBar(th, gtx, manager),
 	)
 }

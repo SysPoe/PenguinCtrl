@@ -13,7 +13,7 @@ import (
 	"github.com/syspoe/cusus/ui/input"
 )
 
-func (ctx *CueEditUI) drawBody(th *material.Theme, gtx layout.Context) layout.FlexChild {
+func (ctx *CueEditUI) drawBody(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.FlexChild {
 	ctx.ensurePageInputs()
 
 	switch ctx.activeTab {
@@ -22,7 +22,7 @@ func (ctx *CueEditUI) drawBody(th *material.Theme, gtx layout.Context) layout.Fl
 	case tabTiming:
 		return ctx.renderTimingTab(th, gtx)
 	case tabLink:
-		return ctx.renderLinkTab(th, gtx)
+		return ctx.renderLinkTab(th, gtx, manager)
 	case tabMedia:
 		return ctx.renderMediaTab(th, gtx)
 	case tabTimecode:
@@ -30,9 +30,9 @@ func (ctx *CueEditUI) drawBody(th *material.Theme, gtx layout.Context) layout.Fl
 	case tabRemote:
 		return ctx.renderRemoteTab(th, gtx)
 	case tabWait:
-		return ctx.renderWaitTab(th, gtx)
+		return ctx.renderWaitTab(th, gtx, manager)
 	case tabMediaCtrl:
-		return ctx.renderMediaCtrlTab(th, gtx)
+		return ctx.renderMediaCtrlTab(th, gtx, manager)
 	case tabOutputCtrl:
 		return ctx.renderOutputCtrlTab(th, gtx)
 	}
@@ -189,7 +189,7 @@ func (ctx *CueEditUI) renderTimingTab(th *material.Theme, gtx layout.Context) la
 	})
 }
 
-func (ctx *CueEditUI) renderLinkTab(th *material.Theme, gtx layout.Context) layout.FlexChild {
+func (ctx *CueEditUI) renderLinkTab(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.FlexChild {
 	rows := []cueEditFormRow{
 		dropdownRow(th, "Mode", ctx.page.dropdown["linkMode"], func(selected int) {
 			ctx.cue.Link.Mode = show.CueLinkMode(selected)
@@ -199,9 +199,7 @@ func (ctx *CueEditUI) renderLinkTab(th *material.Theme, gtx layout.Context) layo
 		}),
 	}
 	if ctx.cue.Link.Target.Kind == show.CueTargetCue {
-		rows = append(rows, textRow(th, "Target Cue ID", ctx.page.text["linkTargetCueID"], func(value string) {
-			parseCueID(value, &ctx.cue.Link.Target.CueID)
-		}))
+		rows = append(rows, ctx.cueTargetDropdownRow(th, "Target Cue", "linkTargetCue", manager, &ctx.cue.Link.Target.CueID))
 	}
 	return ctx.renderForm(th, rows)
 }
@@ -267,7 +265,7 @@ func (ctx *CueEditUI) renderRemoteTab(th *material.Theme, gtx layout.Context) la
 	})
 }
 
-func (ctx *CueEditUI) renderWaitTab(th *material.Theme, gtx layout.Context) layout.FlexChild {
+func (ctx *CueEditUI) renderWaitTab(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.FlexChild {
 	play := ctx.cue.Play.Wait
 	if play == nil {
 		return ctx.renderForm(th, []cueEditFormRow{staticRow(th, "Wait", "No wait settings for this cue type.")})
@@ -283,18 +281,16 @@ func (ctx *CueEditUI) renderWaitTab(th *material.Theme, gtx layout.Context) layo
 			dropdownRow(th, "Target", ctx.page.dropdown["waitTargetKind"], func(selected int) { play.Target.Kind = show.CueTargetKind(selected) }),
 		)
 		if play.Target.Kind == show.CueTargetCue {
-			rows = append(rows, textRow(th, "Target Cue ID", ctx.page.text["waitTargetCueID"], func(value string) {
-				parseCueID(value, &play.Target.CueID)
-			}))
+			rows = append(rows, ctx.cueTargetDropdownRow(th, "Target Cue", "waitTargetCue", manager, &play.Target.CueID))
 		}
 		if waitKindUsesMediaTarget(play.Kind) {
-			rows = appendMediaTargetRows(rows, th, ctx.page, "waitMedia", &play.Media)
+			rows = ctx.appendMediaTargetRows(rows, th, manager, "waitMedia", &play.Media)
 		}
 	}
 	return ctx.renderForm(th, rows)
 }
 
-func (ctx *CueEditUI) renderMediaCtrlTab(th *material.Theme, gtx layout.Context) layout.FlexChild {
+func (ctx *CueEditUI) renderMediaCtrlTab(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.FlexChild {
 	play := ctx.cue.Play.MediaControl
 	if play == nil {
 		return ctx.renderForm(th, []cueEditFormRow{staticRow(th, "Media Control", "No media control settings for this cue type.")})
@@ -306,7 +302,7 @@ func (ctx *CueEditUI) renderMediaCtrlTab(th *material.Theme, gtx layout.Context)
 			syncMediaControlOptionals(play, ctx.page)
 		}),
 	}
-	rows = appendMediaTargetRows(rows, th, ctx.page, "mediaCtrl", &play.Target)
+	rows = ctx.appendMediaTargetRows(rows, th, manager, "mediaCtrl", &play.Target)
 	if mediaControlActionUsesLevel(play.Action) {
 		rows = append(rows, floatRow(th, "Level dB", ctx.page.float["mediaCtrlLevelDB"], func(value float64) { play.LevelDB = &value }))
 	}
@@ -376,27 +372,112 @@ func textRow(th *material.Theme, label string, field *input.Text, apply func(val
 	}}
 }
 
-func appendMediaTargetRows(rows []cueEditFormRow, th *material.Theme, state cueEditPageState, prefix string, target *show.MediaTarget) []cueEditFormRow {
-	rows = append(rows, dropdownRow(th, "Target", state.dropdown[prefix+"TargetKind"], func(selected int) {
+func (ctx *CueEditUI) appendMediaTargetRows(rows []cueEditFormRow, th *material.Theme, manager *show.ShowManager, prefix string, target *show.MediaTarget) []cueEditFormRow {
+	rows = append(rows, dropdownRow(th, "Target", ctx.page.dropdown[prefix+"TargetKind"], func(selected int) {
 		target.Kind = show.MediaTargetKind(selected)
 	}))
 
 	switch target.Kind {
 	case show.MediaTargetCue:
-		rows = append(rows, textRow(th, "Target Cue ID", state.text[prefix+"CueID"], func(value string) {
-			parseCueID(value, &target.CueID)
-		}))
+		rows = append(rows, ctx.cueTargetDropdownRow(th, "Target Cue", prefix+"Cue", manager, &target.CueID))
 	case show.MediaTargetInstance:
-		rows = append(rows, textRow(th, "Instance ID", state.text[prefix+"InstanceID"], func(value string) {
+		rows = append(rows, textRow(th, "Instance ID", ctx.page.text[prefix+"InstanceID"], func(value string) {
 			target.InstanceID = value
 		}))
 	case show.MediaTargetOutput:
-		rows = append(rows, textRow(th, "Output ID", state.text[prefix+"OutputID"], func(value string) {
+		rows = append(rows, textRow(th, "Output ID", ctx.page.text[prefix+"OutputID"], func(value string) {
 			target.OutputID = value
 		}))
 	}
 
 	return rows
+}
+
+func (ctx *CueEditUI) cueTargetDropdownRow(th *material.Theme, label, key string, manager *show.ShowManager, target *show.CueID) cueEditFormRow {
+	dropdown := ctx.ensureCueTargetDropdown(key, manager, *target)
+	return dropdownRow(th, label, dropdown, func(selected int) {
+		if selected < 0 || selected >= len(dropdown.Items) {
+			return
+		}
+
+		value := strings.TrimSpace(dropdown.Items[selected].Value)
+		if value == "" {
+			*target = show.CueID{}
+			return
+		}
+
+		id, err := uuid.Parse(value)
+		if err != nil {
+			return
+		}
+		*target = show.CueID(id)
+	})
+}
+
+func (ctx *CueEditUI) ensureCueTargetDropdown(key string, manager *show.ShowManager, selectedCueID show.CueID) *input.Dropdown {
+	items := cueDropdownItems(manager, ctx.cue.ID)
+	selected := cueDropdownSelectedIndex(items, selectedCueID)
+
+	dropdown := ctx.page.dropdown[key]
+	if dropdown == nil {
+		dropdown = input.NewDropdown(items, selected)
+		ctx.page.dropdown[key] = dropdown
+		return dropdown
+	}
+
+	dropdown.SetItems(items, selected)
+	return dropdown
+}
+
+func cueDropdownItems(manager *show.ShowManager, excludeCueID show.CueID) []input.DropdownItem {
+	if manager == nil || manager.Cues() == nil || len(*manager.Cues()) == 0 {
+		return []input.DropdownItem{{Label: "No other cues available", Value: ""}}
+	}
+
+	cues := *manager.Cues()
+	items := make([]input.DropdownItem, 0, len(cues))
+	for _, cue := range cues {
+		if cue.ID == excludeCueID {
+			continue
+		}
+		items = append(items, input.DropdownItem{
+			Label: cueDropdownLabel(cue),
+			Value: uuid.UUID(cue.ID).String(),
+		})
+	}
+
+	if len(items) == 0 {
+		return []input.DropdownItem{{Label: "No other cues available", Value: ""}}
+	}
+	return items
+}
+
+func cueDropdownLabel(cue show.Cue) string {
+	number := strings.TrimSpace(cue.CueNumber)
+	title := strings.TrimSpace(cue.Title)
+
+	switch {
+	case number != "" && title != "":
+		return number + " — " + title
+	case number != "":
+		return number
+	case title != "":
+		return title
+	default:
+		return "Untitled cue"
+	}
+}
+
+func cueDropdownSelectedIndex(items []input.DropdownItem, selectedCueID show.CueID) int {
+	if selectedCueID != (show.CueID{}) {
+		selectedValue := uuid.UUID(selectedCueID).String()
+		for i, item := range items {
+			if item.Value == selectedValue {
+				return i
+			}
+		}
+	}
+	return 0
 }
 
 func newEnumDropdown(labels []string, selected int) *input.Dropdown {
@@ -427,27 +508,6 @@ func splitTags(value string) []string {
 		}
 	}
 	return tags
-}
-
-func cueIDString(id show.CueID) string {
-	if id == (show.CueID{}) {
-		return ""
-	}
-	return uuid.UUID(id).String()
-}
-
-func parseCueID(value string, target *show.CueID) {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		*target = show.CueID{}
-		return
-	}
-
-	id, err := uuid.Parse(value)
-	if err != nil {
-		return
-	}
-	*target = show.CueID(id)
 }
 
 func waitKindUsesMediaTarget(kind show.WaitKind) bool {

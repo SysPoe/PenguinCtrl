@@ -52,7 +52,6 @@ func newCueEditPageState(cue show.Cue) cueEditPageState {
 
 	state.dropdown["linkMode"] = newEnumDropdown(cueLinkModeLabels, int(cue.Link.Mode))
 	state.dropdown["linkTargetKind"] = newEnumDropdown(cueTargetKindLabels, int(cue.Link.Target.Kind))
-	state.text["linkTargetCueID"] = input.NewText("Target Cue ID", cueIDString(cue.Link.Target.CueID))
 
 	if cue.Play.Sound != nil {
 		state.text["soundFile"] = input.NewText("File", cue.Play.Sound.File)
@@ -92,9 +91,7 @@ func newCueEditPageState(cue show.Cue) cueEditPageState {
 		state.dropdown["waitKind"] = newEnumDropdown(waitKindLabels, int(cue.Play.Wait.Kind))
 		state.integer["waitDurationMs"] = input.NewInteger("Duration MS", int(cue.Play.Wait.DurationMs))
 		state.dropdown["waitTargetKind"] = newEnumDropdown(cueTargetKindLabels, int(cue.Play.Wait.Target.Kind))
-		state.text["waitTargetCueID"] = input.NewText("Target Cue ID", cueIDString(cue.Play.Wait.Target.CueID))
 		state.dropdown["waitMediaTargetKind"] = newEnumDropdown(mediaTargetKindLabels, int(cue.Play.Wait.Media.Kind))
-		state.text["waitMediaCueID"] = input.NewText("Media Cue ID", cueIDString(cue.Play.Wait.Media.CueID))
 		state.text["waitMediaInstanceID"] = input.NewText("Instance ID", cue.Play.Wait.Media.InstanceID)
 		state.text["waitMediaOutputID"] = input.NewText("Output ID", cue.Play.Wait.Media.OutputID)
 	}
@@ -111,7 +108,6 @@ func newCueEditPageState(cue show.Cue) cueEditPageState {
 
 		state.dropdown["mediaCtrlAction"] = newEnumDropdown(mediaControlActionLabels, int(mediaControl.Action))
 		state.dropdown["mediaCtrlTargetKind"] = newEnumDropdown(mediaTargetKindLabels, int(mediaControl.Target.Kind))
-		state.text["mediaCtrlCueID"] = input.NewText("Target Cue ID", cueIDString(mediaControl.Target.CueID))
 		state.text["mediaCtrlInstanceID"] = input.NewText("Instance ID", mediaControl.Target.InstanceID)
 		state.text["mediaCtrlOutputID"] = input.NewText("Output ID", mediaControl.Target.OutputID)
 		state.float["mediaCtrlLevelDB"] = input.NewFloat("Level dB", levelDB)
