@@ -1,7 +1,8 @@
 package show
 
 type ShowManager struct {
-	show Show
+	show             Show
+	SelectedCueIndex int
 }
 
 func NewShowManager() *ShowManager {
@@ -43,4 +44,11 @@ func (sm *ShowManager) GetCueByID(id CueID) *Cue {
 
 func (sm *ShowManager) Cues() *[]Cue {
 	return &sm.show.Cues
+}
+
+func (sm *ShowManager) SelectCue(index int) {
+	if index < 0 || index >= len(sm.show.Cues) {
+		return
+	}
+	sm.SelectedCueIndex = index
 }

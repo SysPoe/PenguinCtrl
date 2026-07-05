@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/color"
 
+	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
@@ -21,7 +22,8 @@ var mainList = &widget.List{
 		Axis: layout.Vertical,
 	},
 }
-var weights = []float32{1, 1, 8, 1, 1, 1, 1}
+
+var weights = []float32{1, 1, 8, 1, 1, 1}
 
 var typeCols = map[show.CueType]color.NRGBA{
 	show.CueTypeImage:         {R: 0x2E, G: 0x7D, B: 0x32, A: 0xFF},
@@ -35,156 +37,206 @@ var typeCols = map[show.CueType]color.NRGBA{
 
 var mainDividerCol = color.NRGBA{R: 0x3A, G: 0x3A, B: 0x3A, A: 0xB0}
 
+var rowClicks []widget.Clickable = make([]widget.Clickable, 0)
+
 func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.Dimensions {
 	cues := *manager.Cues()
 	if len(cues) == 0 {
 		return material.Body1(th, "No cues yet").Layout(gtx)
 	}
 
-	return material.List(th, mainList).Layout(gtx, len(cues), func(gtx layout.Context, index int) layout.Dimensions {
-		cue := cues[index]
-		cueBg := applyAlpha(cue.Color, th.Bg)
-		borderHeightDp := unit.Dp(1)
-		borderGapDp := unit.Dp(1)
-		borderHeight := max(1, gtx.Dp(borderHeightDp))
+	if len(rowClicks) != len(cues) {
+		rowClicks = make([]widget.Clickable, len(cues))
+	}
 
-		cueTypeCol := typeCols[cue.Type]
+	for i := range rowClicks {
+		if rowClicks[i].Clicked(gtx) {
+			manager.SelectCue(i)
+		}
+	}
 
-		return layout.Background{}.Layout(gtx,
-			func(gtx layout.Context) layout.Dimensions {
-				size := gtx.Constraints.Min
-				borderRect := image.Rectangle{
-					Min: image.Pt(0, size.Y-borderHeight),
-					Max: size,
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+				makeFlexedTextHeader(th, "Cue #", weights[0], text.Middle),
+				rigidVerticalSeparatorBar(unit.Dp(25)),
+				makeFlexedTextHeader(th, "Type", weights[1], text.Middle),
+				rigidVerticalSeparatorBar(unit.Dp(25)),
+				makeFlexedTextHeader(th, "Title", weights[2], text.Middle),
+				rigidVerticalSeparatorBar(unit.Dp(25)),
+				makeFlexedTextHeader(th, "Pre", weights[3], text.Middle),
+				rigidVerticalSeparatorBar(unit.Dp(25)),
+				makeFlexedTextHeader(th, "Post", weights[4], text.Middle),
+				rigidVerticalSeparatorBar(unit.Dp(25)),
+				makeFlexedTextHeader(th, "Link", weights[5], text.Middle),
+			)
+		}),
+		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			return material.List(th, mainList).Layout(gtx, len(cues), func(gtx layout.Context, index int) layout.Dimensions {
+				cue := cues[index]
+				cueBg := applyAlpha(cue.Color, th.Bg)
+				borderHeightDp := unit.Dp(1)
+				borderGapDp := unit.Dp(1)
+				borderHeight := max(1, gtx.Dp(borderHeightDp))
+
+				cueTypeCol := typeCols[cue.Type]
+				selectedColor := applyAlpha(color.NRGBA{R: cue.Color.R, G: cue.Color.G, B: cue.Color.B, A: 50}, th.ContrastBg)
+				hoverColor := applyAlpha(color.NRGBA{R: cue.Color.R, G: cue.Color.G, B: cue.Color.B, A: 30}, th.Bg)
+
+				if rowClicks[index].Hovered() {
+					pointer.CursorPointer.Add(gtx.Ops)
 				}
 
-				paint.FillShape(gtx.Ops, mainDividerCol, clip.Rect(borderRect).Op())
+				return rowClicks[index].Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.Background{}.Layout(gtx,
+						func(gtx layout.Context) layout.Dimensions {
+							size := gtx.Constraints.Min
+							borderRect := image.Rectangle{
+								Min: image.Pt(0, size.Y-borderHeight),
+								Max: size,
+							}
 
-				return layout.Dimensions{Size: size}
-			},
-			func(gtx layout.Context) layout.Dimensions {
-				return layout.Inset{Bottom: borderHeightDp + borderGapDp}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-						// Cue Number
-						layout.Flexed(weights[0], func(gtx layout.Context) layout.Dimensions {
-							return layout.Background{}.Layout(gtx,
-								func(gtx layout.Context) layout.Dimensions {
-									size := gtx.Constraints.Min
-									radius := gtx.Dp(unit.Dp(8))
+							bgRect := image.Rectangle{
+								Min: image.Pt(0, 0),
+								Max: image.Pt(size.X, size.Y-borderHeight-gtx.Dp(borderGapDp)),
+							}
 
-									paint.FillShape(
-										gtx.Ops,
-										cueBg,
-										clip.UniformRRect(image.Rectangle{Max: size}, radius).Op(gtx.Ops),
-									)
+							if index == manager.SelectedCueIndex {
+								paint.FillShape(gtx.Ops, selectedColor, clip.Rect(bgRect).Op())
+							} else if rowClicks[index].Hovered() {
+								paint.FillShape(gtx.Ops, hoverColor, clip.Rect(bgRect).Op())
+							}
 
-									return layout.Dimensions{Size: size}
-								},
-								func(gtx layout.Context) layout.Dimensions {
-									return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-										el := material.Body1(th, cue.CueNumber)
-										el.Color = contrastColor(cueBg)
-										el.Alignment = text.Middle
-										return layoutStableText(gtx, el.Layout)
-									})
-								},
-							)
-						}),
-						// Cue Type
-						layout.Flexed(weights[1], func(gtx layout.Context) layout.Dimensions {
-							return layout.Background{}.Layout(gtx,
-								func(gtx layout.Context) layout.Dimensions {
-									size := gtx.Constraints.Min
-									radius := gtx.Dp(unit.Dp(8))
+							paint.FillShape(gtx.Ops, mainDividerCol, clip.Rect(borderRect).Op())
 
-									paint.FillShape(
-										gtx.Ops,
-										cueTypeCol,
-										clip.UniformRRect(image.Rectangle{Max: size}, radius).Op(gtx.Ops),
-									)
-									return layout.Dimensions{Size: size}
-								},
-								func(gtx layout.Context) layout.Dimensions {
+							return layout.Dimensions{Size: size}
+						},
+						func(gtx layout.Context) layout.Dimensions {
+							return layout.Inset{Bottom: borderHeightDp + borderGapDp}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+								return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+									// Cue Number
+									layout.Flexed(weights[0], func(gtx layout.Context) layout.Dimensions {
+										return layout.Background{}.Layout(gtx,
+											func(gtx layout.Context) layout.Dimensions {
+												size := gtx.Constraints.Min
+												radius := gtx.Dp(unit.Dp(8))
 
-									return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-										var str = ""
-										switch cue.Type {
-										case show.CueTypeImage:
-											str = "Image"
-										case show.CueTypeWait:
-											str = "Wait"
-										case show.CueTypeVideo:
-											str = "Video"
-										case show.CueTypeSound:
-											str = "Sound"
-										case show.CueTypeRemote:
-											str = "Remote"
-										case show.CueTypeMediaControl:
-											str = "MediaCtrl"
-										case show.CueTypeOutputControl:
-											str = "OutputCtrl"
-										default:
-											str = "Unknown"
-										}
-										el := material.Body1(th, str)
-										el.Color = contrastColor(cueTypeCol)
-										el.Alignment = text.Middle
-										return layoutStableText(gtx, el.Layout)
-									})
-								},
-							)
-						}),
-						// Title
-						layout.Flexed(weights[2], func(gtx layout.Context) layout.Dimensions {
-							return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-								return material.Body1(th, utils.Ter(len(cue.Title) == 0, "No Title", cue.Title)).Layout(gtx)
+												paint.FillShape(
+													gtx.Ops,
+													cueBg,
+													clip.UniformRRect(image.Rectangle{Max: size}, radius).Op(gtx.Ops),
+												)
+
+												return layout.Dimensions{Size: size}
+											},
+											func(gtx layout.Context) layout.Dimensions {
+												return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+													el := material.Body1(th, cue.CueNumber)
+													el.Color = contrastColor(cueBg)
+													el.Alignment = text.Middle
+													return layoutStableText(gtx, el.Layout)
+												})
+											},
+										)
+									}),
+									// Cue Type
+									layout.Flexed(weights[1], func(gtx layout.Context) layout.Dimensions {
+										return layout.Background{}.Layout(gtx,
+											func(gtx layout.Context) layout.Dimensions {
+												size := gtx.Constraints.Min
+												radius := gtx.Dp(unit.Dp(8))
+
+												paint.FillShape(
+													gtx.Ops,
+													cueTypeCol,
+													clip.UniformRRect(image.Rectangle{Max: size}, radius).Op(gtx.Ops),
+												)
+												return layout.Dimensions{Size: size}
+											},
+											func(gtx layout.Context) layout.Dimensions {
+
+												return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+													var str = ""
+													switch cue.Type {
+													case show.CueTypeImage:
+														str = "Image"
+													case show.CueTypeWait:
+														str = "Wait"
+													case show.CueTypeVideo:
+														str = "Video"
+													case show.CueTypeSound:
+														str = "Sound"
+													case show.CueTypeRemote:
+														str = "Remote"
+													case show.CueTypeMediaControl:
+														str = "MediaCtrl"
+													case show.CueTypeOutputControl:
+														str = "OutputCtrl"
+													default:
+														str = "Unknown"
+													}
+													el := material.Body1(th, str)
+													el.Color = contrastColor(cueTypeCol)
+													el.Alignment = text.Middle
+													return layoutStableText(gtx, el.Layout)
+												})
+											},
+										)
+									}),
+									// Title
+									layout.Flexed(weights[2], func(gtx layout.Context) layout.Dimensions {
+										return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+											return material.Body1(th, utils.Ter(len(cue.Title) == 0, "No Title", cue.Title)).Layout(gtx)
+										})
+									}),
+									// TODO Action
+									// Pre
+									layout.Flexed(weights[3], func(gtx layout.Context) layout.Dimensions {
+										return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+											return material.Body1(th, fmt.Sprint(cue.Timing.PreWaitMs)).Layout(gtx)
+										})
+									}),
+									// Post
+									layout.Flexed(weights[4], func(gtx layout.Context) layout.Dimensions {
+										return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+											return material.Body1(th, fmt.Sprint(cue.Timing.PostWaitMs)).Layout(gtx)
+										})
+									}),
+									// Link
+									layout.Flexed(weights[5], func(gtx layout.Context) layout.Dimensions {
+										return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+											var text = ""
+											switch cue.Link.Mode {
+											case show.CueLinkManual:
+												text = "MAN"
+											case show.CueLinkStartAdvance:
+												text = "S->A"
+											case show.CueLinkStartPlay:
+												text = "S->P"
+											case show.CueLinkFadeInAdvance:
+												text = "FI->A"
+											case show.CueLinkFadeInPlay:
+												text = "FI->P"
+											case show.CueLinkFadeOutAdvance:
+												text = "FO->A"
+											case show.CueLinkFadeOutPlay:
+												text = "FO->P"
+											case show.CueLinkEndAdvance:
+												text = "E->A"
+											case show.CueLinkEndPlay:
+												text = "E->P"
+											default:
+												text = "?"
+											}
+											return material.Body1(th, text).Layout(gtx)
+										})
+									}),
+								)
 							})
-						}),
-						// TODO Action
-						// Pre
-						layout.Flexed(weights[4], func(gtx layout.Context) layout.Dimensions {
-							return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-								return material.Body1(th, fmt.Sprint(cue.Timing.PreWaitMs)).Layout(gtx)
-							})
-						}),
-						// Post
-						layout.Flexed(weights[5], func(gtx layout.Context) layout.Dimensions {
-							return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-								return material.Body1(th, fmt.Sprint(cue.Timing.PostWaitMs)).Layout(gtx)
-							})
-						}),
-						// Link
-						layout.Flexed(weights[6], func(gtx layout.Context) layout.Dimensions {
-							return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-								var text = ""
-								switch cue.Link.Mode {
-								case show.CueLinkManual:
-									text = "MAN"
-								case show.CueLinkStartAdvance:
-									text = "S->A"
-								case show.CueLinkStartPlay:
-									text = "S->P"
-								case show.CueLinkFadeInAdvance:
-									text = "FI->A"
-								case show.CueLinkFadeInPlay:
-									text = "FI->P"
-								case show.CueLinkFadeOutAdvance:
-									text = "FO->A"
-								case show.CueLinkFadeOutPlay:
-									text = "FO->P"
-								case show.CueLinkEndAdvance:
-									text = "E->A"
-								case show.CueLinkEndPlay:
-									text = "E->P"
-								default:
-									text = "?"
-								}
-								return material.Body1(th, text).Layout(gtx)
-							})
-						}),
+						},
 					)
 				})
-			},
-		)
-	})
+			})
+		}),
+	)
 }
