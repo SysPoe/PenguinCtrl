@@ -6,7 +6,7 @@ type ShowManager struct {
 }
 
 func NewShowManager() *ShowManager {
-	return &ShowManager{}
+	return &ShowManager{SelectedCueIndex: -1}
 }
 
 func (sm *ShowManager) AddCue(cue Cue) {
@@ -51,4 +51,12 @@ func (sm *ShowManager) SelectCue(index int) {
 		return
 	}
 	sm.SelectedCueIndex = index
+}
+
+func (sm *ShowManager) SelectedCue() *Cue {
+	return sm.GetCue(sm.SelectedCueIndex)
+}
+
+func (sm *ShowManager) HasSelectedCue() bool {
+	return sm.SelectedCue() != nil
 }

@@ -77,6 +77,17 @@ func makeMeasuredBtn(th *material.Theme, wid *widget.Clickable, txt string, size
 	})
 }
 
+func makeMeasuredBtnEnabled(th *material.Theme, wid *widget.Clickable, txt string, size *image.Point, enabled bool) layout.FlexChild {
+	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		if !enabled {
+			gtx = gtx.Disabled()
+		}
+		dims := layoutButton(th, gtx, wid, txt, th.ContrastBg)
+		*size = dims.Size
+		return dims
+	})
+}
+
 func makeMeasuredBtnWithColor(th *material.Theme, wid *widget.Clickable, txt string, size *image.Point, bgColor color.NRGBA) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		dims := layoutButton(th, gtx, wid, txt, bgColor)
@@ -129,6 +140,12 @@ func layoutStableText(gtx layout.Context, w layout.Widget) layout.Dimensions {
 	return w(gtx)
 }
 
+func layoutTruncatedText(gtx layout.Context, label material.LabelStyle) layout.Dimensions {
+	label.MaxLines = 1
+	label.Truncator = "..."
+	return layoutStableText(gtx, label.Layout)
+}
+
 func stableBody1(th *material.Theme, txt string) material.LabelStyle {
 	label := material.Body1(th, txt)
 	label.Color = opaqueForeground(th)
@@ -167,7 +184,7 @@ func makeFlexedTextHeader(th *material.Theme, txt string, weight float32, align 
 			label := material.Body1(th, txt)
 			label.Color = opaqueForeground(th)
 			label.Alignment = align
-			return layoutStableText(gtx, label.Layout)
+			return layoutTruncatedText(gtx, label)
 		})
 	})
 }

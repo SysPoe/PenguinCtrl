@@ -15,6 +15,7 @@ import (
 	"gioui.org/widget/material"
 	"github.com/syspoe/cusus/show"
 	"github.com/syspoe/cusus/utils"
+	"golang.org/x/exp/shiny/materialdesign/icons"
 )
 
 var mainList = &widget.List{
@@ -38,6 +39,7 @@ var typeCols = map[show.CueType]color.NRGBA{
 var mainDividerCol = color.NRGBA{R: 0x3A, G: 0x3A, B: 0x3A, A: 0xB0}
 
 var rowClicks []widget.Clickable = make([]widget.Clickable, 0)
+var warningIcon, _ = widget.NewIcon(icons.AlertWarning)
 
 func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.Dimensions {
 	cues := *manager.Cues()
@@ -119,9 +121,9 @@ func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager) lay
 									// Warnings
 									layout.Flexed(weights[0], func(gtx layout.Context) layout.Dimensions {
 										return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-											el := material.Body1(th, "⚠")
-											el.Alignment = text.Middle
-											return layoutStableText(gtx, el.Layout)
+											return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+												return warningIcon.Layout(gtx, th.Fg)
+											})
 										})
 									}),
 									// Cue Number
@@ -144,7 +146,7 @@ func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager) lay
 													el := material.Body1(th, cue.CueNumber)
 													el.Color = contrastColor(cueBg)
 													el.Alignment = text.Middle
-													return layoutStableText(gtx, el.Layout)
+													return layoutTruncatedText(gtx, el)
 												})
 											},
 										)
@@ -188,7 +190,7 @@ func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager) lay
 													el := material.Body1(th, str)
 													el.Color = contrastColor(cueTypeCol)
 													el.Alignment = text.Middle
-													return layoutStableText(gtx, el.Layout)
+													return layoutTruncatedText(gtx, el)
 												})
 											},
 										)
@@ -196,7 +198,7 @@ func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager) lay
 									// Title
 									layout.Flexed(weights[3], func(gtx layout.Context) layout.Dimensions {
 										return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-											return layoutStableText(gtx, material.Body1(th, utils.Ter(len(cue.Title) == 0, "No Title", cue.Title)).Layout)
+											return layoutTruncatedText(gtx, material.Body1(th, utils.Ter(len(cue.Title) == 0, "No Title", cue.Title)))
 										})
 									}),
 									// TODO Action
@@ -205,7 +207,7 @@ func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager) lay
 										return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 											el := material.Body1(th, fmt.Sprint(cue.Timing.PreWaitMs))
 											el.Alignment = text.Middle
-											return layoutStableText(gtx, el.Layout)
+											return layoutTruncatedText(gtx, el)
 										})
 									}),
 									// Post
@@ -213,7 +215,7 @@ func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager) lay
 										return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 											el := material.Body1(th, fmt.Sprint(cue.Timing.PostWaitMs))
 											el.Alignment = text.Middle
-											return layoutStableText(gtx, el.Layout)
+											return layoutTruncatedText(gtx, el)
 										})
 									}),
 									// Link
@@ -255,7 +257,7 @@ func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager) lay
 
 											el := material.Body1(th, str)
 											el.Alignment = text.Middle
-											return layoutStableText(gtx, el.Layout)
+											return layoutTruncatedText(gtx, el)
 										})
 									}),
 								)

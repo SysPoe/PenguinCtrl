@@ -16,50 +16,21 @@ const topBarHeight int = 40
 const menuWidth int = 200
 
 type TopBar struct {
-	addCuePos  image.Point
-	filePos    image.Point
-	editPos    image.Point
-	cuePos     image.Point
-	bulkPos    image.Point
-	viewPos    image.Point
-	outputsPos image.Point
-	showPos    image.Point
-	toolsPos   image.Point
+	addCuePos image.Point
 
-	showAddCue  bool
-	showFile    bool
-	showEdit    bool
-	showCue     bool
-	showBulk    bool
-	showView    bool
-	showOutputs bool
-	showShow    bool
-	showTools   bool
+	showAddCue bool
 
+	btnEditCue widget.Clickable
 	btnAddCue  widget.Clickable
-	btnFile    widget.Clickable
-	btnEdit    widget.Clickable
-	btnCue     widget.Clickable
-	btnBulk    widget.Clickable
-	btnView    widget.Clickable
-	btnOutputs widget.Clickable
-	btnShow    widget.Clickable
-	btnTools   widget.Clickable
+
+	editCueRequested bool
 }
 
 func (tb *TopBar) setAllFalse() {
 	tb.showAddCue = false
-	tb.showFile = false
-	tb.showEdit = false
-	tb.showCue = false
-	tb.showBulk = false
-	tb.showView = false
-	tb.showOutputs = false
-	tb.showShow = false
-	tb.showTools = false
 }
 
-func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context) layout.Dimensions {
+func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue bool) layout.Dimensions {
 	barHeight := gtx.Dp(unit.Dp(topBarHeight))
 
 	gtx.Constraints.Min.Y = barHeight
@@ -81,61 +52,17 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context) layout.Dimensio
 		}}.Op(),
 	)
 
+	if canEditCue && tb.btnEditCue.Clicked(gtx) {
+		tb.setAllFalse()
+		tb.editCueRequested = true
+	}
 	if tb.btnAddCue.Clicked(gtx) {
 		oval := tb.showAddCue
 		tb.setAllFalse()
 		tb.showAddCue = !oval
 	}
-	if tb.btnFile.Clicked(gtx) {
-		oval := tb.showFile
-		tb.setAllFalse()
-		tb.showFile = !oval
-	}
-	if tb.btnEdit.Clicked(gtx) {
-		oval := tb.showEdit
-		tb.setAllFalse()
-		tb.showEdit = !oval
-	}
-	if tb.btnCue.Clicked(gtx) {
-		oval := tb.showCue
-		tb.setAllFalse()
-		tb.showCue = !oval
-	}
-	if tb.btnBulk.Clicked(gtx) {
-		oval := tb.showBulk
-		tb.setAllFalse()
-		tb.showBulk = !oval
-	}
-	if tb.btnView.Clicked(gtx) {
-		oval := tb.showView
-		tb.setAllFalse()
-		tb.showView = !oval
-	}
-	if tb.btnOutputs.Clicked(gtx) {
-		oval := tb.showOutputs
-		tb.setAllFalse()
-		tb.showOutputs = !oval
-	}
-	if tb.btnShow.Clicked(gtx) {
-		oval := tb.showShow
-		tb.setAllFalse()
-		tb.showShow = !oval
-	}
-	if tb.btnTools.Clicked(gtx) {
-		oval := tb.showTools
-		tb.setAllFalse()
-		tb.showTools = !oval
-	}
-
+	var editCueSize image.Point
 	var addCueSize image.Point
-	var fileSize image.Point
-	var editSize image.Point
-	var cueSize image.Point
-	var bulkSize image.Point
-	var viewSize image.Point
-	var outputsSize image.Point
-	var showSize image.Point
-	var toolsSize image.Point
 	windowWidth := gtx.Constraints.Max.X
 
 	setButtonPositions := func(startX int, windowWidth int) {
@@ -155,31 +82,9 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context) layout.Dimensio
 			return x
 		}
 
+		x += editCueSize.X
+
 		tb.addCuePos = image.Pt(menuX(x), y)
-		x += addCueSize.X
-
-		tb.filePos = image.Pt(menuX(x), y)
-		x += fileSize.X
-
-		tb.editPos = image.Pt(menuX(x), y)
-		x += editSize.X
-
-		tb.cuePos = image.Pt(menuX(x), y)
-		x += cueSize.X
-
-		tb.bulkPos = image.Pt(menuX(x), y)
-		x += bulkSize.X
-
-		tb.viewPos = image.Pt(menuX(x), y)
-		x += viewSize.X
-
-		tb.outputsPos = image.Pt(menuX(x), y)
-		x += outputsSize.X
-
-		tb.showPos = image.Pt(menuX(x), y)
-		x += showSize.X
-
-		tb.toolsPos = image.Pt(menuX(x), y)
 	}
 
 	return layout.Flex{
@@ -193,14 +98,13 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context) layout.Dimensio
 			title.TextSize = unit.Sp(float32(topBarHeight) * 0.6)
 			return layoutStableText(gtx, title.Layout)
 		}),
+		makeMeasuredBtnEnabled(th, &tb.btnEditCue, "Edit Cue", &editCueSize, canEditCue),
 		makeMeasuredBtn(th, &tb.btnAddCue, "Add Cue", &addCueSize),
-		makeMeasuredBtn(th, &tb.btnFile, "File", &fileSize),
-		makeMeasuredBtn(th, &tb.btnEdit, "Edit", &editSize),
-		makeMeasuredBtn(th, &tb.btnCue, "Cue", &cueSize),
-		makeMeasuredBtn(th, &tb.btnBulk, "Bulk", &bulkSize),
-		makeMeasuredBtn(th, &tb.btnView, "View", &viewSize),
-		makeMeasuredBtn(th, &tb.btnOutputs, "Outputs", &outputsSize),
-		makeMeasuredBtn(th, &tb.btnShow, "Show", &showSize),
-		makeMeasuredBtn(th, &tb.btnTools, "Tools", &toolsSize),
 	)
+}
+
+func (tb *TopBar) takeEditCueRequest() bool {
+	requested := tb.editCueRequested
+	tb.editCueRequested = false
+	return requested
 }

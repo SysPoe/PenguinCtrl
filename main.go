@@ -44,7 +44,7 @@ func main() {
 
 func newTheme() *material.Theme {
 	th := material.NewTheme()
-	th.Face = font.Typeface("Times New Roman, Noto Sans Sinhala, sans-serif")
+	th.Face = font.Typeface("Nirmala UI")
 
 	darkBg := color.NRGBA{R: 0x12, G: 0x12, B: 0x12, A: 0xFF}         // Dark gray surface
 	darkBgContrast := color.NRGBA{R: 0x30, G: 0x1E, B: 0x30, A: 0xFF} // Slightly lighter gray for contrast
@@ -123,7 +123,7 @@ func run(window *app.Window) error {
 					}.Layout(gtx,
 						// Top Bar
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return topBar.Layout(th, gtx)
+							return topBar.Layout(th, gtx, manager.HasSelectedCue())
 						}),
 						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 							return ui.Main(th, gtx, manager)
