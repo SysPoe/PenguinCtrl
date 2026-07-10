@@ -40,6 +40,21 @@ var typeCols = map[show.CueType]color.NRGBA{
 
 var mainDividerCol = color.NRGBA{R: 0x3A, G: 0x3A, B: 0x3A, A: 0xB0}
 
+const (
+	cueListCellHorizontalInset = unit.Dp(6)
+	cueListCellVerticalInset   = unit.Dp(4)
+	cueListBadgeRadius         = unit.Dp(4)
+)
+
+func cueListCellInset() layout.Inset {
+	return layout.Inset{
+		Top:    cueListCellVerticalInset,
+		Bottom: cueListCellVerticalInset,
+		Left:   cueListCellHorizontalInset,
+		Right:  cueListCellHorizontalInset,
+	}
+}
+
 var rowClicks []widget.Clickable = make([]widget.Clickable, 0)
 var warningIcon, _ = widget.NewIcon(icons.AlertWarning)
 var lastListSelection = -2
@@ -47,6 +62,7 @@ var lastListSelection = -2
 func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager, engine *playback.Engine, editSelected func()) layout.Dimensions {
 	cues := manager.Snapshot()
 	activeByCue := map[show.CueID]playback.Instance{}
+	executionByCue := map[show.CueID]playback.CueExecution{}
 	knownDurations := map[show.CueID]int64{}
 	if engine != nil {
 		for _, instance := range engine.ActiveInstances() {
@@ -55,8 +71,14 @@ func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager, eng
 				activeByCue[instance.CueID] = instance
 			}
 		}
+		for _, execution := range engine.ActiveExecutions() {
+			current, exists := executionByCue[execution.CueID]
+			if !exists || execution.StartedAt.After(current.StartedAt) {
+				executionByCue[execution.CueID] = execution
+			}
+		}
 		knownDurations = engine.KnownDurations()
-		if len(activeByCue) > 0 {
+		if len(activeByCue) > 0 || len(executionByCue) > 0 {
 			gtx.Execute(op.InvalidateCmd{At: time.Now().Add(100 * time.Millisecond)})
 		}
 	}
@@ -118,10 +140,10 @@ func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager, eng
 			return material.List(th, mainList).Layout(gtx, len(cues), func(gtx layout.Context, index int) layout.Dimensions {
 				cue := cues[index]
 				instance, active := activeByCue[cue.ID]
-				duration, elapsed, remaining, volume := cueRuntimeLabels(cue, instance, active, knownDurations[cue.ID])
-				progress := cuePlaybackProgress(cue, instance, active, knownDurations[cue.ID])
+				execution, executing := executionByCue[cue.ID]
+				duration, elapsed, remaining, volume := cueRuntimeLabels(cue, instance, active, execution, executing, knownDurations[cue.ID])
+				progress := cuePlaybackProgress(cue, instance, active, execution, executing, knownDurations[cue.ID])
 				borderHeightDp := unit.Dp(1)
-				borderGapDp := unit.Dp(1)
 				borderHeight := max(1, gtx.Dp(borderHeightDp))
 
 				cueTypeCol := typeCols[cue.Type]
@@ -145,13 +167,13 @@ func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager, eng
 						func(gtx layout.Context) layout.Dimensions {
 							size := gtx.Constraints.Min
 							borderRect := image.Rectangle{
-								Min: image.Pt(0, size.Y-borderHeight-gtx.Dp(borderGapDp)),
+								Min: image.Pt(0, size.Y-borderHeight),
 								Max: size,
 							}
 
 							bgRect := image.Rectangle{
 								Min: image.Pt(0, 0),
-								Max: image.Pt(size.X, size.Y-borderHeight-gtx.Dp(borderGapDp)),
+								Max: image.Pt(size.X, size.Y-borderHeight),
 							}
 
 							paint.FillShape(gtx.Ops, bg, clip.Rect(bgRect).Op())
@@ -160,11 +182,11 @@ func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager, eng
 							return layout.Dimensions{Size: size}
 						},
 						func(gtx layout.Context) layout.Dimensions {
-							return layout.Inset{Bottom: borderHeightDp + borderGapDp, Top: borderGapDp}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return layout.Inset{Bottom: borderHeightDp}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 								return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 									// Warnings
 									layout.Flexed(weights[0], func(gtx layout.Context) layout.Dimensions {
-										return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+										return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 											return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 												if cue.Disabled {
 													return warningIcon.Layout(gtx, color.NRGBA{R: 0xFF, G: 0xB3, B: 0x4D, A: 0xFF})
@@ -178,7 +200,7 @@ func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager, eng
 										return layout.Background{}.Layout(gtx,
 											func(gtx layout.Context) layout.Dimensions {
 												size := gtx.Constraints.Min
-												radius := gtx.Dp(unit.Dp(8))
+												radius := gtx.Dp(cueListBadgeRadius)
 
 												paint.FillShape(
 													gtx.Ops,
@@ -189,8 +211,8 @@ func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager, eng
 												return layout.Dimensions{Size: size}
 											},
 											func(gtx layout.Context) layout.Dimensions {
-												return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-													el := material.Body1(th, cue.CueNumber)
+												return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+													el := material.Body2(th, cue.CueNumber)
 													el.Color = contrastColor(cueBg)
 													el.Alignment = text.Middle
 													return layoutTruncatedText(gtx, el)
@@ -203,7 +225,7 @@ func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager, eng
 										return layout.Background{}.Layout(gtx,
 											func(gtx layout.Context) layout.Dimensions {
 												size := gtx.Constraints.Min
-												radius := gtx.Dp(unit.Dp(8))
+												radius := gtx.Dp(cueListBadgeRadius)
 
 												paint.FillShape(
 													gtx.Ops,
@@ -214,7 +236,7 @@ func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager, eng
 											},
 											func(gtx layout.Context) layout.Dimensions {
 
-												return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+												return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 													var str = ""
 													switch cue.Type {
 													case show.CueTypeImage:
@@ -234,7 +256,7 @@ func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager, eng
 													default:
 														str = "Unknown"
 													}
-													el := material.Body1(th, str)
+													el := material.Body2(th, str)
 													el.Color = contrastColor(cueTypeCol)
 													el.Alignment = text.Middle
 													return layoutTruncatedText(gtx, el)
@@ -255,23 +277,23 @@ func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager, eng
 									makeRuntimeCell(th, volume, weights[7]),
 									// Pre
 									layout.Flexed(weights[8], func(gtx layout.Context) layout.Dimensions {
-										return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-											el := material.Body1(th, fmt.Sprint(cue.Timing.PreWaitMs))
+										return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+											el := material.Body2(th, fmt.Sprint(cue.Timing.PreWaitMs))
 											el.Alignment = text.Middle
 											return layoutTruncatedText(gtx, el)
 										})
 									}),
 									// Post
 									layout.Flexed(weights[9], func(gtx layout.Context) layout.Dimensions {
-										return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-											el := material.Body1(th, fmt.Sprint(cue.Timing.PostWaitMs))
+										return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+											el := material.Body2(th, fmt.Sprint(cue.Timing.PostWaitMs))
 											el.Alignment = text.Middle
 											return layoutTruncatedText(gtx, el)
 										})
 									}),
 									// Link
 									layout.Flexed(weights[10], func(gtx layout.Context) layout.Dimensions {
-										return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+										return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 											var str = ""
 											switch cue.Link.Mode {
 											case show.CueLinkManual:
@@ -306,7 +328,7 @@ func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager, eng
 											default:
 											}
 
-											el := material.Body1(th, str)
+											el := material.Body2(th, str)
 											el.Alignment = text.Middle
 											return layoutTruncatedText(gtx, el)
 										})
@@ -323,8 +345,8 @@ func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager, eng
 
 func makeRuntimeCell(th *material.Theme, value string, weight float32) layout.FlexChild {
 	return layout.Flexed(weight, func(gtx layout.Context) layout.Dimensions {
-		return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			label := material.Body1(th, value)
+		return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			label := material.Body2(th, value)
 			label.Alignment = text.Middle
 			return layoutTruncatedText(gtx, label)
 		})
@@ -345,8 +367,8 @@ func makeDescriptionProgressCell(th *material.Theme, value string, progress floa
 				return layout.Dimensions{Size: size}
 			},
 			func(gtx layout.Context) layout.Dimensions {
-				return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return layoutTruncatedText(gtx, stableBody1(th, value))
+				return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layoutTruncatedText(gtx, stableBody2(th, value))
 				})
 			},
 		)
@@ -360,8 +382,11 @@ func descriptionLabel(description string) string {
 	return description
 }
 
-func cuePlaybackProgress(cue show.Cue, instance playback.Instance, active bool, knownDurationMs int64) float32 {
+func cuePlaybackProgress(cue show.Cue, instance playback.Instance, active bool, execution playback.CueExecution, executing bool, knownDurationMs int64) float32 {
 	if !active {
+		if executing && execution.DurationMs > 0 {
+			return min(float32(1), float32(execution.ElapsedMs)/float32(execution.DurationMs))
+		}
 		return 0
 	}
 	durationMs := cueConfiguredDuration(cue)
@@ -378,7 +403,7 @@ func cuePlaybackProgress(cue show.Cue, instance playback.Instance, active bool, 
 	return min(float32(1), float32(elapsedMs)/float32(durationMs))
 }
 
-func cueRuntimeLabels(cue show.Cue, instance playback.Instance, active bool, knownDurationMs int64) (string, string, string, string) {
+func cueRuntimeLabels(cue show.Cue, instance playback.Instance, active bool, execution playback.CueExecution, executing bool, knownDurationMs int64) (string, string, string, string) {
 	durationMs := cueConfiguredDuration(cue)
 	if knownDurationMs > 0 {
 		durationMs = knownDurationMs
@@ -403,6 +428,11 @@ func cueRuntimeLabels(cue show.Cue, instance playback.Instance, active bool, kno
 			} else {
 				volume = fmt.Sprintf("%.1f dB", instance.LevelDB)
 			}
+		}
+	} else if executing {
+		elapsed = formatRuntimeTimeValue(execution.ElapsedMs)
+		if execution.DurationMs > 0 {
+			remaining = formatRuntimeTimeValue(execution.RemainingMs)
 		}
 	}
 	return duration, elapsed, remaining, volume

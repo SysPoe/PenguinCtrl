@@ -19,6 +19,7 @@ import (
 type command struct {
 	cue   show.Cue
 	index int
+	ctx   context.Context
 }
 
 type Engine struct {
@@ -28,10 +29,15 @@ type Engine struct {
 	commands        chan command
 	ctx             context.Context
 	cancel          context.CancelFunc
+	runCtx          context.Context
+	runCancel       context.CancelFunc
 	done            chan struct{}
 	hub             *eventHub
 	mu              sync.RWMutex
 	instances       map[string]*Instance
+	executions      map[string]*CueExecution
+	outputVisuals   map[string]Event
+	outputWindows   map[string]Event
 	durations       map[show.CueID]int64
 	durationKeys    map[show.CueID]string
 	durationPending map[show.CueID]string
@@ -43,10 +49,11 @@ type Engine struct {
 
 func NewEngine(manager *show.ShowManager, settings *config.Store) *Engine {
 	ctx, cancel := context.WithCancel(context.Background())
+	runCtx, runCancel := context.WithCancel(ctx)
 	return &Engine{
 		manager: manager, settings: settings, remote: remote.NewDispatcher(settings),
-		commands: make(chan command, 64), ctx: ctx, cancel: cancel, done: make(chan struct{}),
-		hub: newEventHub(), instances: map[string]*Instance{}, durations: map[show.CueID]int64{},
+		commands: make(chan command, 64), ctx: ctx, cancel: cancel, runCtx: runCtx, runCancel: runCancel, done: make(chan struct{}),
+		hub: newEventHub(), instances: map[string]*Instance{}, executions: map[string]*CueExecution{}, outputVisuals: map[string]Event{}, outputWindows: map[string]Event{}, durations: map[show.CueID]int64{},
 		durationKeys: map[show.CueID]string{}, durationPending: map[show.CueID]string{}, stateEvent: make(chan struct{}, 1),
 	}
 }
@@ -212,8 +219,11 @@ func (e *Engine) enqueue(cue show.Cue, index int) error {
 	if cue.Disabled {
 		return errors.New("cue is disabled")
 	}
+	e.mu.RLock()
+	runCtx := e.runCtx
+	e.mu.RUnlock()
 	select {
-	case e.commands <- command{cue: cue, index: index}:
+	case e.commands <- command{cue: cue, index: index, ctx: runCtx}:
 		return nil
 	case <-e.ctx.Done():
 		return errors.New("playback engine is stopped")
@@ -223,17 +233,23 @@ func (e *Engine) enqueue(cue show.Cue, index int) error {
 }
 
 func (e *Engine) execute(next command) {
-	if !e.wait(time.Duration(max(0, next.cue.Timing.PreWaitMs)) * time.Millisecond) {
+	if next.ctx == nil || next.ctx.Err() != nil {
 		return
 	}
+	executionID := e.startExecution(next, "pre-wait", cueExecutionDuration(next.cue))
+	defer e.finishExecution(executionID)
+	if !waitContext(next.ctx, time.Duration(max(0, next.cue.Timing.PreWaitMs))*time.Millisecond) {
+		return
+	}
+	e.updateExecution(executionID, "action", 0)
 	// A Start link is tied to GO reaching the cue, not to completion of the
 	// cue's action. Scheduling it here also keeps links working when the cue's
 	// own action reports an error.
-	e.scheduleLink(next.cue.Link, next.index, next.cue.Timing.PostWaitMs, linkStart)
+	e.scheduleLink(next.cue.Link, next.index, next.cue.Timing.PostWaitMs, linkStart, next.ctx)
 	var err error
 	switch next.cue.Type {
 	case show.CueTypeSound, show.CueTypeVideo, show.CueTypeImage:
-		err = e.startMedia(next.cue, next.index)
+		err = e.startMedia(next)
 	case show.CueTypeRemote:
 		if next.cue.Play.Remote == nil {
 			err = errors.New("remote cue has no remote action")
@@ -241,18 +257,71 @@ func (e *Engine) execute(next command) {
 			err = e.remote.Dispatch(e.ctx, *next.cue.Play.Remote, next.cue)
 		}
 	case show.CueTypeWait:
-		err = e.executeWait(next.cue)
+		err = e.executeWait(next.cue, next.ctx)
 	case show.CueTypeMediaControl:
-		err = e.executeMediaControl(next.cue)
+		err = e.executeMediaControl(next.cue, next.ctx)
 	case show.CueTypeOutputControl:
-		err = e.executeOutputControl(next.cue)
+		err = e.executeOutputControl(next.cue, next.ctx)
 	default:
 		err = fmt.Errorf("unsupported cue type %d", next.cue.Type)
 	}
 	if err != nil {
+		if errors.Is(err, context.Canceled) && next.ctx.Err() != nil {
+			return
+		}
 		e.recordError(err)
 		return
 	}
+	if next.cue.Type != show.CueTypeSound && next.cue.Type != show.CueTypeVideo && next.cue.Type != show.CueTypeImage {
+		e.scheduleLink(next.cue.Link, next.index, next.cue.Timing.PostWaitMs, linkEnd, next.ctx)
+	}
+}
+
+func cueActionDuration(cue show.Cue) int64 {
+	if cue.Type == show.CueTypeWait && cue.Play.Wait != nil && cue.Play.Wait.Kind == show.WaitDuration {
+		return max(int64(0), cue.Play.Wait.DurationMs)
+	}
+	return 0
+}
+
+func cueExecutionDuration(cue show.Cue) int64 {
+	if cue.Type == show.CueTypeWait && cue.Play.Wait != nil && cue.Play.Wait.Kind != show.WaitDuration {
+		return 0
+	}
+	return max(int64(0), cue.Timing.PreWaitMs) + cueActionDuration(cue)
+}
+
+func (e *Engine) startExecution(next command, phase string, durationMs int64) string {
+	now := time.Now()
+	id := uuid.NewString()
+	e.mu.Lock()
+	e.executions[id] = &CueExecution{
+		ID: id, CueID: next.cue.ID, CueIndex: next.index, CueType: next.cue.Type,
+		Phase: phase, StartedAt: now, PhaseAt: now, DurationMs: durationMs,
+	}
+	e.mu.Unlock()
+	e.changed()
+	return id
+}
+
+func (e *Engine) updateExecution(id, phase string, durationMs int64) {
+	e.mu.Lock()
+	if execution := e.executions[id]; execution != nil {
+		execution.Phase = phase
+		execution.PhaseAt = time.Now()
+		if durationMs > 0 {
+			execution.DurationMs = durationMs
+		}
+	}
+	e.mu.Unlock()
+	e.changed()
+}
+
+func (e *Engine) finishExecution(id string) {
+	e.mu.Lock()
+	delete(e.executions, id)
+	e.mu.Unlock()
+	e.changed()
 }
 
 type linkMoment int
@@ -264,12 +333,12 @@ const (
 	linkEnd
 )
 
-func (e *Engine) scheduleLink(link show.CueLink, sourceIndex int, delayMs int64, moment linkMoment) {
+func (e *Engine) scheduleLink(link show.CueLink, sourceIndex int, delayMs int64, moment linkMoment, runCtx context.Context) {
 	if !linkMatches(link.Mode, moment) {
 		return
 	}
 	go func() {
-		if !e.wait(time.Duration(max(0, delayMs)) * time.Millisecond) {
+		if !waitContext(runCtx, time.Duration(max(0, delayMs))*time.Millisecond) {
 			return
 		}
 		target, targetIndex, ok := e.resolveTarget(link.Target, sourceIndex)
@@ -281,6 +350,8 @@ func (e *Engine) scheduleLink(link show.CueLink, sourceIndex int, delayMs int64,
 			e.changed()
 			return
 		}
+		e.manager.SelectCue(targetIndex)
+		e.changed()
 		if err := e.enqueue(target, targetIndex); err != nil {
 			e.recordError(err)
 		}
@@ -320,12 +391,13 @@ func (e *Engine) resolveTarget(target show.CueTarget, sourceIndex int) (show.Cue
 	return cues[index], index, true
 }
 
-func (e *Engine) startMedia(cue show.Cue, cueIndex int) error {
+func (e *Engine) startMedia(next command) error {
+	cue, cueIndex := next.cue, next.index
 	settings := e.settings.Snapshot()
 	now := time.Now()
 	instance := &Instance{
-		ID: uuid.NewString(), CueID: cue.ID, CueNumber: cue.CueNumber, CueIndex: cueIndex, Link: cue.Link,
-		StartedAt: now, PositionAt: now,
+		ID: uuid.NewString(), CueID: cue.ID, CueNumber: cue.CueNumber, CueIndex: cueIndex, Link: cue.Link, PostWaitMs: cue.Timing.PostWaitMs,
+		StartedAt: now, PositionAt: now, RunContext: next.ctx,
 	}
 	switch cue.Type {
 	case show.CueTypeSound:
@@ -373,17 +445,100 @@ func (e *Engine) startMedia(cue show.Cue, cueIndex int) error {
 	e.hub.publish(Event{Action: "play", OutputID: snapshot.OutputID, Instance: &snapshot})
 	e.signalState()
 	if snapshot.FadeInMs == 0 {
-		e.scheduleLink(snapshot.Link, snapshot.CueIndex, 0, linkFadeIn)
-	}
-	duration := snapshot.DurationMs
-	if duration > 0 {
+		e.scheduleLink(snapshot.Link, snapshot.CueIndex, snapshot.PostWaitMs, linkFadeIn, snapshot.RunContext)
+	} else {
 		go func(id string, wait time.Duration) {
-			if e.wait(wait) {
-				e.HandleOutputReport(id, "ended")
+			if waitContext(snapshot.RunContext, wait) {
+				e.HandleOutputReport(id, "fade-in-complete")
 			}
-		}(snapshot.ID, time.Duration(duration)*time.Millisecond)
+		}(snapshot.ID, time.Duration(snapshot.FadeInMs)*time.Millisecond)
+	}
+	e.scheduleInstanceLifecycle(snapshot.ID)
+	e.scheduleTimecode(snapshot.ID, cue, cueIndex, snapshot.RunContext)
+	return nil
+}
+
+func (e *Engine) scheduleTimecode(instanceID string, cue show.Cue, cueIndex int, runCtx context.Context) {
+	for _, marker := range mediaTimecode(cue) {
+		marker := marker
+		if marker.Disabled || marker.TimeMs < 0 {
+			continue
+		}
+		go func() {
+			if !waitContext(runCtx, time.Duration(marker.TimeMs)*time.Millisecond) || !e.hasInstance(instanceID) {
+				return
+			}
+			if marker.Target.Kind == show.CueTargetCue && marker.Target.CueID != (show.CueID{}) {
+				if target, targetIndex, ok := e.manager.CueByIDCopy(marker.Target.CueID); ok {
+					if err := e.enqueue(target, targetIndex); err != nil {
+						e.recordError(err)
+					}
+				}
+				return
+			}
+			// Backward compatibility for marker actions stored before markers could
+			// target fully configured cues.
+			embedded := show.Cue{
+				ID: cue.ID, CueNumber: cue.CueNumber, Description: cue.Description,
+				Type: marker.Type, Play: marker.Action, Link: show.CueLink{Mode: show.CueLinkManual},
+			}
+			e.execute(command{cue: embedded, index: cueIndex, ctx: runCtx})
+		}()
+	}
+}
+
+func mediaTimecode(cue show.Cue) []show.TimecodeMarker {
+	switch cue.Type {
+	case show.CueTypeSound:
+		if cue.Play.Sound != nil {
+			return cue.Play.Sound.Timecode
+		}
+	case show.CueTypeVideo:
+		if cue.Play.Video != nil {
+			return cue.Play.Video.Timecode
+		}
+	case show.CueTypeImage:
+		if cue.Play.Image != nil {
+			return cue.Play.Image.Timecode
+		}
 	}
 	return nil
+}
+
+func (e *Engine) scheduleInstanceLifecycle(instanceID string) {
+	e.mu.Lock()
+	instance := e.instances[instanceID]
+	if instance == nil || instance.DurationMs <= 0 || instance.EndScheduled {
+		e.mu.Unlock()
+		return
+	}
+	materializeInstance(instance, time.Now())
+	remainingMs := max(int64(0), instance.DurationMs-(instance.PositionMs-instance.ClipStartMs))
+	instance.EndScheduled = true
+	snapshot := *instance
+	e.mu.Unlock()
+
+	fadeOutAt := remainingMs - max(int64(0), snapshot.FadeOutMs)
+	if snapshot.FadeOutMs > 0 && fadeOutAt >= 0 {
+		go func(instance Instance, wait time.Duration) {
+			if !waitContext(instance.RunContext, wait) || !e.hasInstance(instance.ID) {
+				return
+			}
+			e.hub.publish(Event{Action: "control", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID}, Control: "fade-out", FadeMs: instance.FadeOutMs})
+			e.mu.Lock()
+			if active := e.instances[instance.ID]; active != nil {
+				materializeInstance(active, time.Now())
+				startInstanceFade(active, -80, instance.FadeOutMs, time.Now())
+			}
+			e.mu.Unlock()
+			e.HandleOutputReport(instance.ID, "fade-out-start")
+		}(snapshot, time.Duration(fadeOutAt)*time.Millisecond)
+	}
+	go func(id string, wait time.Duration) {
+		if waitContext(snapshot.RunContext, wait) {
+			e.HandleOutputReport(id, "ended")
+		}
+	}(snapshot.ID, time.Duration(remainingMs)*time.Millisecond)
 }
 
 func resolveOutput(value string, settings config.Settings, cueNumber string) string {
@@ -394,7 +549,7 @@ func resolveOutput(value string, settings config.Settings, cueNumber string) str
 	return resolved
 }
 
-func (e *Engine) executeMediaControl(cue show.Cue) error {
+func (e *Engine) executeMediaControl(cue show.Cue, runCtx context.Context) error {
 	if cue.Play.MediaControl == nil {
 		return errors.New("media-control cue has no control settings")
 	}
@@ -413,7 +568,7 @@ func (e *Engine) executeMediaControl(cue show.Cue) error {
 	}
 	control := mediaControlName(play.Action)
 	for outputID, ids := range idsByOutput {
-		e.hub.publish(Event{Action: "control", OutputID: outputID, InstanceIDs: ids, Control: control, FadeMs: play.FadeMs, LevelDB: play.LevelDB, PositionMs: play.SeekToMs})
+		e.hub.publish(Event{Action: "control", OutputID: outputID, InstanceIDs: ids, Control: control, FadeMs: play.FadeMs, LevelDB: play.LevelDB, PositionMs: play.SeekToMs, Curve: play.Curve})
 	}
 
 	e.mu.Lock()
@@ -441,6 +596,10 @@ func (e *Engine) executeMediaControl(cue show.Cue) error {
 			}
 		case show.MediaControlFadeOut:
 			startInstanceFade(instance, -80, play.FadeMs, now)
+		case show.MediaControlStop:
+			if play.FadeMs > 0 {
+				startInstanceFade(instance, -80, play.FadeMs, now)
+			}
 		case show.MediaControlMute:
 			instance.Muted = true
 		case show.MediaControlUnmute:
@@ -450,14 +609,14 @@ func (e *Engine) executeMediaControl(cue show.Cue) error {
 	e.mu.Unlock()
 	if play.Action == show.MediaControlFadeOut {
 		for _, instance := range instances {
-			e.scheduleLink(instance.Link, instance.CueIndex, 0, linkFadeOut)
+			e.scheduleLink(instance.Link, instance.CueIndex, instance.PostWaitMs, linkFadeOut, instance.RunContext)
 		}
 	}
 	if play.Action == show.MediaControlStop || play.Action == show.MediaControlFadeOut {
 		delay := time.Duration(max(0, play.FadeMs)) * time.Millisecond
 		for _, instance := range instances {
 			go func(id string) {
-				if e.wait(delay) {
+				if waitContext(runCtx, delay) {
 					e.HandleOutputReport(id, "ended")
 				}
 			}(instance.ID)
@@ -467,7 +626,7 @@ func (e *Engine) executeMediaControl(cue show.Cue) error {
 	return nil
 }
 
-func (e *Engine) executeOutputControl(cue show.Cue) error {
+func (e *Engine) executeOutputControl(cue show.Cue, runCtx context.Context) error {
 	if cue.Play.OutputControl == nil {
 		return errors.New("output-control cue has no control settings")
 	}
@@ -480,23 +639,67 @@ func (e *Engine) executeOutputControl(cue show.Cue) error {
 	}
 	outputID := resolveOutput(play.OutputID, settings, cue.CueNumber)
 	control := outputControlName(play.Action)
-	e.hub.publish(Event{Action: "output", OutputID: outputID, Control: control, FadeMs: max(play.FadeInMs, play.FadeOutMs), Message: play.Message})
+	event := Event{Action: "output", OutputID: outputID, Control: control, FadeOutMs: max(int64(0), play.FadeOutMs), FadeInMs: max(int64(0), play.FadeInMs), Message: play.Message}
+	e.mu.Lock()
+	switch play.Action {
+	case show.OutputControlBlackout, show.OutputControlClear, show.OutputControlTestPattern, show.OutputControlIdentify:
+		e.outputVisuals[outputID] = event
+	case show.OutputControlFullscreen, show.OutputControlExitFullscreen:
+		e.outputWindows[outputID] = event
+	}
+	e.mu.Unlock()
+	e.hub.publish(event)
+	if play.Action == show.OutputControlBlackout {
+		go func() {
+			if !waitContext(runCtx, time.Duration(max(int64(0), play.FadeOutMs))*time.Millisecond) {
+				return
+			}
+			e.freezeImagesForOutput(outputID)
+		}()
+	}
 	if play.Action == show.OutputControlClear {
-		for _, instance := range e.instancesForOutput(outputID) {
-			e.HandleOutputReport(instance.ID, "ended")
-		}
+		instances := e.instancesForOutput(outputID)
+		go func() {
+			if !waitContext(runCtx, time.Duration(max(int64(0), play.FadeOutMs))*time.Millisecond) {
+				return
+			}
+			for _, instance := range instances {
+				e.HandleOutputReport(instance.ID, "ended")
+			}
+		}()
 	}
 	return nil
 }
 
-func (e *Engine) executeWait(cue show.Cue) error {
+// freezeImagesForOutput stops the elapsed display for images once an output
+// blackout has fully faded to black. Audio and video continue to run beneath
+// the blackout, while an image's elapsed value represents its visible time.
+func (e *Engine) freezeImagesForOutput(outputID string) {
+	e.mu.Lock()
+	now := time.Now()
+	changed := false
+	for _, instance := range e.instances {
+		if instance.OutputID != outputID || instance.MediaType != "image" || instance.PositionAt.IsZero() {
+			continue
+		}
+		materializeInstance(instance, now)
+		instance.PositionAt = time.Time{}
+		changed = true
+	}
+	e.mu.Unlock()
+	if changed {
+		e.signalState()
+	}
+}
+
+func (e *Engine) executeWait(cue show.Cue, runCtx context.Context) error {
 	if cue.Play.Wait == nil {
 		return errors.New("wait cue has no wait settings")
 	}
 	wait := cue.Play.Wait
 	if wait.Kind == show.WaitDuration {
-		if !e.wait(time.Duration(max(0, wait.DurationMs)) * time.Millisecond) {
-			return e.ctx.Err()
+		if !waitContext(runCtx, time.Duration(max(0, wait.DurationMs))*time.Millisecond) {
+			return runCtx.Err()
 		}
 		return nil
 	}
@@ -505,8 +708,8 @@ func (e *Engine) executeWait(cue show.Cue) error {
 			return nil
 		}
 		select {
-		case <-e.ctx.Done():
-			return e.ctx.Err()
+		case <-runCtx.Done():
+			return runCtx.Err()
 		case <-e.stateEvent:
 		case <-time.After(100 * time.Millisecond):
 		}
@@ -545,7 +748,18 @@ func (e *Engine) HandleOutputReport(instanceID, report string) {
 		return
 	}
 	if report == "fade-in-complete" {
+		if instance.FadeInComplete {
+			e.mu.Unlock()
+			return
+		}
 		instance.FadeInComplete = true
+	}
+	if report == "fade-out-start" {
+		if instance.FadeOutStarted {
+			e.mu.Unlock()
+			return
+		}
+		instance.FadeOutStarted = true
 	}
 	copy := *instance
 	if report == "ended" || report == "stopped" {
@@ -554,12 +768,12 @@ func (e *Engine) HandleOutputReport(instanceID, report string) {
 	e.mu.Unlock()
 	switch report {
 	case "fade-in-complete":
-		e.scheduleLink(copy.Link, copy.CueIndex, 0, linkFadeIn)
+		e.scheduleLink(copy.Link, copy.CueIndex, copy.PostWaitMs, linkFadeIn, copy.RunContext)
 	case "fade-out-start":
-		e.scheduleLink(copy.Link, copy.CueIndex, 0, linkFadeOut)
+		e.scheduleLink(copy.Link, copy.CueIndex, copy.PostWaitMs, linkFadeOut, copy.RunContext)
 	case "ended", "stopped":
 		e.hub.publish(Event{Action: "remove", OutputID: copy.OutputID, InstanceIDs: []string{copy.ID}})
-		e.scheduleLink(copy.Link, copy.CueIndex, 0, linkEnd)
+		e.scheduleLink(copy.Link, copy.CueIndex, copy.PostWaitMs, linkEnd, copy.RunContext)
 	}
 	e.signalState()
 }
@@ -580,12 +794,23 @@ func (e *Engine) HandleOutputDuration(instanceID string, durationMs int64) {
 	instance.DurationMs = durationMs
 	e.durations[instance.CueID] = durationMs
 	e.mu.Unlock()
+	e.scheduleInstanceLifecycle(instanceID)
 	e.signalState()
 }
 
 func (e *Engine) Subscribe(outputID string) (<-chan Event, func()) {
 	ch := e.hub.subscribe(outputID)
 	ch <- Event{Action: "sync", OutputID: outputID, Instances: e.instancesForOutput(outputID)}
+	e.mu.RLock()
+	visual, hasVisual := e.outputVisuals[outputID]
+	window, hasWindow := e.outputWindows[outputID]
+	e.mu.RUnlock()
+	if hasVisual {
+		ch <- visual
+	}
+	if hasWindow {
+		ch <- window
+	}
 	return ch, func() { e.hub.unsubscribe(outputID, ch) }
 }
 
@@ -602,6 +827,23 @@ func (e *Engine) ActiveInstances() []Instance {
 	return result
 }
 
+func (e *Engine) ActiveExecutions() []CueExecution {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	now := time.Now()
+	result := make([]CueExecution, 0, len(e.executions))
+	for _, execution := range e.executions {
+		copy := *execution
+		copy.ElapsedMs = max(int64(0), now.Sub(copy.StartedAt).Milliseconds())
+		if copy.DurationMs > 0 {
+			copy.ElapsedMs = min(copy.ElapsedMs, copy.DurationMs)
+			copy.RemainingMs = max(int64(0), copy.DurationMs-copy.ElapsedMs)
+		}
+		result = append(result, copy)
+	}
+	return result
+}
+
 func (e *Engine) KnownDurations() map[show.CueID]int64 {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
@@ -613,6 +855,10 @@ func (e *Engine) KnownDurations() map[show.CueID]int64 {
 }
 
 func (e *Engine) StopAll() {
+	e.mu.Lock()
+	e.runCancel()
+	e.runCtx, e.runCancel = context.WithCancel(e.ctx)
+	e.mu.Unlock()
 	instances := e.ActiveInstances()
 	byOutput := map[string][]string{}
 	for _, instance := range instances {
@@ -722,16 +968,19 @@ func (e *Engine) recordError(err error) {
 	e.changed()
 }
 
-func (e *Engine) wait(duration time.Duration) bool {
+func waitContext(ctx context.Context, duration time.Duration) bool {
+	if ctx == nil {
+		return false
+	}
 	if duration <= 0 {
-		return e.ctx.Err() == nil
+		return ctx.Err() == nil
 	}
 	timer := time.NewTimer(duration)
 	defer timer.Stop()
 	select {
 	case <-timer.C:
 		return true
-	case <-e.ctx.Done():
+	case <-ctx.Done():
 		return false
 	}
 }
@@ -763,6 +1012,12 @@ func (e *Engine) instanceCount() int {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	return len(e.instances)
+}
+
+func (e *Engine) hasInstance(id string) bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.instances[id] != nil
 }
 
 func materializeInstance(instance *Instance, now time.Time) {

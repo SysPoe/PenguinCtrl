@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 
 	"gioui.org/layout"
@@ -48,6 +49,15 @@ func newCueEditPageState(cue show.Cue) cueEditPageState {
 
 	state.integer["preWaitMs"] = input.NewInteger("Pre Wait MS", int(cue.Timing.PreWaitMs))
 	state.integer["postWaitMs"] = input.NewInteger("Post Wait MS", int(cue.Timing.PostWaitMs))
+	state.button["timecodeAdd"] = new(widget.Clickable)
+	if markers := cueTimecodeMarkers(&cue); markers != nil {
+		for index, marker := range *markers {
+			key := fmt.Sprintf("timecode.%d", index)
+			state.integer[key+".time"] = input.NewInteger("Time MS", int(marker.TimeMs))
+			state.checkbox[key+".disabled"] = input.NewCheckbox("Disabled", marker.Disabled)
+			state.button[fmt.Sprintf("timecodeDelete.%d", index)] = new(widget.Clickable)
+		}
+	}
 
 	state.dropdown["linkMode"] = newEnumDropdown(cueLinkModeLabels, int(cue.Link.Mode))
 	state.dropdown["linkTargetKind"] = newEnumDropdown(cueTargetKindLabels, int(cue.Link.Target.Kind))
@@ -91,7 +101,6 @@ func newCueEditPageState(cue show.Cue) cueEditPageState {
 	if cue.Play.Wait != nil {
 		state.dropdown["waitKind"] = newEnumDropdown(waitKindLabels, int(cue.Play.Wait.Kind))
 		state.integer["waitDurationMs"] = input.NewInteger("Duration MS", int(cue.Play.Wait.DurationMs))
-		state.dropdown["waitTargetKind"] = newEnumDropdown(cueTargetKindLabels, int(cue.Play.Wait.Target.Kind))
 		state.dropdown["waitMediaTargetKind"] = newEnumDropdown(mediaTargetKindLabels, int(cue.Play.Wait.Media.Kind))
 		state.text["waitMediaInstanceID"] = input.NewText("Instance ID", cue.Play.Wait.Media.InstanceID)
 		state.text["waitMediaOutputID"] = input.NewText("Output ID", cue.Play.Wait.Media.OutputID)

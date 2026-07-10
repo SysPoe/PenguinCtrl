@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"image/color"
 	"strconv"
 	"strings"
@@ -26,7 +27,7 @@ func (ctx *CueEditUI) drawBody(th *material.Theme, gtx layout.Context, manager *
 	case tabMedia:
 		return ctx.renderMediaTab(th, gtx)
 	case tabTimecode:
-		return ctx.renderTimecodeTab(th, gtx)
+		return ctx.renderTimecodeTab(th, gtx, manager)
 	case tabRemote:
 		return ctx.renderRemoteTab(th, gtx)
 	case tabWait:
@@ -248,13 +249,65 @@ func (ctx *CueEditUI) renderMediaTab(th *material.Theme, gtx layout.Context) lay
 	return ctx.renderForm(th, rows)
 }
 
-func (ctx *CueEditUI) renderTimecodeTab(th *material.Theme, gtx layout.Context) layout.FlexChild {
-	return layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-		label := stableBody1(th, "Timecode marker editing is not implemented yet.")
-		return layout.UniformInset(unit.Dp(16)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return layoutStableText(gtx, label.Layout)
-		})
-	})
+func (ctx *CueEditUI) renderTimecodeTab(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.FlexChild {
+	markers := cueTimecodeMarkers(&ctx.cue)
+	if markers == nil {
+		return ctx.renderForm(th, []cueEditFormRow{staticRow(th, "Timecode", "This cue type does not support timecode markers.")})
+	}
+
+	if ctx.page.button["timecodeAdd"].Clicked(gtx) {
+		*markers = append(*markers, show.TimecodeMarker{Target: show.CueTarget{Kind: show.CueTargetCue}})
+		ctx.page = newCueEditPageState(ctx.cue)
+		markers = cueTimecodeMarkers(&ctx.cue)
+	}
+	for index := range *markers {
+		if ctx.page.button[fmt.Sprintf("timecodeDelete.%d", index)].Clicked(gtx) {
+			*markers = append((*markers)[:index], (*markers)[index+1:]...)
+			ctx.page = newCueEditPageState(ctx.cue)
+			markers = cueTimecodeMarkers(&ctx.cue)
+			break
+		}
+	}
+
+	rows := []cueEditFormRow{{label: "", layout: func(gtx layout.Context) layout.Dimensions {
+		return layoutCenteredButton(th, gtx, ctx.page.button["timecodeAdd"], "Add Marker", th.ContrastBg)
+	}}}
+	for index := range *markers {
+		marker := &(*markers)[index]
+		key := fmt.Sprintf("timecode.%d", index)
+		rows = append(rows,
+			staticRow(th, fmt.Sprintf("Marker %d", index+1), "Trigger a configured cue at this time"),
+			integerRow(th, "Time MS", ctx.page.integer[key+".time"], func(value int) { marker.TimeMs = int64(max(0, value)) }),
+			checkboxRow(th, "", ctx.page.checkbox[key+".disabled"], func(value bool) { marker.Disabled = value }),
+			ctx.cueTargetDropdownRow(th, "Action Cue", key+".target", manager, &marker.Target.CueID),
+			cueEditFormRow{label: "", layout: func(gtx layout.Context) layout.Dimensions {
+				return layoutCenteredButton(th, gtx, ctx.page.button[fmt.Sprintf("timecodeDelete.%d", index)], "Delete Marker", color.NRGBA{R: 0x70, A: 0xFF})
+			}},
+		)
+		marker.Target.Kind = show.CueTargetCue
+	}
+	return ctx.renderForm(th, rows)
+}
+
+func cueTimecodeMarkers(cue *show.Cue) *[]show.TimecodeMarker {
+	if cue == nil {
+		return nil
+	}
+	switch cue.Type {
+	case show.CueTypeSound:
+		if cue.Play.Sound != nil {
+			return &cue.Play.Sound.Timecode
+		}
+	case show.CueTypeVideo:
+		if cue.Play.Video != nil {
+			return &cue.Play.Video.Timecode
+		}
+	case show.CueTypeImage:
+		if cue.Play.Image != nil {
+			return &cue.Play.Image.Timecode
+		}
+	}
+	return nil
 }
 
 func (ctx *CueEditUI) renderRemoteTab(th *material.Theme, gtx layout.Context) layout.FlexChild {
@@ -287,12 +340,6 @@ func (ctx *CueEditUI) renderWaitTab(th *material.Theme, gtx layout.Context, mana
 	if play.Kind == show.WaitDuration {
 		rows = append(rows, integerRow(th, "Duration MS", ctx.page.integer["waitDurationMs"], func(value int) { play.DurationMs = int64(value) }))
 	} else {
-		rows = append(rows,
-			dropdownRow(th, "Target", ctx.page.dropdown["waitTargetKind"], func(selected int) { play.Target.Kind = show.CueTargetKind(selected) }),
-		)
-		if play.Target.Kind == show.CueTargetCue {
-			rows = append(rows, ctx.cueTargetDropdownRow(th, "Target Cue", "waitTargetCue", manager, &play.Target.CueID))
-		}
 		if waitKindUsesMediaTarget(play.Kind) {
 			rows = ctx.appendMediaTargetRows(rows, th, manager, "waitMedia", &play.Media)
 		}

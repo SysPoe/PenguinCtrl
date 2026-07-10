@@ -29,6 +29,7 @@ import (
 	oto "github.com/hajimehoshi/oto/v2"
 	"github.com/syspoe/cusus/config"
 	"github.com/syspoe/cusus/playback"
+	"github.com/syspoe/cusus/show"
 )
 
 type Player struct {
@@ -289,16 +290,20 @@ func (p *Player) Control(event playback.Event) {
 		}
 	case "set-volume", "fade-to":
 		if event.LevelDB != nil {
-			p.setVolume(*event.LevelDB, time.Duration(event.FadeMs)*time.Millisecond)
+			p.setVolume(*event.LevelDB, time.Duration(event.FadeMs)*time.Millisecond, event.Curve)
 		}
 	case "mute":
 		p.setMuted(true)
 	case "unmute":
 		p.setMuted(false)
 	case "fade-out":
-		p.setVolume(-80, time.Duration(event.FadeMs)*time.Millisecond)
+		p.setVolume(-80, time.Duration(event.FadeMs)*time.Millisecond, event.Curve)
 	case "stop":
-		p.Close(true)
+		if event.FadeMs > 0 {
+			p.setVolume(-80, time.Duration(event.FadeMs)*time.Millisecond, event.Curve)
+		} else {
+			p.Close(true)
+		}
 	}
 }
 
@@ -333,7 +338,7 @@ func (p *Player) setMuted(muted bool) {
 	p.mu.Unlock()
 }
 
-func (p *Player) setVolume(target float64, duration time.Duration) {
+func (p *Player) setVolume(target float64, duration time.Duration, curve show.FadeCurve) {
 	p.mu.RLock()
 	start := p.volumeDB
 	p.mu.RUnlock()
@@ -347,6 +352,9 @@ func (p *Player) setVolume(target float64, duration time.Duration) {
 		defer ticker.Stop()
 		for now := range ticker.C {
 			progress := min(1.0, float64(now.Sub(started))/float64(duration))
+			if curve == show.FadeCurveEqualPower {
+				progress = math.Sin(progress * math.Pi / 2)
+			}
 			p.applyVolume(start + (target-start)*progress)
 			if progress >= 1 {
 				return

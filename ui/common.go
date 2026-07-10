@@ -180,8 +180,8 @@ func applyAlpha(c color.NRGBA, bg color.NRGBA) color.NRGBA {
 
 func makeFlexedTextHeader(th *material.Theme, txt string, weight float32, align text.Alignment) layout.FlexChild {
 	return layout.Flexed(weight, func(gtx layout.Context) layout.Dimensions {
-		return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			label := material.Body1(th, txt)
+		return layout.Inset{Top: unit.Dp(5), Bottom: unit.Dp(5), Left: unit.Dp(6), Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			label := material.Body2(th, txt)
 			label.Color = opaqueForeground(th)
 			label.Alignment = align
 			return layoutTruncatedText(gtx, label)

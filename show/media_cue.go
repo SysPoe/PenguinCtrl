@@ -51,7 +51,11 @@ type ImagePlay struct {
 type TimecodeMarker struct {
 	TimeMs   int64
 	Disabled bool
+	Target   CueTarget
 
+	// Type and Action are retained for embedded/legacy marker actions. New
+	// markers normally target an existing cue so every cue type uses the same
+	// complete editor and execution path.
 	Type   CueType
 	Action CuePlay
 }
