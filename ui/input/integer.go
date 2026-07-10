@@ -15,18 +15,35 @@ type Integer struct {
 	Hint  string
 	Value int
 
-	editor widget.Editor
-	text   string
+	editor   widget.Editor
+	text     string
+	optional bool
+	empty    bool
 
 	eventListeners []func(value int)
 }
 
 func NewInteger(label string, value int) *Integer {
+	return newInteger(label, value, false)
+}
+
+// NewOptionalInteger creates an integer input where an empty field represents 0.
+func NewOptionalInteger(label string, value int) *Integer {
+	return newInteger(label, value, true)
+}
+
+func newInteger(label string, value int, optional bool) *Integer {
+	text := strconv.Itoa(value)
+	if optional && value == 0 {
+		text = ""
+	}
 	i := &Integer{
-		Label: label,
-		Hint:  label,
-		Value: value,
-		text:  strconv.Itoa(value),
+		Label:    label,
+		Hint:     label,
+		Value:    value,
+		text:     text,
+		optional: optional,
+		empty:    optional && value == 0,
 	}
 	i.editor.SingleLine = true
 	i.editor.InputHint = key.HintNumeric
@@ -46,7 +63,11 @@ func (i *Integer) notifyEventListeners() {
 }
 
 func (i *Integer) Layout(th *material.Theme, gtx layout.Context) layout.Dimensions {
-	if expected := strconv.Itoa(i.Value); i.text != expected && !gtx.Focused(&i.editor) {
+	expected := strconv.Itoa(i.Value)
+	if i.optional && i.empty {
+		expected = ""
+	}
+	if i.text != expected && !gtx.Focused(&i.editor) {
 		i.text = expected
 		i.editor.SetText(i.text)
 	}
@@ -59,12 +80,31 @@ func (i *Integer) Layout(th *material.Theme, gtx layout.Context) layout.Dimensio
 	})
 
 	if text := i.editor.Text(); text != previous {
-		i.text = text
-		if value, err := strconv.Atoi(text); err == nil && value != i.Value {
-			i.Value = value
-			i.notifyEventListeners()
-		}
+		i.applyText(text)
 	}
 
 	return dims
+}
+
+func (i *Integer) applyText(text string) {
+	i.text = text
+	if i.optional && text == "" {
+		changed := !i.empty || i.Value != 0
+		i.empty = true
+		i.Value = 0
+		if changed {
+			i.notifyEventListeners()
+		}
+		return
+	}
+	value, err := strconv.Atoi(text)
+	if err != nil {
+		return
+	}
+	changed := i.empty || value != i.Value
+	i.empty = false
+	i.Value = value
+	if changed {
+		i.notifyEventListeners()
+	}
 }

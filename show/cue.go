@@ -9,7 +9,6 @@ import (
 type Cue struct {
 	ID          CueID
 	CueNumber   string
-	Title       string
 	Description string
 
 	Type     CueType

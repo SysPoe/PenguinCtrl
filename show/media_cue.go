@@ -1,7 +1,8 @@
 package show
 
 type SoundPlay struct {
-	File string
+	File     string
+	OutputID string
 
 	ClipStartMs int64
 	ClipEndMs   int64

@@ -5,6 +5,7 @@ import (
 	"image/color"
 
 	"gioui.org/io/event"
+	"gioui.org/io/key"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -21,6 +22,7 @@ type CueEditUI struct {
 	cue   show.Cue
 	cType show.CueType
 	show  bool
+	isNew bool
 
 	pickFile func(extensions []string, selected func(path string))
 
@@ -87,7 +89,11 @@ func (ctx *CueEditUI) drawTopBar(th *material.Theme, gtx layout.Context) layout.
 
 		sub := []layout.FlexChild{
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-				title := stableBody1(th, "Cue Editor")
+				titleText := "Edit Cue"
+				if ctx.isNew {
+					titleText = "Add Cue"
+				}
+				title := stableBody1(th, titleText)
 				title.TextSize = unit.Sp(float32(topBarHeight) * 0.6)
 				return layoutStableText(gtx, title.Layout)
 			}),
@@ -154,15 +160,22 @@ func (ctx *CueEditUI) drawTopBar(th *material.Theme, gtx layout.Context) layout.
 	})
 }
 
-func (ctx *CueEditUI) drawBottomBar(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.FlexChild {
+func (ctx *CueEditUI) drawBottomBar(th *material.Theme, gtx layout.Context, manager *show.ShowManager, saveShortcut bool) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		if ctx.btnCancel.Clicked(gtx) {
 			ctx.show = false
+			gtx.Execute(key.FocusCmd{})
 		}
 
-		if ctx.btnSave.Clicked(gtx) {
-			manager.ReplaceCue(ctx.cue)
+		if ctx.btnSave.Clicked(gtx) || saveShortcut {
+			if ctx.isNew {
+				manager.AddCueAndSelect(ctx.cue)
+			} else {
+				manager.ReplaceCue(ctx.cue)
+			}
+			ctx.isNew = false
 			ctx.show = false
+			gtx.Execute(key.FocusCmd{})
 		}
 
 		return layout.Flex{
@@ -175,10 +188,26 @@ func (ctx *CueEditUI) drawBottomBar(th *material.Theme, gtx layout.Context, mana
 	})
 }
 
+func cueEditorSaveShortcut(gtx layout.Context) bool {
+	for {
+		event, ok := gtx.Event(
+			key.Filter{Name: key.NameEscape},
+			key.Filter{Name: "S", Required: key.ModShortcut},
+		)
+		if !ok {
+			return false
+		}
+		if event, ok := event.(key.Event); ok && event.State == key.Press {
+			return true
+		}
+	}
+}
+
 func (ctx *CueEditUI) Layout(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.Dimensions {
 	if !ctx.show {
 		return layout.Dimensions{}
 	}
+	saveShortcut := cueEditorSaveShortcut(gtx)
 
 	margin := image.Pt(0, 0)
 	widthHeight := image.Pt(gtx.Constraints.Max.X-margin.X*2, gtx.Constraints.Max.Y-margin.Y*2)
@@ -237,6 +266,6 @@ func (ctx *CueEditUI) Layout(th *material.Theme, gtx layout.Context, manager *sh
 	}.Layout(gtx,
 		ctx.drawTopBar(th, gtx),
 		ctx.drawBody(th, gtx, manager),
-		ctx.drawBottomBar(th, gtx, manager),
+		ctx.drawBottomBar(th, gtx, manager, saveShortcut),
 	)
 }

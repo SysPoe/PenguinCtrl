@@ -24,72 +24,55 @@ type TBContext struct {
 	cueEditUI CueEditUI
 }
 
+func (ctx *TBContext) openCueEditor(cue show.Cue, isNew bool) {
+	ctx.cueEditUI.cue = cue
+	ctx.cueEditUI.cType = cue.Type
+	ctx.cueEditUI.activeTab = tabGeneral
+	ctx.cueEditUI.page = cueEditPageState{}
+	ctx.cueEditUI.isNew = isNew
+	ctx.cueEditUI.show = true
+	ctx.TopBar.setAllFalse()
+}
+
+// EditSelectedCue opens a working copy of the selected cue.
+func (ctx *TBContext) EditSelectedCue(manager *show.ShowManager) bool {
+	cue, _, ok := manager.SelectedCueCopy()
+	if !ok {
+		return false
+	}
+	ctx.openCueEditor(cue, false)
+	return true
+}
+
+func (ctx *TBContext) CueEditorOpen() bool {
+	return ctx.cueEditUI.show
+}
+
 func (ctx *TBContext) handleButtonClicks(gtx layout.Context, manager *show.ShowManager) {
 	if ctx.TopBar.takeEditCueRequest() {
-		if cue := manager.SelectedCue(); cue != nil {
-			ctx.cueEditUI.cue = *cue
-			ctx.cueEditUI.cType = cue.Type
-			ctx.cueEditUI.activeTab = tabGeneral
-			ctx.cueEditUI.page = cueEditPageState{}
-			ctx.cueEditUI.show = true
-		}
+		ctx.EditSelectedCue(manager)
 	}
 
 	if ctx.btnCueTypeSound.Clicked(gtx) {
-		c := show.NewSoundCue()
-		ctx.cueEditUI.cue = c
-		ctx.cueEditUI.cType = show.CueTypeSound
-		ctx.cueEditUI.show = true
-		manager.AddCue(c)
-		ctx.TopBar.setAllFalse()
+		ctx.openCueEditor(show.NewSoundCue(), true)
 	}
 	if ctx.btnCueTypeVideo.Clicked(gtx) {
-		c := show.NewVideoCue()
-		ctx.cueEditUI.cue = c
-		ctx.cueEditUI.cType = show.CueTypeVideo
-		ctx.cueEditUI.show = true
-		manager.AddCue(c)
-		ctx.TopBar.setAllFalse()
+		ctx.openCueEditor(show.NewVideoCue(), true)
 	}
 	if ctx.btnCueTypeImage.Clicked(gtx) {
-		c := show.NewImageCue()
-		ctx.cueEditUI.cue = c
-		ctx.cueEditUI.cType = show.CueTypeImage
-		ctx.cueEditUI.show = true
-		manager.AddCue(c)
-		ctx.TopBar.setAllFalse()
+		ctx.openCueEditor(show.NewImageCue(), true)
 	}
 	if ctx.btnCueTypeRemote.Clicked(gtx) {
-		c := show.NewRemoteCue()
-		ctx.cueEditUI.cue = c
-		ctx.cueEditUI.cType = show.CueTypeRemote
-		ctx.cueEditUI.show = true
-		manager.AddCue(c)
-		ctx.TopBar.setAllFalse()
+		ctx.openCueEditor(show.NewRemoteCue(), true)
 	}
 	if ctx.btnCueTypeWait.Clicked(gtx) {
-		c := show.NewWaitCue()
-		ctx.cueEditUI.cue = c
-		ctx.cueEditUI.cType = show.CueTypeWait
-		ctx.cueEditUI.show = true
-		manager.AddCue(c)
-		ctx.TopBar.setAllFalse()
+		ctx.openCueEditor(show.NewWaitCue(), true)
 	}
 	if ctx.btnCueTypeMediaControl.Clicked(gtx) {
-		c := show.NewMediaControlCue()
-		ctx.cueEditUI.cue = c
-		ctx.cueEditUI.cType = show.CueTypeMediaControl
-		ctx.cueEditUI.show = true
-		manager.AddCue(c)
-		ctx.TopBar.setAllFalse()
+		ctx.openCueEditor(show.NewMediaControlCue(), true)
 	}
 	if ctx.btnCueTypeOutputControl.Clicked(gtx) {
-		c := show.NewOutputControlCue()
-		ctx.cueEditUI.cue = c
-		ctx.cueEditUI.cType = show.CueTypeOutputControl
-		ctx.cueEditUI.show = true
-		manager.AddCue(c)
-		ctx.TopBar.setAllFalse()
+		ctx.openCueEditor(show.NewOutputControlCue(), true)
 	}
 }
 

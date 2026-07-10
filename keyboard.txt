@@ -1,0 +1,23 @@
+KEYBOARD SHORTCUTS
+
+Cue list
+Up Arrow        Select the previous cue
+Down Arrow      Select the next cue
+Page Up         Move up 10 cues
+Page Down       Move down 10 cues
+Home            Select the first cue
+End             Select the last cue
+Enter           Edit the selected cue
+Numpad Enter    Edit the selected cue
+F2              Edit the selected cue
+Space           Run the selected cue
+
+Cue editor
+Escape          Save the current cue and close the editor
+Ctrl+S          Save the current cue and close the editor
+
+Settings
+Ctrl+S          Save settings
+
+Add Cue menu
+Escape          Close the menu

@@ -40,7 +40,6 @@ func newCueEditPageState(cue show.Cue) cueEditPageState {
 	}
 
 	state.text["cueNumber"] = input.NewText("Cue Number", cue.CueNumber)
-	state.text["title"] = input.NewText("Title", cue.Title)
 	state.multiline["description"] = input.NewMultiline("Description", cue.Description)
 	state.checkbox["disabled"] = input.NewCheckbox("Disabled", cue.Disabled)
 	state.colour["color"] = input.NewColourPicker("Color", cue.Color)
@@ -56,6 +55,7 @@ func newCueEditPageState(cue show.Cue) cueEditPageState {
 	if cue.Play.Sound != nil {
 		state.text["soundFile"] = input.NewText("File", cue.Play.Sound.File)
 		state.button["soundFileBrowse"] = new(widget.Clickable)
+		state.text["soundOutputID"] = input.NewText("Output ID", cue.Play.Sound.OutputID)
 		state.integer["soundClipStartMs"] = input.NewInteger("Clip Start MS", int(cue.Play.Sound.ClipStartMs))
 		state.integer["soundClipEndMs"] = input.NewInteger("Clip End MS", int(cue.Play.Sound.ClipEndMs))
 		state.integer["soundFadeInMs"] = input.NewInteger("Fade In MS", int(cue.Play.Sound.FadeInMs))
@@ -86,6 +86,7 @@ func newCueEditPageState(cue show.Cue) cueEditPageState {
 		state.text["remotePlayback"] = input.NewText("Playback", cue.Play.Remote.Playback)
 		state.text["remoteCueNumber"] = input.NewText("Cue Number", cue.Play.Remote.CueNumber)
 		state.text["remoteLevel"] = input.NewText("Level", cue.Play.Remote.Level)
+		state.text["remoteCustom"] = input.NewText("Custom Command", cue.Play.Remote.Custom)
 	}
 	if cue.Play.Wait != nil {
 		state.dropdown["waitKind"] = newEnumDropdown(waitKindLabels, int(cue.Play.Wait.Kind))

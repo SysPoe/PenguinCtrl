@@ -2,11 +2,11 @@ package show
 
 import "image/color"
 
-func NewCue(cueType CueType, title string, play CuePlay) Cue {
+func NewCue(cueType CueType, description string, play CuePlay) Cue {
 	return Cue{
-		ID:    NewCueID(),
-		Title: title,
-		Type:  cueType,
+		ID:          NewCueID(),
+		Description: description,
+		Type:        cueType,
 		Timing: CueTiming{
 			PreWaitMs:  0,
 			PostWaitMs: 0,
@@ -27,6 +27,7 @@ func NewSoundCue() Cue {
 	return NewCue(CueTypeSound, "", CuePlay{
 		Sound: &SoundPlay{
 			File:        "",
+			OutputID:    "{defaultMediaOutput}",
 			ClipStartMs: 0,
 			ClipEndMs:   0,
 			FadeInMs:    0,
@@ -41,7 +42,7 @@ func NewVideoCue() Cue {
 	return NewCue(CueTypeVideo, "", CuePlay{
 		Video: &VideoPlay{
 			File:        "",
-			OutputID:    "",
+			OutputID:    "{defaultMediaOutput}",
 			ClipStartMs: 0,
 			ClipEndMs:   0,
 			FadeInMs:    0,
@@ -56,7 +57,7 @@ func NewImageCue() Cue {
 	return NewCue(CueTypeImage, "", CuePlay{
 		Image: &ImagePlay{
 			File:       "",
-			OutputID:   "",
+			OutputID:   "{defaultMediaOutput}",
 			FadeInMs:   0,
 			FadeOutMs:  0,
 			DurationMs: 0,
@@ -68,11 +69,13 @@ func NewImageCue() Cue {
 func NewRemoteCue() Cue {
 	return NewCue(CueTypeRemote, "", CuePlay{
 		Remote: &RemotePlay{
-			Protocol:  RemoteProtocolOSC,
-			Action:    RemoteActionNone,
-			Playback:  "",
-			CueNumber: "",
+			Protocol:  RemoteProtocolAuto,
+			Action:    RemoteActionGoto,
+			Playback:  "{defaultPlayback}",
+			CueNumber: "{cueNumber}",
 			Level:     "",
+			Custom:    "",
+			Values:    []RemoteValue{},
 		},
 	})
 }

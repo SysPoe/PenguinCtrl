@@ -10,6 +10,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"github.com/syspoe/cusus/utils"
 )
 
 const topBarHeight int = 40
@@ -22,15 +23,37 @@ type TopBar struct {
 
 	btnEditCue widget.Clickable
 	btnAddCue  widget.Clickable
+	btnGo      widget.Clickable
+	btnStop    widget.Clickable
+	btnPage    widget.Clickable
 
 	editCueRequested bool
+	goRequested      bool
+	stopRequested    bool
+	pageRequested    bool
 }
 
 func (tb *TopBar) setAllFalse() {
 	tb.showAddCue = false
 }
 
-func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue bool) layout.Dimensions {
+func (tb *TopBar) AddCueMenuOpen() bool {
+	return tb.showAddCue
+}
+
+func (tb *TopBar) CloseAddCueMenu() {
+	tb.setAllFalse()
+}
+
+func (tb *TopBar) HasKeyboardFocus(gtx layout.Context) bool {
+	return gtx.Focused(&tb.btnEditCue) ||
+		gtx.Focused(&tb.btnAddCue) ||
+		gtx.Focused(&tb.btnGo) ||
+		gtx.Focused(&tb.btnStop) ||
+		gtx.Focused(&tb.btnPage)
+}
+
+func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, settingsPage bool) layout.Dimensions {
 	barHeight := gtx.Dp(unit.Dp(topBarHeight))
 
 	gtx.Constraints.Min.Y = barHeight
@@ -52,17 +75,30 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue bool
 		}}.Op(),
 	)
 
-	if canEditCue && tb.btnEditCue.Clicked(gtx) {
+	if !settingsPage && canEditCue && tb.btnEditCue.Clicked(gtx) {
 		tb.setAllFalse()
 		tb.editCueRequested = true
 	}
-	if tb.btnAddCue.Clicked(gtx) {
+	if !settingsPage && tb.btnAddCue.Clicked(gtx) {
 		oval := tb.showAddCue
 		tb.setAllFalse()
 		tb.showAddCue = !oval
 	}
+	if !settingsPage && canEditCue && tb.btnGo.Clicked(gtx) {
+		tb.goRequested = true
+	}
+	if !settingsPage && tb.btnStop.Clicked(gtx) {
+		tb.stopRequested = true
+	}
+	if tb.btnPage.Clicked(gtx) {
+		tb.setAllFalse()
+		tb.pageRequested = true
+	}
 	var editCueSize image.Point
 	var addCueSize image.Point
+	var goSize image.Point
+	var stopSize image.Point
+	var pageSize image.Point
 	windowWidth := gtx.Constraints.Max.X
 
 	setButtonPositions := func(startX int, windowWidth int) {
@@ -82,6 +118,8 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue bool
 			return x
 		}
 
+		// The menu starts directly below the Add Cue button. startX is the
+		// trailing edge of the flexible title and Edit Cue comes before Add Cue.
 		x += editCueSize.X
 
 		tb.addCuePos = image.Pt(menuX(x), y)
@@ -98,9 +136,30 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue bool
 			title.TextSize = unit.Sp(float32(topBarHeight) * 0.6)
 			return layoutStableText(gtx, title.Layout)
 		}),
-		makeMeasuredBtnEnabled(th, &tb.btnEditCue, "Edit Cue", &editCueSize, canEditCue),
-		makeMeasuredBtn(th, &tb.btnAddCue, "Add Cue", &addCueSize),
+		makeMeasuredBtnEnabled(th, &tb.btnEditCue, "Edit Cue", &editCueSize, canEditCue && !settingsPage),
+		makeMeasuredBtnEnabled(th, &tb.btnAddCue, "Add Cue", &addCueSize, !settingsPage),
+		makeMeasuredBtnEnabled(th, &tb.btnGo, "Go", &goSize, canEditCue && !settingsPage),
+		makeMeasuredBtnEnabled(th, &tb.btnStop, "Stop All", &stopSize, !settingsPage),
+		makeMeasuredBtn(th, &tb.btnPage, utils.Ter(settingsPage, "Cue List", "Settings"), &pageSize),
 	)
+}
+
+func (tb *TopBar) TakeGoRequest() bool {
+	requested := tb.goRequested
+	tb.goRequested = false
+	return requested
+}
+
+func (tb *TopBar) TakeStopRequest() bool {
+	requested := tb.stopRequested
+	tb.stopRequested = false
+	return requested
+}
+
+func (tb *TopBar) TakePageRequest() bool {
+	requested := tb.pageRequested
+	tb.pageRequested = false
+	return requested
 }
 
 func (tb *TopBar) takeEditCueRequest() bool {

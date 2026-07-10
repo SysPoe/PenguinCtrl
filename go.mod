@@ -9,7 +9,9 @@ require (
 
 require (
 	git.wow.st/gmp/jni v0.0.0-20210610011705-34026c7e22d0 // indirect
+	github.com/ebitengine/purego v0.4.1 // indirect
 	github.com/godbus/dbus/v5 v5.0.6 // indirect
+	github.com/hajimehoshi/oto/v2 v2.4.3 // indirect
 )
 
 require (

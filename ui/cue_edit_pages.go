@@ -65,17 +65,19 @@ var (
 		"Cue ID",
 	}
 	remoteProtocolLabels = []string{
+		"Auto",
 		"OSC",
 		"ERC",
-		"Auto",
 	}
 	remoteActionLabels = []string{
 		"None",
 		"Go",
-		"Goto",
+		"Go to",
 		"Back",
 		"Release",
 		"Level",
+		"Activate",
+		"Flash",
 		"Custom",
 	}
 	waitKindLabels = []string{
@@ -121,8 +123,8 @@ var (
 		"Fullscreen",
 		"Exit Fullscreen",
 	}
-	soundFileExtensions = []string{".wav", ".mp3", ".flac", ".ogg", ".aiff", ".aif", ".m4a"}
 	videoFileExtensions = []string{".mp4", ".mov", ".mkv", ".webm", ".avi"}
+	soundFileExtensions = []string{".wav", ".mp3", ".flac", ".ogg", ".aiff", ".aif", ".m4a", ".opus"}
 	imageFileExtensions = []string{".png", ".jpg", ".jpeg", ".webp", ".gif"}
 )
 
@@ -173,7 +175,6 @@ func (ctx *CueEditUI) ensureCuePlay() {
 func (ctx *CueEditUI) renderGeneralTab(th *material.Theme, gtx layout.Context) layout.FlexChild {
 	return ctx.renderForm(th, []cueEditFormRow{
 		textRow(th, "Cue Number", ctx.page.text["cueNumber"], func(value string) { ctx.cue.CueNumber = value }),
-		textRow(th, "Title", ctx.page.text["title"], func(value string) { ctx.cue.Title = value }),
 		multilineRow(th, "Description", ctx.page.multiline["description"], func(value string) { ctx.cue.Description = value }),
 		checkboxRow(th, "", ctx.page.checkbox["disabled"], func(value bool) { ctx.cue.Disabled = value }),
 		colourRow(th, "Color", ctx.page.colour["color"], func(value color.NRGBA) { ctx.cue.Color = value }),
@@ -193,6 +194,10 @@ func (ctx *CueEditUI) renderLinkTab(th *material.Theme, gtx layout.Context, mana
 	rows := []cueEditFormRow{
 		dropdownRow(th, "Mode", ctx.page.dropdown["linkMode"], func(selected int) {
 			ctx.cue.Link.Mode = show.CueLinkMode(selected)
+			if ctx.cue.Link.Mode != show.CueLinkManual && ctx.cue.Link.Target.Kind == show.CueTargetNone {
+				ctx.cue.Link.Target.Kind = show.CueTargetNext
+				ctx.page.dropdown["linkTargetKind"].Selected = int(show.CueTargetNext)
+			}
 		}),
 		dropdownRow(th, "Target", ctx.page.dropdown["linkTargetKind"], func(selected int) {
 			ctx.cue.Link.Target.Kind = show.CueTargetKind(selected)
@@ -209,6 +214,7 @@ func (ctx *CueEditUI) renderMediaTab(th *material.Theme, gtx layout.Context) lay
 	if play := ctx.cue.Play.Sound; play != nil {
 		rows = append(rows,
 			ctx.fileRow(th, "File", ctx.page.text["soundFile"], ctx.page.button["soundFileBrowse"], soundFileExtensions, func(value string) { play.File = value }),
+			textRow(th, "Output ID", ctx.page.text["soundOutputID"], func(value string) { play.OutputID = value }),
 			integerRow(th, "Clip Start MS", ctx.page.integer["soundClipStartMs"], func(value int) { play.ClipStartMs = int64(value) }),
 			integerRow(th, "Clip End MS", ctx.page.integer["soundClipEndMs"], func(value int) { play.ClipEndMs = int64(value) }),
 			integerRow(th, "Fade In MS", ctx.page.integer["soundFadeInMs"], func(value int) { play.FadeInMs = int64(value) }),
@@ -256,13 +262,17 @@ func (ctx *CueEditUI) renderRemoteTab(th *material.Theme, gtx layout.Context) la
 	if play == nil {
 		return ctx.renderForm(th, []cueEditFormRow{staticRow(th, "Remote", "No remote settings for this cue type.")})
 	}
-	return ctx.renderForm(th, []cueEditFormRow{
+	rows := []cueEditFormRow{
 		dropdownRow(th, "Protocol", ctx.page.dropdown["remoteProtocol"], func(selected int) { play.Protocol = show.RemoteProtocol(selected) }),
 		dropdownRow(th, "Action", ctx.page.dropdown["remoteAction"], func(selected int) { play.Action = show.RemoteAction(selected) }),
 		textRow(th, "Playback", ctx.page.text["remotePlayback"], func(value string) { play.Playback = value }),
 		textRow(th, "Cue Number", ctx.page.text["remoteCueNumber"], func(value string) { play.CueNumber = value }),
 		textRow(th, "Level", ctx.page.text["remoteLevel"], func(value string) { play.Level = value }),
-	})
+	}
+	if play.Action == show.RemoteActionCustom {
+		rows = append(rows, textRow(th, "Custom Command", ctx.page.text["remoteCustom"], func(value string) { play.Custom = value }))
+	}
+	return ctx.renderForm(th, rows)
 }
 
 func (ctx *CueEditUI) renderWaitTab(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.FlexChild {
@@ -430,11 +440,14 @@ func (ctx *CueEditUI) ensureCueTargetDropdown(key string, manager *show.ShowMana
 }
 
 func cueDropdownItems(manager *show.ShowManager, excludeCueID show.CueID) []input.DropdownItem {
-	if manager == nil || manager.Cues() == nil || len(*manager.Cues()) == 0 {
+	if manager == nil {
 		return []input.DropdownItem{{Label: "No other cues available", Value: ""}}
 	}
 
-	cues := *manager.Cues()
+	cues := manager.Snapshot()
+	if len(cues) == 0 {
+		return []input.DropdownItem{{Label: "No other cues available", Value: ""}}
+	}
 	items := make([]input.DropdownItem, 0, len(cues))
 	for _, cue := range cues {
 		if cue.ID == excludeCueID {
@@ -454,15 +467,15 @@ func cueDropdownItems(manager *show.ShowManager, excludeCueID show.CueID) []inpu
 
 func cueDropdownLabel(cue show.Cue) string {
 	number := strings.TrimSpace(cue.CueNumber)
-	title := strings.TrimSpace(cue.Title)
+	description := strings.TrimSpace(cue.Description)
 
 	switch {
-	case number != "" && title != "":
-		return number + " — " + title
+	case number != "" && description != "":
+		return number + " — " + description
 	case number != "":
 		return number
-	case title != "":
-		return title
+	case description != "":
+		return description
 	default:
 		return "Untitled cue"
 	}

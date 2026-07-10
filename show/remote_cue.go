@@ -7,15 +7,17 @@ type RemotePlay struct {
 	Playback  string
 	CueNumber string
 
-	Level string
+	Level  string
+	Custom string
+	Values []RemoteValue
 }
 
 type RemoteProtocol int
 
 const (
-	RemoteProtocolOSC RemoteProtocol = iota
+	RemoteProtocolAuto RemoteProtocol = iota
+	RemoteProtocolOSC
 	RemoteProtocolERC
-	RemoteProtocolAuto
 )
 
 type RemoteAction int
@@ -27,6 +29,8 @@ const (
 	RemoteActionBack
 	RemoteActionRelease
 	RemoteActionLevel
+	RemoteActionActivate
+	RemoteActionFlash
 	RemoteActionCustom
 )
 

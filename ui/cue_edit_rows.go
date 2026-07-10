@@ -2,6 +2,9 @@ package ui
 
 import (
 	"image/color"
+	"net/url"
+	"path/filepath"
+	"strings"
 
 	"gioui.org/layout"
 	"gioui.org/unit"
@@ -19,25 +22,48 @@ func (ctx *CueEditUI) fileRow(th *material.Theme, label string, field *input.Tex
 			})
 		}
 
-		dims := layout.Flex{
-			Axis:      layout.Horizontal,
-			Alignment: layout.Middle,
-		}.Layout(gtx,
-			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-				return field.Layout(th, gtx)
+		dims := layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layoutTruncatedText(gtx, stableBody1(th, selectedFileName(field.Value)))
+				})
 			}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				if ctx.pickFile == nil {
-					gtx = gtx.Disabled()
-				}
-				return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return layoutCenteredButton(th, gtx, browse, "Browse", th.ContrastBg)
-				})
+				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+						return field.Layout(th, gtx)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						if ctx.pickFile == nil {
+							gtx = gtx.Disabled()
+						}
+						return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return layoutCenteredButton(th, gtx, browse, "Browse", th.ContrastBg)
+						})
+					}),
+				)
 			}),
 		)
 		apply(field.Value)
 		return dims
 	}}
+}
+
+func selectedFileName(source string) string {
+	source = strings.TrimSpace(source)
+	if source == "" {
+		return "No file selected"
+	}
+	if parsed, err := url.Parse(source); err == nil && parsed.Scheme != "" {
+		if name, err := url.PathUnescape(filepath.Base(parsed.Path)); err == nil && name != "" && name != "." {
+			return name
+		}
+	}
+	name := filepath.Base(source)
+	if name == "" || name == "." {
+		return source
+	}
+	return name
 }
 
 func multilineRow(th *material.Theme, label string, field *input.Multiline, apply func(value string)) cueEditFormRow {
