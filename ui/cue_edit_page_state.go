@@ -42,7 +42,6 @@ func newCueEditPageState(cue show.Cue) cueEditPageState {
 
 	state.text["cueNumber"] = input.NewText("Cue Number", cue.CueNumber)
 	state.multiline["description"] = input.NewMultiline("Description", cue.Description)
-	state.checkbox["disabled"] = input.NewCheckbox("Disabled", cue.Disabled)
 	state.colour["color"] = input.NewColourPicker("Color", cue.Color)
 	state.text["tags"] = input.NewText("Tags", strings.Join(cue.Tags, ", "))
 	state.multiline["notes"] = input.NewMultiline("Notes", cue.Notes)
@@ -52,10 +51,7 @@ func newCueEditPageState(cue show.Cue) cueEditPageState {
 	state.button["timecodeAdd"] = new(widget.Clickable)
 	if markers := cueTimecodeMarkers(&cue); markers != nil {
 		for index, marker := range *markers {
-			key := fmt.Sprintf("timecode.%d", index)
-			state.integer[key+".time"] = input.NewInteger("Time MS", int(marker.TimeMs))
-			state.checkbox[key+".disabled"] = input.NewCheckbox("Disabled", marker.Disabled)
-			state.button[fmt.Sprintf("timecodeDelete.%d", index)] = new(widget.Clickable)
+			initTimecodeMarkerInputs(&state, index, marker)
 		}
 	}
 
@@ -64,6 +60,7 @@ func newCueEditPageState(cue show.Cue) cueEditPageState {
 
 	if cue.Play.Sound != nil {
 		state.text["soundFile"] = input.NewText("File", cue.Play.Sound.File)
+		state.dropdown["soundProjectFile"] = input.NewDropdown(nil, -1)
 		state.button["soundFileBrowse"] = new(widget.Clickable)
 		state.text["soundOutputID"] = input.NewText("Output ID", cue.Play.Sound.OutputID)
 		state.integer["soundClipStartMs"] = input.NewInteger("Clip Start MS", int(cue.Play.Sound.ClipStartMs))
@@ -74,6 +71,7 @@ func newCueEditPageState(cue show.Cue) cueEditPageState {
 	}
 	if cue.Play.Video != nil {
 		state.text["videoFile"] = input.NewText("File", cue.Play.Video.File)
+		state.dropdown["videoProjectFile"] = input.NewDropdown(nil, -1)
 		state.button["videoFileBrowse"] = new(widget.Clickable)
 		state.text["videoOutputID"] = input.NewText("Output ID", cue.Play.Video.OutputID)
 		state.integer["videoClipStartMs"] = input.NewInteger("Clip Start MS", int(cue.Play.Video.ClipStartMs))
@@ -84,6 +82,7 @@ func newCueEditPageState(cue show.Cue) cueEditPageState {
 	}
 	if cue.Play.Image != nil {
 		state.text["imageFile"] = input.NewText("File", cue.Play.Image.File)
+		state.dropdown["imageProjectFile"] = input.NewDropdown(nil, -1)
 		state.button["imageFileBrowse"] = new(widget.Clickable)
 		state.text["imageOutputID"] = input.NewText("Output ID", cue.Play.Image.OutputID)
 		state.integer["imageFadeInMs"] = input.NewInteger("Fade In MS", int(cue.Play.Image.FadeInMs))
@@ -134,4 +133,51 @@ func newCueEditPageState(cue show.Cue) cueEditPageState {
 	}
 
 	return state
+}
+
+func initTimecodeMarkerInputs(state *cueEditPageState, index int, marker show.TimecodeMarker) {
+	key := fmt.Sprintf("timecode.%d", index)
+	state.integer[key+".time"] = input.NewInteger("Time MS", int(marker.TimeMs))
+	state.checkbox[key+".disabled"] = input.NewCheckbox("Disabled", marker.Disabled)
+	state.dropdown[key+".type"] = newEnumDropdown(timecodeActionLabels, timecodeActionIndex(marker.Type))
+	state.button["timecodeDelete"] = new(widget.Clickable)
+
+	media := marker.Action.MediaControl
+	if media == nil {
+		media = defaultTimecodeMediaControl()
+	}
+	level := 0.0
+	if media.LevelDB != nil {
+		level = *media.LevelDB
+	}
+	seek := int64(0)
+	if media.SeekToMs != nil {
+		seek = *media.SeekToMs
+	}
+	state.dropdown[key+".mediaAction"] = newEnumDropdown(mediaControlActionLabels, int(media.Action))
+	state.float[key+".level"] = input.NewFloat("Level dB", level)
+	state.integer[key+".fade"] = input.NewInteger("Fade MS", int(media.FadeMs))
+	state.integer[key+".seek"] = input.NewInteger("Seek MS", int(seek))
+	state.dropdown[key+".curve"] = newEnumDropdown(fadeCurveLabels, int(media.Curve))
+
+	output := marker.Action.OutputControl
+	if output == nil {
+		output = show.NewOutputControlCue().Play.OutputControl
+	}
+	state.dropdown[key+".outputAction"] = newEnumDropdown(outputControlActionLabels, int(output.Action))
+	state.text[key+".outputID"] = input.NewText("Output ID", output.OutputID)
+	state.integer[key+".fadeOut"] = input.NewInteger("Fade Out MS", int(output.FadeOutMs))
+	state.integer[key+".fadeIn"] = input.NewInteger("Fade In MS", int(output.FadeInMs))
+	state.text[key+".message"] = input.NewText("Message", output.Message)
+
+	remote := marker.Action.Remote
+	if remote == nil {
+		remote = show.NewRemoteCue().Play.Remote
+	}
+	state.dropdown[key+".protocol"] = newEnumDropdown(remoteProtocolLabels, int(remote.Protocol))
+	state.dropdown[key+".remoteAction"] = newEnumDropdown(remoteActionLabels, int(remote.Action))
+	state.text[key+".playback"] = input.NewText("Playback", remote.Playback)
+	state.text[key+".cueNumber"] = input.NewText("Cue Number", remote.CueNumber)
+	state.text[key+".remoteLevel"] = input.NewText("Level", remote.Level)
+	state.text[key+".custom"] = input.NewText("Custom Command", remote.Custom)
 }

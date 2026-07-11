@@ -45,6 +45,8 @@ type Engine struct {
 	stateEvent      chan struct{}
 	lastError       atomic.Value
 	onChange        func()
+	previewCueID    show.CueID
+	previewPaused   bool
 }
 
 func NewEngine(manager *show.ShowManager, settings *config.Store) *Engine {
@@ -213,6 +215,58 @@ func (e *Engine) PlayCueID(id show.CueID) error {
 		return errors.New("cue was not found")
 	}
 	return e.enqueue(cue, index)
+}
+
+// TogglePreview starts or pauses a sound-cue preview. Timecode and cue links
+// are stripped so previewing cannot trigger show actions.
+func (e *Engine) TogglePreview(cue show.Cue) (bool, error) {
+	if cue.Play.Sound == nil {
+		return false, errors.New("only sound cues can be previewed")
+	}
+	e.mu.RLock()
+	id, paused := e.previewCueID, e.previewPaused
+	e.mu.RUnlock()
+	if id != (show.CueID{}) && len(e.matchingInstances(show.MediaTarget{Kind: show.MediaTargetCue, CueID: id})) > 0 {
+		action := show.MediaControlPause
+		playing := false
+		if paused {
+			action, playing = show.MediaControlResume, true
+		}
+		if err := e.ControlMedia(show.MediaTarget{Kind: show.MediaTargetCue, CueID: id}, action, nil, nil, 0); err != nil {
+			return !paused, err
+		}
+		e.mu.Lock()
+		e.previewPaused = !playing
+		e.mu.Unlock()
+		return playing, nil
+	}
+
+	preview := show.CloneCue(cue)
+	preview.ID = show.NewCueID()
+	preview.Disabled = false
+	preview.Timing = show.CueTiming{}
+	preview.Link = show.CueLink{Mode: show.CueLinkManual}
+	preview.Play.Sound.Timecode = nil
+	e.mu.Lock()
+	e.previewCueID, e.previewPaused = preview.ID, false
+	e.mu.Unlock()
+	if err := e.enqueue(preview, -1); err != nil {
+		e.mu.Lock()
+		e.previewCueID = show.CueID{}
+		e.mu.Unlock()
+		return false, err
+	}
+	return true, nil
+}
+
+func (e *Engine) StopPreview() {
+	e.mu.Lock()
+	id := e.previewCueID
+	e.previewCueID, e.previewPaused = show.CueID{}, false
+	e.mu.Unlock()
+	if id != (show.CueID{}) {
+		_ = e.ControlMedia(show.MediaTarget{Kind: show.MediaTargetCue, CueID: id}, show.MediaControlStop, nil, nil, 0)
+	}
 }
 
 func (e *Engine) enqueue(cue show.Cue, index int) error {
@@ -459,7 +513,9 @@ func (e *Engine) startMedia(next command) error {
 }
 
 func (e *Engine) scheduleTimecode(instanceID string, cue show.Cue, cueIndex int, runCtx context.Context) {
-	for _, marker := range mediaTimecode(cue) {
+	markers := mediaTimecode(cue)
+	sort.SliceStable(markers, func(i, j int) bool { return markers[i].TimeMs < markers[j].TimeMs })
+	for _, marker := range markers {
 		marker := marker
 		if marker.Disabled || marker.TimeMs < 0 {
 			continue
@@ -468,19 +524,15 @@ func (e *Engine) scheduleTimecode(instanceID string, cue show.Cue, cueIndex int,
 			if !waitContext(runCtx, time.Duration(marker.TimeMs)*time.Millisecond) || !e.hasInstance(instanceID) {
 				return
 			}
-			if marker.Target.Kind == show.CueTargetCue && marker.Target.CueID != (show.CueID{}) {
-				if target, targetIndex, ok := e.manager.CueByIDCopy(marker.Target.CueID); ok {
-					if err := e.enqueue(target, targetIndex); err != nil {
-						e.recordError(err)
-					}
-				}
-				return
+			action := marker.Action
+			if action.MediaControl != nil {
+				control := *action.MediaControl
+				control.Target = show.MediaTarget{Kind: show.MediaTargetInstance, InstanceID: instanceID}
+				action.MediaControl = &control
 			}
-			// Backward compatibility for marker actions stored before markers could
-			// target fully configured cues.
 			embedded := show.Cue{
 				ID: cue.ID, CueNumber: cue.CueNumber, Description: cue.Description,
-				Type: marker.Type, Play: marker.Action, Link: show.CueLink{Mode: show.CueLinkManual},
+				Type: marker.Type, Play: action, Link: show.CueLink{Mode: show.CueLinkManual},
 			}
 			e.execute(command{cue: embedded, index: cueIndex, ctx: runCtx})
 		}()
@@ -491,15 +543,15 @@ func mediaTimecode(cue show.Cue) []show.TimecodeMarker {
 	switch cue.Type {
 	case show.CueTypeSound:
 		if cue.Play.Sound != nil {
-			return cue.Play.Sound.Timecode
+			return append([]show.TimecodeMarker(nil), cue.Play.Sound.Timecode...)
 		}
 	case show.CueTypeVideo:
 		if cue.Play.Video != nil {
-			return cue.Play.Video.Timecode
+			return append([]show.TimecodeMarker(nil), cue.Play.Video.Timecode...)
 		}
 	case show.CueTypeImage:
 		if cue.Play.Image != nil {
-			return cue.Play.Image.Timecode
+			return append([]show.TimecodeMarker(nil), cue.Play.Image.Timecode...)
 		}
 	}
 	return nil
@@ -870,6 +922,48 @@ func (e *Engine) StopAll() {
 	for _, instance := range instances {
 		e.HandleOutputReport(instance.ID, "stopped")
 	}
+}
+
+// ControlMedia applies an operator control directly to matching live media.
+// It is the runtime equivalent of playing a media-control cue, without adding
+// an artificial cue to the show.
+func (e *Engine) ControlMedia(target show.MediaTarget, action show.MediaControlAction, levelDB *float64, positionMs *int64, fadeMs int64) error {
+	e.mu.RLock()
+	runCtx := e.runCtx
+	e.mu.RUnlock()
+	return e.executeMediaControl(show.Cue{Play: show.CuePlay{MediaControl: &show.MediaControlPlay{
+		Action: action, Target: target, LevelDB: levelDB, SeekToMs: positionMs,
+		FadeMs: max(int64(0), fadeMs), Curve: show.FadeCurveLinear,
+	}}}, runCtx)
+}
+
+const manualFadeOutMs int64 = 2000
+
+// FadeInstance performs the fixed two-second fade used by the operator panel.
+func (e *Engine) FadeInstance(instanceID string) error {
+	return e.ControlMedia(
+		show.MediaTarget{Kind: show.MediaTargetInstance, InstanceID: instanceID},
+		show.MediaControlFadeOut, nil, nil, manualFadeOutMs,
+	)
+}
+
+// FadeAll performs the fixed two-second operator fade on every live instance.
+func (e *Engine) FadeAll() {
+	for _, instance := range e.ActiveInstances() {
+		_ = e.FadeInstance(instance.ID)
+	}
+}
+
+// EndInstance jumps a live instance to its logical end, including normal end
+// link handling, rather than seeking beyond a configured clip boundary.
+func (e *Engine) EndInstance(instanceID string) {
+	instances := e.matchingInstances(show.MediaTarget{Kind: show.MediaTargetInstance, InstanceID: instanceID})
+	if len(instances) == 0 {
+		return
+	}
+	instance := instances[0]
+	e.hub.publish(Event{Action: "control", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID}, Control: "stop"})
+	e.HandleOutputReport(instance.ID, "ended")
 }
 
 func (e *Engine) matchingInstances(target show.MediaTarget) []Instance {

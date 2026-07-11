@@ -2,7 +2,6 @@ package ui
 
 import (
 	"image"
-	"image/color"
 
 	"gioui.org/layout"
 	"gioui.org/op/clip"
@@ -10,6 +9,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"github.com/syspoe/cusus/palette"
 	"github.com/syspoe/cusus/utils"
 )
 
@@ -17,24 +17,31 @@ const topBarHeight int = 40
 const menuWidth int = 200
 
 type TopBar struct {
+	actionPos image.Point
 	addCuePos image.Point
 
+	showAction bool
 	showAddCue bool
 
-	btnEditCue widget.Clickable
-	btnAddCue  widget.Clickable
-	btnGo      widget.Clickable
-	btnStop    widget.Clickable
-	btnPage    widget.Clickable
+	btnAction widget.Clickable
+	btnAddCue widget.Clickable
+	btnOpen   widget.Clickable
+	btnSave   widget.Clickable
+	btnPage   widget.Clickable
 
-	editCueRequested bool
-	goRequested      bool
-	stopRequested    bool
-	pageRequested    bool
+	pageRequested bool
+	openRequested bool
+	saveRequested bool
+	status        string
 }
 
 func (tb *TopBar) setAllFalse() {
+	tb.showAction = false
 	tb.showAddCue = false
+}
+
+func (tb *TopBar) ActionMenuOpen() bool {
+	return tb.showAction
 }
 
 func (tb *TopBar) AddCueMenuOpen() bool {
@@ -45,11 +52,15 @@ func (tb *TopBar) CloseAddCueMenu() {
 	tb.setAllFalse()
 }
 
+func (tb *TopBar) CloseMenus() {
+	tb.setAllFalse()
+}
+
 func (tb *TopBar) HasKeyboardFocus(gtx layout.Context) bool {
-	return gtx.Focused(&tb.btnEditCue) ||
+	return gtx.Focused(&tb.btnAction) ||
 		gtx.Focused(&tb.btnAddCue) ||
-		gtx.Focused(&tb.btnGo) ||
-		gtx.Focused(&tb.btnStop) ||
+		gtx.Focused(&tb.btnOpen) ||
+		gtx.Focused(&tb.btnSave) ||
 		gtx.Focused(&tb.btnPage)
 }
 
@@ -63,41 +74,40 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, set
 	// Make bg
 	paint.FillShape(
 		gtx.Ops,
-		color.NRGBA{
-			R: uint8(float32(th.Bg.R) * float32(1.5)),
-			G: uint8(float32(th.Bg.G) * float32(1.5)),
-			B: uint8(float32(th.Bg.B) * float32(1.5)),
-			A: 255,
-		},
+		palette.Surface,
 		clip.Rect{Max: image.Point{
 			X: gtx.Constraints.Max.X,
 			Y: barHeight,
 		}}.Op(),
 	)
 
-	if !settingsPage && canEditCue && tb.btnEditCue.Clicked(gtx) {
+	if !canEditCue || settingsPage {
+		tb.showAction = false
+	}
+	if !settingsPage && canEditCue && tb.btnAction.Clicked(gtx) {
+		wasOpen := tb.showAction
 		tb.setAllFalse()
-		tb.editCueRequested = true
+		tb.showAction = !wasOpen
 	}
 	if !settingsPage && tb.btnAddCue.Clicked(gtx) {
 		oval := tb.showAddCue
 		tb.setAllFalse()
 		tb.showAddCue = !oval
 	}
-	if !settingsPage && canEditCue && tb.btnGo.Clicked(gtx) {
-		tb.goRequested = true
-	}
-	if !settingsPage && tb.btnStop.Clicked(gtx) {
-		tb.stopRequested = true
-	}
 	if tb.btnPage.Clicked(gtx) {
 		tb.setAllFalse()
 		tb.pageRequested = true
 	}
-	var editCueSize image.Point
+	if tb.btnOpen.Clicked(gtx) {
+		tb.setAllFalse()
+		tb.openRequested = true
+	}
+	if tb.btnSave.Clicked(gtx) {
+		tb.setAllFalse()
+		tb.saveRequested = true
+	}
+	var actionSize image.Point
 	var addCueSize image.Point
-	var goSize image.Point
-	var stopSize image.Point
 	var pageSize image.Point
 	windowWidth := gtx.Constraints.Max.X
 
@@ -118,9 +128,9 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, set
 			return x
 		}
 
-		// The menu starts directly below the Add Cue button. startX is the
-		// trailing edge of the flexible title and Edit Cue comes before Add Cue.
-		x += editCueSize.X
+		// Both menus start directly below their top-bar buttons.
+		tb.actionPos = image.Pt(menuX(x), y)
+		x += actionSize.X
 
 		tb.addCuePos = image.Pt(menuX(x), y)
 	}
@@ -132,38 +142,38 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, set
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			setButtonPositions(gtx.Constraints.Max.X, windowWidth)
 
-			title := stableBody1(th, "CuSus ඞා")
+			text := "CuSus ඞා"
+			if tb.status != "" {
+				text += "  ·  " + tb.status
+			}
+			title := stableBody1(th, text)
 			title.TextSize = unit.Sp(float32(topBarHeight) * 0.6)
 			return layoutStableText(gtx, title.Layout)
 		}),
-		makeMeasuredBtnEnabled(th, &tb.btnEditCue, "Edit Cue", &editCueSize, canEditCue && !settingsPage),
+		makeMeasuredBtn(th, &tb.btnOpen, "Open", nil),
+		makeMeasuredBtn(th, &tb.btnSave, "Save Show", nil),
+		makeMeasuredBtnEnabled(th, &tb.btnAction, "Action", &actionSize, canEditCue && !settingsPage),
 		makeMeasuredBtnEnabled(th, &tb.btnAddCue, "Add Cue", &addCueSize, !settingsPage),
-		makeMeasuredBtnEnabled(th, &tb.btnGo, "Go", &goSize, canEditCue && !settingsPage),
-		makeMeasuredBtnEnabled(th, &tb.btnStop, "Stop All", &stopSize, !settingsPage),
 		makeMeasuredBtn(th, &tb.btnPage, utils.Ter(settingsPage, "Cue List", "Settings"), &pageSize),
 	)
 }
 
-func (tb *TopBar) TakeGoRequest() bool {
-	requested := tb.goRequested
-	tb.goRequested = false
+func (tb *TopBar) TakeOpenRequest() bool {
+	requested := tb.openRequested
+	tb.openRequested = false
 	return requested
 }
 
-func (tb *TopBar) TakeStopRequest() bool {
-	requested := tb.stopRequested
-	tb.stopRequested = false
+func (tb *TopBar) TakeSaveRequest() bool {
+	requested := tb.saveRequested
+	tb.saveRequested = false
 	return requested
 }
+
+func (tb *TopBar) SetStatus(status string) { tb.status = status }
 
 func (tb *TopBar) TakePageRequest() bool {
 	requested := tb.pageRequested
 	tb.pageRequested = false
-	return requested
-}
-
-func (tb *TopBar) takeEditCueRequest() bool {
-	requested := tb.editCueRequested
-	tb.editCueRequested = false
 	return requested
 }

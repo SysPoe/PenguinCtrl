@@ -2,7 +2,6 @@ package ui
 
 import (
 	"image"
-	"image/color"
 
 	"gioui.org/io/event"
 	"gioui.org/io/key"
@@ -14,6 +13,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"github.com/syspoe/cusus/palette"
 	"github.com/syspoe/cusus/show"
 	"github.com/syspoe/cusus/utils"
 )
@@ -24,7 +24,11 @@ type CueEditUI struct {
 	show  bool
 	isNew bool
 
-	pickFile func(extensions []string, selected func(path string))
+	pickFile      func(kind string, extensions []string, selected func(path string))
+	projectFiles  func(kind string) []ProjectFile
+	loadWaveform  func(source string, completed func(samples []float32, sampleRate int, durationMs int64, err error))
+	togglePreview func(cue show.Cue) (bool, error)
+	stopPreview   func()
 
 	btnTabGeneral    widget.Clickable
 	btnTabTiming     widget.Clickable
@@ -43,6 +47,12 @@ type CueEditUI struct {
 
 	modalTag struct{}
 	page     cueEditPageState
+	timeline timecodeTimelineState
+}
+
+type ProjectFile struct {
+	Name string
+	Path string
 }
 
 const (
@@ -61,19 +71,9 @@ func (ctx *CueEditUI) drawTopBar(th *material.Theme, gtx layout.Context) layout.
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		barHeight := gtx.Dp(unit.Dp(topBarHeight))
 
-		colorActive := color.NRGBA{
-			R: th.ContrastBg.R * 2,
-			G: th.ContrastBg.G * 2,
-			B: th.ContrastBg.B * 2,
-			A: 255,
-		}
-		colorInactive := th.ContrastBg
-		colorBg := color.NRGBA{
-			R: uint8(float32(th.Bg.R) * float32(1.5)),
-			G: uint8(float32(th.Bg.G) * float32(1.5)),
-			B: uint8(float32(th.Bg.B) * float32(1.5)),
-			A: 255,
-		}
+		colorActive := palette.Primary
+		colorInactive := palette.SurfaceRaised
+		colorBg := palette.Surface
 
 		gtx.Constraints.Min.Y = barHeight
 		gtx.Constraints.Max.Y = barHeight
@@ -163,11 +163,16 @@ func (ctx *CueEditUI) drawTopBar(th *material.Theme, gtx layout.Context) layout.
 func (ctx *CueEditUI) drawBottomBar(th *material.Theme, gtx layout.Context, manager *show.ShowManager, saveShortcut bool) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		if ctx.btnCancel.Clicked(gtx) {
+			ctx.stopTimecodePreview()
 			ctx.show = false
 			gtx.Execute(key.FocusCmd{})
 		}
 
 		if ctx.btnSave.Clicked(gtx) || saveShortcut {
+			ctx.stopTimecodePreview()
+			if markers := cueTimecodeMarkers(&ctx.cue); markers != nil {
+				sortTimecodeMarkers(markers)
+			}
 			if ctx.isNew {
 				manager.AddCueAndSelect(ctx.cue)
 			} else {
@@ -182,23 +187,45 @@ func (ctx *CueEditUI) drawBottomBar(th *material.Theme, gtx layout.Context, mana
 			Axis:      layout.Horizontal,
 			Alignment: layout.Middle,
 		}.Layout(gtx,
-			makeFlexedBtnWithColor(th, &ctx.btnCancel, "Cancel", color.NRGBA{R: 100, A: 255}, 1),
-			makeFlexedBtnWithColor(th, &ctx.btnSave, "Save", color.NRGBA{G: 100, A: 255}, 1),
+			makeFlexedBtnWithColor(th, &ctx.btnCancel, "Cancel", palette.Danger, 1),
+			makeFlexedBtnWithColor(th, &ctx.btnSave, "Save", palette.Success, 1),
 		)
 	})
 }
 
-func cueEditorSaveShortcut(gtx layout.Context) bool {
+func (ctx *CueEditUI) toggleTimecodePreview() {
+	if ctx.togglePreview == nil || ctx.cue.Play.Sound == nil {
+		return
+	}
+	playing, err := ctx.togglePreview(ctx.cue)
+	if err == nil {
+		ctx.timeline.previewing = playing
+	}
+}
+
+func (ctx *CueEditUI) stopTimecodePreview() {
+	if ctx.stopPreview != nil {
+		ctx.stopPreview()
+	}
+	ctx.timeline.previewing = false
+}
+
+func cueEditorShortcuts(gtx layout.Context) (save, preview bool) {
 	for {
 		event, ok := gtx.Event(
 			key.Filter{Name: key.NameEscape},
 			key.Filter{Name: "S", Required: key.ModShortcut},
+			key.Filter{Name: key.NameSpace},
 		)
 		if !ok {
-			return false
+			return save, preview
 		}
 		if event, ok := event.(key.Event); ok && event.State == key.Press {
-			return true
+			if event.Name == key.NameSpace {
+				preview = true
+			} else {
+				save = true
+			}
 		}
 	}
 }
@@ -207,7 +234,10 @@ func (ctx *CueEditUI) Layout(th *material.Theme, gtx layout.Context, manager *sh
 	if !ctx.show {
 		return layout.Dimensions{}
 	}
-	saveShortcut := cueEditorSaveShortcut(gtx)
+	saveShortcut, previewShortcut := cueEditorShortcuts(gtx)
+	if previewShortcut && ctx.activeTab == tabTimecode && ctx.cue.Play.Sound != nil {
+		ctx.toggleTimecodePreview()
+	}
 
 	margin := image.Pt(0, 0)
 	widthHeight := image.Pt(gtx.Constraints.Max.X-margin.X*2, gtx.Constraints.Max.Y-margin.Y*2)

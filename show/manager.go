@@ -63,6 +63,117 @@ func (sm *ShowManager) ReplaceCue(cue Cue) {
 	}
 }
 
+// DeleteSelectedCue removes the selected cue and keeps the nearest remaining
+// cue selected.
+func (sm *ShowManager) DeleteSelectedCue() bool {
+	sm.mu.Lock()
+	index := sm.SelectedCueIndex
+	if index < 0 || index >= len(sm.show.Cues) {
+		sm.mu.Unlock()
+		return false
+	}
+	sm.show.Cues = append(sm.show.Cues[:index], sm.show.Cues[index+1:]...)
+	if len(sm.show.Cues) == 0 {
+		sm.SelectedCueIndex = -1
+	} else if index >= len(sm.show.Cues) {
+		sm.SelectedCueIndex = len(sm.show.Cues) - 1
+	}
+	sm.mu.Unlock()
+	sm.changed()
+	return true
+}
+
+// MoveSelectedCueBefore moves the selected cue immediately before the cue at
+// targetIndex. targetIndex refers to the list before the move.
+func (sm *ShowManager) MoveSelectedCueBefore(targetIndex int) bool {
+	sm.mu.Lock()
+	count := len(sm.show.Cues)
+	sourceIndex := sm.SelectedCueIndex
+	if sourceIndex < 0 || sourceIndex >= count || targetIndex < 0 || targetIndex >= count {
+		sm.mu.Unlock()
+		return false
+	}
+	if sourceIndex == targetIndex || sourceIndex+1 == targetIndex {
+		sm.mu.Unlock()
+		return true
+	}
+
+	cue := sm.show.Cues[sourceIndex]
+	sm.show.Cues = append(sm.show.Cues[:sourceIndex], sm.show.Cues[sourceIndex+1:]...)
+	if sourceIndex < targetIndex {
+		targetIndex--
+	}
+	sm.show.Cues = append(sm.show.Cues, Cue{})
+	copy(sm.show.Cues[targetIndex+1:], sm.show.Cues[targetIndex:])
+	sm.show.Cues[targetIndex] = cue
+	sm.SelectedCueIndex = targetIndex
+	sm.mu.Unlock()
+	sm.changed()
+	return true
+}
+
+// MoveSelectedCueToEnd moves the selected cue after every other cue.
+func (sm *ShowManager) MoveSelectedCueToEnd() bool {
+	sm.mu.Lock()
+	count := len(sm.show.Cues)
+	index := sm.SelectedCueIndex
+	if index < 0 || index >= count {
+		sm.mu.Unlock()
+		return false
+	}
+	if index == count-1 {
+		sm.mu.Unlock()
+		return true
+	}
+	cue := sm.show.Cues[index]
+	sm.show.Cues = append(sm.show.Cues[:index], sm.show.Cues[index+1:]...)
+	sm.show.Cues = append(sm.show.Cues, cue)
+	sm.SelectedCueIndex = len(sm.show.Cues) - 1
+	sm.mu.Unlock()
+	sm.changed()
+	return true
+}
+
+// DuplicateSelectedCue inserts an independent copy immediately after the
+// selected cue and selects the duplicate.
+func (sm *ShowManager) DuplicateSelectedCue() bool {
+	sm.mu.Lock()
+	index := sm.SelectedCueIndex
+	if index < 0 || index >= len(sm.show.Cues) {
+		sm.mu.Unlock()
+		return false
+	}
+	duplicate := CloneCue(sm.show.Cues[index])
+	duplicate.ID = NewCueID()
+	insertAt := index + 1
+	sm.show.Cues = append(sm.show.Cues, Cue{})
+	copy(sm.show.Cues[insertAt+1:], sm.show.Cues[insertAt:])
+	sm.show.Cues[insertAt] = duplicate
+	sm.SelectedCueIndex = insertAt
+	sm.mu.Unlock()
+	sm.changed()
+	return true
+}
+
+// PasteCueBeforeSelected inserts an independent copy before the current cue.
+func (sm *ShowManager) PasteCueBeforeSelected(cue Cue) bool {
+	sm.mu.Lock()
+	index := sm.SelectedCueIndex
+	if index < 0 || index >= len(sm.show.Cues) {
+		sm.mu.Unlock()
+		return false
+	}
+	pasted := CloneCue(cue)
+	pasted.ID = NewCueID()
+	sm.show.Cues = append(sm.show.Cues, Cue{})
+	copy(sm.show.Cues[index+1:], sm.show.Cues[index:])
+	sm.show.Cues[index] = pasted
+	sm.SelectedCueIndex = index
+	sm.mu.Unlock()
+	sm.changed()
+	return true
+}
+
 func (sm *ShowManager) GetCue(index int) *Cue {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
@@ -156,6 +267,34 @@ func (sm *ShowManager) Snapshot() []Cue {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 	return append([]Cue(nil), sm.show.Cues...)
+}
+
+// ShowSnapshot returns an independent copy suitable for saving.
+func (sm *ShowManager) ShowSnapshot() Show {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+	return Show{Title: sm.show.Title, Cues: cloneCues(sm.show.Cues)}
+}
+
+// ReplaceShow atomically replaces the current show after loading a project.
+func (sm *ShowManager) ReplaceShow(loaded Show) {
+	sm.mu.Lock()
+	sm.show = Show{Title: loaded.Title, Cues: cloneCues(loaded.Cues)}
+	if len(sm.show.Cues) == 0 {
+		sm.SelectedCueIndex = -1
+	} else {
+		sm.SelectedCueIndex = 0
+	}
+	sm.mu.Unlock()
+	sm.changed()
+}
+
+func cloneCues(cues []Cue) []Cue {
+	cloned := make([]Cue, len(cues))
+	for i := range cues {
+		cloned[i] = CloneCue(cues[i])
+	}
+	return cloned
 }
 
 func (sm *ShowManager) SelectedCueCopy() (Cue, int, bool) {

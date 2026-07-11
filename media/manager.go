@@ -17,6 +17,7 @@ import (
 	"gioui.org/widget/material"
 	oto "github.com/hajimehoshi/oto/v2"
 	"github.com/syspoe/cusus/config"
+	"github.com/syspoe/cusus/palette"
 	"github.com/syspoe/cusus/playback"
 )
 
@@ -172,7 +173,7 @@ func (o *outputWindow) run() {
 					}
 				}
 			}
-			paint.Fill(gtx.Ops, color.NRGBA{A: 0xFF})
+			paint.Fill(gtx.Ops, palette.Black)
 			o.clickable.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return o.layout(gtx)
 			})
@@ -196,7 +197,7 @@ func (o *outputWindow) layout(gtx layout.Context) layout.Dimensions {
 			if opacity <= 0 {
 				return layout.Dimensions{Size: gtx.Constraints.Max}
 			}
-			black := color.NRGBA{A: uint8(min(float32(1), opacity) * 255)}
+			black := palette.WithAlpha(palette.Black, uint8(min(float32(1), opacity)*255))
 			paint.FillShape(gtx.Ops, black, clip.Rect{Max: gtx.Constraints.Max}.Op())
 			return layout.Dimensions{Size: gtx.Constraints.Max}
 		}),
@@ -228,7 +229,7 @@ func (o *outputWindow) layoutContent(gtx layout.Context) layout.Dimensions {
 			text = o.id
 		}
 		label := material.H3(th, text)
-		label.Color = color.NRGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xFF}
+		label.Color = palette.White
 		return layout.Center.Layout(gtx, label.Layout)
 	}
 	return layout.Dimensions{Size: gtx.Constraints.Max}

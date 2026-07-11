@@ -83,4 +83,8 @@ const (
 	MediaTargetAllMedia
 
 	MediaTargetOutput
+
+	// MediaTargetCurrentTrack is resolved by a timecode event to the media
+	// instance whose timeline scheduled the event.
+	MediaTargetCurrentTrack
 )

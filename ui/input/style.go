@@ -11,31 +11,22 @@ import (
 	"gioui.org/op/paint"
 	"gioui.org/unit"
 	"gioui.org/widget/material"
+	"github.com/syspoe/cusus/palette"
 )
 
 const inputDefaultWidth = unit.Dp(400)
 const inputMinWidth = unit.Dp(160)
 
 func inputSurface(th *material.Theme) color.NRGBA {
-	return color.NRGBA{
-		R: uint8(float32(th.Bg.R) * 1.5),
-		G: uint8(float32(th.Bg.G) * 1.5),
-		B: uint8(float32(th.Bg.B) * 1.5),
-		A: 0xFF,
-	}
+	return palette.Surface
 }
 
 func selectedInputSurface(th *material.Theme) color.NRGBA {
-	return color.NRGBA{
-		R: uint8(float32(th.Bg.R) * 2.2),
-		G: uint8(float32(th.Bg.G) * 2.2),
-		B: uint8(float32(th.Bg.B) * 2.2),
-		A: 0xFF,
-	}
+	return palette.SurfaceRaised
 }
 
 func inputTextColor(th *material.Theme) color.NRGBA {
-	return color.NRGBA{R: th.Fg.R, G: th.Fg.G, B: th.Fg.B, A: 0xFF}
+	return palette.Text
 }
 
 func layoutStableText(gtx layout.Context, w layout.Widget) layout.Dimensions {

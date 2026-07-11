@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"strings"
 	"time"
 
 	"gioui.org/io/pointer"
@@ -15,6 +16,8 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"gioui.org/x/component"
+	"github.com/syspoe/cusus/palette"
 	"github.com/syspoe/cusus/playback"
 	"github.com/syspoe/cusus/show"
 	"golang.org/x/exp/shiny/materialdesign/icons"
@@ -29,16 +32,16 @@ var mainList = &widget.List{
 var weights = []float32{1, 3, 3, 20, 5, 5, 5, 5, 3, 3, 3}
 
 var typeCols = map[show.CueType]color.NRGBA{
-	show.CueTypeImage:         {R: 0x2E, G: 0x7D, B: 0x32, A: 0xFF},
-	show.CueTypeWait:          {R: 0xD6, G: 0x81, B: 0x00, A: 0xFF},
-	show.CueTypeVideo:         {R: 0x15, G: 0x65, B: 0xC0, A: 0xFF},
-	show.CueTypeSound:         {R: 0xC2, G: 0x18, B: 0x5B, A: 0xFF},
-	show.CueTypeRemote:        {R: 0xEF, G: 0x6C, B: 0x00, A: 0xFF},
-	show.CueTypeMediaControl:  {R: 0x7B, G: 0x1F, B: 0xA2, A: 0xFF},
-	show.CueTypeOutputControl: {R: 0x00, G: 0x79, B: 0x6B, A: 0xFF},
+	show.CueTypeImage:         palette.Success,
+	show.CueTypeWait:          palette.Warning,
+	show.CueTypeVideo:         palette.Primary,
+	show.CueTypeSound:         palette.Accent,
+	show.CueTypeRemote:        palette.Warning,
+	show.CueTypeMediaControl:  palette.Accent,
+	show.CueTypeOutputControl: palette.Success,
 }
 
-var mainDividerCol = color.NRGBA{R: 0x3A, G: 0x3A, B: 0x3A, A: 0xB0}
+var mainDividerCol = palette.Divider
 
 const (
 	cueListCellHorizontalInset = unit.Dp(6)
@@ -56,10 +59,27 @@ func cueListCellInset() layout.Inset {
 }
 
 var rowClicks []widget.Clickable = make([]widget.Clickable, 0)
+var moveToEndClick widget.Clickable
 var warningIcon, _ = widget.NewIcon(icons.AlertWarning)
+var warningTips []warningTipState
 var lastListSelection = -2
 
-func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager, engine *playback.Engine, editSelected func()) layout.Dimensions {
+type warningTipState struct {
+	cueID show.CueID
+	text  string
+	area  component.TipArea
+}
+
+func Main(
+	th *material.Theme,
+	gtx layout.Context,
+	manager *show.ShowManager,
+	engine *playback.Engine,
+	editSelected func(),
+	moveCueActive bool,
+	moveBefore func(index int),
+	moveToEnd func(),
+) layout.Dimensions {
 	cues := manager.Snapshot()
 	activeByCue := map[show.CueID]playback.Instance{}
 	executionByCue := map[show.CueID]playback.CueExecution{}
@@ -85,7 +105,7 @@ func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager, eng
 	if len(cues) == 0 {
 		lastListSelection = -1
 		return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			label := stableBody1(th, "No cues yet — use Add Cue to create one")
+			label := stableBody1(th, "No cues yet - use Add Cue to create one")
 			return layoutStableText(gtx, label.Layout)
 		})
 	}
@@ -93,18 +113,33 @@ func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager, eng
 	if len(rowClicks) != len(cues) {
 		rowClicks = make([]widget.Clickable, len(cues))
 	}
+	if len(warningTips) != len(cues) {
+		warningTips = make([]warningTipState, len(cues))
+	}
 
+	moveHandled := false
 	for i := range rowClicks {
 		for {
 			click, ok := rowClicks[i].Update(gtx)
 			if !ok {
 				break
 			}
+			if moveCueActive {
+				if !moveHandled && moveBefore != nil {
+					moveBefore(i)
+					moveHandled = true
+				}
+				continue
+			}
 			manager.SelectCue(i)
 			if click.NumClicks >= 2 && editSelected != nil {
 				editSelected()
 			}
 		}
+	}
+	if moveCueActive && !moveHandled && moveToEndClick.Clicked(gtx) && moveToEnd != nil {
+		moveToEnd()
+		moveHandled = true
 	}
 
 	_, selectedIndex, hasSelection := manager.SelectedCueCopy()
@@ -137,8 +172,19 @@ func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager, eng
 			})
 		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return material.List(th, mainList).Layout(gtx, len(cues), func(gtx layout.Context, index int) layout.Dimensions {
+			itemCount := len(cues)
+			if moveCueActive {
+				itemCount++
+			}
+			return material.List(th, mainList).Layout(gtx, itemCount, func(gtx layout.Context, index int) layout.Dimensions {
+				if index == len(cues) {
+					return layoutMoveCueToEndTarget(th, gtx)
+				}
 				cue := cues[index]
+				warningText := warningTooltipText(show.CueWarnings(cue, cues))
+				if warningTips[index].cueID != cue.ID || warningTips[index].text != warningText {
+					warningTips[index] = warningTipState{cueID: cue.ID, text: warningText}
+				}
 				instance, active := activeByCue[cue.ID]
 				execution, executing := executionByCue[cue.ID]
 				duration, elapsed, remaining, volume := cueRuntimeLabels(cue, instance, active, execution, executing, knownDurations[cue.ID])
@@ -147,8 +193,8 @@ func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager, eng
 				borderHeight := max(1, gtx.Dp(borderHeightDp))
 
 				cueTypeCol := typeCols[cue.Type]
-				selectedColor := applyAlpha(color.NRGBA{R: cue.Color.R, G: cue.Color.G, B: cue.Color.B, A: 50}, th.ContrastBg)
-				hoverColor := applyAlpha(color.NRGBA{R: cue.Color.R, G: cue.Color.G, B: cue.Color.B, A: 30}, th.Bg)
+				selectedColor := applyAlpha(palette.WithAlpha(cue.Color, 50), th.ContrastBg)
+				hoverColor := applyAlpha(palette.WithAlpha(cue.Color, 30), th.Bg)
 
 				bg := th.Bg
 				if index == selectedIndex {
@@ -187,12 +233,10 @@ func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager, eng
 									// Warnings
 									layout.Flexed(weights[0], func(gtx layout.Context) layout.Dimensions {
 										return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-											return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-												if cue.Disabled {
-													return warningIcon.Layout(gtx, color.NRGBA{R: 0xFF, G: 0xB3, B: 0x4D, A: 0xFF})
-												}
-												return layout.Dimensions{}
-											})
+											if warningText == "" {
+												return layout.Dimensions{Size: gtx.Constraints.Min}
+											}
+											return layoutWarningTooltip(th, gtx, &warningTips[index].area, warningText)
 										})
 									}),
 									// Cue Number
@@ -343,6 +387,55 @@ func Main(th *material.Theme, gtx layout.Context, manager *show.ShowManager, eng
 	)
 }
 
+func layoutMoveCueToEndTarget(th *material.Theme, gtx layout.Context) layout.Dimensions {
+	height := gtx.Dp(unit.Dp(64))
+	gtx.Constraints.Min.Y = height
+	gtx.Constraints.Max.Y = height
+	if moveToEndClick.Hovered() {
+		pointer.CursorPointer.Add(gtx.Ops)
+	}
+	return moveToEndClick.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Background{}.Layout(gtx,
+			func(gtx layout.Context) layout.Dimensions {
+				bg := palette.Surface
+				if moveToEndClick.Hovered() {
+					bg = th.ContrastBg
+				}
+				paint.FillShape(gtx.Ops, bg, clip.Rect{Max: gtx.Constraints.Min}.Op())
+				return layout.Dimensions{Size: gtx.Constraints.Min}
+			},
+			func(gtx layout.Context) layout.Dimensions {
+				return layout.Center.Layout(gtx, material.Body2(th, "Move selected cue to end").Layout)
+			},
+		)
+	})
+}
+
+func warningTooltipText(warnings []string) string {
+	if len(warnings) == 0 {
+		return ""
+	}
+	return "• " + strings.Join(warnings, "\n• ")
+}
+
+func layoutWarningTooltip(th *material.Theme, gtx layout.Context, area *component.TipArea, tooltipText string) layout.Dimensions {
+	originalConstraints := gtx.Constraints
+	// TipArea normally limits its tooltip to the trigger's width. Give the text
+	// room to form a useful multi-line panel, then report the original cell size
+	// so the cue table layout remains unchanged.
+	gtx.Constraints.Max.X = max(gtx.Constraints.Max.X, gtx.Dp(unit.Dp(360)))
+	gtx.Constraints.Max.Y = max(gtx.Constraints.Max.Y, gtx.Dp(unit.Dp(600)))
+	tip := component.DesktopTooltip(th, tooltipText)
+	dims := area.Layout(gtx, tip, func(gtx layout.Context) layout.Dimensions {
+		gtx.Constraints = originalConstraints
+		return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return warningIcon.Layout(gtx, palette.Warning)
+		})
+	})
+	dims.Size = originalConstraints.Constrain(dims.Size)
+	return dims
+}
+
 func makeRuntimeCell(th *material.Theme, value string, weight float32) layout.FlexChild {
 	return layout.Flexed(weight, func(gtx layout.Context) layout.Dimensions {
 		return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -413,7 +506,7 @@ func cueRuntimeLabels(cue show.Cue, instance playback.Instance, active bool, exe
 	}
 
 	duration := formatRuntimeTime(durationMs)
-	elapsed, remaining := "—", "—"
+	elapsed, remaining := "-", "-"
 	volume := cueConfiguredVolume(cue)
 	if active {
 		elapsedMs := max(int64(0), instance.PositionMs-instance.ClipStartMs)
@@ -471,12 +564,12 @@ func cueConfiguredVolume(cue show.Cue) string {
 			return fmt.Sprintf("%.1f dB", cue.Play.Video.LevelDB)
 		}
 	}
-	return "—"
+	return "-"
 }
 
 func formatRuntimeTime(milliseconds int64) string {
 	if milliseconds <= 0 {
-		return "—"
+		return "-"
 	}
 	return formatRuntimeTimeValue(milliseconds)
 }

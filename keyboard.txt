@@ -11,6 +11,21 @@ Enter           Edit the selected cue
 Numpad Enter    Edit the selected cue
 F2              Edit the selected cue
 Space           Run the selected cue
+Delete          Ask to delete the selected cue
+Ctrl+C          Copy the selected cue
+Ctrl+V          Paste the copied cue before the selected cue
+Ctrl+D          Duplicate the selected cue after itself
+Ctrl+M          Move the selected cue (then click a cue or the end target)
+Ctrl+E          Edit the selected cue
+
+Move cue mode
+Click a cue     Move the selected cue before it
+Click end area  Move the selected cue to the end
+Escape          Cancel moving the cue
+
+Delete confirmation
+Enter           Confirm deletion
+Escape          Cancel deletion
 
 Cue editor
 Escape          Save the current cue and close the editor
@@ -20,4 +35,7 @@ Settings
 Ctrl+S          Save settings
 
 Add Cue menu
+Escape          Close the menu
+
+Action menu
 Escape          Close the menu

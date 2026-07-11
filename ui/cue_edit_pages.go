@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"fmt"
 	"image/color"
 	"strconv"
 	"strings"
@@ -124,6 +123,11 @@ var (
 		"Fullscreen",
 		"Exit Fullscreen",
 	}
+	timecodeActionLabels = []string{
+		"Current track",
+		"Output control",
+		"Remote",
+	}
 	videoFileExtensions = []string{".mp4", ".mov", ".mkv", ".webm", ".avi"}
 	soundFileExtensions = []string{".wav", ".mp3", ".flac", ".ogg", ".aiff", ".aif", ".m4a", ".opus"}
 	imageFileExtensions = []string{".png", ".jpg", ".jpeg", ".webp", ".gif"}
@@ -177,7 +181,6 @@ func (ctx *CueEditUI) renderGeneralTab(th *material.Theme, gtx layout.Context) l
 	return ctx.renderForm(th, []cueEditFormRow{
 		textRow(th, "Cue Number", ctx.page.text["cueNumber"], func(value string) { ctx.cue.CueNumber = value }),
 		multilineRow(th, "Description", ctx.page.multiline["description"], func(value string) { ctx.cue.Description = value }),
-		checkboxRow(th, "", ctx.page.checkbox["disabled"], func(value bool) { ctx.cue.Disabled = value }),
 		colourRow(th, "Color", ctx.page.colour["color"], func(value color.NRGBA) { ctx.cue.Color = value }),
 		textRow(th, "Tags", ctx.page.text["tags"], func(value string) { ctx.cue.Tags = splitTags(value) }),
 		multilineRow(th, "Notes", ctx.page.multiline["notes"], func(value string) { ctx.cue.Notes = value }),
@@ -214,7 +217,7 @@ func (ctx *CueEditUI) renderMediaTab(th *material.Theme, gtx layout.Context) lay
 	rows := []cueEditFormRow{}
 	if play := ctx.cue.Play.Sound; play != nil {
 		rows = append(rows,
-			ctx.fileRow(th, "File", ctx.page.text["soundFile"], ctx.page.button["soundFileBrowse"], soundFileExtensions, func(value string) { play.File = value }),
+			ctx.fileRow(th, "File", "audio", ctx.page.text["soundFile"], ctx.page.dropdown["soundProjectFile"], ctx.page.button["soundFileBrowse"], soundFileExtensions, func(value string) { play.File = value }),
 			textRow(th, "Output ID", ctx.page.text["soundOutputID"], func(value string) { play.OutputID = value }),
 			integerRow(th, "Clip Start MS", ctx.page.integer["soundClipStartMs"], func(value int) { play.ClipStartMs = int64(value) }),
 			integerRow(th, "Clip End MS", ctx.page.integer["soundClipEndMs"], func(value int) { play.ClipEndMs = int64(value) }),
@@ -225,7 +228,7 @@ func (ctx *CueEditUI) renderMediaTab(th *material.Theme, gtx layout.Context) lay
 	}
 	if play := ctx.cue.Play.Video; play != nil {
 		rows = append(rows,
-			ctx.fileRow(th, "File", ctx.page.text["videoFile"], ctx.page.button["videoFileBrowse"], videoFileExtensions, func(value string) { play.File = value }),
+			ctx.fileRow(th, "File", "video", ctx.page.text["videoFile"], ctx.page.dropdown["videoProjectFile"], ctx.page.button["videoFileBrowse"], videoFileExtensions, func(value string) { play.File = value }),
 			textRow(th, "Output ID", ctx.page.text["videoOutputID"], func(value string) { play.OutputID = value }),
 			integerRow(th, "Clip Start MS", ctx.page.integer["videoClipStartMs"], func(value int) { play.ClipStartMs = int64(value) }),
 			integerRow(th, "Clip End MS", ctx.page.integer["videoClipEndMs"], func(value int) { play.ClipEndMs = int64(value) }),
@@ -236,7 +239,7 @@ func (ctx *CueEditUI) renderMediaTab(th *material.Theme, gtx layout.Context) lay
 	}
 	if play := ctx.cue.Play.Image; play != nil {
 		rows = append(rows,
-			ctx.fileRow(th, "File", ctx.page.text["imageFile"], ctx.page.button["imageFileBrowse"], imageFileExtensions, func(value string) { play.File = value }),
+			ctx.fileRow(th, "File", "image", ctx.page.text["imageFile"], ctx.page.dropdown["imageProjectFile"], ctx.page.button["imageFileBrowse"], imageFileExtensions, func(value string) { play.File = value }),
 			textRow(th, "Output ID", ctx.page.text["imageOutputID"], func(value string) { play.OutputID = value }),
 			integerRow(th, "Fade In MS", ctx.page.integer["imageFadeInMs"], func(value int) { play.FadeInMs = int64(value) }),
 			integerRow(th, "Fade Out MS", ctx.page.integer["imageFadeOutMs"], func(value int) { play.FadeOutMs = int64(value) }),
@@ -255,38 +258,24 @@ func (ctx *CueEditUI) renderTimecodeTab(th *material.Theme, gtx layout.Context, 
 		return ctx.renderForm(th, []cueEditFormRow{staticRow(th, "Timecode", "This cue type does not support timecode markers.")})
 	}
 
-	if ctx.page.button["timecodeAdd"].Clicked(gtx) {
-		*markers = append(*markers, show.TimecodeMarker{Target: show.CueTarget{Kind: show.CueTargetCue}})
-		ctx.page = newCueEditPageState(ctx.cue)
-		markers = cueTimecodeMarkers(&ctx.cue)
-	}
-	for index := range *markers {
-		if ctx.page.button[fmt.Sprintf("timecodeDelete.%d", index)].Clicked(gtx) {
-			*markers = append((*markers)[:index], (*markers)[index+1:]...)
-			ctx.page = newCueEditPageState(ctx.cue)
-			markers = cueTimecodeMarkers(&ctx.cue)
-			break
-		}
+	if sortTimecodeMarkers(markers) {
+		ctx.timeline.selected = map[int]bool{}
+		ctx.resetTimecodeInputs()
 	}
 
-	rows := []cueEditFormRow{{label: "", layout: func(gtx layout.Context) layout.Dimensions {
-		return layoutCenteredButton(th, gtx, ctx.page.button["timecodeAdd"], "Add Marker", th.ContrastBg)
-	}}}
-	for index := range *markers {
-		marker := &(*markers)[index]
-		key := fmt.Sprintf("timecode.%d", index)
-		rows = append(rows,
-			staticRow(th, fmt.Sprintf("Marker %d", index+1), "Trigger a configured cue at this time"),
-			integerRow(th, "Time MS", ctx.page.integer[key+".time"], func(value int) { marker.TimeMs = int64(max(0, value)) }),
-			checkboxRow(th, "", ctx.page.checkbox[key+".disabled"], func(value bool) { marker.Disabled = value }),
-			ctx.cueTargetDropdownRow(th, "Action Cue", key+".target", manager, &marker.Target.CueID),
-			cueEditFormRow{label: "", layout: func(gtx layout.Context) layout.Dimensions {
-				return layoutCenteredButton(th, gtx, ctx.page.button[fmt.Sprintf("timecodeDelete.%d", index)], "Delete Marker", color.NRGBA{R: 0x70, A: 0xFF})
-			}},
-		)
-		marker.Target.Kind = show.CueTargetCue
-	}
-	return ctx.renderForm(th, rows)
+	rows := ctx.timecodeEditorRows(th, markers)
+	return layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+		return layout.UniformInset(unit.Dp(16)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return ctx.renderNativeTimecodeEditor(th, gtx, manager, markers)
+				}),
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					return ctx.layoutFormRows(th, gtx, rows)
+				}),
+			)
+		})
+	})
 }
 
 func cueTimecodeMarkers(cue *show.Cue) *[]show.TimecodeMarker {
@@ -390,33 +379,37 @@ func (ctx *CueEditUI) renderOutputCtrlTab(th *material.Theme, gtx layout.Context
 func (ctx *CueEditUI) renderForm(th *material.Theme, rows []cueEditFormRow) layout.FlexChild {
 	return layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(16)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return ctx.page.list.Layout(gtx, len(rows), func(gtx layout.Context, index int) layout.Dimensions {
-				row := rows[index]
-				return layout.Inset{Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					children := []layout.FlexChild{}
-					if row.label != "" {
-						children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							label := stableBody2(th, row.label+":")
-							label.TextSize = unit.Sp(18)
-							labelWidth := gtx.Dp(unit.Dp(120))
-							maxLabelWidth := gtx.Constraints.Max.X / 3
-							if maxLabelWidth > 0 && labelWidth > maxLabelWidth {
-								labelWidth = maxLabelWidth
-							}
-							if labelWidth < 0 {
-								labelWidth = 0
-							}
-							gtx.Constraints.Min.X = labelWidth
-							gtx.Constraints.Max.X = labelWidth
-							return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-								return layoutStableText(gtx, label.Layout)
-							})
-						}))
+			return ctx.layoutFormRows(th, gtx, rows)
+		})
+	})
+}
+
+func (ctx *CueEditUI) layoutFormRows(th *material.Theme, gtx layout.Context, rows []cueEditFormRow) layout.Dimensions {
+	return ctx.page.list.Layout(gtx, len(rows), func(gtx layout.Context, index int) layout.Dimensions {
+		row := rows[index]
+		return layout.Inset{Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			children := []layout.FlexChild{}
+			if row.label != "" {
+				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					label := stableBody2(th, row.label+":")
+					label.TextSize = unit.Sp(18)
+					labelWidth := gtx.Dp(unit.Dp(120))
+					maxLabelWidth := gtx.Constraints.Max.X / 3
+					if maxLabelWidth > 0 && labelWidth > maxLabelWidth {
+						labelWidth = maxLabelWidth
 					}
-					children = append(children, layout.Flexed(1, row.layout))
-					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Start}.Layout(gtx, children...)
-				})
-			})
+					if labelWidth < 0 {
+						labelWidth = 0
+					}
+					gtx.Constraints.Min.X = labelWidth
+					gtx.Constraints.Max.X = labelWidth
+					return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return layoutStableText(gtx, label.Layout)
+					})
+				}))
+			}
+			children = append(children, layout.Flexed(1, row.layout))
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Start}.Layout(gtx, children...)
 		})
 	})
 }
@@ -518,7 +511,7 @@ func cueDropdownLabel(cue show.Cue) string {
 
 	switch {
 	case number != "" && description != "":
-		return number + " — " + description
+		return number + " - " + description
 	case number != "":
 		return number
 	case description != "":

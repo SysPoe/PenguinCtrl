@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"image/color"
 	"sort"
 	"strings"
 
@@ -12,6 +11,7 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"github.com/syspoe/cusus/config"
+	"github.com/syspoe/cusus/palette"
 	"github.com/syspoe/cusus/ui/input"
 )
 
@@ -42,12 +42,16 @@ type SettingsPage struct {
 	addVariable        widget.Clickable
 	save               widget.Clickable
 	reload             widget.Clickable
+	reopenOutputs      widget.Clickable
 	status             string
 	statusError        bool
 	onSaved            func()
+	onReopenOutputs    func()
 }
 
 func (p *SettingsPage) SetOnSaved(callback func()) { p.onSaved = callback }
+
+func (p *SettingsPage) SetOnReopenOutputs(callback func()) { p.onReopenOutputs = callback }
 
 func NewSettingsPage(store *config.Store) *SettingsPage {
 	page := &SettingsPage{store: store, list: layout.List{Axis: layout.Vertical}}
@@ -117,6 +121,10 @@ func (p *SettingsPage) handleClicks(gtx layout.Context) {
 	}
 	if p.reload.Clicked(gtx) {
 		p.load()
+	}
+	if p.reopenOutputs.Clicked(gtx) && p.onReopenOutputs != nil {
+		p.onReopenOutputs()
+		p.status, p.statusError = "Output windows reopened", false
 	}
 	if p.addTarget.Clicked(gtx) {
 		p.targets = append(p.targets, newRemoteTargetFields(config.RemoteTarget{Name: fmt.Sprintf("Target %d", len(p.targets)+1), Host: "127.0.0.1", OSCPort: 8000, ERCPort: 6553}))
@@ -194,16 +202,21 @@ func (p *SettingsPage) header(th *material.Theme, gtx layout.Context) layout.Dim
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					label := stableBody2(th, p.status)
 					if p.statusError {
-						label.Color = color.NRGBA{R: 0xFF, G: 0x78, B: 0x78, A: 0xFF}
+						label.Color = palette.Danger
 					}
 					return layoutStableText(gtx, label.Layout)
 				}),
 			)
 		}),
-		makeBtn(th, &p.reload, "Reload"),
+		makeBtn(th, &p.reopenOutputs, "Reopen output windows"),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return layoutButton(th, gtx, &p.save, "Save", color.NRGBA{R: 0x00, G: 0x78, B: 0x8A, A: 0xFF})
+				return layoutButton(th, gtx, &p.reload, "Reload", th.ContrastBg)
+			})
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layoutButton(th, gtx, &p.save, "Save", palette.Primary)
 			})
 		}),
 	)

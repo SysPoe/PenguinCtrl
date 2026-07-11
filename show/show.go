@@ -1,9 +1,8 @@
 package show
 
 type Show struct {
-	Cues  []Cue
-	Title string
-	// TODO saved file path, outputs, settings, etc.
+	Cues  []Cue  `json:"cues"`
+	Title string `json:"title"`
 }
 
 func (s *Show) InsertCue(index int, cue Cue) {

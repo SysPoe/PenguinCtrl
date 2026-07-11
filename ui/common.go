@@ -13,6 +13,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"github.com/syspoe/cusus/palette"
 )
 
 func makeBtn(th *material.Theme, wid *widget.Clickable, txt string) layout.FlexChild {
@@ -35,21 +36,27 @@ func makeFlexedBtnWithColor(th *material.Theme, wid *widget.Clickable, txt strin
 
 func makeFixedWidthBtn(th *material.Theme, wid *widget.Clickable, txt string, width int) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-		bg := color.NRGBA{
-			R: uint8(float32(th.Bg.R) * float32(1.5)),
-			G: uint8(float32(th.Bg.G) * float32(1.5)),
-			B: uint8(float32(th.Bg.B) * float32(1.5)),
-			A: 255,
+		setFixedWidth(&gtx, width)
+		return menuButton(th, wid, palette.Surface).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layoutCenteredButtonLabel(th, gtx, txt)
+		})
+	})
+}
+
+func makeFixedWidthBtnEnabled(th *material.Theme, wid *widget.Clickable, txt string, width int, enabled bool) layout.FlexChild {
+	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		if !enabled {
+			gtx = gtx.Disabled()
 		}
 		setFixedWidth(&gtx, width)
-		return menuButton(th, wid, bg).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return menuButton(th, wid, palette.Surface).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layoutCenteredButtonLabel(th, gtx, txt)
 		})
 	})
 }
 
 func opaqueForeground(th *material.Theme) color.NRGBA {
-	return color.NRGBA{R: th.Fg.R, G: th.Fg.G, B: th.Fg.B, A: 0xFF}
+	return palette.Opaque(th.Fg)
 }
 
 func makeFixedWidthBtnWithColor(th *material.Theme, wid *widget.Clickable, txt string, width int, bgColor color.NRGBA) layout.FlexChild {
@@ -159,12 +166,7 @@ func stableBody2(th *material.Theme, txt string) material.LabelStyle {
 }
 
 func contrastColor(c color.NRGBA) color.NRGBA {
-	brightness := 0.299*float64(c.R) + 0.587*float64(c.G) + 0.114*float64(c.B)
-
-	if brightness > 150 {
-		return color.NRGBA{R: 0, G: 0, B: 0, A: 255}
-	}
-	return color.NRGBA{R: 255, G: 255, B: 255, A: 255}
+	return palette.ContrastText(c)
 }
 
 func applyAlpha(c color.NRGBA, bg color.NRGBA) color.NRGBA {
@@ -175,7 +177,7 @@ func applyAlpha(c color.NRGBA, bg color.NRGBA) color.NRGBA {
 	g := uint8(float64(c.G)*alpha + float64(bg.G)*invAlpha)
 	b := uint8(float64(c.B)*alpha + float64(bg.B)*invAlpha)
 
-	return color.NRGBA{R: r, G: g, B: b, A: 255}
+	return color.NRGBA{R: r, G: g, B: b, A: 0xFF}
 }
 
 func makeFlexedTextHeader(th *material.Theme, txt string, weight float32, align text.Alignment) layout.FlexChild {
@@ -201,9 +203,7 @@ func rigidVerticalSeparatorBar(height unit.Dp) layout.FlexChild {
 			Max: image.Point{X: width, Y: height},
 		}
 
-		// Fill the rectangle with a color (e.g., gray)
-		col := color.NRGBA{R: 200, G: 200, B: 200, A: 255} // Light gray color
-		paint.FillShape(gtx.Ops, col, clip.Rect(rect).Op())
+		paint.FillShape(gtx.Ops, palette.Divider, clip.Rect(rect).Op())
 
 		return layout.Dimensions{Size: rect.Size()}
 	})

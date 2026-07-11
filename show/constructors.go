@@ -1,6 +1,6 @@
 package show
 
-import "image/color"
+import "github.com/syspoe/cusus/palette"
 
 func NewCue(cueType CueType, description string, play CuePlay) Cue {
 	return Cue{
@@ -18,7 +18,7 @@ func NewCue(cueType CueType, description string, play CuePlay) Cue {
 				Kind: CueTargetNext,
 			},
 		},
-		Color: color.NRGBA{R: 0x7B, G: 0x2C, B: 0xBF, A: 0},
+		Color: palette.WithAlpha(palette.Accent, 0),
 		Tags:  []string{},
 	}
 }

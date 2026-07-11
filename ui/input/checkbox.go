@@ -1,11 +1,10 @@
 package input
 
 import (
-	"image/color"
-
 	"gioui.org/layout"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"github.com/syspoe/cusus/palette"
 )
 
 type Checkbox struct {
@@ -44,7 +43,7 @@ func (c *Checkbox) Layout(th *material.Theme, gtx layout.Context) layout.Dimensi
 
 	previous := c.checkbox.Value
 	checkBox := material.CheckBox(th, &c.checkbox, c.Label)
-	checkBox.Color = color.NRGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xDE}
+	checkBox.Color = palette.TextSoft
 	checkBox.IconColor = selectedInputSurface(th)
 	dims := inputField(th, gtx, checkBox.Layout)
 

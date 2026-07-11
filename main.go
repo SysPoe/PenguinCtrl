@@ -2,7 +2,7 @@ package main
 
 import (
 	"errors"
-	"image/color"
+	"image"
 	"log"
 	"os"
 
@@ -11,6 +11,7 @@ import (
 	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
 	"gioui.org/widget/material"
@@ -18,12 +19,14 @@ import (
 
 	"github.com/syspoe/cusus/config"
 	"github.com/syspoe/cusus/media"
+	"github.com/syspoe/cusus/palette"
 	"github.com/syspoe/cusus/playback"
 	"github.com/syspoe/cusus/show"
 	"github.com/syspoe/cusus/ui"
 )
 
 var topBar ui.TopBar
+var playbackSidebar ui.PlaybackSidebar
 var tbCtx ui.TBContext
 var manager *show.ShowManager = show.NewShowManager()
 var settingsStore *config.Store
@@ -50,8 +53,13 @@ func main() {
 		playbackEngine.RefreshDurations()
 		mediaManager.SyncOutputs(playbackEngine.OutputIDs())
 	})
+	settingsPage.SetOnReopenOutputs(func() {
+		mediaManager.EnsureOutputs(playbackEngine.OutputIDs())
+	})
 	tbCtx = ui.TBContext{
-		TopBar: &topBar,
+		TopBar:        &topBar,
+		TogglePreview: playbackEngine.TogglePreview,
+		StopPreview:   playbackEngine.StopPreview,
 	}
 	go func() {
 		window := new(app.Window)
@@ -72,16 +80,10 @@ func newTheme() *material.Theme {
 	th := material.NewTheme()
 	th.Face = font.Typeface("Nirmala UI")
 
-	darkBg := color.NRGBA{R: 0x12, G: 0x12, B: 0x12, A: 0xFF}         // Dark gray surface
-	darkBgContrast := color.NRGBA{R: 0x30, G: 0x1E, B: 0x30, A: 0xFF} // Slightly lighter gray for contrast
-	darkFg := color.NRGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xDE}         // Off-white for high contrast
-	darkFgContrast := color.NRGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xFF} // Pure white for maximum contrast
-
-	// Apply colors to the Theme Palette
-	th.Palette.Bg = darkBg
-	th.Palette.ContrastBg = darkBgContrast
-	th.Palette.Fg = darkFg
-	th.Palette.ContrastFg = darkFgContrast
+	th.Palette.Bg = palette.Background
+	th.Palette.ContrastBg = palette.SurfaceRaised
+	th.Palette.Fg = palette.TextSoft
+	th.Palette.ContrastFg = palette.Text
 
 	return th
 }
@@ -90,22 +92,38 @@ func handleCueListShortcuts(gtx layout.Context) {
 	if showSettings || tbCtx.CueEditorOpen() {
 		return
 	}
+	if tbCtx.DeleteConfirmationOpen() {
+		tbCtx.HandleDeleteConfirmationKeys(gtx, manager)
+		return
+	}
 
-	if topBar.AddCueMenuOpen() {
+	if topBar.AddCueMenuOpen() || topBar.ActionMenuOpen() {
 		for {
 			event, ok := gtx.Event(key.Filter{Name: key.NameEscape})
 			if !ok {
 				return
 			}
 			if event, ok := event.(key.Event); ok && event.State == key.Press {
-				topBar.CloseAddCueMenu()
+				topBar.CloseMenus()
+				return
+			}
+		}
+	}
+	if tbCtx.MoveCueActive() {
+		for {
+			event, ok := gtx.Event(key.Filter{Name: key.NameEscape})
+			if !ok {
+				return
+			}
+			if event, ok := event.(key.Event); ok && event.State == key.Press {
+				tbCtx.CancelMoveCue()
 				return
 			}
 		}
 	}
 
 	// Let a focused top-bar button retain its normal Enter/Space behavior.
-	if topBar.HasKeyboardFocus(gtx) {
+	if topBar.HasKeyboardFocus(gtx) || playbackSidebar.HasKeyboardFocus(gtx) {
 		return
 	}
 
@@ -121,6 +139,12 @@ func handleCueListShortcuts(gtx layout.Context) {
 			key.Filter{Name: key.NameEnter},
 			key.Filter{Name: key.NameF2},
 			key.Filter{Name: key.NameSpace},
+			key.Filter{Name: key.NameDeleteForward},
+			key.Filter{Name: "C", Required: key.ModShortcut},
+			key.Filter{Name: "V", Required: key.ModShortcut},
+			key.Filter{Name: "D", Required: key.ModShortcut},
+			key.Filter{Name: "M", Required: key.ModShortcut},
+			key.Filter{Name: "E", Required: key.ModShortcut},
 		)
 		if !ok {
 			return
@@ -149,15 +173,60 @@ func handleCueListShortcuts(gtx layout.Context) {
 			if err := playbackEngine.PlaySelected(); err != nil {
 				log.Printf("play cue: %v", err)
 			}
+		case key.NameDeleteForward:
+			tbCtx.RequestDeleteCue(manager)
+		case "C":
+			tbCtx.CopySelectedCue(manager)
+		case "V":
+			tbCtx.PasteCueBeforeSelected(manager)
+		case "D":
+			tbCtx.DuplicateSelectedCue(manager)
+		case "M":
+			tbCtx.StartMoveCue(manager)
+		case "E":
+			tbCtx.EditSelectedCue(manager)
 		}
 	}
 }
 
+func layoutFocusWarning(th *material.Theme, gtx layout.Context) layout.Dimensions {
+	size := gtx.Constraints.Max
+	height := gtx.Dp(unit.Dp(88))
+	if height > size.Y {
+		height = size.Y
+	}
+	top := size.Y - height
+
+	paint.FillShape(
+		gtx.Ops,
+		palette.Danger,
+		clip.Rect{Min: image.Pt(0, top), Max: size}.Op(),
+	)
+
+	offset := op.Offset(image.Pt(0, top)).Push(gtx.Ops)
+	defer offset.Pop()
+	gtx.Constraints.Min = image.Pt(size.X, height)
+	gtx.Constraints.Max = gtx.Constraints.Min
+	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		label := material.H3(th, "** WARNING ** NO FOCUS **")
+		label.Color = palette.White
+		return label.Layout(gtx)
+	})
+}
+
 func run(window *app.Window) error {
 	var ops op.Ops
+	windowFocused := true
 	th := newTheme()
 	expl := explorer.NewExplorer(window)
 	uiActions := make(chan func(), 16)
+	tbCtx.LoadWaveform = func(source string, completed func([]float32, int, int64, error)) {
+		go func() {
+			wave, err := media.ExtractWaveform(settingsStore.Snapshot().FFmpegPath, source)
+			uiActions <- func() { completed(wave.Samples, wave.SampleRate, wave.DurationMs, err) }
+			window.Invalidate()
+		}()
+	}
 	playbackEngine.SetOnChange(func() {
 		window.Invalidate()
 		mediaManager.SyncOutputs(playbackEngine.OutputIDs())
@@ -213,6 +282,10 @@ func run(window *app.Window) error {
 			playbackEngine.Close()
 			return e.Err
 
+		case app.ConfigEvent:
+			windowFocused = e.Config.Focused
+			window.Invalidate()
+
 		case app.FrameEvent:
 			gtx := app.NewContext(&ops, e)
 			handleCueListShortcuts(gtx)
@@ -233,7 +306,25 @@ func run(window *app.Window) error {
 							if showSettings {
 								return settingsPage.Layout(th, gtx)
 							}
-							return ui.Main(th, gtx, manager, playbackEngine, func() { tbCtx.EditSelectedCue(manager) })
+							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									return playbackSidebar.Layout(th, gtx, manager, playbackEngine)
+								}),
+								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+									width := gtx.Dp(unit.Dp(1))
+									paint.FillShape(gtx.Ops, th.ContrastBg, clip.Rect{Max: image.Pt(width, gtx.Constraints.Max.Y)}.Op())
+									return layout.Dimensions{Size: image.Pt(width, gtx.Constraints.Max.Y)}
+								}),
+								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+									return ui.Main(
+										th, gtx, manager, playbackEngine,
+										func() { tbCtx.EditSelectedCue(manager) },
+										tbCtx.MoveCueActive(),
+										func(index int) { tbCtx.MoveSelectedCueBefore(manager, index) },
+										func() { tbCtx.MoveSelectedCueToEnd(manager) },
+									)
+								}),
+							)
 						}),
 					)
 				}),
@@ -244,18 +335,16 @@ func run(window *app.Window) error {
 					}
 					return tbCtx.Layout(th, gtx, manager)
 				}),
+				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+					if windowFocused {
+						return layout.Dimensions{}
+					}
+					return layoutFocusWarning(th, gtx)
+				}),
 			)
 			if topBar.TakePageRequest() {
 				showSettings = !showSettings
 				window.Invalidate()
-			}
-			if topBar.TakeGoRequest() {
-				if err := playbackEngine.PlaySelected(); err != nil {
-					log.Printf("play cue: %v", err)
-				}
-			}
-			if topBar.TakeStopRequest() {
-				playbackEngine.StopAll()
 			}
 			e.Frame(gtx.Ops)
 		}
