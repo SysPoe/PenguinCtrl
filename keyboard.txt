@@ -1,6 +1,9 @@
 KEYBOARD SHORTCUTS
 
 Cue list
+Ctrl+N          Start a new show
+Ctrl+S          Save the current show
+Ctrl+Shift+S    Save the current show as a new file
 Up Arrow        Select the previous cue
 Down Arrow      Select the next cue
 Page Up         Move up 10 cues

@@ -204,6 +204,11 @@ func (tb *TopBar) TakeNewRequest() bool {
 	return requested
 }
 
+func (tb *TopBar) RequestNew() {
+	tb.setAllFalse()
+	tb.newRequested = true
+}
+
 func (tb *TopBar) TakeLoadRequest() bool {
 	requested := tb.loadRequested
 	tb.loadRequested = false
@@ -216,10 +221,20 @@ func (tb *TopBar) TakeSaveRequest() bool {
 	return requested
 }
 
+func (tb *TopBar) RequestSave() {
+	tb.setAllFalse()
+	tb.saveRequested = true
+}
+
 func (tb *TopBar) TakeSaveAsRequest() bool {
 	requested := tb.saveAsRequest
 	tb.saveAsRequest = false
 	return requested
+}
+
+func (tb *TopBar) RequestSaveAs() {
+	tb.setAllFalse()
+	tb.saveAsRequest = true
 }
 
 func (tb *TopBar) SetStatus(status string) { tb.status = status }

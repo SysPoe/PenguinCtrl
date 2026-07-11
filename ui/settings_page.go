@@ -29,29 +29,45 @@ type variableFields struct {
 	remove widget.Clickable
 }
 
+type AudioDevice struct {
+	ID        string
+	Name      string
+	IsDefault bool
+}
+
 type SettingsPage struct {
-	store              *config.Store
-	initialized        bool
-	list               layout.List
-	ffmpegPath         *input.Text
-	defaultPlayback    *input.Text
-	defaultMediaOutput *input.Text
-	targets            []*remoteTargetFields
-	variables          []*variableFields
-	addTarget          widget.Clickable
-	addVariable        widget.Clickable
-	save               widget.Clickable
-	reload             widget.Clickable
-	reopenOutputs      widget.Clickable
-	status             string
-	statusError        bool
-	onSaved            func()
-	onReopenOutputs    func()
+	store               *config.Store
+	initialized         bool
+	list                layout.List
+	ffmpegPath          *input.Text
+	defaultPlayback     *input.Text
+	defaultMediaOutput  *input.Text
+	playbackAudioDevice *input.Dropdown
+	previewAudioDevice  *input.Dropdown
+	audioDevices        []AudioDevice
+	audioDeviceProvider func() ([]AudioDevice, error)
+	targets             []*remoteTargetFields
+	variables           []*variableFields
+	addTarget           widget.Clickable
+	addVariable         widget.Clickable
+	save                widget.Clickable
+	reload              widget.Clickable
+	reopenOutputs       widget.Clickable
+	refreshAudioDevices widget.Clickable
+	status              string
+	statusError         bool
+	onSaved             func()
+	onReopenOutputs     func()
 }
 
 func (p *SettingsPage) SetOnSaved(callback func()) { p.onSaved = callback }
 
 func (p *SettingsPage) SetOnReopenOutputs(callback func()) { p.onReopenOutputs = callback }
+
+func (p *SettingsPage) SetAudioDeviceProvider(provider func() ([]AudioDevice, error)) {
+	p.audioDeviceProvider = provider
+	p.refreshAudioDeviceList()
+}
 
 func NewSettingsPage(store *config.Store) *SettingsPage {
 	page := &SettingsPage{store: store, list: layout.List{Axis: layout.Vertical}}
@@ -64,6 +80,8 @@ func (p *SettingsPage) load() {
 	p.ffmpegPath = input.NewText("FFmpeg executable", settings.FFmpegPath)
 	p.defaultPlayback = input.NewText("Default playback", settings.DefaultPlayback)
 	p.defaultMediaOutput = input.NewText("Default media output", settings.DefaultMediaOutput)
+	p.playbackAudioDevice = newAudioDeviceDropdown(p.audioDevices, settings.PlaybackAudioDevice)
+	p.previewAudioDevice = newAudioDeviceDropdown(p.audioDevices, settings.PreviewAudioDevice)
 	p.targets = make([]*remoteTargetFields, 0, len(settings.RemoteTargets))
 	for _, target := range settings.RemoteTargets {
 		p.targets = append(p.targets, newRemoteTargetFields(target))
@@ -101,6 +119,7 @@ func (p *SettingsPage) Layout(th *material.Theme, gtx layout.Context) layout.Dim
 	sections := []layout.Widget{
 		func(gtx layout.Context) layout.Dimensions { return p.header(th, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.defaultsSection(th, gtx) },
+		func(gtx layout.Context) layout.Dimensions { return p.audioSection(th, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.targetsSection(th, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.variablesSection(th, gtx) },
 	}
@@ -125,6 +144,9 @@ func (p *SettingsPage) handleClicks(gtx layout.Context) {
 	if p.reopenOutputs.Clicked(gtx) && p.onReopenOutputs != nil {
 		p.onReopenOutputs()
 		p.status, p.statusError = "Output windows reopened", false
+	}
+	if p.refreshAudioDevices.Clicked(gtx) {
+		p.refreshAudioDeviceList()
 	}
 	if p.addTarget.Clicked(gtx) {
 		p.targets = append(p.targets, newRemoteTargetFields(config.RemoteTarget{Name: fmt.Sprintf("Target %d", len(p.targets)+1), Host: "127.0.0.1", OSCPort: 8000, ERCPort: 6553}))
@@ -152,6 +174,8 @@ func (p *SettingsPage) saveSettings() {
 	settings.FFmpegPath = strings.TrimSpace(p.ffmpegPath.Value)
 	settings.DefaultPlayback = strings.TrimSpace(p.defaultPlayback.Value)
 	settings.DefaultMediaOutput = strings.TrimSpace(p.defaultMediaOutput.Value)
+	settings.PlaybackAudioDevice = selectedDropdownValue(p.playbackAudioDevice)
+	settings.PreviewAudioDevice = selectedDropdownValue(p.previewAudioDevice)
 	settings.RemoteTargets = make([]config.RemoteTarget, 0, len(p.targets))
 	for _, target := range p.targets {
 		settings.RemoteTargets = append(settings.RemoteTargets, config.RemoteTarget{
@@ -234,6 +258,71 @@ func (p *SettingsPage) defaultsSection(th *material.Theme, gtx layout.Context) l
 			return settingsField(th, gtx, "FFmpeg executable", p.ffmpegPath.Layout)
 		},
 	})
+}
+
+func (p *SettingsPage) audioSection(th *material.Theme, gtx layout.Context) layout.Dimensions {
+	return settingsSection(th, gtx, "Audio devices", []layout.Widget{
+		func(gtx layout.Context) layout.Dimensions {
+			return settingsField(th, gtx, "Playback", p.playbackAudioDevice.Layout)
+		},
+		func(gtx layout.Context) layout.Dimensions {
+			return settingsField(th, gtx, "Preview", p.previewAudioDevice.Layout)
+		},
+		func(gtx layout.Context) layout.Dimensions {
+			return layoutButton(th, gtx, &p.refreshAudioDevices, "Refresh audio devices", th.ContrastBg)
+		},
+	})
+}
+
+func (p *SettingsPage) refreshAudioDeviceList() {
+	if p.audioDeviceProvider == nil {
+		return
+	}
+	devices, err := p.audioDeviceProvider()
+	if err != nil {
+		p.status, p.statusError = err.Error(), true
+		return
+	}
+	p.audioDevices = devices
+	settings := p.store.Snapshot()
+	playbackID, previewID := settings.PlaybackAudioDevice, settings.PreviewAudioDevice
+	if p.playbackAudioDevice != nil {
+		playbackID = selectedDropdownValue(p.playbackAudioDevice)
+	}
+	if p.previewAudioDevice != nil {
+		previewID = selectedDropdownValue(p.previewAudioDevice)
+	}
+	p.playbackAudioDevice = newAudioDeviceDropdown(devices, playbackID)
+	p.previewAudioDevice = newAudioDeviceDropdown(devices, previewID)
+	p.status, p.statusError = fmt.Sprintf("Found %d audio device(s)", len(devices)), false
+}
+
+func newAudioDeviceDropdown(devices []AudioDevice, selectedID string) *input.Dropdown {
+	items := []input.DropdownItem{{Label: "System default", Value: ""}}
+	selected := 0
+	found := selectedID == ""
+	for _, device := range devices {
+		label := device.Name
+		if device.IsDefault {
+			label += " (default)"
+		}
+		items = append(items, input.DropdownItem{Label: label, Value: device.ID})
+		if device.ID == selectedID {
+			selected, found = len(items)-1, true
+		}
+	}
+	if !found {
+		items = append(items, input.DropdownItem{Label: "Unavailable device", Value: selectedID})
+		selected = len(items) - 1
+	}
+	return input.NewDropdown(items, selected)
+}
+
+func selectedDropdownValue(dropdown *input.Dropdown) string {
+	if dropdown == nil || dropdown.Selected < 0 || dropdown.Selected >= len(dropdown.Items) {
+		return ""
+	}
+	return dropdown.Items[dropdown.Selected].Value
 }
 
 func (p *SettingsPage) targetsSection(th *material.Theme, gtx layout.Context) layout.Dimensions {

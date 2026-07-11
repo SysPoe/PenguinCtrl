@@ -13,6 +13,7 @@ type Instance struct {
 	CueID          show.CueID      `json:"cueId"`
 	CueNumber      string          `json:"cueNumber"`
 	OutputID       string          `json:"outputId"`
+	Preview        bool            `json:"preview,omitempty"`
 	MediaType      string          `json:"mediaType"`
 	Source         string          `json:"source"`
 	ClipStartMs    int64           `json:"clipStartMs"`

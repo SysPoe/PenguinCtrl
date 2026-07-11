@@ -5,12 +5,11 @@ go 1.26.4
 require (
 	gioui.org v0.10.0
 	gioui.org/x v0.10.0
-	github.com/hajimehoshi/oto/v2 v2.4.3
+	github.com/gen2brain/malgo v0.11.25
 )
 
 require (
 	git.wow.st/gmp/jni v0.0.0-20210610011705-34026c7e22d0 // indirect
-	github.com/ebitengine/purego v0.4.1 // indirect
 	github.com/godbus/dbus/v5 v5.0.6 // indirect
 	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0 // indirect
 )

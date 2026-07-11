@@ -59,6 +59,14 @@ func main() {
 	mediaManager = media.NewManager(playbackEngine, settingsStore)
 	mediaManager.SyncOutputs(playbackEngine.OutputIDs())
 	settingsPage = ui.NewSettingsPage(settingsStore)
+	settingsPage.SetAudioDeviceProvider(func() ([]ui.AudioDevice, error) {
+		devices, err := mediaManager.AudioDevices()
+		result := make([]ui.AudioDevice, len(devices))
+		for i, device := range devices {
+			result[i] = ui.AudioDevice{ID: device.ID, Name: device.Name, IsDefault: device.IsDefault}
+		}
+		return result, err
+	})
 	settingsPage.SetOnSaved(func() {
 		playbackEngine.RefreshDurations()
 		mediaManager.SyncOutputs(playbackEngine.OutputIDs())
@@ -99,6 +107,9 @@ func newTheme() *material.Theme {
 }
 
 func handleCueListShortcuts(gtx layout.Context) {
+	if showSettings || tbCtx.CueEditorOpen() {
+		return
+	}
 	if topBar.AddCueMenuOpen() || topBar.ActionMenuOpen() || topBar.FileMenuOpen() {
 		for {
 			event, ok := gtx.Event(key.Filter{Name: key.NameEscape})
@@ -110,9 +121,6 @@ func handleCueListShortcuts(gtx layout.Context) {
 				return
 			}
 		}
-	}
-	if showSettings || tbCtx.CueEditorOpen() {
-		return
 	}
 	if tbCtx.DeleteConfirmationOpen() {
 		tbCtx.HandleDeleteConfirmationKeys(gtx, manager)
@@ -128,6 +136,24 @@ func handleCueListShortcuts(gtx layout.Context) {
 				tbCtx.CancelMoveCue()
 				return
 			}
+		}
+	}
+
+	for {
+		event, ok := gtx.Event(
+			key.Filter{Name: "N", Required: key.ModShortcut},
+			key.Filter{Name: "S", Required: key.ModShortcut},
+			key.Filter{Name: "S", Required: key.ModShortcut | key.ModShift},
+		)
+		if !ok {
+			break
+		}
+		keyEvent, ok := event.(key.Event)
+		if !ok {
+			continue
+		}
+		if dispatchDocumentShortcut(&topBar, keyEvent) {
+			return
 		}
 	}
 
@@ -196,6 +222,25 @@ func handleCueListShortcuts(gtx layout.Context) {
 			tbCtx.EditSelectedCue(manager)
 		}
 	}
+}
+
+func dispatchDocumentShortcut(bar *ui.TopBar, event key.Event) bool {
+	if bar == nil || event.State != key.Press || !event.Modifiers.Contain(key.ModShortcut) {
+		return false
+	}
+	switch event.Name {
+	case "N":
+		bar.RequestNew()
+	case "S":
+		if event.Modifiers.Contain(key.ModShift) {
+			bar.RequestSaveAs()
+		} else {
+			bar.RequestSave()
+		}
+	default:
+		return false
+	}
+	return true
 }
 
 func layoutFocusWarning(th *material.Theme, gtx layout.Context) layout.Dimensions {
@@ -493,6 +538,7 @@ func run(window *app.Window) error {
 
 		case app.FrameEvent:
 			gtx := app.NewContext(&ops, e)
+			handleCueListShortcuts(gtx)
 			if topBar.TakeNewRequest() {
 				playbackEngine.StopAll()
 				projectLibrary.Replace(nil)
@@ -516,8 +562,6 @@ func run(window *app.Window) error {
 			if topBar.TakeSaveAsRequest() {
 				saveAsShow()
 			}
-			handleCueListShortcuts(gtx)
-
 			paint.Fill(gtx.Ops, th.Bg)
 
 			layout.Stack{}.Layout(gtx,

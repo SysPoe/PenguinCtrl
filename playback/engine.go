@@ -17,9 +17,10 @@ import (
 )
 
 type command struct {
-	cue   show.Cue
-	index int
-	ctx   context.Context
+	cue     show.Cue
+	index   int
+	ctx     context.Context
+	preview bool
 }
 
 type Engine struct {
@@ -250,7 +251,7 @@ func (e *Engine) TogglePreview(cue show.Cue) (bool, error) {
 	e.mu.Lock()
 	e.previewCueID, e.previewPaused = preview.ID, false
 	e.mu.Unlock()
-	if err := e.enqueue(preview, -1); err != nil {
+	if err := e.enqueueCommand(preview, -1, true); err != nil {
 		e.mu.Lock()
 		e.previewCueID = show.CueID{}
 		e.mu.Unlock()
@@ -270,6 +271,10 @@ func (e *Engine) StopPreview() {
 }
 
 func (e *Engine) enqueue(cue show.Cue, index int) error {
+	return e.enqueueCommand(cue, index, false)
+}
+
+func (e *Engine) enqueueCommand(cue show.Cue, index int, preview bool) error {
 	if cue.Disabled {
 		return errors.New("cue is disabled")
 	}
@@ -277,7 +282,7 @@ func (e *Engine) enqueue(cue show.Cue, index int) error {
 	runCtx := e.runCtx
 	e.mu.RUnlock()
 	select {
-	case e.commands <- command{cue: cue, index: index, ctx: runCtx}:
+	case e.commands <- command{cue: cue, index: index, ctx: runCtx, preview: preview}:
 		return nil
 	case <-e.ctx.Done():
 		return errors.New("playback engine is stopped")
@@ -451,6 +456,7 @@ func (e *Engine) startMedia(next command) error {
 	now := time.Now()
 	instance := &Instance{
 		ID: uuid.NewString(), CueID: cue.ID, CueNumber: cue.CueNumber, CueIndex: cueIndex, Link: cue.Link, PostWaitMs: cue.Timing.PostWaitMs,
+		Preview:   next.preview,
 		StartedAt: now, PositionAt: now, RunContext: next.ctx,
 	}
 	switch cue.Type {

@@ -20,11 +20,13 @@ type RemoteTarget struct {
 }
 
 type Settings struct {
-	FFmpegPath         string            `json:"ffmpegPath"`
-	DefaultPlayback    string            `json:"defaultPlayback"`
-	DefaultMediaOutput string            `json:"defaultMediaOutput"`
-	Variables          map[string]string `json:"variables"`
-	RemoteTargets      []RemoteTarget    `json:"remoteTargets"`
+	FFmpegPath          string            `json:"ffmpegPath"`
+	DefaultPlayback     string            `json:"defaultPlayback"`
+	DefaultMediaOutput  string            `json:"defaultMediaOutput"`
+	PlaybackAudioDevice string            `json:"playbackAudioDevice,omitempty"`
+	PreviewAudioDevice  string            `json:"previewAudioDevice,omitempty"`
+	Variables           map[string]string `json:"variables"`
+	RemoteTargets       []RemoteTarget    `json:"remoteTargets"`
 }
 
 func Defaults() Settings {
@@ -130,6 +132,8 @@ func normalize(in Settings) Settings {
 	if strings.TrimSpace(in.DefaultMediaOutput) == "" {
 		in.DefaultMediaOutput = "main"
 	}
+	in.PlaybackAudioDevice = strings.TrimSpace(in.PlaybackAudioDevice)
+	in.PreviewAudioDevice = strings.TrimSpace(in.PreviewAudioDevice)
 	if in.Variables == nil {
 		in.Variables = map[string]string{}
 	}

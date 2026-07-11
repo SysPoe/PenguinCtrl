@@ -1,6 +1,7 @@
 package media
 
 import (
+	"fmt"
 	"image/color"
 	"log"
 	"sync"
@@ -15,7 +16,6 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
-	oto "github.com/hajimehoshi/oto/v2"
 	"github.com/syspoe/cusus/config"
 	"github.com/syspoe/cusus/palette"
 	"github.com/syspoe/cusus/playback"
@@ -26,16 +26,22 @@ type Manager struct {
 	settings *config.Store
 	mu       sync.Mutex
 	windows  map[string]*outputWindow
-	audio    *oto.Context
-	ready    <-chan struct{}
+	audio    *AudioSystem
 }
 
 func NewManager(engine *playback.Engine, settings *config.Store) *Manager {
-	context, ready, err := oto.NewContext(48000, 2, oto.FormatSignedInt16LE)
+	context, err := NewAudioSystem(settings)
 	if err != nil {
 		log.Printf("initialize audio output: %v", err)
 	}
-	return &Manager{engine: engine, settings: settings, windows: map[string]*outputWindow{}, audio: context, ready: ready}
+	return &Manager{engine: engine, settings: settings, windows: map[string]*outputWindow{}, audio: context}
+}
+
+func (m *Manager) AudioDevices() ([]AudioDevice, error) {
+	if m.audio == nil {
+		return nil, fmt.Errorf("audio output is unavailable")
+	}
+	return m.audio.Devices()
 }
 
 func (m *Manager) EnsureOutputs(outputIDs []string) {
@@ -270,7 +276,6 @@ func (o *outputWindow) start(instance *playback.Instance) {
 		*instance,
 		o.manager.settings,
 		o.manager.audio,
-		o.manager.ready,
 		o.window,
 		func(report string) { o.manager.engine.HandleOutputReport(instance.ID, report) },
 		func(durationMs int64) { o.manager.engine.HandleOutputDuration(instance.ID, durationMs) },

@@ -26,24 +26,22 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/paint"
 	"gioui.org/widget"
-	oto "github.com/hajimehoshi/oto/v2"
 	"github.com/syspoe/cusus/config"
 	"github.com/syspoe/cusus/playback"
 	"github.com/syspoe/cusus/show"
 )
 
 type Player struct {
-	instance playback.Instance
-	settings *config.Store
-	audioCtx *oto.Context
-	ready    <-chan struct{}
-	window   *app.Window
-	report   func(string)
-	duration func(int64)
+	instance    playback.Instance
+	settings    *config.Store
+	audioSystem *AudioSystem
+	window      *app.Window
+	report      func(string)
+	duration    func(int64)
 
 	mu           sync.RWMutex
 	frame        image.Image
-	audio        oto.Player
+	audio        *devicePlayer
 	videoCommand *exec.Cmd
 	audioCommand *exec.Cmd
 	position     time.Duration
@@ -52,12 +50,13 @@ type Player struct {
 	closed       bool
 	muted        bool
 	volumeDB     float64
+	volumeFadeID uint64
 	generation   int
 	started      time.Time
 }
 
-func NewPlayer(instance playback.Instance, settings *config.Store, audio *oto.Context, ready <-chan struct{}, window *app.Window, report func(string), duration func(int64)) *Player {
-	return &Player{instance: instance, settings: settings, audioCtx: audio, ready: ready, window: window, report: report, duration: duration, volumeDB: instance.LevelDB}
+func NewPlayer(instance playback.Instance, settings *config.Store, audio *AudioSystem, window *app.Window, report func(string), duration func(int64)) *Player {
+	return &Player{instance: instance, settings: settings, audioSystem: audio, window: window, report: report, duration: duration, volumeDB: instance.LevelDB}
 }
 
 func (p *Player) MediaType() string { return p.instance.MediaType }
@@ -224,15 +223,8 @@ func (p *Player) readFrames(command *exec.Cmd, reader io.Reader, width, height, 
 }
 
 func (p *Player) startAudio(position time.Duration, generation int) error {
-	if p.audioCtx == nil {
+	if p.audioSystem == nil {
 		return errors.New("audio output is unavailable")
-	}
-	if p.ready != nil {
-		select {
-		case <-p.ready:
-		case <-time.After(5 * time.Second):
-			return errors.New("audio output initialization timed out")
-		}
 	}
 	path, err := sourcePath(p.instance.Source)
 	if err != nil {
@@ -249,9 +241,12 @@ func (p *Player) startAudio(position time.Duration, generation int) error {
 	if err := command.Start(); err != nil {
 		return err
 	}
-	player := p.audioCtx.NewPlayer(stdout)
+	player, err := p.audioSystem.NewPlayer(stdout, p.instance.Preview)
+	if err != nil {
+		_ = command.Process.Kill()
+		return err
+	}
 	player.SetVolume(dbVolume(p.volumeDB, p.muted))
-	player.Play()
 	p.mu.Lock()
 	p.audioCommand, p.audio = command, player
 	p.mu.Unlock()
@@ -339,9 +334,11 @@ func (p *Player) setMuted(muted bool) {
 }
 
 func (p *Player) setVolume(target float64, duration time.Duration, curve show.FadeCurve) {
-	p.mu.RLock()
+	p.mu.Lock()
 	start := p.volumeDB
-	p.mu.RUnlock()
+	p.volumeFadeID++
+	fadeID := p.volumeFadeID
+	p.mu.Unlock()
 	if duration <= 0 {
 		p.applyVolume(target)
 		return
@@ -352,10 +349,10 @@ func (p *Player) setVolume(target float64, duration time.Duration, curve show.Fa
 		defer ticker.Stop()
 		for now := range ticker.C {
 			progress := min(1.0, float64(now.Sub(started))/float64(duration))
-			if curve == show.FadeCurveEqualPower {
-				progress = math.Sin(progress * math.Pi / 2)
+			volumeDB := fadeVolumeDB(start, target, progress, curve)
+			if !p.applyFadeVolume(volumeDB, fadeID) {
+				return
 			}
-			p.applyVolume(start + (target-start)*progress)
 			if progress >= 1 {
 				return
 			}
@@ -363,8 +360,48 @@ func (p *Player) setVolume(target float64, duration time.Duration, curve show.Fa
 	}()
 }
 
+func fadeVolumeDB(startDB, targetDB, progress float64, curve show.FadeCurve) float64 {
+	progress = min(1.0, max(0.0, progress))
+	if progress <= 0 {
+		return startDB
+	}
+	if progress >= 1 {
+		return targetDB
+	}
+
+	startGain, targetGain := dbVolume(startDB, false), dbVolume(targetDB, false)
+	if curve == show.FadeCurveEqualPower {
+		if targetGain < startGain {
+			progress = 1 - math.Cos(progress*math.Pi/2)
+		} else {
+			progress = math.Sin(progress * math.Pi / 2)
+		}
+	}
+	gain := startGain + (targetGain-startGain)*progress
+	if gain <= 0 {
+		return -80
+	}
+	return max(-80.0, 20*math.Log10(gain))
+}
+
+func (p *Player) applyFadeVolume(db float64, fadeID uint64) bool {
+	p.mu.Lock()
+	if p.closed || p.volumeFadeID != fadeID {
+		p.mu.Unlock()
+		return false
+	}
+	p.volumeDB = db
+	if p.audio != nil {
+		p.audio.SetVolume(dbVolume(db, p.muted))
+	}
+	p.mu.Unlock()
+	p.window.Invalidate()
+	return true
+}
+
 func (p *Player) applyVolume(db float64) {
 	p.mu.Lock()
+	p.volumeFadeID++
 	p.volumeDB = db
 	if p.audio != nil {
 		p.audio.SetVolume(dbVolume(db, p.muted))
@@ -411,6 +448,12 @@ func (p *Player) Close(report bool) {
 }
 
 func (p *Player) stopCommandsLocked() {
+	// Stop FFmpeg before uninitializing the device so a device callback blocked
+	// on the decoder pipe is released before the audio backend waits for it.
+	if p.audioCommand != nil && p.audioCommand.Process != nil {
+		_ = p.audioCommand.Process.Kill()
+		p.audioCommand = nil
+	}
 	if p.audio != nil {
 		_ = p.audio.Close()
 		p.audio = nil
@@ -418,10 +461,6 @@ func (p *Player) stopCommandsLocked() {
 	if p.videoCommand != nil && p.videoCommand.Process != nil {
 		_ = p.videoCommand.Process.Kill()
 		p.videoCommand = nil
-	}
-	if p.audioCommand != nil && p.audioCommand.Process != nil {
-		_ = p.audioCommand.Process.Kill()
-		p.audioCommand = nil
 	}
 }
 
