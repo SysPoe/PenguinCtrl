@@ -2,9 +2,6 @@ package project
 
 import (
 	"archive/zip"
-	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -105,13 +102,12 @@ func Save(dst io.Writer, current show.Show, ffmpegPath string) (Manifest, error)
 	sortStrings(keys)
 	for _, key := range keys {
 		pending := assets[key]
-		converted, err := transcode(ffmpegPath, pending.source, pending.asset.Kind)
+		converted, err := transcode(ffmpegPath, pending.source, pending.asset.Kind, pending.asset.SourceSHA256)
 		if err != nil {
 			return Manifest{}, fmt.Errorf("prepare %s %q: %w", pending.asset.Kind, pending.asset.Name, err)
 		}
 		info, err := os.Stat(converted)
 		if err != nil {
-			os.Remove(converted)
 			return Manifest{}, err
 		}
 		pending.asset.Size = info.Size()
@@ -124,7 +120,6 @@ func Save(dst io.Writer, current show.Show, ffmpegPath string) (Manifest, error)
 				input.Close()
 			}
 		}
-		os.Remove(converted)
 		if err != nil {
 			return Manifest{}, fmt.Errorf("bundle %q: %w", pending.asset.Name, err)
 		}
@@ -151,14 +146,11 @@ func Save(dst io.Writer, current show.Show, ffmpegPath string) (Manifest, error)
 // Load reads and extracts a .cusus file. Returned cue paths point at a stable
 // per-archive cache directory, ready for the playback engine.
 func Load(path string) (Manifest, []File, error) {
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return Manifest{}, nil, fmt.Errorf("read show: %w", err)
-	}
-	zr, err := zip.NewReader(bytes.NewReader(raw), int64(len(raw)))
+	zr, err := zip.OpenReader(path)
 	if err != nil {
 		return Manifest{}, nil, fmt.Errorf("open .cusus archive: %w", err)
 	}
+	defer zr.Close()
 	var manifest Manifest
 	for _, entry := range zr.File {
 		if entry.Name != "manifest.json" {
@@ -182,8 +174,11 @@ func Load(path string) (Manifest, []File, error) {
 	if err != nil {
 		return Manifest{}, nil, err
 	}
-	digest := sha256.Sum256(raw)
-	root := filepath.Join(cacheRoot, "CuSus", "shows", hex.EncodeToString(digest[:12]))
+	digest, err := HashFile(path)
+	if err != nil {
+		return Manifest{}, nil, err
+	}
+	root := filepath.Join(cacheRoot, "CuSus", "shows", digest[:24])
 	if err := os.MkdirAll(filepath.Join(root, "media"), 0o755); err != nil {
 		return Manifest{}, nil, err
 	}
@@ -240,28 +235,40 @@ func resolveLoadedPaths(loaded *show.Show, root string) {
 	}
 }
 
-func transcode(ffmpegPath, source, kind string) (string, error) {
+func transcode(ffmpegPath, source, kind, sourceHash string) (string, error) {
 	ext := map[string]string{"audio": ".opus", "video": ".webm", "image": ".webp"}[kind]
-	tmp, err := os.CreateTemp("", "cusus-media-*"+ext)
+	cacheRoot, err := os.UserCacheDir()
 	if err != nil {
 		return "", err
 	}
-	output := tmp.Name()
+	cacheDir := filepath.Join(cacheRoot, "CuSus", "transcoded")
+	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
+		return "", err
+	}
+	output := filepath.Join(cacheDir, sourceHash+"-"+kind+ext)
+	if info, err := os.Stat(output); err == nil && info.Size() > 0 {
+		return output, nil
+	}
+	tmp, err := os.CreateTemp(cacheDir, "cusus-media-*"+ext)
+	if err != nil {
+		return "", err
+	}
+	temporary := tmp.Name()
 	tmp.Close()
-	_ = os.Remove(output)
+	_ = os.Remove(temporary)
 
 	common := []string{"-hide_banner", "-loglevel", "error", "-y", "-i", source, "-map_metadata", "-1"}
 	var attempts [][]string
 	switch kind {
 	case "audio":
-		attempts = [][]string{{"-vn", "-c:a", "libopus", "-b:a", "128k", "-vbr", "on", "-compression_level", "10", output}}
+		attempts = [][]string{{"-vn", "-c:a", "libopus", "-b:a", "128k", "-vbr", "on", "-compression_level", "10", temporary}}
 	case "video":
 		attempts = [][]string{
-			{"-c:v", "libsvtav1", "-preset", "8", "-crf", "32", "-pix_fmt", "yuv420p10le", "-c:a", "libopus", "-b:a", "128k", output},
-			{"-c:v", "libvpx-vp9", "-crf", "31", "-b:v", "0", "-row-mt", "1", "-c:a", "libopus", "-b:a", "128k", output},
+			{"-c:v", "libsvtav1", "-preset", "8", "-crf", "32", "-pix_fmt", "yuv420p10le", "-c:a", "libopus", "-b:a", "128k", temporary},
+			{"-c:v", "libvpx-vp9", "-crf", "31", "-b:v", "0", "-row-mt", "1", "-c:a", "libopus", "-b:a", "128k", temporary},
 		}
 	case "image":
-		attempts = [][]string{{"-c:v", "libwebp", "-quality", "86", "-compression_level", "6", output}}
+		attempts = [][]string{{"-c:v", "libwebp", "-quality", "86", "-compression_level", "6", temporary}}
 	default:
 		return "", fmt.Errorf("unknown media kind %q", kind)
 	}
@@ -269,9 +276,13 @@ func transcode(ffmpegPath, source, kind string) (string, error) {
 	for _, args := range attempts {
 		lastOutput, err = exec.Command(ffmpegPath, append(common, args...)...).CombinedOutput()
 		if err == nil {
+			if err := os.Rename(temporary, output); err != nil {
+				_ = os.Remove(temporary)
+				return "", err
+			}
 			return output, nil
 		}
-		_ = os.Remove(output)
+		_ = os.Remove(temporary)
 	}
 	return "", fmt.Errorf("ffmpeg conversion failed: %v: %s", err, strings.TrimSpace(string(lastOutput)))
 }

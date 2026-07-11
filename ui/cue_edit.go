@@ -43,7 +43,8 @@ type CueEditUI struct {
 	btnCancel widget.Clickable
 	btnSave   widget.Clickable
 
-	activeTab int
+	activeTab       int
+	focusFirstInput bool
 
 	modalTag struct{}
 	page     cueEditPageState
@@ -210,31 +211,70 @@ func (ctx *CueEditUI) stopTimecodePreview() {
 	ctx.timeline.previewing = false
 }
 
-func cueEditorShortcuts(gtx layout.Context) (save, preview bool) {
+func cueEditorShortcuts(gtx layout.Context) (save, preview bool, tabOffset int) {
 	for {
 		event, ok := gtx.Event(
 			key.Filter{Name: key.NameEscape},
 			key.Filter{Name: "S", Required: key.ModShortcut},
 			key.Filter{Name: key.NameSpace},
+			key.Filter{Name: key.NameLeftArrow, Required: key.ModShortcut},
+			key.Filter{Name: key.NameRightArrow, Required: key.ModShortcut},
 		)
 		if !ok {
-			return save, preview
+			return save, preview, tabOffset
 		}
 		if event, ok := event.(key.Event); ok && event.State == key.Press {
-			if event.Name == key.NameSpace {
+			switch event.Name {
+			case key.NameSpace:
 				preview = true
-			} else {
+			case key.NameLeftArrow:
+				tabOffset--
+			case key.NameRightArrow:
+				tabOffset++
+			default:
 				save = true
 			}
 		}
 	}
 }
 
+func (ctx *CueEditUI) moveTab(offset int) {
+	if offset == 0 {
+		return
+	}
+	tabs := []int{tabGeneral, tabTiming, tabLink}
+	switch ctx.cType {
+	case show.CueTypeImage, show.CueTypeVideo, show.CueTypeSound:
+		tabs = append(tabs, tabMedia, tabTimecode)
+	case show.CueTypeRemote:
+		tabs = append(tabs, tabRemote)
+	case show.CueTypeWait:
+		tabs = append(tabs, tabWait)
+	case show.CueTypeMediaControl:
+		tabs = append(tabs, tabMediaCtrl)
+	case show.CueTypeOutputControl:
+		tabs = append(tabs, tabOutputCtrl)
+	}
+	for i, tab := range tabs {
+		if tab == ctx.activeTab {
+			next := (i + offset) % len(tabs)
+			if next < 0 {
+				next += len(tabs)
+			}
+			ctx.activeTab = tabs[next]
+			ctx.focusFirstInput = true
+			return
+		}
+	}
+	ctx.activeTab = tabs[0]
+}
+
 func (ctx *CueEditUI) Layout(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.Dimensions {
 	if !ctx.show {
 		return layout.Dimensions{}
 	}
-	saveShortcut, previewShortcut := cueEditorShortcuts(gtx)
+	saveShortcut, previewShortcut, tabOffset := cueEditorShortcuts(gtx)
+	ctx.moveTab(tabOffset)
 	if previewShortcut && ctx.activeTab == tabTimecode && ctx.cue.Play.Sound != nil {
 		ctx.toggleTimecodePreview()
 	}

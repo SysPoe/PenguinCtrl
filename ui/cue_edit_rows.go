@@ -59,6 +59,9 @@ func (ctx *CueEditUI) fileRow(th *material.Theme, label, kind string, field *inp
 							gtx = gtx.Disabled()
 						}
 						return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							width := gtx.Dp(unit.Dp(140))
+							gtx.Constraints.Min.X = width
+							gtx.Constraints.Max.X = width
 							return layoutCenteredButton(th, gtx, browse, "Add file…", th.ContrastBg)
 						})
 					}),

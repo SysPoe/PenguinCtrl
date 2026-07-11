@@ -15,6 +15,10 @@ import (
 
 func (ctx *CueEditUI) drawBody(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.FlexChild {
 	ctx.ensurePageInputs()
+	if ctx.focusFirstInput {
+		ctx.focusActiveTab()
+		ctx.focusFirstInput = false
+	}
 
 	switch ctx.activeTab {
 	case tabGeneral:
@@ -39,6 +43,34 @@ func (ctx *CueEditUI) drawBody(th *material.Theme, gtx layout.Context, manager *
 	return layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 		return layout.Dimensions{}
 	})
+}
+
+func (ctx *CueEditUI) focusActiveTab() {
+	switch ctx.activeTab {
+	case tabGeneral:
+		ctx.page.text["cueNumber"].Focus()
+	case tabTiming:
+		ctx.page.integer["preWaitMs"].Focus()
+	case tabLink:
+		ctx.page.dropdown["linkMode"].Focus()
+	case tabMedia:
+		switch ctx.cType {
+		case show.CueTypeSound:
+			ctx.page.text["soundFile"].Focus()
+		case show.CueTypeVideo:
+			ctx.page.text["videoFile"].Focus()
+		case show.CueTypeImage:
+			ctx.page.text["imageFile"].Focus()
+		}
+	case tabRemote:
+		ctx.page.dropdown["remoteProtocol"].Focus()
+	case tabWait:
+		ctx.page.dropdown["waitKind"].Focus()
+	case tabMediaCtrl:
+		ctx.page.dropdown["mediaCtrlAction"].Focus()
+	case tabOutputCtrl:
+		ctx.page.dropdown["outputCtrlAction"].Focus()
+	}
 }
 
 type cueEditFormRow struct {

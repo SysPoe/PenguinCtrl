@@ -1,10 +1,18 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"image"
+	"io"
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
 
 	"gioui.org/app"
 	"gioui.org/font"
@@ -21,6 +29,7 @@ import (
 	"github.com/syspoe/cusus/media"
 	"github.com/syspoe/cusus/palette"
 	"github.com/syspoe/cusus/playback"
+	"github.com/syspoe/cusus/project"
 	"github.com/syspoe/cusus/show"
 	"github.com/syspoe/cusus/ui"
 )
@@ -33,6 +42,7 @@ var settingsStore *config.Store
 var playbackEngine *playback.Engine
 var mediaManager *media.Manager
 var settingsPage *ui.SettingsPage
+var projectLibrary = project.NewLibrary()
 var showSettings bool
 
 func main() {
@@ -89,15 +99,7 @@ func newTheme() *material.Theme {
 }
 
 func handleCueListShortcuts(gtx layout.Context) {
-	if showSettings || tbCtx.CueEditorOpen() {
-		return
-	}
-	if tbCtx.DeleteConfirmationOpen() {
-		tbCtx.HandleDeleteConfirmationKeys(gtx, manager)
-		return
-	}
-
-	if topBar.AddCueMenuOpen() || topBar.ActionMenuOpen() {
+	if topBar.AddCueMenuOpen() || topBar.ActionMenuOpen() || topBar.FileMenuOpen() {
 		for {
 			event, ok := gtx.Event(key.Filter{Name: key.NameEscape})
 			if !ok {
@@ -108,6 +110,13 @@ func handleCueListShortcuts(gtx layout.Context) {
 				return
 			}
 		}
+	}
+	if showSettings || tbCtx.CueEditorOpen() {
+		return
+	}
+	if tbCtx.DeleteConfirmationOpen() {
+		tbCtx.HandleDeleteConfirmationKeys(gtx, manager)
+		return
 	}
 	if tbCtx.MoveCueActive() {
 		for {
@@ -220,6 +229,12 @@ func run(window *app.Window) error {
 	th := newTheme()
 	expl := explorer.NewExplorer(window)
 	uiActions := make(chan func(), 16)
+	autosaveRequests := make(chan struct{}, 1)
+	var documentMu sync.RWMutex
+	var saveMu sync.Mutex
+	var currentShowPath string
+	var lastSavedDigest [sha256.Size]byte
+	var suppressAutosave bool
 	tbCtx.LoadWaveform = func(source string, completed func([]float32, int, int64, error)) {
 		go func() {
 			wave, err := media.ExtractWaveform(settingsStore.Snapshot().FFmpegPath, source)
@@ -235,9 +250,26 @@ func run(window *app.Window) error {
 		window.Invalidate()
 		playbackEngine.RefreshDurations()
 		mediaManager.SyncOutputs(playbackEngine.OutputIDs())
+		documentMu.RLock()
+		shouldAutosave := currentShowPath != "" && !suppressAutosave
+		documentMu.RUnlock()
+		if shouldAutosave {
+			select {
+			case autosaveRequests <- struct{}{}:
+			default:
+			}
+		}
 	})
 
-	tbCtx.PickFile = func(extensions []string, selected func(path string)) {
+	tbCtx.ProjectFiles = func(kind string) []ui.ProjectFile {
+		files := projectLibrary.Files(kind)
+		result := make([]ui.ProjectFile, len(files))
+		for i, file := range files {
+			result[i] = ui.ProjectFile{Name: file.Name, Path: file.Source}
+		}
+		return result
+	}
+	tbCtx.PickFile = func(kind string, extensions []string, selected func(path string)) {
 		go func() {
 			file, err := expl.ChooseFile(extensions...)
 			if err != nil {
@@ -258,11 +290,184 @@ func run(window *app.Window) error {
 			if path == "" || selected == nil {
 				return
 			}
+			entry, duplicate, err := projectLibrary.Add(path, kind)
+			if err != nil {
+				uiActions <- func() { topBar.SetStatus("Could not add file: " + err.Error()) }
+				window.Invalidate()
+				return
+			}
 
-			uiActions <- func() { selected(path) }
+			uiActions <- func() {
+				selected(entry.Source)
+				if duplicate {
+					topBar.SetStatus("Duplicate detected · using existing " + entry.Name)
+				} else {
+					topBar.SetStatus("Added " + entry.Name)
+				}
+			}
 			window.Invalidate()
 		}()
 	}
+
+	loadShow := func() {
+		go func() {
+			file, err := expl.ChooseFile(".cusus")
+			if err != nil {
+				if !errors.Is(err, explorer.ErrUserDecline) {
+					uiActions <- func() { topBar.SetStatus("Open failed: " + err.Error()) }
+					window.Invalidate()
+				}
+				return
+			}
+			defer file.Close()
+			loadedPath := explorerPath(file)
+			tmp, err := os.CreateTemp("", "cusus-open-*.cusus")
+			if err == nil {
+				_, err = io.Copy(tmp, file)
+			}
+			if tmp != nil {
+				tmp.Close()
+				defer os.Remove(tmp.Name())
+			}
+			if err != nil {
+				uiActions <- func() { topBar.SetStatus("Open failed: " + err.Error()) }
+				window.Invalidate()
+				return
+			}
+			manifest, files, err := project.Load(tmp.Name())
+			if err != nil {
+				uiActions <- func() { topBar.SetStatus("Open failed: " + err.Error()) }
+				window.Invalidate()
+				return
+			}
+			uiActions <- func() {
+				playbackEngine.StopAll()
+				projectLibrary.Replace(files)
+				documentMu.Lock()
+				suppressAutosave = true
+				documentMu.Unlock()
+				manager.ReplaceShow(manifest.Show)
+				documentMu.Lock()
+				currentShowPath = loadedPath
+				lastSavedDigest = showDigest(manifest.Show)
+				suppressAutosave = false
+				documentMu.Unlock()
+				topBar.SetStatus("Loaded " + documentName(loadedPath) + " · autosave on")
+			}
+			window.Invalidate()
+		}()
+	}
+
+	var saveAsShow func()
+	var saveShow func()
+
+	saveAsShow = func() {
+		go func() {
+			file, err := expl.CreateFile("show.cusus")
+			if err != nil {
+				if !errors.Is(err, explorer.ErrUserDecline) {
+					uiActions <- func() { topBar.SetStatus("Save failed: " + err.Error()) }
+					window.Invalidate()
+				}
+				return
+			}
+			path := explorerPath(file)
+			uiActions <- func() { topBar.SetStatus("Saving and optimizing bundled media…") }
+			window.Invalidate()
+			snapshot := manager.ShowSnapshot()
+			saveMu.Lock()
+			manifest, err := project.Save(file, snapshot, settingsStore.Snapshot().FFmpegPath)
+			closeErr := file.Close()
+			saveMu.Unlock()
+			if err == nil {
+				err = closeErr
+			}
+			if err != nil {
+				uiActions <- func() { topBar.SetStatus("Save failed: " + err.Error()) }
+				window.Invalidate()
+				return
+			}
+			documentMu.Lock()
+			currentShowPath = path
+			lastSavedDigest = showDigest(snapshot)
+			documentMu.Unlock()
+			uiActions <- func() {
+				topBar.SetStatus("Saved " + documentName(path) + " · autosave on · " + formatFileCount(len(manifest.Assets)))
+			}
+			window.Invalidate()
+		}()
+	}
+
+	saveShow = func() {
+		documentMu.RLock()
+		path := currentShowPath
+		documentMu.RUnlock()
+		if path == "" {
+			saveAsShow()
+			return
+		}
+		go func() {
+			snapshot := manager.ShowSnapshot()
+			uiActions <- func() { topBar.SetStatus("Saving " + documentName(path) + "…") }
+			window.Invalidate()
+			saveMu.Lock()
+			manifest, err := saveShowAtPath(path, snapshot, settingsStore.Snapshot().FFmpegPath)
+			saveMu.Unlock()
+			if err != nil {
+				uiActions <- func() { topBar.SetStatus("Save failed: " + err.Error()) }
+				window.Invalidate()
+				return
+			}
+			documentMu.Lock()
+			lastSavedDigest = showDigest(snapshot)
+			documentMu.Unlock()
+			uiActions <- func() {
+				topBar.SetStatus("Saved " + documentName(path) + " · autosave on · " + formatFileCount(len(manifest.Assets)))
+			}
+			window.Invalidate()
+		}()
+	}
+
+	go func() {
+		for range autosaveRequests {
+			timer := time.NewTimer(1200 * time.Millisecond)
+		debounce:
+			for {
+				select {
+				case <-autosaveRequests:
+					if !timer.Stop() {
+						select {
+						case <-timer.C:
+						default:
+						}
+					}
+					timer.Reset(1200 * time.Millisecond)
+				case <-timer.C:
+					break debounce
+				}
+			}
+			snapshot := manager.ShowSnapshot()
+			digest := showDigest(snapshot)
+			documentMu.RLock()
+			path, alreadySaved := currentShowPath, digest == lastSavedDigest
+			documentMu.RUnlock()
+			if path == "" || alreadySaved {
+				continue
+			}
+			saveMu.Lock()
+			_, err := saveShowAtPath(path, snapshot, settingsStore.Snapshot().FFmpegPath)
+			saveMu.Unlock()
+			if err != nil {
+				uiActions <- func() { topBar.SetStatus("Autosave failed: " + err.Error()) }
+			} else {
+				documentMu.Lock()
+				lastSavedDigest = digest
+				documentMu.Unlock()
+				uiActions <- func() { topBar.SetStatus("Autosaved " + documentName(path)) }
+			}
+			window.Invalidate()
+		}
+	}()
 
 	for {
 		e := window.Event()
@@ -288,6 +493,29 @@ func run(window *app.Window) error {
 
 		case app.FrameEvent:
 			gtx := app.NewContext(&ops, e)
+			if topBar.TakeNewRequest() {
+				playbackEngine.StopAll()
+				projectLibrary.Replace(nil)
+				documentMu.Lock()
+				suppressAutosave = true
+				documentMu.Unlock()
+				manager.ReplaceShow(show.Show{})
+				documentMu.Lock()
+				currentShowPath = ""
+				lastSavedDigest = showDigest(show.Show{})
+				suppressAutosave = false
+				documentMu.Unlock()
+				topBar.SetStatus("New untitled show · choose Save to start autosave")
+			}
+			if topBar.TakeLoadRequest() {
+				loadShow()
+			}
+			if topBar.TakeSaveRequest() {
+				saveShow()
+			}
+			if topBar.TakeSaveAsRequest() {
+				saveAsShow()
+			}
 			handleCueListShortcuts(gtx)
 
 			paint.Fill(gtx.Ops, th.Bg)
@@ -336,6 +564,9 @@ func run(window *app.Window) error {
 					return tbCtx.Layout(th, gtx, manager)
 				}),
 				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+					return topBar.LayoutFileMenu(th, gtx)
+				}),
+				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 					if windowFocused {
 						return layout.Dimensions{}
 					}
@@ -349,4 +580,80 @@ func run(window *app.Window) error {
 			e.Frame(gtx.Ops)
 		}
 	}
+}
+
+func formatFileCount(count int) string {
+	if count == 1 {
+		return "1 media file"
+	}
+	return fmt.Sprintf("%d media files", count)
+}
+
+func explorerPath(file any) string {
+	var source string
+	switch file := file.(type) {
+	case *explorer.File:
+		source = file.URI()
+	case *os.File:
+		source = file.Name()
+	}
+	path, err := project.LocalPath(source)
+	if err != nil {
+		return ""
+	}
+	return path
+}
+
+func documentName(path string) string {
+	if strings.TrimSpace(path) == "" {
+		return "show.cusus"
+	}
+	return filepath.Base(path)
+}
+
+func showDigest(current show.Show) [sha256.Size]byte {
+	raw, _ := json.Marshal(current)
+	return sha256.Sum256(raw)
+}
+
+func saveShowAtPath(path string, current show.Show, ffmpegPath string) (project.Manifest, error) {
+	if strings.TrimSpace(path) == "" {
+		return project.Manifest{}, errors.New("show has no file path; use Save As")
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return project.Manifest{}, err
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".cusus-save-*")
+	if err != nil {
+		return project.Manifest{}, err
+	}
+	tmpPath := tmp.Name()
+	defer os.Remove(tmpPath)
+	manifest, err := project.Save(tmp, current, ffmpegPath)
+	if err == nil {
+		err = tmp.Sync()
+	}
+	if closeErr := tmp.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return project.Manifest{}, err
+	}
+	if err := os.Rename(tmpPath, path); err == nil {
+		return manifest, nil
+	}
+
+	// Windows does not consistently replace an existing file with Rename.
+	// Keep the old document as a short-lived backup until the new one lands.
+	backup := path + ".autosave-backup"
+	_ = os.Remove(backup)
+	if err := os.Rename(path, backup); err != nil {
+		return project.Manifest{}, fmt.Errorf("replace show file: %w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Rename(backup, path)
+		return project.Manifest{}, fmt.Errorf("replace show file: %w", err)
+	}
+	_ = os.Remove(backup)
+	return manifest, nil
 }

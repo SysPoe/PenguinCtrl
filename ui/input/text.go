@@ -14,6 +14,7 @@ type Text struct {
 	Value string
 
 	editor widget.Editor
+	focus  bool
 
 	eventListeners []func(value string)
 }
@@ -34,6 +35,12 @@ func (t *Text) AddEventListener(listener func(value string)) {
 	t.eventListeners = append(t.eventListeners, listener)
 }
 
+// Focus selects the field contents and requests keyboard focus.
+func (t *Text) Focus() {
+	t.editor.SetCaret(0, t.editor.Len())
+	t.focus = true
+}
+
 func (t *Text) notifyEventListeners() {
 	for _, listener := range t.eventListeners {
 		listener(t.Value)
@@ -51,6 +58,10 @@ func (t *Text) Layout(th *material.Theme, gtx layout.Context) layout.Dimensions 
 	dims := editorField(th, gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(8)).Layout(gtx, editor.Layout)
 	})
+	if t.focus {
+		gtx.Execute(key.FocusCmd{Tag: &t.editor})
+		t.focus = false
+	}
 
 	if value := t.editor.Text(); value != previous {
 		t.Value = value

@@ -3,6 +3,7 @@ package input
 import (
 	"image/color"
 
+	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/text"
 	"gioui.org/unit"
@@ -17,9 +18,14 @@ type Dropdown struct {
 	expanded bool
 
 	expandedBtn widget.Clickable
+	focus       bool
 	choicesBtns []widget.Clickable
 
 	eventListeners []func(selectedIndex int, selectedValue DropdownItem)
+}
+
+func (d *Dropdown) Focus() {
+	d.focus = true
 }
 
 type DropdownItem struct {
@@ -96,9 +102,14 @@ func (d *Dropdown) Layout(th *material.Theme, gtx layout.Context) layout.Dimensi
 		}
 	}
 
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+	dims := layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		subs...,
 	)
+	if d.focus {
+		gtx.Execute(key.FocusCmd{Tag: &d.expandedBtn})
+		d.focus = false
+	}
+	return dims
 }
 
 func fixedWidthBtnWithColor(th *material.Theme, wid *widget.Clickable, txt string, width unit.Dp, bgColor color.NRGBA) layout.FlexChild {

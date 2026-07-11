@@ -56,6 +56,7 @@ func (ctx *TBContext) openCueEditor(cue show.Cue, isNew bool) {
 	ctx.cueEditUI.cue = cue
 	ctx.cueEditUI.cType = cue.Type
 	ctx.cueEditUI.activeTab = tabGeneral
+	ctx.cueEditUI.focusFirstInput = true
 	ctx.cueEditUI.page = cueEditPageState{}
 	ctx.cueEditUI.timeline.reset()
 	ctx.cueEditUI.isNew = isNew

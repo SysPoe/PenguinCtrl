@@ -19,8 +19,14 @@ type Integer struct {
 	text     string
 	optional bool
 	empty    bool
+	focus    bool
 
 	eventListeners []func(value int)
+}
+
+func (i *Integer) Focus() {
+	i.editor.SetCaret(0, i.editor.Len())
+	i.focus = true
 }
 
 func NewInteger(label string, value int) *Integer {
@@ -78,6 +84,10 @@ func (i *Integer) Layout(th *material.Theme, gtx layout.Context) layout.Dimensio
 	dims := editorField(th, gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(8)).Layout(gtx, editor.Layout)
 	})
+	if i.focus {
+		gtx.Execute(key.FocusCmd{Tag: &i.editor})
+		i.focus = false
+	}
 
 	if text := i.editor.Text(); text != previous {
 		i.applyText(text)
