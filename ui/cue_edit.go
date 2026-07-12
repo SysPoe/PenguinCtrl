@@ -2,6 +2,7 @@ package ui
 
 import (
 	"image"
+	"strings"
 
 	"gioui.org/io/event"
 	"gioui.org/io/key"
@@ -24,11 +25,12 @@ type CueEditUI struct {
 	show  bool
 	isNew bool
 
-	pickFile      func(kind string, extensions []string, selected func(path string))
-	projectFiles  func(kind string) []ProjectFile
-	loadWaveform  func(source string, completed func(samples []float32, sampleRate int, durationMs int64, err error))
-	togglePreview func(cue show.Cue) (bool, error)
-	stopPreview   func()
+	pickFile       func(kind string, extensions []string, selected func(path string))
+	projectFiles   func(kind string) []ProjectFile
+	loadWaveform   func(source string, completed func(samples []float32, sampleRate int, durationMs int64, err error))
+	togglePreview  func(cue show.Cue) (bool, error)
+	stopPreview    func()
+	problemsForCue func(show.Cue) []show.CueProblem
 
 	btnTabGeneral    widget.Clickable
 	btnTabTiming     widget.Clickable
@@ -171,6 +173,7 @@ func (ctx *CueEditUI) drawBottomBar(th *material.Theme, gtx layout.Context, mana
 
 		if ctx.btnSave.Clicked(gtx) || saveShortcut {
 			ctx.stopTimecodePreview()
+			show.RepairCueData(&ctx.cue)
 			if markers := cueTimecodeMarkers(&ctx.cue); markers != nil {
 				sortTimecodeMarkers(markers)
 			}
@@ -190,6 +193,55 @@ func (ctx *CueEditUI) drawBottomBar(th *material.Theme, gtx layout.Context, mana
 		}.Layout(gtx,
 			makeFlexedBtnWithColor(th, &ctx.btnCancel, "Cancel", palette.Danger, 1),
 			makeFlexedBtnWithColor(th, &ctx.btnSave, "Save", palette.Success, 1),
+		)
+	})
+}
+
+func (ctx *CueEditUI) drawProblemBar(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.FlexChild {
+	problems := show.CueProblems(ctx.cue, manager.Snapshot())
+	if ctx.problemsForCue != nil {
+		problems = ctx.problemsForCue(ctx.cue)
+	}
+	actionable := make([]show.CueProblem, 0, len(problems))
+	for _, problem := range problems {
+		if problem.Severity != show.ProblemState {
+			actionable = append(actionable, problem)
+		}
+	}
+	if len(actionable) == 0 {
+		return layout.Rigid(func(layout.Context) layout.Dimensions { return layout.Dimensions{} })
+	}
+	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		accent := palette.Primary
+		for _, problem := range actionable {
+			if problem.Severity == show.ProblemBlocker {
+				accent = palette.Danger
+				break
+			}
+			if problem.Severity == show.ProblemCaution {
+				accent = palette.Warning
+			}
+		}
+		lines := make([]string, 0, len(actionable))
+		for _, problem := range actionable {
+			line := problem.Severity.Label() + " · " + problem.Message
+			if problem.Fix != "" {
+				line += " — " + problem.Fix
+			}
+			lines = append(lines, line)
+		}
+		return layout.Background{}.Layout(gtx,
+			func(gtx layout.Context) layout.Dimensions {
+				paint.FillShape(gtx.Ops, palette.SurfaceSunken, clip.Rect{Max: gtx.Constraints.Min}.Op())
+				return layout.Dimensions{Size: gtx.Constraints.Min}
+			},
+			func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Left: unit.Dp(14), Right: unit.Dp(14), Top: unit.Dp(8), Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					label := material.Body2(th, strings.Join(lines, "\n"))
+					label.Color = accent
+					return label.Layout(gtx)
+				})
+			},
 		)
 	})
 }
@@ -335,6 +387,7 @@ func (ctx *CueEditUI) Layout(th *material.Theme, gtx layout.Context, manager *sh
 		Axis: layout.Vertical,
 	}.Layout(gtx,
 		ctx.drawTopBar(th, gtx),
+		ctx.drawProblemBar(th, gtx, manager),
 		ctx.drawBody(th, gtx, manager),
 		ctx.drawBottomBar(th, gtx, manager, saveShortcut),
 	)

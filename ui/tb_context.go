@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"image"
+	"strings"
 
 	"gioui.org/io/event"
 	"gioui.org/io/key"
@@ -22,11 +23,12 @@ import (
 type TBContext struct {
 	TopBar *TopBar
 
-	PickFile      func(kind string, extensions []string, selected func(path string))
-	ProjectFiles  func(kind string) []ProjectFile
-	LoadWaveform  func(source string, completed func(samples []float32, sampleRate int, durationMs int64, err error))
-	TogglePreview func(cue show.Cue) (bool, error)
-	StopPreview   func()
+	PickFile       func(kind string, extensions []string, selected func(path string))
+	ProjectFiles   func(kind string) []ProjectFile
+	LoadWaveform   func(source string, completed func(samples []float32, sampleRate int, durationMs int64, err error))
+	TogglePreview  func(cue show.Cue) (bool, error)
+	StopPreview    func()
+	ProblemsForCue func(show.Cue) []show.CueProblem
 
 	btnCueTypeSound         widget.Clickable
 	btnCueTypeVideo         widget.Clickable
@@ -79,6 +81,32 @@ func (ctx *TBContext) EditSelectedCue(manager *show.ShowManager) bool {
 		return false
 	}
 	ctx.openCueEditor(cue, false)
+	return true
+}
+
+func (ctx *TBContext) EditSelectedCueAt(manager *show.ShowManager, field string) bool {
+	if !ctx.EditSelectedCue(manager) {
+		return false
+	}
+	switch {
+	case strings.HasPrefix(field, "media"):
+		ctx.cueEditUI.activeTab = tabMedia
+	case strings.HasPrefix(field, "timecode"):
+		ctx.cueEditUI.activeTab = tabTimecode
+	case strings.HasPrefix(field, "remote"):
+		ctx.cueEditUI.activeTab = tabRemote
+	case strings.HasPrefix(field, "wait"):
+		ctx.cueEditUI.activeTab = tabWait
+	case strings.HasPrefix(field, "link"):
+		ctx.cueEditUI.activeTab = tabLink
+	case strings.HasPrefix(field, "output"):
+		ctx.cueEditUI.activeTab = tabOutputCtrl
+	case strings.Contains(field, "timing"), strings.Contains(field, "fade"):
+		ctx.cueEditUI.activeTab = tabTiming
+	default:
+		ctx.cueEditUI.activeTab = tabGeneral
+	}
+	ctx.cueEditUI.focusFirstInput = true
 	return true
 }
 
@@ -307,6 +335,7 @@ func (ctx *TBContext) Layout(th *material.Theme, gtx layout.Context, manager *sh
 	ctx.cueEditUI.loadWaveform = ctx.LoadWaveform
 	ctx.cueEditUI.togglePreview = ctx.TogglePreview
 	ctx.cueEditUI.stopPreview = ctx.StopPreview
+	ctx.cueEditUI.problemsForCue = ctx.ProblemsForCue
 	ctx.handleButtonClicks(gtx, manager)
 
 	if ctx.TopBar.showAddCue {

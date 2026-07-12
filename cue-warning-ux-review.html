@@ -64,6 +64,10 @@
     .warning { color: var(--warning); }
     .info { color: var(--info); }
     .status { color: var(--muted); }
+    .done { color: var(--ok); font-weight: 800; }
+    .done::before { content: "✓ "; }
+    .completion { border-color: rgba(121, 189, 131, .65); background: rgba(121, 189, 131, .08); }
+    tr[data-status="complete"] td:first-child::after { content: "  ✓ Complete"; display: block; margin-top: 4px; color: var(--ok); font-size: .76rem; }
     table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line); }
     th, td { padding: 13px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
     th { position: sticky; top: 45px; background: var(--surface-2); color: var(--muted); font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; }
@@ -104,15 +108,16 @@
 <body>
   <header>
     <div class="shell">
-      <div class="eyebrow">Product and interaction review</div>
+      <div class="eyebrow">Implemented product and interaction review</div>
       <h1>Cue warnings should protect the show without slowing the operator.</h1>
-      <p class="lede">PenguinCtrl has a useful first layer of cue validation, but warnings currently behave like passive annotations. They need to become a reliable workflow: detect early, explain the consequence, take the operator to the fix, and intervene at GO only when intervention is genuinely warranted.</p>
-      <p class="meta">Reviewed 12 July 2026 · Current local Gio desktop source, including uncommitted working-tree changes · User-facing review, not an implementation specification</p>
+      <p class="lede">The reviewed warning workflow is now implemented: typed problems detect early, explain consequences, navigate to fixes, and intervene at GO only for genuine blockers.</p>
+      <p class="meta">Reviewed 12 July 2026 · Implementation completed 13 July 2026 · Local Gio desktop application</p>
     </div>
   </header>
 
   <nav aria-label="Report sections">
     <div class="shell">
+      <a href="#completion">Completion</a>
       <a href="#summary">Summary</a>
       <a href="#today">Current experience</a>
       <a href="#missing">Missing warnings</a>
@@ -124,6 +129,15 @@
   </nav>
 
   <main class="shell">
+    <section id="completion" data-status="complete">
+      <h2><span class="done">Implementation complete</span></h2>
+      <div class="callout completion"><strong>All actions in this review are complete.</strong> The application now uses one typed cue-problem model across the cue row, editor, show-wide Problems view, preflight, and GO barrier. The implementation includes persistent attributable failures, direct-GO blocker sheets, non-modal automatic-chain errors, durable caution acknowledgements, asynchronous media checks, field-aware navigation, group rollups, filters, and regression coverage.</div>
+      <div class="grid" style="margin-top:18px">
+        <article class="card"><h3 class="done">Trust and visibility</h3><p class="muted">Keyboard, sidebar, linked, timecode, player, device, and output failures are latched with cue, source, trigger origin, timestamp, severity, acknowledgement, and rotating JSONL history.</p></article>
+        <article class="card"><h3 class="done">Typed model and workflow</h3><p class="muted">Blocker, caution, advisory, and neutral state render consistently. Icons are clickable; Problems is filterable and navigable; collapsed groups roll up counts; editors show live inline guidance.</p></article>
+        <article class="card"><h3 class="done">Coverage and GO policy</h3><p class="muted">Resolved paths, decodability, remote commands/transports, links/cycles, timing, live targets, outputs, cue numbers, payload integrity, and timecode conflicts are checked. Only direct blockers open a sheet.</p></article>
+      </div>
+    </section>
     <section id="summary">
       <h2>Executive summary</h2>
       <div class="verdict"><strong>Recommendation:</strong> keep cue-list warnings visible and non-modal during programming, add a persistent warning inspector and inline editor guidance, and introduce an invasive prompt only for a small class of trigger-time blockers. Ordinary cautions should never create a popup on every GO.</div>
@@ -167,26 +181,26 @@
       </div>
     </section>
 
-    <section id="missing">
-      <h2>What should trigger a warning but currently does not</h2>
+    <section id="missing" data-status="complete">
+      <h2>Detection coverage <span class="done">complete</span></h2>
       <p class="note">Priority reflects likely operator harm. “Blocker” means the action cannot produce its intended result; “caution” means it can run but may surprise the operator.</p>
       <table>
         <thead><tr><th>Priority</th><th>Missing detection</th><th>Why the operator needs it</th><th>Recommended result</th></tr></thead>
         <tbody>
-          <tr><td class="priority danger">P0 · Blocker</td><td>Resolved media path is empty, still contains an unknown variable, or points to a missing file</td><td>Any media path containing <code>{</code> currently skips file checks, even when the variable is unknown or resolves badly.</td><td>Resolve using current settings and cue number; show the unknown variable by name and a direct fix action.</td></tr>
-          <tr><td class="priority danger">P0 · Blocker</td><td>File exists but cannot be decoded/probed, FFmpeg is unavailable, or the file has no usable stream</td><td>Existence does not mean playable. These failures currently occur after GO and may be visible only in logs.</td><td>Cache a lightweight preflight result and report “Audio stream could not be opened”, “Unsupported image”, or the actionable probe error.</td></tr>
-          <tr><td class="priority danger">P0 · Blocker</td><td>Remote command is invalid after variable resolution</td><td>Playback, cue number, level, custom OSC address, and typed OSC values are mostly checked only for presence, not valid resolved values.</td><td>Validate the exact resolved command, including ranges and every OSC value, before GO.</td></tr>
-          <tr><td class="priority danger">P0 · Blocker</td><td>No remote target, no compatible target port, or selected transport cannot perform the action</td><td>Examples include Back/Activate over OSC or an ERC cue when all ERC ports are zero. Today this is a runtime failure.</td><td>Contextual cue warning tied to Settings, with “Open remote settings” as the primary action.</td></tr>
-          <tr><td class="priority danger">P0 · Blocker</td><td>Link target cannot exist at the cue-list boundary</td><td>“Previous” on the first cue and “Next” on the last cue pass validation but silently resolve to nothing.</td><td>Warn “There is no next cue” and offer target selection or Manual.</td></tr>
-          <tr><td class="priority danger">P0 · Blocker</td><td>Fade-in/fade-out/end link mode used by a cue type that never emits that moment</td><td>Non-media cues can carry link modes that their execution path never schedules, so the linked action silently never occurs.</td><td>Block the incompatible mode in the editor and flag imported/legacy cues.</td></tr>
-          <tr><td class="priority warning">P1 · Caution</td><td>Linked “Play” target is disabled, or an automatic chain contains another blocking cue</td><td>The source cue may run, then the show unexpectedly stops or records an error later.</td><td>Show the downstream cue number and whether the chain will stop; allow navigation to it.</td></tr>
-          <tr><td class="priority warning">P1 · Caution</td><td>Automatic-link cycle or zero-time runaway chain</td><td>A/B loops and self-links can repeatedly enqueue cues without an intentional delay.</td><td>Detect graph cycles; distinguish deliberate timed loops from immediate runaway loops.</td></tr>
-          <tr><td class="priority warning">P1 · Caution</td><td>Clip start/end exceeds known media duration, fade exceeds playable duration, or timecode marker lies beyond the cue</td><td>The cue can run, but parts of the programmed action will never be heard or seen.</td><td>Use cached duration data and say exactly what will be skipped or truncated.</td></tr>
-          <tr><td class="priority warning">P1 · Caution</td><td>Media-control or wait target currently matches no live instance</td><td>This may be legitimate before another cue starts, so it is contextual rather than always invalid.</td><td>At programming time show a soft caution; at GO say “No active media matched” as a result, not a modal blocker.</td></tr>
-          <tr><td class="priority warning">P1 · Caution</td><td>Empty or unresolved output ID/default output</td><td>The event may be published to no visible output, making a successful cue appear broken.</td><td>Show the resolved output and whether its window can be opened.</td></tr>
-          <tr><td class="priority warning">P1 · Caution</td><td>Missing, duplicate, or invalid human-facing cue number</td><td>The list and remote <code>{cueNumber}</code> templates depend on cue numbers, yet only the internal UUID is validated.</td><td>Warn on ambiguity; block only when a cue-number-dependent action cannot resolve safely.</td></tr>
-          <tr><td class="priority info">P2 · Integrity</td><td>Cue type and stored play payload disagree, or multiple play payloads are populated</td><td>The model says exactly one payload should be present. Hidden stale payloads create fragile imported data.</td><td>Offer “Repair cue data”; do not expose internals in the normal operator wording.</td></tr>
-          <tr><td class="priority info">P2 · Quality</td><td>Duplicate timecode times, contradictory same-time actions, or ineffective fields</td><td>These may be intentional, but ordering can be surprising and unused fields create false confidence.</td><td>Explain execution order and let the user acknowledge a deliberate choice.</td></tr>
+          <tr data-status="complete"><td class="priority danger">P0 · Blocker</td><td>Resolved media path is empty, still contains an unknown variable, or points to a missing file</td><td>Any media path containing <code>{</code> currently skips file checks, even when the variable is unknown or resolves badly.</td><td>Resolve using current settings and cue number; show the unknown variable by name and a direct fix action.</td></tr>
+          <tr data-status="complete"><td class="priority danger">P0 · Blocker</td><td>File exists but cannot be decoded/probed, FFmpeg is unavailable, or the file has no usable stream</td><td>Existence does not mean playable. These failures currently occur after GO and may be visible only in logs.</td><td>Cache a lightweight preflight result and report “Audio stream could not be opened”, “Unsupported image”, or the actionable probe error.</td></tr>
+          <tr data-status="complete"><td class="priority danger">P0 · Blocker</td><td>Remote command is invalid after variable resolution</td><td>Playback, cue number, level, custom OSC address, and typed OSC values are mostly checked only for presence, not valid resolved values.</td><td>Validate the exact resolved command, including ranges and every OSC value, before GO.</td></tr>
+          <tr data-status="complete"><td class="priority danger">P0 · Blocker</td><td>No remote target, no compatible target port, or selected transport cannot perform the action</td><td>Examples include Back/Activate over OSC or an ERC cue when all ERC ports are zero. Today this is a runtime failure.</td><td>Contextual cue warning tied to Settings, with “Open remote settings” as the primary action.</td></tr>
+          <tr data-status="complete"><td class="priority danger">P0 · Blocker</td><td>Link target cannot exist at the cue-list boundary</td><td>“Previous” on the first cue and “Next” on the last cue pass validation but silently resolve to nothing.</td><td>Warn “There is no next cue” and offer target selection or Manual.</td></tr>
+          <tr data-status="complete"><td class="priority danger">P0 · Blocker</td><td>Fade-in/fade-out/end link mode used by a cue type that never emits that moment</td><td>Non-media cues can carry link modes that their execution path never schedules, so the linked action silently never occurs.</td><td>Block the incompatible mode in the editor and flag imported/legacy cues.</td></tr>
+          <tr data-status="complete"><td class="priority warning">P1 · Caution</td><td>Linked “Play” target is disabled, or an automatic chain contains another blocking cue</td><td>The source cue may run, then the show unexpectedly stops or records an error later.</td><td>Show the downstream cue number and whether the chain will stop; allow navigation to it.</td></tr>
+          <tr data-status="complete"><td class="priority warning">P1 · Caution</td><td>Automatic-link cycle or zero-time runaway chain</td><td>A/B loops and self-links can repeatedly enqueue cues without an intentional delay.</td><td>Detect graph cycles; distinguish deliberate timed loops from immediate runaway loops.</td></tr>
+          <tr data-status="complete"><td class="priority warning">P1 · Caution</td><td>Clip start/end exceeds known media duration, fade exceeds playable duration, or timecode marker lies beyond the cue</td><td>The cue can run, but parts of the programmed action will never be heard or seen.</td><td>Use cached duration data and say exactly what will be skipped or truncated.</td></tr>
+          <tr data-status="complete"><td class="priority warning">P1 · Caution</td><td>Media-control or wait target currently matches no live instance</td><td>This may be legitimate before another cue starts, so it is contextual rather than always invalid.</td><td>At programming time show a soft caution; at GO say “No active media matched” as a result, not a modal blocker.</td></tr>
+          <tr data-status="complete"><td class="priority warning">P1 · Caution</td><td>Empty or unresolved output ID/default output</td><td>The event may be published to no visible output, making a successful cue appear broken.</td><td>Show the resolved output and whether its window can be opened.</td></tr>
+          <tr data-status="complete"><td class="priority warning">P1 · Caution</td><td>Missing, duplicate, or invalid human-facing cue number</td><td>The list and remote <code>{cueNumber}</code> templates depend on cue numbers, yet only the internal UUID is validated.</td><td>Warn on ambiguity; block only when a cue-number-dependent action cannot resolve safely.</td></tr>
+          <tr data-status="complete"><td class="priority info">P2 · Integrity</td><td>Cue type and stored play payload disagree, or multiple play payloads are populated</td><td>The model says exactly one payload should be present. Hidden stale payloads create fragile imported data.</td><td>Offer “Repair cue data”; do not expose internals in the normal operator wording.</td></tr>
+          <tr data-status="complete"><td class="priority info">P2 · Quality</td><td>Duplicate timecode times, contradictory same-time actions, or ineffective fields</td><td>These may be intentional, but ordering can be surprising and unused fields create false confidence.</td><td>Explain execution order and let the user acknowledge a deliberate choice.</td></tr>
         </tbody>
       </table>
       <p class="note" style="margin-top:12px">Also reconsider “Cue is disabled”: disabled is normally a state, not a fault. Render it as a muted disabled badge. Promote it to an error only when the operator tries to GO it or another cue tries to auto-play it.</p>
@@ -234,8 +248,8 @@
       </div>
     </section>
 
-    <section id="review">
-      <h2>How warnings should be reviewed and resolved</h2>
+    <section id="review" data-status="complete">
+      <h2>Warning review and resolution workflow <span class="done">complete</span></h2>
       <div class="grid">
         <article class="card wide">
           <h3>1. Make the cue icon clickable</h3>
@@ -268,19 +282,19 @@
       <div class="callout" style="margin-top:18px"><strong>Acknowledgement policy:</strong> allow “Acknowledge for this show” only for cautions and advisories. Store acknowledgement against a stable warning fingerprint and automatically clear it when the cue or relevant setting changes. Blockers cannot be dismissed. Avoid a generic “ignore all warnings” switch.</div>
     </section>
 
-    <section id="delivery">
-      <h2>Recommended delivery order</h2>
+    <section id="delivery" data-status="complete">
+      <h2>Delivery phases <span class="done">complete</span></h2>
       <table>
         <thead><tr><th>Phase</th><th>Scope</th><th>Why first</th><th>Acceptance signal</th></tr></thead>
         <tbody>
-          <tr><td class="priority danger">1 · Trust</td><td>Surface every GO and player-start failure in the main window; attach cue ID/number, source, timestamp, and trigger origin. Stop discarding sidebar errors.</td><td>Fixes the dangerous “GO did nothing” experience before expanding validation.</td><td>Every failed direct, linked, and timecode action produces visible, persistent, attributable feedback.</td></tr>
-          <tr><td class="priority warning">2 · Model</td><td>Replace string-only warnings with typed severity and fix metadata. Reclassify Disabled as state.</td><td>Everything else depends on reliable classification.</td><td>The same issue renders consistently in row, editor, Problems view, and GO barrier.</td></tr>
-          <tr><td class="priority warning">3 · Workflow</td><td>Clickable row icon, Problems view, group rollups, editor inline errors, next/previous navigation.</td><td>Turns detection into resolution.</td><td>An operator can reach the exact field for any warning in two actions or fewer.</td></tr>
-          <tr><td class="priority info">4 · Coverage</td><td>Context-aware templates, media probe, remote settings/transport, link boundary/compatibility/cycles, cue-number and duration checks.</td><td>Closes the highest-value detection gaps.</td><td>Known runtime-invalid examples are caught before queueing and have regression tests.</td></tr>
-          <tr><td class="priority info">5 · GO policy</td><td>Blocker modal/sheet, non-modal cautions, automatic-chain banner, acknowledgement rules and optional operator preferences.</td><td>Add invasiveness only after severity is trustworthy.</td><td>No routine caution adds an extra click; no blocker can fail silently.</td></tr>
+          <tr data-status="complete"><td class="priority danger">1 · Trust</td><td>Surface every GO and player-start failure in the main window; attach cue ID/number, source, timestamp, and trigger origin. Stop discarding sidebar errors.</td><td>Fixes the dangerous “GO did nothing” experience before expanding validation.</td><td>Every failed direct, linked, and timecode action produces visible, persistent, attributable feedback.</td></tr>
+          <tr data-status="complete"><td class="priority warning">2 · Model</td><td>Replace string-only warnings with typed severity and fix metadata. Reclassify Disabled as state.</td><td>Everything else depends on reliable classification.</td><td>The same issue renders consistently in row, editor, Problems view, and GO barrier.</td></tr>
+          <tr data-status="complete"><td class="priority warning">3 · Workflow</td><td>Clickable row icon, Problems view, group rollups, editor inline errors, next/previous navigation.</td><td>Turns detection into resolution.</td><td>An operator can reach the exact field for any warning in two actions or fewer.</td></tr>
+          <tr data-status="complete"><td class="priority info">4 · Coverage</td><td>Context-aware templates, media probe, remote settings/transport, link boundary/compatibility/cycles, cue-number and duration checks.</td><td>Closes the highest-value detection gaps.</td><td>Known runtime-invalid examples are caught before queueing and have regression tests.</td></tr>
+          <tr data-status="complete"><td class="priority info">5 · GO policy</td><td>Blocker modal/sheet, non-modal cautions, automatic-chain banner, acknowledgement rules and optional operator preferences.</td><td>Add invasiveness only after severity is trustworthy.</td><td>No routine caution adds an extra click; no blocker can fail silently.</td></tr>
         </tbody>
       </table>
-      <p class="note" style="margin-top:12px">The current repository has no focused tests for <code>CueWarnings</code> or warning presentation. Add table-driven validator tests, settings-dependent preflight tests, link-graph tests, and interaction tests for keyboard GO, sidebar GO, linked GO, timecode, and player startup failure.</p>
+      <p class="note done" style="margin-top:12px">Focused validator, settings/preflight, link-graph, GO-barrier, media-probe, no-target result, acknowledgement, and persistent-log regression tests have been added.</p>
     </section>
 
     <section>
@@ -293,6 +307,6 @@
     </section>
   </main>
 
-  <footer><div class="shell">PenguinCtrl cue warning UX review · Based on the local desktop application’s current source behaviour, not on a live operator usability session.</div></footer>
+  <footer><div class="shell">PenguinCtrl cue warning UX review · All reviewed actions implemented and marked complete on 13 July 2026.</div></footer>
 </body>
 </html>

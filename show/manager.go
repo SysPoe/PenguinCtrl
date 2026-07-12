@@ -303,13 +303,13 @@ func (sm *ShowManager) Snapshot() []Cue {
 func (sm *ShowManager) ShowSnapshot() Show {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
-	return Show{Title: sm.show.Title, Cues: cloneCues(sm.show.Cues)}
+	return Show{Title: sm.show.Title, Cues: cloneCues(sm.show.Cues), AcknowledgedProblems: cloneAcknowledgements(sm.show.AcknowledgedProblems)}
 }
 
 // ReplaceShow atomically replaces the current show after loading a project.
 func (sm *ShowManager) ReplaceShow(loaded Show) {
 	sm.mu.Lock()
-	sm.show = Show{Title: loaded.Title, Cues: cloneCues(loaded.Cues)}
+	sm.show = Show{Title: loaded.Title, Cues: cloneCues(loaded.Cues), AcknowledgedProblems: cloneAcknowledgements(loaded.AcknowledgedProblems)}
 	if len(sm.show.Cues) == 0 {
 		sm.SelectedCueIndex = -1
 	} else {
@@ -317,6 +317,43 @@ func (sm *ShowManager) ReplaceShow(loaded Show) {
 	}
 	sm.mu.Unlock()
 	sm.changed()
+}
+
+func cloneAcknowledgements(input map[string]bool) map[string]bool {
+	if len(input) == 0 {
+		return nil
+	}
+	result := make(map[string]bool, len(input))
+	for key, value := range input {
+		if value {
+			result[key] = true
+		}
+	}
+	return result
+}
+
+func (sm *ShowManager) AcknowledgeProblem(fingerprint string) bool {
+	fingerprint = strings.TrimSpace(fingerprint)
+	if fingerprint == "" {
+		return false
+	}
+	sm.mu.Lock()
+	if sm.show.AcknowledgedProblems == nil {
+		sm.show.AcknowledgedProblems = map[string]bool{}
+	}
+	changed := !sm.show.AcknowledgedProblems[fingerprint]
+	sm.show.AcknowledgedProblems[fingerprint] = true
+	sm.mu.Unlock()
+	if changed {
+		sm.changed()
+	}
+	return changed
+}
+
+func (sm *ShowManager) ProblemAcknowledged(fingerprint string) bool {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+	return sm.show.AcknowledgedProblems[fingerprint]
 }
 
 func cloneCues(cues []Cue) []Cue {

@@ -8,7 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -17,6 +21,7 @@ import (
 
 	"github.com/syspoe/cusus/config"
 	"github.com/syspoe/cusus/playback"
+	"github.com/syspoe/cusus/show"
 )
 
 const decodedFrameBuffer = 2
@@ -477,6 +482,35 @@ func probeMediaInfo(ffmpegPath, source string) (mediaInfo, error) {
 		}
 	}
 	return info, nil
+}
+
+func ValidateSource(ffmpegPath, source string, cueType show.CueType) error {
+	if cueType == show.CueTypeImage {
+		path, err := sourcePath(source)
+		if err != nil {
+			return err
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			return fmt.Errorf("open image: %w", err)
+		}
+		defer file.Close()
+		if _, _, err := image.DecodeConfig(file); err != nil {
+			return fmt.Errorf("unsupported image: %w", err)
+		}
+		return nil
+	}
+	info, err := probeMediaInfo(ffmpegPath, source)
+	if err != nil {
+		return err
+	}
+	if cueType == show.CueTypeSound && !info.hasAudio {
+		return errors.New("audio stream could not be opened: file has no audio stream")
+	}
+	if cueType == show.CueTypeVideo && !info.hasVideo {
+		return errors.New("video stream could not be opened: file has no video stream")
+	}
+	return nil
 }
 
 func parseFrameRate(value string) float64 {

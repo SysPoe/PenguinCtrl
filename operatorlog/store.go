@@ -1,6 +1,9 @@
 package operatorlog
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -42,21 +45,36 @@ type Event struct {
 }
 
 type PreflightCheck struct {
-	Severity  Severity
-	Source    string
-	Message   string
-	CueNumber string
+	Severity     Severity
+	Code         string
+	Source       string
+	Message      string
+	Consequence  string
+	Fix          string
+	Field        string
+	CueID        show.CueID
+	CueNumber    string
+	Fingerprint  string
+	Acknowledged bool
 }
 
 func (e Event) Acknowledged() bool { return !e.AcknowledgedAt.IsZero() }
 
 type Store struct {
 	mu       sync.RWMutex
+	logMu    sync.Mutex
 	events   []Event
 	onChange func()
+	logPath  string
 }
 
 func NewStore() *Store { return &Store{} }
+
+func (s *Store) SetLogPath(path string) {
+	s.mu.Lock()
+	s.logPath = strings.TrimSpace(path)
+	s.mu.Unlock()
+}
 
 func (s *Store) SetOnChange(callback func()) {
 	s.mu.Lock()
@@ -76,11 +94,40 @@ func (s *Store) Add(severity Severity, source, message string, cueID show.CueID,
 		s.events = append([]Event(nil), s.events[len(s.events)-1000:]...)
 	}
 	callback := s.onChange
+	logPath := s.logPath
 	s.mu.Unlock()
+	if logPath != "" {
+		s.logMu.Lock()
+		_ = appendEventLog(logPath, event)
+		s.logMu.Unlock()
+	}
 	if callback != nil {
 		callback()
 	}
 	return event
+}
+
+func appendEventLog(path string, event Event) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	if info, err := os.Stat(path); err == nil && info.Size() >= 5*1024*1024 {
+		_ = os.Remove(path + ".1")
+		if err := os.Rename(path, path+".1"); err != nil {
+			return err
+		}
+	}
+	raw, err := json.Marshal(event)
+	if err != nil {
+		return err
+	}
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	_, err = file.Write(append(raw, '\n'))
+	return err
 }
 
 func (s *Store) Snapshot() []Event {
@@ -115,6 +162,17 @@ func (s *Store) CueFailure(cueID show.CueID) (Event, bool) {
 		event := s.events[i]
 		if event.CueID == cueID && event.Severity >= Recoverable {
 			return event, true
+		}
+	}
+	return Event{}, false
+}
+
+func (s *Store) Event(id string) (Event, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for i := len(s.events) - 1; i >= 0; i-- {
+		if s.events[i].ID == id {
+			return s.events[i], true
 		}
 	}
 	return Event{}, false

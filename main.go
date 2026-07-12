@@ -84,10 +84,14 @@ func newApp() (*App, error) {
 	}
 	showManager := show.NewShowManager()
 	operatorEvents := operatorlog.NewStore()
+	operatorEvents.SetLogPath(filepath.Join(filepath.Dir(settings.Path()), "operator-events.jsonl"))
 	engine := playback.NewEngine(showManager, settings)
 	engine.SetOperatorLog(operatorEvents)
 	engine.SetDurationProbe(func(source string) (int64, error) {
 		return media.ProbeDurationMs(settings.Snapshot().FFmpegPath, source)
+	})
+	engine.SetMediaValidator(func(source string, cueType show.CueType) error {
+		return media.ValidateSource(settings.Snapshot().FFmpegPath, source, cueType)
 	})
 	engine.Start()
 	mediaBackend := media.NewManager(engine, settings)
@@ -123,9 +127,10 @@ func newApp() (*App, error) {
 		application.Media.EnsureOutputs(application.Playback.OutputIDs())
 	})
 	application.UI.TBContext = ui.TBContext{
-		TopBar:        &application.UI.TopBar,
-		TogglePreview: application.Playback.TogglePreview,
-		StopPreview:   application.Playback.StopPreview,
+		TopBar:         &application.UI.TopBar,
+		TogglePreview:  application.Playback.TogglePreview,
+		StopPreview:    application.Playback.StopPreview,
+		ProblemsForCue: application.Playback.CueProblems,
 	}
 	return application, nil
 }
@@ -248,7 +253,6 @@ func (a *App) handleCueListShortcuts(gtx layout.Context) {
 		case key.NameSpace:
 			if err := playbackEngine.PlaySelected(); err != nil {
 				log.Printf("play cue: %v", err)
-				a.OperatorLog.Add(operatorlog.Warning, "Operator GO", err.Error(), show.CueID{}, "")
 			}
 		case key.NameDeleteForward:
 			tbCtx.RequestDeleteCue(manager)
@@ -661,7 +665,10 @@ func (a *App) run(window *app.Window) error {
 				operatorEvents.Add(operatorlog.ShowStopping, "Video output", videoWarning, show.CueID{}, "")
 			}
 			lastAudioOperatorWarning, lastVideoOperatorWarning = audioWarning, videoWarning
-			preflight := buildPreflight(manager.Snapshot(), settingsStore.Snapshot(), audioWarning, videoWarning)
+			preflight := buildPreflightWithProblems(manager.Snapshot(), settingsStore.Snapshot(), audioWarning, videoWarning, playbackEngine.CueProblems)
+			for i := range preflight {
+				preflight[i].Acknowledged = manager.ProblemAcknowledged(preflight[i].Fingerprint)
+			}
 			a.handleCueListShortcuts(gtx)
 			if topBar.TakeNewRequest() {
 				playbackEngine.StopAll()
@@ -718,6 +725,7 @@ func (a *App) run(window *app.Window) error {
 									return ui.Main(
 										th, gtx, manager, playbackEngine, operatorEvents,
 										func() { tbCtx.EditSelectedCue(manager) },
+										func(field string) { tbCtx.EditSelectedCueAt(manager, field) },
 										tbCtx.MoveCueActive(),
 										func(index int) { tbCtx.MoveSelectedCueBefore(manager, index) },
 										func() { tbCtx.MoveSelectedCueToEnd(manager) },
@@ -744,7 +752,21 @@ func (a *App) run(window *app.Window) error {
 					return layoutWarnings(th, gtx, windowFocused, audioWarning, audioWarningSettings)
 				}),
 				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-					return operatorPanel.LayoutOverlay(th, gtx, operatorEvents, preflight)
+					return operatorPanel.LayoutOverlay(th, gtx, operatorEvents, preflight, func(cueID show.CueID, edit bool, field string) {
+						for index, cue := range manager.Snapshot() {
+							if cue.ID == cueID {
+								manager.SelectCue(index)
+								if edit && strings.HasPrefix(field, "settings.") {
+									a.UI.ShowSettings = true
+								} else if edit {
+									tbCtx.EditSelectedCueAt(manager, field)
+								}
+								break
+							}
+						}
+					}, func(fingerprint string) { manager.AcknowledgeProblem(fingerprint) }, func() {
+						a.UI.ShowSettings = true
+					}, func() { manager.MoveSelection(1) })
 				}),
 			)
 			if topBar.TakePageRequest() {
@@ -833,6 +855,12 @@ func saveShowAtPath(path string, current show.Show, ffmpegPath string) (project.
 }
 
 func buildPreflight(cues []show.Cue, settings config.Settings, audioWarning, videoWarning string) []operatorlog.PreflightCheck {
+	return buildPreflightWithProblems(cues, settings, audioWarning, videoWarning, func(cue show.Cue) []show.CueProblem {
+		return show.CueProblemsWithContext(cue, cues, show.WarningContext{Settings: settings})
+	})
+}
+
+func buildPreflightWithProblems(cues []show.Cue, settings config.Settings, audioWarning, videoWarning string, problemsForCue func(show.Cue) []show.CueProblem) []operatorlog.PreflightCheck {
 	checks := make([]operatorlog.PreflightCheck, 0)
 	if len(cues) == 0 {
 		checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.Warning, Source: "Show", Message: "The show contains no cues"})
@@ -841,10 +869,14 @@ func buildPreflight(cues []show.Cue, settings config.Settings, audioWarning, vid
 	for _, cue := range cues {
 		needsFFmpeg = needsFFmpeg || cue.Type == show.CueTypeSound || cue.Type == show.CueTypeVideo
 		hasRemote = hasRemote || cue.Type == show.CueTypeRemote
-		for _, warning := range show.CueWarnings(cue, cues) {
+		for _, problem := range problemsForCue(cue) {
+			if problem.Severity == show.ProblemState {
+				continue
+			}
 			checks = append(checks, operatorlog.PreflightCheck{
-				Severity: preflightWarningSeverity(warning), Source: "Cue configuration",
-				Message: warning, CueNumber: cue.CueNumber,
+				Severity: preflightProblemSeverity(problem.Severity), Code: problem.Code, Source: "Cue configuration",
+				Message: problem.Message, Consequence: problem.Consequence, Fix: problem.Fix, Field: problem.Field,
+				CueID: cue.ID, CueNumber: cue.CueNumber, Fingerprint: show.ProblemFingerprint(cue, problem, settings),
 			})
 		}
 	}
@@ -869,11 +901,11 @@ func buildPreflight(cues []show.Cue, settings config.Settings, audioWarning, vid
 	return checks
 }
 
-func preflightWarningSeverity(message string) operatorlog.Severity {
-	if strings.EqualFold(strings.TrimSpace(message), "Cue is disabled") {
-		return operatorlog.Warning
+func preflightProblemSeverity(severity show.ProblemSeverity) operatorlog.Severity {
+	if severity == show.ProblemBlocker {
+		return operatorlog.ShowStopping
 	}
-	return operatorlog.ShowStopping
+	return operatorlog.Warning
 }
 
 func findExecutable(path string) (string, error) {

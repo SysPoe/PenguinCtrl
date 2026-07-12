@@ -73,6 +73,7 @@ type warningTipState struct {
 	cueID show.CueID
 	text  string
 	area  component.TipArea
+	click widget.Clickable
 }
 
 type cueListRow struct {
@@ -125,6 +126,7 @@ func Main(
 	engine *playback.Engine,
 	operatorEvents *operatorlog.Store,
 	editSelected func(),
+	editProblem func(field string),
 	moveCueActive bool,
 	moveBefore func(index int),
 	moveToEnd func(),
@@ -168,6 +170,33 @@ func Main(
 	}
 	if len(warningTips) != len(cues) {
 		warningTips = make([]warningTipState, len(cues))
+	}
+	for i := range warningTips {
+		if warningTips[i].click.Clicked(gtx) {
+			for cueIndex := range cues {
+				if cues[cueIndex].ID == warningTips[i].cueID {
+					manager.SelectCue(cueIndex)
+					problems := show.CueProblems(cues[cueIndex], cues)
+					if engine != nil {
+						problems = engine.CueProblems(cues[cueIndex])
+					}
+					field := ""
+					highest := show.ProblemState
+					for _, problem := range problems {
+						if problem.Severity > highest {
+							highest = problem.Severity
+							field = problem.Field
+						}
+					}
+					if editProblem != nil {
+						editProblem(field)
+					} else if editSelected != nil {
+						editSelected()
+					}
+					break
+				}
+			}
+		}
 	}
 
 	moveHandled := false
@@ -270,12 +299,16 @@ func Main(
 				children := make([]layout.FlexChild, 0, 3)
 				if row.showHeader {
 					children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return layoutCueGroupHeader(th, gtx, cue, manager.Groups(), moveCueActive)
+						return layoutCueGroupHeader(th, gtx, cue, manager.Groups(), groupProblemCount(cue.GroupID, cues, engine), moveCueActive)
 					}))
 				}
 				if !row.collapsed {
 					children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						warningText := warningTooltipText(show.CueWarnings(cue, cues))
+						problems := show.CueProblems(cue, cues)
+						if engine != nil {
+							problems = engine.CueProblems(cue)
+						}
+						warningText := problemTooltipText(problems)
 						failure, cueFailed := operatorlog.Event{}, false
 						if operatorEvents != nil {
 							failure, cueFailed = operatorEvents.CueFailure(cue.ID)
@@ -344,11 +377,11 @@ func Main(
 													if warningText == "" {
 														return layout.Dimensions{Size: gtx.Constraints.Min}
 													}
-													label, statusColor := "WARN", palette.Warning
+													label, statusColor := problemBadge(problems)
 													if cueFailed {
 														label, statusColor = "FAIL", palette.Danger
 													}
-													return layoutWarningTooltip(th, gtx, &warningTips[cueIndex].area, warningText, label, statusColor)
+													return layoutWarningTooltip(th, gtx, &warningTips[cueIndex].area, &warningTips[cueIndex].click, warningText, label, statusColor)
 												})
 											}),
 											// Cue Number
@@ -502,7 +535,7 @@ func Main(
 	)
 }
 
-func layoutCueGroupHeader(th *material.Theme, gtx layout.Context, cue show.Cue, groups []show.CueGroup, moveCueActive bool) layout.Dimensions {
+func layoutCueGroupHeader(th *material.Theme, gtx layout.Context, cue show.Cue, groups []show.CueGroup, problemCount int, moveCueActive bool) layout.Dimensions {
 	title := strings.TrimSpace(cue.GroupTitle)
 	if title == "" {
 		title = "Untitled Group"
@@ -530,6 +563,9 @@ func layoutCueGroupHeader(th *material.Theme, gtx layout.Context, cue show.Cue, 
 		indicator = "▸"
 	}
 	label := fmt.Sprintf("%s  %s  ·  %d cues", indicator, title, count)
+	if problemCount > 0 {
+		label += fmt.Sprintf("  ·  %d problems", problemCount)
+	}
 	return clickable.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.Y = gtx.Dp(unit.Dp(36))
 		return layout.Background{}.Layout(gtx,
@@ -583,7 +619,63 @@ func warningTooltipText(warnings []string) string {
 	return "• " + strings.Join(warnings, "\n• ")
 }
 
-func layoutWarningTooltip(th *material.Theme, gtx layout.Context, area *component.TipArea, tooltipText, statusLabel string, statusColor color.NRGBA) layout.Dimensions {
+func problemTooltipText(problems []show.CueProblem) string {
+	if len(problems) == 0 {
+		return ""
+	}
+	lines := make([]string, 0, len(problems))
+	for _, problem := range problems {
+		line := problem.Severity.Label() + " · " + problem.Message
+		if problem.Consequence != "" {
+			line += "\n  Result: " + problem.Consequence
+		}
+		if problem.Fix != "" {
+			line += "\n  Fix: " + problem.Fix
+		}
+		lines = append(lines, line)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func problemBadge(problems []show.CueProblem) (string, color.NRGBA) {
+	highest := show.ProblemState
+	for _, problem := range problems {
+		if problem.Severity > highest {
+			highest = problem.Severity
+		}
+	}
+	switch highest {
+	case show.ProblemBlocker:
+		return "BLOCK", palette.Danger
+	case show.ProblemCaution:
+		return "WARN", palette.Warning
+	case show.ProblemAdvisory:
+		return "INFO", palette.Primary
+	default:
+		return "OFF", palette.Disabled
+	}
+}
+
+func groupProblemCount(groupID show.GroupID, cues []show.Cue, engine *playback.Engine) int {
+	count := 0
+	for _, cue := range cues {
+		if cue.GroupID != groupID {
+			continue
+		}
+		problems := show.CueProblems(cue, cues)
+		if engine != nil {
+			problems = engine.CueProblems(cue)
+		}
+		for _, problem := range problems {
+			if problem.Severity != show.ProblemState {
+				count++
+			}
+		}
+	}
+	return count
+}
+
+func layoutWarningTooltip(th *material.Theme, gtx layout.Context, area *component.TipArea, clickable *widget.Clickable, tooltipText, statusLabel string, statusColor color.NRGBA) layout.Dimensions {
 	originalConstraints := gtx.Constraints
 	// TipArea normally limits its tooltip to the trigger's width. Give the text
 	// room to form a useful multi-line panel, then report the original cell size
@@ -593,18 +685,23 @@ func layoutWarningTooltip(th *material.Theme, gtx layout.Context, area *componen
 	tip := component.DesktopTooltip(th, tooltipText)
 	dims := area.Layout(gtx, tip, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints = originalConstraints
-		return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(unit.Dp(16)))
-					return warningIcon.Layout(gtx, statusColor)
-				}),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					label := material.Label(th, unit.Sp(10), statusLabel)
-					label.Color = statusColor
-					return layout.Inset{Left: unit.Dp(3)}.Layout(gtx, label.Layout)
-				}),
-			)
+		return clickable.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				if clickable.Hovered() {
+					pointer.CursorPointer.Add(gtx.Ops)
+				}
+				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(unit.Dp(16)))
+						return warningIcon.Layout(gtx, statusColor)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						label := material.Label(th, unit.Sp(10), statusLabel)
+						label.Color = statusColor
+						return layout.Inset{Left: unit.Dp(3)}.Layout(gtx, label.Layout)
+					}),
+				)
+			})
 		})
 	})
 	dims.Size = originalConstraints.Constrain(dims.Size)

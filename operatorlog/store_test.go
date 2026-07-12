@@ -1,6 +1,9 @@
 package operatorlog
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/syspoe/cusus/show"
@@ -32,5 +35,19 @@ func TestStoreAcknowledgementAndCueFailure(t *testing.T) {
 	}
 	if removed := store.ClearAcknowledged(); removed != 2 {
 		t.Fatalf("removed = %d, want 2", removed)
+	}
+}
+
+func TestStoreWritesPersistentJSONLEventLog(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "logs", "operator-events.jsonl")
+	store := NewStore()
+	store.SetLogPath(path)
+	store.Add(Recoverable, "Media", "decoder failed", show.CueID{}, "4")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "decoder failed") || !strings.HasSuffix(string(raw), "\n") {
+		t.Fatalf("log = %q", raw)
 	}
 }

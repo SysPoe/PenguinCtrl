@@ -22,6 +22,7 @@ type command struct {
 	index   int
 	ctx     context.Context
 	preview bool
+	origin  string
 }
 
 type Engine struct {
@@ -43,7 +44,12 @@ type Engine struct {
 	durations       map[show.CueID]int64
 	durationKeys    map[show.CueID]string
 	durationPending map[show.CueID]string
+	durationErrors  map[show.CueID]string
 	durationProbe   func(string) (int64, error)
+	mediaValidator  func(string, show.CueType) error
+	mediaValidated  map[show.CueID]string
+	mediaPending    map[show.CueID]string
+	mediaErrors     map[show.CueID]string
 	stateEvent      chan struct{}
 	lastError       atomic.Value
 	operatorLog     *operatorlog.Store
@@ -59,7 +65,8 @@ func NewEngine(manager *show.ShowManager, settings *config.Store) *Engine {
 		manager: manager, settings: settings, remote: remote.NewDispatcher(settings),
 		commands: make(chan command, 64), ctx: ctx, cancel: cancel, runCtx: runCtx, runCancel: runCancel, done: make(chan struct{}),
 		hub: newEventHub(), instances: map[string]*Instance{}, executions: map[string]*CueExecution{}, outputVisuals: map[string]Event{}, outputWindows: map[string]Event{}, durations: map[show.CueID]int64{},
-		durationKeys: map[show.CueID]string{}, durationPending: map[show.CueID]string{}, stateEvent: make(chan struct{}, 1),
+		durationKeys: map[show.CueID]string{}, durationPending: map[show.CueID]string{}, durationErrors: map[show.CueID]string{},
+		mediaValidated: map[show.CueID]string{}, mediaPending: map[show.CueID]string{}, mediaErrors: map[show.CueID]string{}, stateEvent: make(chan struct{}, 1),
 	}
 }
 
@@ -81,6 +88,13 @@ func (e *Engine) SetDurationProbe(probe func(string) (int64, error)) {
 	e.RefreshDurations()
 }
 
+func (e *Engine) SetMediaValidator(validator func(string, show.CueType) error) {
+	e.mu.Lock()
+	e.mediaValidator = validator
+	e.mu.Unlock()
+	e.RefreshDurations()
+}
+
 // RefreshDurations resolves configured clip durations immediately and probes
 // full media files in the background. Calls are cheap when cue media has not
 // changed, so the show-manager change callback can invoke this directly.
@@ -91,21 +105,37 @@ func (e *Engine) RefreshDurations() {
 		source      string
 		clipStartMs int64
 	}
+	type validationTask struct {
+		cueID       show.CueID
+		key, source string
+		cueType     show.CueType
+	}
 
 	cues := e.manager.Snapshot()
 	settings := e.settings.Snapshot()
 	seen := make(map[show.CueID]struct{}, len(cues))
 	tasks := make([]task, 0)
+	validationTasks := make([]validationTask, 0)
 	changed := false
 
 	e.mu.Lock()
 	probe := e.durationProbe
+	validator := e.mediaValidator
 	for _, cue := range cues {
 		seen[cue.ID] = struct{}{}
 		source, clipStartMs, clipEndMs, configuredMs, canProbe := durationDetails(cue, settings)
 		key := fmt.Sprintf("%d|%s|%d|%d|%d", cue.Type, source, clipStartMs, clipEndMs, configuredMs)
+		if e.mediaValidated[cue.ID] != "" && e.mediaValidated[cue.ID] != key {
+			delete(e.mediaValidated, cue.ID)
+			delete(e.mediaErrors, cue.ID)
+		}
+		if e.mediaValidated[cue.ID] != key && e.mediaPending[cue.ID] != key && validator != nil && source != "" && !strings.Contains(source, "{") && isMediaCueType(cue.Type) {
+			e.mediaPending[cue.ID] = key
+			validationTasks = append(validationTasks, validationTask{cue.ID, key, source, cue.Type})
+		}
 		if e.durationKeys[cue.ID] != key {
 			delete(e.durations, cue.ID)
+			delete(e.durationErrors, cue.ID)
 			e.durationKeys[cue.ID] = key
 			changed = true
 		}
@@ -127,6 +157,10 @@ func (e *Engine) RefreshDurations() {
 			delete(e.durationKeys, cueID)
 			delete(e.durationPending, cueID)
 			delete(e.durations, cueID)
+			delete(e.durationErrors, cueID)
+			delete(e.mediaValidated, cueID)
+			delete(e.mediaPending, cueID)
+			delete(e.mediaErrors, cueID)
 			changed = true
 		}
 	}
@@ -144,16 +178,45 @@ func (e *Engine) RefreshDurations() {
 			if e.durationPending[next.cueID] == next.key {
 				delete(e.durationPending, next.cueID)
 			}
-			valid := err == nil && durationMs > 0 && e.durationKeys[next.cueID] == next.key
+			current := e.durationKeys[next.cueID] == next.key
+			valid := err == nil && durationMs > 0 && current
 			if valid {
 				e.durations[next.cueID] = durationMs
+				delete(e.durationErrors, next.cueID)
+			} else if current && err != nil {
+				e.durationErrors[next.cueID] = err.Error()
 			}
 			e.mu.Unlock()
-			if valid {
+			if valid || (current && err != nil) {
 				e.changed()
 			}
 		}()
 	}
+	for _, next := range validationTasks {
+		next := next
+		go func() {
+			err := validator(next.source, next.cueType)
+			e.mu.Lock()
+			current := e.mediaPending[next.cueID] == next.key
+			if current {
+				delete(e.mediaPending, next.cueID)
+				e.mediaValidated[next.cueID] = next.key
+				if err != nil {
+					e.mediaErrors[next.cueID] = err.Error()
+				} else {
+					delete(e.mediaErrors, next.cueID)
+				}
+			}
+			e.mu.Unlock()
+			if current {
+				e.changed()
+			}
+		}()
+	}
+}
+
+func isMediaCueType(cueType show.CueType) bool {
+	return cueType == show.CueTypeSound || cueType == show.CueTypeVideo || cueType == show.CueTypeImage
 }
 
 func durationDetails(cue show.Cue, settings config.Settings) (source string, clipStartMs, clipEndMs, configuredMs int64, canProbe bool) {
@@ -172,6 +235,7 @@ func durationDetails(cue show.Cue, settings config.Settings) (source string, cli
 		}
 	case show.CueTypeImage:
 		if cue.Play.Image != nil {
+			source = strings.TrimSpace(config.Resolve(cue.Play.Image.File, settings, cue.CueNumber))
 			configuredMs = cue.Play.Image.DurationMs
 		}
 	case show.CueTypeWait:
@@ -201,25 +265,31 @@ func (e *Engine) run() {
 func (e *Engine) PlaySelected() error {
 	cue, index, ok := e.manager.SelectedCueCopy()
 	if !ok {
-		return errors.New("no cue is selected")
+		err := errors.New("no cue is selected")
+		e.recordError("Operator GO", err)
+		return err
 	}
-	return e.enqueue(cue, index)
+	return e.enqueue(cue, index, "Operator GO")
 }
 
 func (e *Engine) PlayIndex(index int) error {
 	cues := e.manager.Snapshot()
 	if index < 0 || index >= len(cues) {
-		return fmt.Errorf("cue index %d is out of range", index)
+		err := fmt.Errorf("cue index %d is out of range", index)
+		e.recordError("Operator GO", err)
+		return err
 	}
-	return e.enqueue(cues[index], index)
+	return e.enqueue(cues[index], index, "Operator GO")
 }
 
 func (e *Engine) PlayCueID(id show.CueID) error {
 	cue, index, ok := e.manager.CueByIDCopy(id)
 	if !ok {
-		return errors.New("cue was not found")
+		err := errors.New("cue was not found")
+		e.recordError("Operator GO", err)
+		return err
 	}
-	return e.enqueue(cue, index)
+	return e.enqueue(cue, index, "Operator GO")
 }
 
 // TogglePreview starts or pauses a sound-cue preview. Timecode and cue links
@@ -256,7 +326,7 @@ func (e *Engine) TogglePreview(cue show.Cue) (bool, error) {
 	e.mu.Lock()
 	e.previewCueID, e.previewPaused = preview.ID, false
 	e.mu.Unlock()
-	if err := e.enqueueCommand(preview, -1, true); err != nil {
+	if err := e.enqueueCommand(preview, -1, true, "Preview"); err != nil {
 		e.mu.Lock()
 		e.previewCueID = show.CueID{}
 		e.mu.Unlock()
@@ -275,24 +345,48 @@ func (e *Engine) StopPreview() {
 	}
 }
 
-func (e *Engine) enqueue(cue show.Cue, index int) error {
-	return e.enqueueCommand(cue, index, false)
+func (e *Engine) enqueue(cue show.Cue, index int, origin string) error {
+	return e.enqueueCommand(cue, index, false, origin)
 }
 
-func (e *Engine) enqueueCommand(cue show.Cue, index int, preview bool) error {
+func (e *Engine) enqueueCommand(cue show.Cue, index int, preview bool, origin string) error {
 	if cue.Disabled {
-		return errors.New("cue is disabled")
+		err := errors.New("cue is disabled")
+		if !preview {
+			e.recordCueError(cue, origin, err)
+		}
+		return err
+	}
+	if !preview {
+		problems := e.CueProblems(cue)
+		blockers, cautions := problemMessages(problems, show.ProblemBlocker), problemMessages(problems, show.ProblemCaution)
+		if len(blockers) > 0 {
+			err := fmt.Errorf("cue blocked: %s", strings.Join(blockers, "; "))
+			e.recordCueError(cue, origin+" · validation", err)
+			return err
+		}
+		if len(cautions) > 0 && e.operatorLog != nil {
+			e.operatorLog.Add(operatorlog.Warning, origin+" · caution", strings.Join(cautions, "; "), cue.ID, cue.CueNumber)
+		}
 	}
 	e.mu.RLock()
 	runCtx := e.runCtx
 	e.mu.RUnlock()
 	select {
-	case e.commands <- command{cue: cue, index: index, ctx: runCtx, preview: preview}:
+	case e.commands <- command{cue: cue, index: index, ctx: runCtx, preview: preview, origin: origin}:
 		return nil
 	case <-e.ctx.Done():
-		return errors.New("playback engine is stopped")
+		err := errors.New("playback engine is stopped")
+		if !preview {
+			e.recordCueError(cue, origin, err)
+		}
+		return err
 	default:
-		return errors.New("playback command queue is full")
+		err := errors.New("playback command queue is full")
+		if !preview {
+			e.recordCueError(cue, origin, err)
+		}
+		return err
 	}
 }
 
@@ -319,6 +413,9 @@ func (e *Engine) execute(next command) {
 			err = errors.New("remote cue has no remote action")
 		} else {
 			err = e.remote.Dispatch(e.ctx, *next.cue.Play.Remote, next.cue)
+			if err == nil && e.operatorLog != nil {
+				e.operatorLog.Add(operatorlog.Warning, next.origin+" · remote result", "Command sent; UDP delivery is unconfirmed", next.cue.ID, next.cue.CueNumber)
+			}
 		}
 	case show.CueTypeWait:
 		err = e.executeWait(next.cue, next.ctx)
@@ -333,7 +430,11 @@ func (e *Engine) execute(next command) {
 		if errors.Is(err, context.Canceled) && next.ctx.Err() != nil {
 			return
 		}
-		e.recordCueError(next.cue, cueFailureSource(next.cue), err)
+		source := cueFailureSource(next.cue)
+		if next.origin != "" {
+			source = next.origin + " · " + source
+		}
+		e.recordCueError(next.cue, source, err)
 		return
 	}
 	if next.cue.Type != show.CueTypeSound && next.cue.Type != show.CueTypeVideo && next.cue.Type != show.CueTypeImage {
@@ -407,6 +508,12 @@ func (e *Engine) scheduleLink(link show.CueLink, sourceIndex int, delayMs int64,
 		}
 		target, targetIndex, ok := e.resolveTarget(link.Target, sourceIndex)
 		if !ok {
+			cues := e.manager.Snapshot()
+			if sourceIndex >= 0 && sourceIndex < len(cues) {
+				e.recordCueError(cues[sourceIndex], "Cue link", errors.New("linked cue target does not exist"))
+			} else {
+				e.recordError("Cue link", errors.New("linked cue target does not exist"))
+			}
 			return
 		}
 		if link.Mode == show.CueLinkStartAdvance || link.Mode == show.CueLinkFadeInAdvance || link.Mode == show.CueLinkFadeOutAdvance || link.Mode == show.CueLinkEndAdvance {
@@ -416,9 +523,7 @@ func (e *Engine) scheduleLink(link show.CueLink, sourceIndex int, delayMs int64,
 		}
 		e.manager.SelectCue(targetIndex)
 		e.changed()
-		if err := e.enqueue(target, targetIndex); err != nil {
-			e.recordCueError(target, "Cue link", err)
-		}
+		_ = e.enqueue(target, targetIndex, fmt.Sprintf("Cue link from %s", cueDisplayNumberAt(e.manager.Snapshot(), sourceIndex)))
 	}()
 }
 
@@ -534,7 +639,7 @@ func (e *Engine) scheduleTimecode(instanceID string, cue show.Cue, cueIndex int,
 				ID: cue.ID, CueNumber: cue.CueNumber, Description: cue.Description,
 				Type: marker.Type, Play: action, Link: show.CueLink{Mode: show.CueLinkManual},
 			}
-			e.execute(command{cue: embedded, index: cueIndex, ctx: runCtx})
+			e.execute(command{cue: embedded, index: cueIndex, ctx: runCtx, origin: "Timecode at " + formatPlaybackTime(marker.TimeMs)})
 		}()
 	}
 }
@@ -555,6 +660,17 @@ func mediaTimecode(cue show.Cue) []show.TimecodeMarker {
 		}
 	}
 	return nil
+}
+
+func formatPlaybackTime(ms int64) string {
+	return fmt.Sprintf("%02d:%02d.%03d", ms/60000, (ms%60000)/1000, ms%1000)
+}
+
+func cueDisplayNumberAt(cues []show.Cue, index int) string {
+	if index < 0 || index >= len(cues) || strings.TrimSpace(cues[index].CueNumber) == "" {
+		return "an unnumbered cue"
+	}
+	return "cue " + cues[index].CueNumber
 }
 
 func (e *Engine) scheduleInstanceLifecycle(instanceID string) {
@@ -614,6 +730,9 @@ func (e *Engine) executeMediaControl(cue show.Cue, runCtx context.Context) error
 		return fmt.Errorf("invalid media control action %d", play.Action)
 	}
 	instances := e.matchingInstances(play.Target)
+	if len(instances) == 0 && e.operatorLog != nil {
+		e.operatorLog.Add(operatorlog.Warning, "Media control result", "No active media matched", cue.ID, cue.CueNumber)
+	}
 	idsByOutput := map[string][]string{}
 	for _, instance := range instances {
 		idsByOutput[instance.OutputID] = append(idsByOutput[instance.OutputID], instance.ID)
@@ -956,6 +1075,48 @@ func (e *Engine) KnownDurations() map[show.CueID]int64 {
 	result := make(map[show.CueID]int64, len(e.durations))
 	for cueID, duration := range e.durations {
 		result[cueID] = duration
+	}
+	return result
+}
+
+// CueProblems evaluates a cue against the exact settings, duration cache, and
+// cue-list snapshot used by the engine. UI, preflight, and GO call this same
+// method so severity cannot drift between surfaces.
+func (e *Engine) CueProblems(cue show.Cue) []show.CueProblem {
+	settings := e.settings.Snapshot()
+	source, start, end, configured, _ := durationDetails(cue, settings)
+	key := fmt.Sprintf("%d|%s|%d|%d|%d", cue.Type, source, start, end, configured)
+	e.mu.RLock()
+	duration, probeError := int64(0), ""
+	if e.durationKeys[cue.ID] == key {
+		duration = e.durations[cue.ID]
+		probeError = e.durationErrors[cue.ID]
+	}
+	if e.mediaValidated[cue.ID] == key && e.mediaErrors[cue.ID] != "" {
+		probeError = e.mediaErrors[cue.ID]
+	}
+	mediaPending := e.mediaPending[cue.ID] == key
+	mediaChecked := e.mediaValidated[cue.ID] == key
+	trackMediaCheck := e.mediaValidator != nil
+	e.mu.RUnlock()
+	context := show.WarningContext{Settings: settings, KnownDurationMs: duration, MediaProbeError: probeError, TrackMediaCheck: trackMediaCheck, MediaCheckPending: mediaPending, MediaChecked: mediaChecked}
+	if cue.Type == show.CueTypeMediaControl && cue.Play.MediaControl != nil {
+		context.HasRuntimeState = true
+		context.ActiveMediaMatches = len(e.matchingInstances(cue.Play.MediaControl.Target))
+	}
+	if cue.Type == show.CueTypeWait && cue.Play.Wait != nil && cue.Play.Wait.Kind != show.WaitDuration {
+		context.HasRuntimeState = true
+		context.ActiveMediaMatches = len(e.matchingInstances(cue.Play.Wait.Media))
+	}
+	return show.CueProblemsWithContext(cue, e.manager.Snapshot(), context)
+}
+
+func problemMessages(problems []show.CueProblem, severity show.ProblemSeverity) []string {
+	result := make([]string, 0)
+	for _, problem := range problems {
+		if problem.Severity == severity {
+			result = append(result, problem.Message)
+		}
 	}
 	return result
 }

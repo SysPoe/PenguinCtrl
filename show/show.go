@@ -1,8 +1,9 @@
 package show
 
 type Show struct {
-	Cues  []Cue  `json:"cues"`
-	Title string `json:"title"`
+	Cues                 []Cue           `json:"cues"`
+	Title                string          `json:"title"`
+	AcknowledgedProblems map[string]bool `json:"acknowledgedProblems,omitempty"`
 }
 
 func (s *Show) InsertCue(index int, cue Cue) {
