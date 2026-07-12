@@ -177,6 +177,7 @@ type outputWindow struct {
 	heldFrame       image.Image
 	routeMu         sync.Mutex
 	lastSequence    uint64
+	geometryUpdates chan [4]int
 }
 
 func (m *Manager) outputIDsWithConfiguredStages(outputIDs []string) []string {
@@ -204,6 +205,7 @@ type outputTransition struct {
 }
 
 func (o *outputWindow) run() {
+	o.geometryUpdates = make(chan [4]int, 1)
 	defer func() {
 		o.manager.removed(o.id)
 		if o.reopening {
@@ -219,6 +221,7 @@ func (o *outputWindow) run() {
 	pending := make(chan playback.Event, 64)
 	done := make(chan struct{})
 	defer close(done)
+	go o.persistGeometryLoop(done)
 	go func() {
 		for {
 			select {
@@ -340,8 +343,50 @@ func (o *outputWindow) persistGeometry() {
 		return
 	}
 	o.lastGeometry = geometry
-	if err := o.manager.settings.UpdateVideoOutputGeometry(o.id, x, y, width, height); err != nil {
-		log.Printf("persist media output %q geometry: %v", o.id, err)
+	select {
+	case o.geometryUpdates <- geometry:
+	default:
+		select {
+		case <-o.geometryUpdates:
+		default:
+		}
+		select {
+		case o.geometryUpdates <- geometry:
+		default:
+		}
+	}
+}
+
+func (o *outputWindow) persistGeometryLoop(done <-chan struct{}) {
+	for {
+		var geometry [4]int
+		select {
+		case geometry = <-o.geometryUpdates:
+		case <-done:
+			return
+		}
+		timer := time.NewTimer(250 * time.Millisecond)
+	debounce:
+		for {
+			select {
+			case geometry = <-o.geometryUpdates:
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
+				timer.Reset(250 * time.Millisecond)
+			case <-timer.C:
+				break debounce
+			case <-done:
+				timer.Stop()
+				return
+			}
+		}
+		if err := o.manager.settings.UpdateVideoOutputGeometry(o.id, geometry[0], geometry[1], geometry[2], geometry[3]); err != nil {
+			log.Printf("persist media output %q geometry: %v", o.id, err)
+		}
 	}
 }
 

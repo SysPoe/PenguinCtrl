@@ -139,11 +139,21 @@ func (h *eventHub) publish(event Event) {
 			// Never silently lose an output mutation. Collapse an overloaded
 			// subscriber to a resync marker; the output will fetch the current
 			// authoritative engine state before processing later sequences.
-			for len(ch) > 0 {
-				<-ch
+		drain:
+			for {
+				select {
+				case <-ch:
+				default:
+					break drain
+				}
 			}
 			h.resyncs.Add(1)
-			ch <- Event{Action: "resync", OutputID: event.OutputID, Sequence: event.Sequence}
+			select {
+			case ch <- Event{Action: "resync", OutputID: event.OutputID, Sequence: event.Sequence}:
+			default:
+				// A concurrent consumer/publisher can only make this full with a
+				// newer event; that newer sequence will drive reconciliation.
+			}
 		}
 	}
 }
