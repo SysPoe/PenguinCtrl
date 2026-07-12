@@ -59,6 +59,20 @@ func (a *AudioSystem) Devices() ([]AudioDevice, error) {
 }
 
 func (a *AudioSystem) NewPlayer(reader io.Reader, preview bool) (*devicePlayer, error) {
+	player, err := a.NewPreparedPlayer(reader, preview)
+	if err != nil {
+		return nil, err
+	}
+	if err := player.Start(); err != nil {
+		_ = player.Close()
+		return nil, err
+	}
+	return player, nil
+}
+
+// NewPreparedPlayer opens a device without starting its callback so audio and
+// video can be buffered before the shared clock begins.
+func (a *AudioSystem) NewPreparedPlayer(reader io.Reader, preview bool) (*devicePlayer, error) {
 	if a == nil || a.context == nil {
 		return nil, fmt.Errorf("audio output is unavailable")
 	}
@@ -98,19 +112,32 @@ func (a *AudioSystem) NewPlayer(reader io.Reader, preview bool) (*devicePlayer, 
 		return nil, fmt.Errorf("open audio device: %w", err)
 	}
 	player.device = device
-	if err := device.Start(); err != nil {
-		device.Uninit()
-		return nil, fmt.Errorf("start audio device: %w", err)
-	}
 	return player, nil
 }
 
 type devicePlayer struct {
-	reader io.Reader
-	device *malgo.Device
-	volume atomic.Uint64
-	mu     sync.Mutex
-	closed bool
+	reader  io.Reader
+	device  *malgo.Device
+	volume  atomic.Uint64
+	mu      sync.Mutex
+	closed  bool
+	started bool
+}
+
+func (p *devicePlayer) Start() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed {
+		return fmt.Errorf("audio player is closed")
+	}
+	if p.started {
+		return nil
+	}
+	if err := p.device.Start(); err != nil {
+		return fmt.Errorf("start audio device: %w", err)
+	}
+	p.started = true
+	return nil
 }
 
 func (p *devicePlayer) readSamples(output, _ []byte, _ uint32) {

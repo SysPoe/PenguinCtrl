@@ -2,14 +2,13 @@ package media
 
 import (
 	"bufio"
-	"encoding/json"
+	"context"
 	"errors"
 	"fmt"
 	"image"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
-	"io"
 	"math"
 	"net/url"
 	"os"
@@ -32,20 +31,18 @@ import (
 )
 
 type Player struct {
-	instance    playback.Instance
-	settings    *config.Store
-	audioSystem *AudioSystem
-	window      *app.Window
-	report      func(string)
-	duration    func(int64)
+	instance playback.Instance
+	settings *config.Store
+	window   *app.Window
+	report   func(string)
+	duration func(int64)
+	backend  PlaybackBackend
 
 	mu           sync.RWMutex
 	frame        image.Image
-	audio        *devicePlayer
-	videoCommand *exec.Cmd
-	audioCommand *exec.Cmd
+	session      PlaybackSession
+	clock        *PlaybackClock
 	position     time.Duration
-	startedAt    time.Time
 	paused       bool
 	closed       bool
 	muted        bool
@@ -56,7 +53,10 @@ type Player struct {
 }
 
 func NewPlayer(instance playback.Instance, settings *config.Store, audio *AudioSystem, window *app.Window, report func(string), duration func(int64)) *Player {
-	return &Player{instance: instance, settings: settings, audioSystem: audio, window: window, report: report, duration: duration, volumeDB: instance.LevelDB}
+	return &Player{
+		instance: instance, settings: settings, window: window, report: report, duration: duration,
+		backend: NewFFmpegBackend(settings, audio), volumeDB: instance.LevelDB,
+	}
 }
 
 func (p *Player) MediaType() string { return p.instance.MediaType }
@@ -69,30 +69,41 @@ func (p *Player) StartedAt() time.Time {
 
 func (p *Player) Start() error {
 	p.mu.Lock()
-	p.started = time.Now()
 	p.position = time.Duration(max(0, p.instance.ClipStartMs)) * time.Millisecond
 	p.mu.Unlock()
 	p.discoverDuration()
-	var err error
 	if p.instance.MediaType == "image" {
-		err = p.loadImage()
-	} else {
-		err = p.restart(p.position)
+		if err := p.loadImage(); err != nil {
+			return err
+		}
+		p.mu.Lock()
+		p.clock = NewPlaybackClock(0)
+		p.started = p.clock.Start()
+		p.mu.Unlock()
+		p.report("started")
+	} else if err := p.restart(p.position); err != nil {
+		return err
 	}
-	if err == nil && p.instance.FadeInMs > 0 {
-		go func() {
-			timer := time.NewTimer(time.Duration(p.instance.FadeInMs) * time.Millisecond)
-			defer timer.Stop()
-			<-timer.C
-			p.mu.RLock()
-			active := !p.closed
-			p.mu.RUnlock()
-			if active {
-				p.report("fade-in-complete")
-			}
-		}()
+	p.scheduleFadeInReport()
+	return nil
+}
+
+func (p *Player) scheduleFadeInReport() {
+	if p.instance.FadeInMs <= 0 {
+		return
 	}
-	return err
+	generation := p.generation
+	go func() {
+		timer := time.NewTimer(time.Duration(p.instance.FadeInMs) * time.Millisecond)
+		defer timer.Stop()
+		<-timer.C
+		p.mu.RLock()
+		active := !p.closed && !p.paused && p.generation == generation
+		p.mu.RUnlock()
+		if active {
+			p.report("fade-in-complete")
+		}
+	}()
 }
 
 func (p *Player) discoverDuration() {
@@ -107,12 +118,11 @@ func (p *Player) discoverDuration() {
 	if p.instance.ClipEndMs > p.instance.ClipStartMs {
 		durationMs = p.instance.ClipEndMs - p.instance.ClipStartMs
 	}
-	if durationMs <= 0 {
-		return
-	}
-	p.instance.DurationMs = durationMs
-	if p.duration != nil {
-		p.duration(durationMs)
+	if durationMs > 0 {
+		p.instance.DurationMs = durationMs
+		if p.duration != nil {
+			p.duration(durationMs)
+		}
 	}
 }
 
@@ -131,12 +141,11 @@ func (p *Player) loadImage() error {
 		return err
 	}
 	p.mu.Lock()
+	defer p.mu.Unlock()
 	if p.closed {
-		p.mu.Unlock()
 		return errors.New("player is closed")
 	}
 	p.frame = img
-	p.mu.Unlock()
 	p.window.Invalidate()
 	return nil
 }
@@ -147,113 +156,47 @@ func (p *Player) restart(position time.Duration) error {
 		p.mu.Unlock()
 		return errors.New("player is closed")
 	}
-	p.stopCommandsLocked()
+	p.stopSessionLocked()
 	p.generation++
 	generation := p.generation
-	p.position = position
-	p.startedAt = time.Now()
-	p.paused = false
+	p.position, p.paused = position, false
+	p.clock = NewPlaybackClock(position)
+	clock, backend := p.clock, p.backend
+	request := PlaybackRequest{Instance: p.instance, Position: position, RequestedAt: time.Now()}
+	volume, muted := p.volumeDB, p.muted
 	p.mu.Unlock()
 
-	if p.instance.MediaType == "video" {
-		if err := p.startVideo(position, generation); err != nil {
-			return err
-		}
-	}
-	if p.instance.MediaType == "audio" || p.instance.MediaType == "video" {
-		if err := p.startAudio(position, generation); err != nil && p.instance.MediaType == "audio" {
-			return err
-		}
-	}
-	return nil
-}
-
-func (p *Player) startVideo(position time.Duration, generation int) error {
-	path, err := sourcePath(p.instance.Source)
+	session, err := backend.Open(request)
 	if err != nil {
 		return err
 	}
-	width, height, err := probeVideo(p.settings.Snapshot().FFmpegPath, path)
-	if err != nil {
-		return err
-	}
-	args := mediaInputArgs(position, p.instance.ClipEndMs)
-	args = append(args, "-i", path, "-an", "-f", "rawvideo", "-pix_fmt", "rgba", "pipe:1")
-	command := exec.Command(p.settings.Snapshot().FFmpegPath, args...)
-	stdout, err := command.StdoutPipe()
-	if err != nil {
-		return err
-	}
-	command.Stderr = io.Discard
-	if err := command.Start(); err != nil {
+	session.SetVolume(volume)
+	session.SetMuted(muted)
+	if err := session.Preload(context.Background()); err != nil {
+		session.Close()
 		return err
 	}
 	p.mu.Lock()
-	p.videoCommand = command
-	p.mu.Unlock()
-	go p.readFrames(command, stdout, width, height, generation)
-	return nil
-}
-
-func (p *Player) readFrames(command *exec.Cmd, reader io.Reader, width, height, generation int) {
-	frameSize := width * height * 4
-	buffer := make([]byte, frameSize)
-	for {
-		if _, err := io.ReadFull(reader, buffer); err != nil {
-			break
-		}
-		frame := image.NewRGBA(image.Rect(0, 0, width, height))
-		copy(frame.Pix, buffer)
-		p.mu.Lock()
-		if p.closed || p.generation != generation {
-			p.mu.Unlock()
-			break
-		}
-		p.frame = frame
+	if p.closed || p.generation != generation {
 		p.mu.Unlock()
-		p.window.Invalidate()
+		session.Close()
+		return errors.New("player start was superseded")
 	}
-	_ = command.Wait()
-	p.mu.RLock()
-	ended := !p.closed && !p.paused && p.generation == generation
-	p.mu.RUnlock()
-	if ended {
-		p.report("ended")
-	}
-}
-
-func (p *Player) startAudio(position time.Duration, generation int) error {
-	if p.audioSystem == nil {
-		return errors.New("audio output is unavailable")
-	}
-	path, err := sourcePath(p.instance.Source)
-	if err != nil {
-		return err
-	}
-	args := mediaInputArgs(position, p.instance.ClipEndMs)
-	args = append(args, "-i", path, "-vn", "-f", "s16le", "-ar", "48000", "-ac", "2", "pipe:1")
-	command := exec.Command(p.settings.Snapshot().FFmpegPath, args...)
-	stdout, err := command.StdoutPipe()
-	if err != nil {
-		return err
-	}
-	command.Stderr = io.Discard
-	if err := command.Start(); err != nil {
-		return err
-	}
-	player, err := p.audioSystem.NewPlayer(stdout, p.instance.Preview)
-	if err != nil {
-		_ = command.Process.Kill()
-		return err
-	}
-	player.SetVolume(dbVolume(p.volumeDB, p.muted))
-	p.mu.Lock()
-	p.audioCommand, p.audio = command, player
+	p.session = session
 	p.mu.Unlock()
+	if err := session.Start(clock); err != nil {
+		session.Close()
+		return err
+	}
+	p.mu.Lock()
+	p.started = clock.Start()
+	p.mu.Unlock()
+	p.report("started")
+	p.window.Invalidate()
 	go func() {
-		_ = command.Wait()
+		<-session.Done()
 		p.mu.RLock()
-		ended := p.instance.MediaType == "audio" && !p.closed && !p.paused && p.generation == generation
+		ended := !p.closed && !p.paused && p.generation == generation && session.State() == LoadEnded
 		p.mu.RUnlock()
 		if ended {
 			p.report("ended")
@@ -263,7 +206,7 @@ func (p *Player) startAudio(position time.Duration, generation int) error {
 }
 
 func mediaInputArgs(position time.Duration, clipEndMs int64) []string {
-	args := []string{"-hide_banner", "-loglevel", "error", "-re"}
+	args := []string{"-hide_banner", "-loglevel", "error"}
 	if position > 0 {
 		args = append(args, "-ss", strconv.FormatFloat(position.Seconds(), 'f', 3, 64))
 	}
@@ -308,10 +251,12 @@ func (p *Player) pause() {
 		p.mu.Unlock()
 		return
 	}
-	p.position += time.Since(p.startedAt)
+	if p.clock != nil {
+		p.position = p.clock.Pause()
+	}
 	p.paused = true
 	p.generation++
-	p.stopCommandsLocked()
+	p.stopSessionLocked()
 	p.mu.Unlock()
 }
 
@@ -327,8 +272,8 @@ func (p *Player) resume() {
 func (p *Player) setMuted(muted bool) {
 	p.mu.Lock()
 	p.muted = muted
-	if p.audio != nil {
-		p.audio.SetVolume(dbVolume(p.volumeDB, p.muted))
+	if p.session != nil {
+		p.session.SetMuted(muted)
 	}
 	p.mu.Unlock()
 }
@@ -349,11 +294,7 @@ func (p *Player) setVolume(target float64, duration time.Duration, curve show.Fa
 		defer ticker.Stop()
 		for now := range ticker.C {
 			progress := min(1.0, float64(now.Sub(started))/float64(duration))
-			volumeDB := fadeVolumeDB(start, target, progress, curve)
-			if !p.applyFadeVolume(volumeDB, fadeID) {
-				return
-			}
-			if progress >= 1 {
+			if !p.applyFadeVolume(fadeVolumeDB(start, target, progress, curve), fadeID) || progress >= 1 {
 				return
 			}
 		}
@@ -368,7 +309,6 @@ func fadeVolumeDB(startDB, targetDB, progress float64, curve show.FadeCurve) flo
 	if progress >= 1 {
 		return targetDB
 	}
-
 	startGain, targetGain := dbVolume(startDB, false), dbVolume(targetDB, false)
 	if curve == show.FadeCurveEqualPower {
 		if targetGain < startGain {
@@ -386,40 +326,52 @@ func fadeVolumeDB(startDB, targetDB, progress float64, curve show.FadeCurve) flo
 
 func (p *Player) applyFadeVolume(db float64, fadeID uint64) bool {
 	p.mu.Lock()
+	defer p.mu.Unlock()
 	if p.closed || p.volumeFadeID != fadeID {
-		p.mu.Unlock()
 		return false
 	}
 	p.volumeDB = db
-	if p.audio != nil {
-		p.audio.SetVolume(dbVolume(db, p.muted))
+	if p.session != nil {
+		p.session.SetVolume(db)
 	}
-	p.mu.Unlock()
 	p.window.Invalidate()
 	return true
 }
 
 func (p *Player) applyVolume(db float64) {
 	p.mu.Lock()
+	defer p.mu.Unlock()
 	p.volumeFadeID++
 	p.volumeDB = db
-	if p.audio != nil {
-		p.audio.SetVolume(dbVolume(db, p.muted))
+	if p.session != nil {
+		p.session.SetVolume(db)
 	}
-	p.mu.Unlock()
 	p.window.Invalidate()
 }
 
 func (p *Player) Layout(gtx layout.Context) layout.Dimensions {
 	p.mu.RLock()
-	frame, started, fadeIn, volume := p.frame, p.started, p.instance.FadeInMs, p.volumeDB
+	frame, clock, session := p.frame, p.clock, p.session
+	fadeIn, volume := p.instance.FadeInMs, p.volumeDB
 	p.mu.RUnlock()
+	if session != nil && clock != nil {
+		if next := session.Frame(clock.Position()); next != nil {
+			frame = next
+			p.mu.Lock()
+			p.frame = next
+			p.mu.Unlock()
+		}
+	}
 	if frame == nil {
+		if session != nil && session.State() != LoadEnded {
+			gtx.Execute(op.InvalidateCmd{At: time.Now().Add(time.Second / 60)})
+		}
 		return layout.Dimensions{Size: gtx.Constraints.Max}
 	}
 	opacity := float32(1)
-	if fadeIn > 0 {
-		opacity = float32(min(1.0, float64(time.Since(started))/float64(time.Duration(fadeIn)*time.Millisecond)))
+	if fadeIn > 0 && clock != nil {
+		elapsed := clock.Position() - time.Duration(max(0, p.instance.ClipStartMs))*time.Millisecond
+		opacity = float32(min(1.0, max(0.0, float64(elapsed)/float64(time.Duration(fadeIn)*time.Millisecond))))
 		if opacity < 1 {
 			gtx.Execute(op.InvalidateCmd{At: time.Now().Add(time.Second / 60)})
 		}
@@ -432,6 +384,37 @@ func (p *Player) Layout(gtx layout.Context) layout.Dimensions {
 	return widget.Image{Src: paint.NewImageOp(frame), Fit: widget.Contain, Position: layout.Center}.Layout(gtx)
 }
 
+func (p *Player) State() LoadState {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.stateLocked()
+}
+
+func (p *Player) stateLocked() LoadState {
+	if p.closed {
+		return LoadClosed
+	}
+	if p.paused {
+		return LoadPaused
+	}
+	if p.session != nil {
+		return p.session.State()
+	}
+	if p.started.IsZero() {
+		return LoadIdle
+	}
+	return LoadPlaying
+}
+
+func (p *Player) Metrics() PlaybackMetrics {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if p.session == nil {
+		return PlaybackMetrics{State: p.stateLocked()}
+	}
+	return p.session.Metrics()
+}
+
 func (p *Player) Close(report bool) {
 	p.mu.Lock()
 	if p.closed {
@@ -440,27 +423,17 @@ func (p *Player) Close(report bool) {
 	}
 	p.closed = true
 	p.generation++
-	p.stopCommandsLocked()
+	p.stopSessionLocked()
 	p.mu.Unlock()
 	if report {
 		p.report("stopped")
 	}
 }
 
-func (p *Player) stopCommandsLocked() {
-	// Stop FFmpeg before uninitializing the device so a device callback blocked
-	// on the decoder pipe is released before the audio backend waits for it.
-	if p.audioCommand != nil && p.audioCommand.Process != nil {
-		_ = p.audioCommand.Process.Kill()
-		p.audioCommand = nil
-	}
-	if p.audio != nil {
-		_ = p.audio.Close()
-		p.audio = nil
-	}
-	if p.videoCommand != nil && p.videoCommand.Process != nil {
-		_ = p.videoCommand.Process.Kill()
-		p.videoCommand = nil
+func (p *Player) stopSessionLocked() {
+	if p.session != nil {
+		p.session.Close()
+		p.session = nil
 	}
 }
 
@@ -486,25 +459,6 @@ func sourcePath(source string) (string, error) {
 	return source, nil
 }
 
-func probeVideo(ffmpegPath, source string) (int, int, error) {
-	probe := ffprobePath(ffmpegPath)
-	command := exec.Command(probe, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "json", source)
-	raw, err := command.Output()
-	if err != nil {
-		return 0, 0, fmt.Errorf("probe video: %w", err)
-	}
-	var result struct {
-		Streams []struct {
-			Width  int `json:"width"`
-			Height int `json:"height"`
-		} `json:"streams"`
-	}
-	if err := json.Unmarshal(raw, &result); err != nil || len(result.Streams) == 0 || result.Streams[0].Width <= 0 || result.Streams[0].Height <= 0 {
-		return 0, 0, errors.New("video has no decodable video stream")
-	}
-	return result.Streams[0].Width, result.Streams[0].Height, nil
-}
-
 func probeMediaDuration(ffmpegPath, source string) (time.Duration, error) {
 	command := exec.Command(ffprobePath(ffmpegPath), "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", source)
 	output, err := command.Output()
@@ -518,8 +472,6 @@ func probeMediaDuration(ffmpegPath, source string) (time.Duration, error) {
 	return time.Duration(seconds * float64(time.Second)), nil
 }
 
-// ProbeDurationMs reads a media file's full duration without starting
-// playback. Source may be a normal path or a file URI.
 func ProbeDurationMs(ffmpegPath, source string) (int64, error) {
 	path, err := sourcePath(source)
 	if err != nil {

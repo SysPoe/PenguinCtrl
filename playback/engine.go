@@ -458,7 +458,7 @@ func (e *Engine) startMedia(next command) error {
 	instance := &Instance{
 		ID: uuid.NewString(), CueID: cue.ID, GroupID: cue.GroupID, CueNumber: cue.CueNumber, CueIndex: cueIndex, Link: cue.Link, PostWaitMs: cue.Timing.PostWaitMs,
 		Preview:   next.preview,
-		StartedAt: now, PositionAt: now, RunContext: next.ctx,
+		StartedAt: now, RequestedAt: now, PositionAt: now, RunContext: next.ctx, LoadState: "loading", Cue: show.CloneCue(cue),
 	}
 	switch cue.Type {
 	case show.CueTypeSound:
@@ -505,17 +505,6 @@ func (e *Engine) startMedia(next command) error {
 	e.mu.Unlock()
 	e.hub.publish(Event{Action: "play", OutputID: snapshot.OutputID, Instance: &snapshot})
 	e.signalState()
-	if snapshot.FadeInMs == 0 {
-		e.scheduleLink(snapshot.Link, snapshot.CueIndex, snapshot.PostWaitMs, linkFadeIn, snapshot.RunContext)
-	} else {
-		go func(id string, wait time.Duration) {
-			if waitContext(snapshot.RunContext, wait) {
-				e.HandleOutputReport(id, "fade-in-complete")
-			}
-		}(snapshot.ID, time.Duration(snapshot.FadeInMs)*time.Millisecond)
-	}
-	e.scheduleInstanceLifecycle(snapshot.ID)
-	e.scheduleTimecode(snapshot.ID, cue, cueIndex, snapshot.RunContext)
 	return nil
 }
 
@@ -567,7 +556,7 @@ func mediaTimecode(cue show.Cue) []show.TimecodeMarker {
 func (e *Engine) scheduleInstanceLifecycle(instanceID string) {
 	e.mu.Lock()
 	instance := e.instances[instanceID]
-	if instance == nil || instance.DurationMs <= 0 || instance.EndScheduled {
+	if instance == nil || !instance.BackendStarted || instance.DurationMs <= 0 || instance.EndScheduled {
 		e.mu.Unlock()
 		return
 	}
@@ -806,6 +795,17 @@ func (e *Engine) HandleOutputReport(instanceID, report string) {
 		e.mu.Unlock()
 		return
 	}
+	if report == "started" {
+		if instance.BackendStarted {
+			e.mu.Unlock()
+			return
+		}
+		now := time.Now()
+		instance.BackendStarted = true
+		instance.LoadState = "playing"
+		instance.StartLatencyMs = max(int64(0), now.Sub(instance.RequestedAt).Milliseconds())
+		instance.StartedAt, instance.PositionAt = now, now
+	}
 	if report == "fade-in-complete" {
 		if instance.FadeInComplete {
 			e.mu.Unlock()
@@ -826,6 +826,12 @@ func (e *Engine) HandleOutputReport(instanceID, report string) {
 	}
 	e.mu.Unlock()
 	switch report {
+	case "started":
+		if copy.FadeInMs == 0 {
+			e.scheduleLink(copy.Link, copy.CueIndex, copy.PostWaitMs, linkFadeIn, copy.RunContext)
+		}
+		e.scheduleInstanceLifecycle(copy.ID)
+		e.scheduleTimecode(copy.ID, copy.Cue, copy.CueIndex, copy.RunContext)
 	case "fade-in-complete":
 		e.scheduleLink(copy.Link, copy.CueIndex, copy.PostWaitMs, linkFadeIn, copy.RunContext)
 	case "fade-out-start":
@@ -852,8 +858,11 @@ func (e *Engine) HandleOutputDuration(instanceID string, durationMs int64) {
 	}
 	instance.DurationMs = durationMs
 	e.durations[instance.CueID] = durationMs
+	started := instance.BackendStarted
 	e.mu.Unlock()
-	e.scheduleInstanceLifecycle(instanceID)
+	if started {
+		e.scheduleInstanceLifecycle(instanceID)
+	}
 	e.signalState()
 }
 
@@ -1124,7 +1133,7 @@ func (e *Engine) hasInstance(id string) bool {
 }
 
 func materializeInstance(instance *Instance, now time.Time) {
-	if !instance.Paused && !instance.PositionAt.IsZero() {
+	if instance.BackendStarted && !instance.Paused && !instance.PositionAt.IsZero() {
 		instance.PositionMs += max(int64(0), now.Sub(instance.PositionAt).Milliseconds())
 		instance.PositionAt = now
 	}

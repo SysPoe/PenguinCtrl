@@ -39,6 +39,11 @@ type Instance struct {
 	FadeTargetDB   float64         `json:"-"`
 	FadeDurationMs int64           `json:"-"`
 	RunContext     context.Context `json:"-"`
+	RequestedAt    time.Time       `json:"-"`
+	BackendStarted bool            `json:"-"`
+	LoadState      string          `json:"loadState,omitempty"`
+	StartLatencyMs int64           `json:"startLatencyMs,omitempty"`
+	Cue            show.Cue        `json:"-"`
 }
 
 // CueExecution describes a cue that is currently doing synchronous work.
