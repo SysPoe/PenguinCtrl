@@ -2,8 +2,10 @@ package media
 
 import (
 	"fmt"
+	"image"
 	"image/color"
 	"log"
+	"sort"
 	"sync"
 	"time"
 
@@ -30,6 +32,12 @@ type Manager struct {
 	audioStatusMu     sync.Mutex
 	lastAudioCheck    time.Time
 	audioDeviceStatus string
+	displaysMu        sync.RWMutex
+	displays          []VideoDisplay
+	displaySignature  string
+	displayStatusMu   sync.Mutex
+	lastDisplayCheck  time.Time
+	videoOutputStatus string
 }
 
 func NewManager(engine *playback.Engine, settings *config.Store) *Manager {
@@ -37,7 +45,10 @@ func NewManager(engine *playback.Engine, settings *config.Store) *Manager {
 	if err != nil {
 		log.Printf("initialize audio output: %v", err)
 	}
-	return &Manager{engine: engine, settings: settings, windows: map[string]*outputWindow{}, audio: context}
+	manager := &Manager{engine: engine, settings: settings, windows: map[string]*outputWindow{}, audio: context}
+	manager.refreshDisplays(true)
+	go manager.monitorDisplays()
+	return manager
 }
 
 func (m *Manager) AudioDevices() ([]AudioDevice, error) {
@@ -98,12 +109,13 @@ func audioDeviceWarning(settings config.Settings, devices []AudioDevice, err err
 }
 
 func (m *Manager) EnsureOutputs(outputIDs []string) {
-	for _, outputID := range outputIDs {
+	for _, outputID := range m.outputIDsWithConfiguredStages(outputIDs) {
 		m.ensureOutput(outputID)
 	}
 }
 
 func (m *Manager) SyncOutputs(outputIDs []string) {
+	outputIDs = m.outputIDsWithConfiguredStages(outputIDs)
 	desired := make(map[string]struct{}, len(outputIDs))
 	for _, outputID := range outputIDs {
 		desired[outputID] = struct{}{}
@@ -158,6 +170,30 @@ type outputWindow struct {
 	identifyMessage string
 	reopening       bool
 	transition      *outputTransition
+	nativeHandle    uintptr
+	routed          bool
+	displayMissing  bool
+	lastGeometry    [4]int
+	heldFrame       image.Image
+	routeMu         sync.Mutex
+}
+
+func (m *Manager) outputIDsWithConfiguredStages(outputIDs []string) []string {
+	seen := make(map[string]struct{}, len(outputIDs))
+	result := make([]string, 0, len(outputIDs)+len(m.settings.Snapshot().VideoOutputs))
+	for _, outputID := range outputIDs {
+		if outputID != "" {
+			if _, exists := seen[outputID]; !exists {
+				seen[outputID], result = struct{}{}, append(result, outputID)
+			}
+		}
+	}
+	for _, output := range m.settings.Snapshot().VideoOutputs {
+		if _, exists := seen[output.Stage]; !exists {
+			seen[output.Stage], result = struct{}{}, append(result, output.Stage)
+		}
+	}
+	return result
 }
 
 type outputTransition struct {
@@ -174,8 +210,9 @@ func (o *outputWindow) run() {
 		}
 	}()
 	log.Printf("opening media output %q", o.id)
+	route := o.route()
 	o.window = new(app.Window)
-	o.window.Option(app.Title(o.id), app.Size(unit.Dp(960), unit.Dp(540)), app.MinSize(unit.Dp(320), unit.Dp(180)))
+	o.window.Option(app.Title(o.id), app.Size(unit.Dp(route.Width), unit.Dp(route.Height)), app.MinSize(unit.Dp(320), unit.Dp(180)))
 	events, unsubscribe := o.manager.engine.Subscribe(o.id)
 	defer unsubscribe()
 	pending := make(chan playback.Event, 64)
@@ -207,6 +244,17 @@ func (o *outputWindow) run() {
 				player.Close(false)
 			}
 			return
+		case app.ViewEvent:
+			if handle := platformViewHandle(event); handle != 0 {
+				o.routeMu.Lock()
+				o.nativeHandle = handle
+				o.routeMu.Unlock()
+				o.applyRoute(false)
+			}
+		case app.ConfigEvent:
+			if event.Config.Mode == app.Windowed && !o.route().Fullscreen {
+				o.persistGeometry()
+			}
 		case app.FrameEvent:
 			gtx := app.NewContext(&ops, event)
 		pendingLoop:
@@ -224,8 +272,11 @@ func (o *outputWindow) run() {
 					break
 				}
 				if click.NumClicks == 2 {
+					o.routeMu.Lock()
 					o.fullscreen = !o.fullscreen
-					if o.fullscreen {
+					fullscreen := o.fullscreen
+					o.routeMu.Unlock()
+					if fullscreen {
 						o.window.Option(app.Fullscreen.Option())
 					} else {
 						o.window.Option(app.Windowed.Option())
@@ -241,6 +292,74 @@ func (o *outputWindow) run() {
 	}
 }
 
+func (o *outputWindow) route() config.VideoOutput {
+	return config.VideoOutputFor(o.manager.settings.Snapshot(), o.id)
+}
+
+func (o *outputWindow) applyRoute(force bool) {
+	o.routeMu.Lock()
+	if o.window == nil || o.nativeHandle == 0 || (o.routed && !force) {
+		o.routeMu.Unlock()
+		return
+	}
+	handle := o.nativeHandle
+	o.routed = true
+	o.routeMu.Unlock()
+	route := o.route()
+	found := platformPlaceWindow(handle, route, o.manager.currentDisplays())
+	o.routeMu.Lock()
+	o.displayMissing = route.DisplayID != "" && !found
+	o.routeMu.Unlock()
+	if route.Fullscreen {
+		o.routeMu.Lock()
+		o.fullscreen = true
+		o.routeMu.Unlock()
+		o.window.Option(app.Fullscreen.Option())
+	} else {
+		o.routeMu.Lock()
+		o.fullscreen = false
+		o.routeMu.Unlock()
+		o.window.Option(app.Windowed.Option())
+	}
+	o.window.Invalidate()
+}
+
+func (o *outputWindow) persistGeometry() {
+	displays := o.manager.currentDisplays()
+	if len(displays) == 0 {
+		return
+	}
+	display, _ := resolveDisplayForGeometry(o.route().DisplayID, displays)
+	o.routeMu.Lock()
+	handle := o.nativeHandle
+	o.routeMu.Unlock()
+	x, y, width, height, ok := platformWindowGeometry(handle, display)
+	geometry := [4]int{x, y, width, height}
+	if !ok || geometry == o.lastGeometry {
+		return
+	}
+	o.lastGeometry = geometry
+	if err := o.manager.settings.UpdateVideoOutputGeometry(o.id, x, y, width, height); err != nil {
+		log.Printf("persist media output %q geometry: %v", o.id, err)
+	}
+}
+
+func resolveDisplayForGeometry(id string, displays []VideoDisplay) (VideoDisplay, bool) {
+	if id != "" {
+		for _, display := range displays {
+			if display.ID == id {
+				return display, true
+			}
+		}
+	}
+	for _, display := range displays {
+		if display.Primary {
+			return display, id == ""
+		}
+	}
+	return displays[0], id == ""
+}
+
 func (o *outputWindow) layout(gtx layout.Context) layout.Dimensions {
 	gtx.Constraints.Min = gtx.Constraints.Max
 	o.advanceTransition()
@@ -249,7 +368,7 @@ func (o *outputWindow) layout(gtx layout.Context) layout.Dimensions {
 	}
 	return layout.Stack{}.Layout(gtx,
 		layout.Expanded(func(gtx layout.Context) layout.Dimensions {
-			return o.layoutContent(gtx)
+			return o.layoutCanvas(gtx)
 		}),
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 			opacity := o.transitionOpacity()
@@ -263,23 +382,56 @@ func (o *outputWindow) layout(gtx layout.Context) layout.Dimensions {
 	)
 }
 
-func (o *outputWindow) layoutContent(gtx layout.Context) layout.Dimensions {
+func (o *outputWindow) layoutCanvas(gtx layout.Context) layout.Dimensions {
+	route := o.route()
+	canvas := gtx.Constraints.Max
+	if route.ResolutionWidth > 0 && route.ResolutionHeight > 0 && canvas.X > 0 && canvas.Y > 0 {
+		height := canvas.X * route.ResolutionHeight / route.ResolutionWidth
+		if height <= canvas.Y {
+			canvas.Y = height
+		} else {
+			canvas.X = canvas.Y * route.ResolutionWidth / route.ResolutionHeight
+		}
+	}
+	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		gtx.Constraints.Min, gtx.Constraints.Max = canvas, canvas
+		defer clip.Rect{Max: canvas}.Push(gtx.Ops).Pop()
+		return layout.Stack{}.Layout(gtx,
+			layout.Expanded(func(gtx layout.Context) layout.Dimensions { return o.layoutContent(gtx, route) }),
+			layout.Stacked(func(gtx layout.Context) layout.Dimensions { return o.layoutGuides(gtx, route) }),
+		)
+	})
+}
+
+func (o *outputWindow) layoutContent(gtx layout.Context, route config.VideoOutput) layout.Dimensions {
 	if o.blackout {
 		return layout.Dimensions{Size: gtx.Constraints.Max}
 	}
 	if o.test {
 		return layoutTestPattern(gtx)
 	}
-	var visible *Player
+	visible := make([]*Player, 0, len(o.players))
 	for _, player := range o.players {
 		if player.MediaType() == "video" || player.MediaType() == "image" {
-			if visible == nil || player.StartedAt().After(visible.StartedAt()) {
-				visible = player
-			}
+			visible = append(visible, player)
 		}
 	}
-	if visible != nil {
-		return visible.Layout(gtx)
+	sort.SliceStable(visible, func(i, j int) bool { return visible[i].StartedAt().Before(visible[j].StartedAt()) })
+	if len(visible) > route.Layers {
+		visible = visible[len(visible)-route.Layers:]
+	}
+	if len(visible) > 0 {
+		children := make([]layout.StackChild, 0, len(visible))
+		for _, player := range visible {
+			player := player
+			children = append(children, layout.Expanded(func(gtx layout.Context) layout.Dimensions {
+				return player.LayoutScaled(gtx, route.Scaling)
+			}))
+		}
+		return layout.Stack{}.Layout(gtx, children...)
+	}
+	if route.IdleBehavior == "hold" && o.heldFrame != nil {
+		return layoutFrame(gtx, o.heldFrame, route.Scaling)
 	}
 	if o.identify {
 		th := material.NewTheme()
@@ -294,6 +446,50 @@ func (o *outputWindow) layoutContent(gtx layout.Context) layout.Dimensions {
 	return layout.Dimensions{Size: gtx.Constraints.Max}
 }
 
+func (o *outputWindow) layoutGuides(gtx layout.Context, route config.VideoOutput) layout.Dimensions {
+	size := gtx.Constraints.Max
+	if route.TestGrid {
+		line := max(1, min(size.X, size.Y)/360)
+		grid := color.NRGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0x58}
+		for i := 1; i < 10; i++ {
+			x := size.X * i / 10
+			y := size.Y * i / 10
+			paint.FillShape(gtx.Ops, grid, clip.Rect{Min: image.Pt(x, 0), Max: image.Pt(x+line, size.Y)}.Op())
+			paint.FillShape(gtx.Ops, grid, clip.Rect{Min: image.Pt(0, y), Max: image.Pt(size.X, y+line)}.Op())
+		}
+	}
+	if route.SafeAreaPercent > 0 {
+		insetX, insetY := size.X*route.SafeAreaPercent/100, size.Y*route.SafeAreaPercent/100
+		line := max(1, min(size.X, size.Y)/240)
+		guide := color.NRGBA{R: 0xFF, G: 0xD5, B: 0x4A, A: 0xD0}
+		paintRectOutline(gtx, image.Rect(insetX, insetY, size.X-insetX, size.Y-insetY), line, guide)
+	}
+	o.routeMu.Lock()
+	displayMissing := o.displayMissing
+	o.routeMu.Unlock()
+	if displayMissing {
+		th := material.NewTheme()
+		label := material.Body1(th, "ASSIGNED DISPLAY MISSING · TEMPORARY PRIMARY OUTPUT")
+		label.Color = palette.White
+		return layout.N.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Top: unit.Dp(18)}.Layout(gtx, label.Layout)
+		})
+	}
+	return layout.Dimensions{Size: size}
+}
+
+func paintRectOutline(gtx layout.Context, rect image.Rectangle, width int, fill color.NRGBA) {
+	paint.FillShape(gtx.Ops, fill, clip.Rect{Min: rect.Min, Max: image.Pt(rect.Max.X, rect.Min.Y+width)}.Op())
+	paint.FillShape(gtx.Ops, fill, clip.Rect{Min: image.Pt(rect.Min.X, rect.Max.Y-width), Max: rect.Max}.Op())
+	paint.FillShape(gtx.Ops, fill, clip.Rect{Min: rect.Min, Max: image.Pt(rect.Min.X+width, rect.Max.Y)}.Op())
+	paint.FillShape(gtx.Ops, fill, clip.Rect{Min: image.Pt(rect.Max.X-width, rect.Min.Y), Max: rect.Max}.Op())
+}
+
+func layoutFrame(gtx layout.Context, frame image.Image, scaling string) layout.Dimensions {
+	player := &Player{frame: frame}
+	return player.LayoutScaled(gtx, scaling)
+}
+
 func (o *outputWindow) handleEvent(event playback.Event) {
 	switch event.Action {
 	case "sync":
@@ -306,6 +502,9 @@ func (o *outputWindow) handleEvent(event playback.Event) {
 	case "remove":
 		for _, id := range event.InstanceIDs {
 			if player := o.players[id]; player != nil {
+				if o.route().IdleBehavior == "hold" {
+					o.heldFrame = player.Frame()
+				}
 				player.Close(false)
 				delete(o.players, id)
 			}
@@ -365,6 +564,7 @@ func (o *outputWindow) applyOutputControl(event playback.Event) {
 		o.blackout = true
 	case "clear":
 		o.blackout, o.test, o.identify, o.identifyMessage = false, false, false, ""
+		o.heldFrame = nil
 		for id, player := range o.players {
 			player.Close(true)
 			delete(o.players, id)
@@ -378,10 +578,14 @@ func (o *outputWindow) applyOutputControl(event playback.Event) {
 		o.reopening = true
 		o.window.Perform(system.ActionClose)
 	case "fullscreen":
+		o.routeMu.Lock()
 		o.fullscreen = true
+		o.routeMu.Unlock()
 		o.window.Option(app.Fullscreen.Option())
 	case "exit-fullscreen":
+		o.routeMu.Lock()
 		o.fullscreen = false
+		o.routeMu.Unlock()
 		o.window.Option(app.Windowed.Option())
 	}
 }

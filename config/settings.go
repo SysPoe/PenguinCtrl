@@ -19,12 +19,30 @@ type RemoteTarget struct {
 	ERCPort int    `json:"ercPort"`
 }
 
+type VideoOutput struct {
+	Stage            string `json:"stage"`
+	DisplayID        string `json:"displayId,omitempty"`
+	Fullscreen       bool   `json:"fullscreen"`
+	X                int    `json:"x,omitempty"`
+	Y                int    `json:"y,omitempty"`
+	Width            int    `json:"width"`
+	Height           int    `json:"height"`
+	ResolutionWidth  int    `json:"resolutionWidth"`
+	ResolutionHeight int    `json:"resolutionHeight"`
+	Scaling          string `json:"scaling"`
+	IdleBehavior     string `json:"idleBehavior"`
+	TestGrid         bool   `json:"testGrid,omitempty"`
+	SafeAreaPercent  int    `json:"safeAreaPercent,omitempty"`
+	Layers           int    `json:"layers"`
+}
+
 type Settings struct {
 	FFmpegPath          string            `json:"ffmpegPath"`
 	DefaultPlayback     string            `json:"defaultPlayback"`
 	DefaultMediaOutput  string            `json:"defaultMediaOutput"`
 	PlaybackAudioDevice string            `json:"playbackAudioDevice,omitempty"`
 	PreviewAudioDevice  string            `json:"previewAudioDevice,omitempty"`
+	VideoOutputs        []VideoOutput     `json:"videoOutputs,omitempty"`
 	Variables           map[string]string `json:"variables"`
 	RemoteTargets       []RemoteTarget    `json:"remoteTargets"`
 }
@@ -34,6 +52,7 @@ func Defaults() Settings {
 		FFmpegPath:         "ffmpeg",
 		DefaultPlayback:    "1",
 		DefaultMediaOutput: "main",
+		VideoOutputs:       []VideoOutput{{Stage: "main", Fullscreen: true, Width: 960, Height: 540, ResolutionWidth: 1920, ResolutionHeight: 1080, Scaling: "contain", IdleBehavior: "black", Layers: 1}},
 		Variables:          map[string]string{},
 		RemoteTargets:      []RemoteTarget{{Name: "Local console", Host: "127.0.0.1", OSCPort: 8000, ERCPort: 6553}},
 	}
@@ -103,6 +122,22 @@ func (s *Store) Update(settings Settings) error {
 	return s.saveLocked()
 }
 
+func (s *Store) UpdateVideoOutputGeometry(stage string, x, y, width, height int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i := range s.settings.VideoOutputs {
+		output := &s.settings.VideoOutputs[i]
+		if output.Stage == stage {
+			output.X, output.Y = x, y
+			if width > 0 && height > 0 {
+				output.Width, output.Height = width, height
+			}
+			return s.saveLocked()
+		}
+	}
+	return nil
+}
+
 func (s *Store) saveLocked() error {
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
 		return fmt.Errorf("create settings directory: %w", err)
@@ -134,6 +169,45 @@ func normalize(in Settings) Settings {
 	}
 	in.PlaybackAudioDevice = strings.TrimSpace(in.PlaybackAudioDevice)
 	in.PreviewAudioDevice = strings.TrimSpace(in.PreviewAudioDevice)
+	seenStages := make(map[string]struct{}, len(in.VideoOutputs))
+	outputs := make([]VideoOutput, 0, len(in.VideoOutputs)+1)
+	for _, output := range in.VideoOutputs {
+		output.Stage, output.DisplayID = strings.TrimSpace(output.Stage), strings.TrimSpace(output.DisplayID)
+		if output.Stage == "" {
+			continue
+		}
+		if _, exists := seenStages[output.Stage]; exists {
+			continue
+		}
+		seenStages[output.Stage] = struct{}{}
+		if output.Width < 320 {
+			output.Width = 960
+		}
+		if output.Height < 180 {
+			output.Height = 540
+		}
+		if output.ResolutionWidth < 1 {
+			output.ResolutionWidth = 1920
+		}
+		if output.ResolutionHeight < 1 {
+			output.ResolutionHeight = 1080
+		}
+		switch output.Scaling {
+		case "contain", "cover", "stretch", "native":
+		default:
+			output.Scaling = "contain"
+		}
+		if output.IdleBehavior != "hold" {
+			output.IdleBehavior = "black"
+		}
+		output.SafeAreaPercent = min(20, max(0, output.SafeAreaPercent))
+		output.Layers = min(8, max(1, output.Layers))
+		outputs = append(outputs, output)
+	}
+	if _, exists := seenStages[in.DefaultMediaOutput]; !exists {
+		outputs = append(outputs, VideoOutput{Stage: in.DefaultMediaOutput, Fullscreen: true, Width: 960, Height: 540, ResolutionWidth: 1920, ResolutionHeight: 1080, Scaling: "contain", IdleBehavior: "black", Layers: 1})
+	}
+	in.VideoOutputs = outputs
 	if in.Variables == nil {
 		in.Variables = map[string]string{}
 	}
@@ -161,7 +235,19 @@ func clone(in Settings) Settings {
 		out.Variables[key] = value
 	}
 	out.RemoteTargets = append([]RemoteTarget(nil), in.RemoteTargets...)
+	out.VideoOutputs = append([]VideoOutput(nil), in.VideoOutputs...)
 	return out
+}
+
+func VideoOutputFor(settings Settings, stage string) VideoOutput {
+	for _, output := range settings.VideoOutputs {
+		if output.Stage == stage {
+			return output
+		}
+	}
+	fallback := Defaults().VideoOutputs[0]
+	fallback.Stage = stage
+	return fallback
 }
 
 var variableNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_.-]*$`)

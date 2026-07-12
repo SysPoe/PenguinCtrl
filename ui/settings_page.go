@@ -35,29 +35,58 @@ type AudioDevice struct {
 	IsDefault bool
 }
 
+type VideoDisplay struct {
+	ID      string
+	Name    string
+	Primary bool
+}
+
+type videoOutputFields struct {
+	stage       *input.Text
+	display     *input.Dropdown
+	fullscreen  *input.Checkbox
+	x           *input.Integer
+	y           *input.Integer
+	width       *input.Integer
+	height      *input.Integer
+	resolutionW *input.Integer
+	resolutionH *input.Integer
+	scaling     *input.Dropdown
+	idle        *input.Dropdown
+	testGrid    *input.Checkbox
+	safeArea    *input.Integer
+	layers      *input.Integer
+	remove      widget.Clickable
+}
+
 type SettingsPage struct {
-	store               *config.Store
-	initialized         bool
-	list                layout.List
-	ffmpegPath          *input.Text
-	defaultPlayback     *input.Text
-	defaultMediaOutput  *input.Text
-	playbackAudioDevice *input.Dropdown
-	previewAudioDevice  *input.Dropdown
-	audioDevices        []AudioDevice
-	audioDeviceProvider func() ([]AudioDevice, error)
-	targets             []*remoteTargetFields
-	variables           []*variableFields
-	addTarget           widget.Clickable
-	addVariable         widget.Clickable
-	save                widget.Clickable
-	reload              widget.Clickable
-	reopenOutputs       widget.Clickable
-	refreshAudioDevices widget.Clickable
-	status              string
-	statusError         bool
-	onSaved             func()
-	onReopenOutputs     func()
+	store                *config.Store
+	initialized          bool
+	list                 layout.List
+	ffmpegPath           *input.Text
+	defaultPlayback      *input.Text
+	defaultMediaOutput   *input.Text
+	playbackAudioDevice  *input.Dropdown
+	previewAudioDevice   *input.Dropdown
+	audioDevices         []AudioDevice
+	audioDeviceProvider  func() ([]AudioDevice, error)
+	videoDisplays        []VideoDisplay
+	videoDisplayProvider func() ([]VideoDisplay, error)
+	videoOutputs         []*videoOutputFields
+	targets              []*remoteTargetFields
+	variables            []*variableFields
+	addTarget            widget.Clickable
+	addVariable          widget.Clickable
+	save                 widget.Clickable
+	reload               widget.Clickable
+	reopenOutputs        widget.Clickable
+	refreshAudioDevices  widget.Clickable
+	refreshDisplays      widget.Clickable
+	addVideoOutput       widget.Clickable
+	status               string
+	statusError          bool
+	onSaved              func()
+	onReopenOutputs      func()
 }
 
 func (p *SettingsPage) SetOnSaved(callback func()) { p.onSaved = callback }
@@ -67,6 +96,11 @@ func (p *SettingsPage) SetOnReopenOutputs(callback func()) { p.onReopenOutputs =
 func (p *SettingsPage) SetAudioDeviceProvider(provider func() ([]AudioDevice, error)) {
 	p.audioDeviceProvider = provider
 	p.refreshAudioDeviceList()
+}
+
+func (p *SettingsPage) SetVideoDisplayProvider(provider func() ([]VideoDisplay, error)) {
+	p.videoDisplayProvider = provider
+	p.refreshVideoDisplayList()
 }
 
 // ShowAudioDevices refreshes and scrolls directly to the audio routing controls.
@@ -89,6 +123,10 @@ func (p *SettingsPage) load() {
 	p.defaultMediaOutput = input.NewText("Default media output", settings.DefaultMediaOutput)
 	p.playbackAudioDevice = newAudioDeviceDropdown(p.audioDevices, settings.PlaybackAudioDevice)
 	p.previewAudioDevice = newAudioDeviceDropdown(p.audioDevices, settings.PreviewAudioDevice)
+	p.videoOutputs = make([]*videoOutputFields, 0, len(settings.VideoOutputs))
+	for _, output := range settings.VideoOutputs {
+		p.videoOutputs = append(p.videoOutputs, newVideoOutputFields(output, p.videoDisplays))
+	}
 	p.targets = make([]*remoteTargetFields, 0, len(settings.RemoteTargets))
 	for _, target := range settings.RemoteTargets {
 		p.targets = append(p.targets, newRemoteTargetFields(target))
@@ -127,6 +165,7 @@ func (p *SettingsPage) Layout(th *material.Theme, gtx layout.Context) layout.Dim
 		func(gtx layout.Context) layout.Dimensions { return p.header(th, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.defaultsSection(th, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.audioSection(th, gtx) },
+		func(gtx layout.Context) layout.Dimensions { return p.videoOutputsSection(th, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.targetsSection(th, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.variablesSection(th, gtx) },
 	}
@@ -155,6 +194,17 @@ func (p *SettingsPage) handleClicks(gtx layout.Context) {
 	if p.refreshAudioDevices.Clicked(gtx) {
 		p.refreshAudioDeviceList()
 	}
+	if p.refreshDisplays.Clicked(gtx) {
+		p.refreshVideoDisplayList()
+	}
+	if p.addVideoOutput.Clicked(gtx) {
+		index := len(p.videoOutputs) + 1
+		p.videoOutputs = append(p.videoOutputs, newVideoOutputFields(config.VideoOutput{
+			Stage: fmt.Sprintf("stage-%d", index), Width: 960, Height: 540,
+			ResolutionWidth: 1920, ResolutionHeight: 1080,
+			Scaling: "contain", IdleBehavior: "black", Layers: 1,
+		}, p.videoDisplays))
+	}
 	if p.addTarget.Clicked(gtx) {
 		p.targets = append(p.targets, newRemoteTargetFields(config.RemoteTarget{Name: fmt.Sprintf("Target %d", len(p.targets)+1), Host: "127.0.0.1", OSCPort: 8000, ERCPort: 6553}))
 	}
@@ -171,6 +221,11 @@ func (p *SettingsPage) handleClicks(gtx layout.Context) {
 			p.variables = append(p.variables[:index], p.variables[index+1:]...)
 		}
 	}
+	for index := len(p.videoOutputs) - 1; index >= 0; index-- {
+		if p.videoOutputs[index].remove.Clicked(gtx) {
+			p.videoOutputs = append(p.videoOutputs[:index], p.videoOutputs[index+1:]...)
+		}
+	}
 	if p.save.Clicked(gtx) {
 		p.saveSettings()
 	}
@@ -183,6 +238,27 @@ func (p *SettingsPage) saveSettings() {
 	settings.DefaultMediaOutput = strings.TrimSpace(p.defaultMediaOutput.Value)
 	settings.PlaybackAudioDevice = selectedDropdownValue(p.playbackAudioDevice)
 	settings.PreviewAudioDevice = selectedDropdownValue(p.previewAudioDevice)
+	settings.VideoOutputs = make([]config.VideoOutput, 0, len(p.videoOutputs))
+	stages := make(map[string]struct{}, len(p.videoOutputs))
+	for _, fields := range p.videoOutputs {
+		stage := strings.TrimSpace(fields.stage.Value)
+		if stage == "" {
+			p.status, p.statusError = "Video stage names cannot be empty", true
+			return
+		}
+		if _, exists := stages[stage]; exists {
+			p.status, p.statusError = "Duplicate video stage: "+stage, true
+			return
+		}
+		stages[stage] = struct{}{}
+		settings.VideoOutputs = append(settings.VideoOutputs, config.VideoOutput{
+			Stage: stage, DisplayID: selectedDropdownValue(fields.display), Fullscreen: fields.fullscreen.Checked,
+			X: fields.x.Value, Y: fields.y.Value, Width: fields.width.Value, Height: fields.height.Value,
+			ResolutionWidth: fields.resolutionW.Value, ResolutionHeight: fields.resolutionH.Value,
+			Scaling: selectedDropdownValue(fields.scaling), IdleBehavior: selectedDropdownValue(fields.idle),
+			TestGrid: fields.testGrid.Checked, SafeAreaPercent: fields.safeArea.Value, Layers: fields.layers.Value,
+		})
+	}
 	settings.RemoteTargets = make([]config.RemoteTarget, 0, len(p.targets))
 	for _, target := range p.targets {
 		settings.RemoteTargets = append(settings.RemoteTargets, config.RemoteTarget{
@@ -323,6 +399,141 @@ func newAudioDeviceDropdown(devices []AudioDevice, selectedID string) *input.Dro
 		selected = len(items) - 1
 	}
 	return input.NewDropdown(items, selected)
+}
+
+func newVideoOutputFields(output config.VideoOutput, displays []VideoDisplay) *videoOutputFields {
+	return &videoOutputFields{
+		stage:      input.NewText("Stage name", output.Stage),
+		display:    newVideoDisplayDropdown(displays, output.DisplayID),
+		fullscreen: input.NewCheckbox("Fullscreen on launch", output.Fullscreen),
+		x:          input.NewInteger("X", output.X), y: input.NewInteger("Y", output.Y),
+		width: input.NewInteger("Window width", output.Width), height: input.NewInteger("Window height", output.Height),
+		resolutionW: input.NewInteger("Output width", output.ResolutionWidth), resolutionH: input.NewInteger("Output height", output.ResolutionHeight),
+		scaling:  enumDropdown([]input.DropdownItem{{Label: "Contain (letterbox)", Value: "contain"}, {Label: "Cover (crop)", Value: "cover"}, {Label: "Stretch", Value: "stretch"}, {Label: "Native pixels", Value: "native"}}, output.Scaling),
+		idle:     enumDropdown([]input.DropdownItem{{Label: "Black", Value: "black"}, {Label: "Hold last frame", Value: "hold"}}, output.IdleBehavior),
+		testGrid: input.NewCheckbox("Overlay test grid", output.TestGrid),
+		safeArea: input.NewInteger("Safe area %", output.SafeAreaPercent),
+		layers:   input.NewInteger("Maximum layers", output.Layers),
+	}
+}
+
+func enumDropdown(items []input.DropdownItem, value string) *input.Dropdown {
+	selected := 0
+	for i, item := range items {
+		if item.Value == value {
+			selected = i
+			break
+		}
+	}
+	return input.NewDropdown(items, selected)
+}
+
+func newVideoDisplayDropdown(displays []VideoDisplay, selectedID string) *input.Dropdown {
+	items := []input.DropdownItem{{Label: "Primary display (automatic)", Value: ""}}
+	selected, found := 0, selectedID == ""
+	for _, display := range displays {
+		label := display.Name
+		if display.Primary {
+			label += " (primary)"
+		}
+		items = append(items, input.DropdownItem{Label: label, Value: display.ID})
+		if display.ID == selectedID {
+			selected, found = len(items)-1, true
+		}
+	}
+	if !found {
+		items = append(items, input.DropdownItem{Label: "Disconnected display", Value: selectedID})
+		selected = len(items) - 1
+	}
+	return input.NewDropdown(items, selected)
+}
+
+func (p *SettingsPage) refreshVideoDisplayList() {
+	if p.videoDisplayProvider == nil {
+		return
+	}
+	displays, err := p.videoDisplayProvider()
+	if err != nil {
+		p.status, p.statusError = err.Error(), true
+		return
+	}
+	p.videoDisplays = displays
+	for _, output := range p.videoOutputs {
+		selected := selectedDropdownValue(output.display)
+		output.display = newVideoDisplayDropdown(displays, selected)
+	}
+	p.status, p.statusError = fmt.Sprintf("Found %d video display(s)", len(displays)), false
+}
+
+func (p *SettingsPage) videoOutputsSection(th *material.Theme, gtx layout.Context) layout.Dimensions {
+	rows := make([]layout.Widget, 0, len(p.videoOutputs)+2)
+	for _, fields := range p.videoOutputs {
+		fields := fields
+		rows = append(rows, func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Bottom: unit.Dp(16)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return settingsField(th, gtx, "Stage", fields.stage.Layout)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return settingsField(th, gtx, "Physical display", fields.display.Layout)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return settingsField(th, gtx, "Launch mode", fields.fullscreen.Layout)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return pairedSettingsFields(th, gtx, "Window X / Y", fields.x.Layout, fields.y.Layout)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return pairedSettingsFields(th, gtx, "Window size", fields.width.Layout, fields.height.Layout)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return pairedSettingsFields(th, gtx, "Output resolution", fields.resolutionW.Layout, fields.resolutionH.Layout)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return settingsField(th, gtx, "Scaling", fields.scaling.Layout)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return settingsField(th, gtx, "When idle", fields.idle.Layout)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return settingsField(th, gtx, "Diagnostics", fields.testGrid.Layout)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return settingsField(th, gtx, "Safe area (0-20%)", fields.safeArea.Layout)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return settingsField(th, gtx, "Layers (1-8)", fields.layers.Layout)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layoutButton(th, gtx, &fields.remove, "Remove stage", th.ContrastBg)
+					}),
+				)
+			})
+		})
+	}
+	rows = append(rows,
+		func(gtx layout.Context) layout.Dimensions {
+			return layoutButton(th, gtx, &p.addVideoOutput, "Add video stage", th.ContrastBg)
+		},
+		func(gtx layout.Context) layout.Dimensions {
+			return layoutButton(th, gtx, &p.refreshDisplays, "Refresh displays", th.ContrastBg)
+		},
+	)
+	return settingsSection(th, gtx, "Video output routing", rows)
+}
+
+func pairedSettingsFields(th *material.Theme, gtx layout.Context, label string, first, second func(*material.Theme, layout.Context) layout.Dimensions) layout.Dimensions {
+	return layout.Inset{Bottom: unit.Dp(7)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				gtx.Constraints.Min.X, gtx.Constraints.Max.X = gtx.Dp(unit.Dp(210)), gtx.Dp(unit.Dp(210))
+				return layoutStableText(gtx, stableBody1(th, label).Layout)
+			}),
+			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return first(th, gtx) }),
+			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return second(th, gtx) }),
+		)
+	})
 }
 
 func selectedDropdownValue(dropdown *input.Dropdown) string {

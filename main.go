@@ -105,10 +105,12 @@ func newApp() (*App, error) {
 		}
 		return result, err
 	})
+	configureVideoRoutingSettings(settingsPage, application.Media)
 	settingsPage.SetOnSaved(func() {
 		application.Playback.RefreshDurations()
 		application.Media.SyncOutputs(application.Playback.OutputIDs())
 		application.Media.RefreshAudioDeviceStatus()
+		refreshVideoRouting(application.Media)
 	})
 	settingsPage.SetOnReopenOutputs(func() {
 		application.Media.EnsureOutputs(application.Playback.OutputIDs())
