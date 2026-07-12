@@ -35,52 +35,28 @@ import (
 	"github.com/syspoe/cusus/ui"
 )
 
-var topBar ui.TopBar
-var playbackSidebar ui.PlaybackSidebar
-var tbCtx ui.TBContext
-var manager *show.ShowManager = show.NewShowManager()
-var settingsStore *config.Store
-var playbackEngine *playback.Engine
-var mediaManager *media.Manager
-var settingsPage *ui.SettingsPage
-var projectLibrary = project.NewLibrary()
-var showSettings bool
-var audioWarningSettings widget.Clickable
+type App struct {
+	Show     *show.Manager
+	Playback *playback.Engine
+	Media    media.Backend
+	Settings *config.Store
+	UI       UIState
+}
+
+type UIState struct {
+	TopBar               ui.TopBar
+	PlaybackSidebar      ui.PlaybackSidebar
+	TBContext            ui.TBContext
+	SettingsPage         *ui.SettingsPage
+	ProjectLibrary       *project.Library
+	ShowSettings         bool
+	AudioWarningSettings widget.Clickable
+}
 
 func main() {
-	var err error
-	settingsStore, err = config.Open("")
+	application, err := newApp()
 	if err != nil {
 		log.Fatal(err)
-	}
-	playbackEngine = playback.NewEngine(manager, settingsStore)
-	playbackEngine.SetDurationProbe(func(source string) (int64, error) {
-		return media.ProbeDurationMs(settingsStore.Snapshot().FFmpegPath, source)
-	})
-	playbackEngine.Start()
-	mediaManager = media.NewManager(playbackEngine, settingsStore)
-	mediaManager.SyncOutputs(playbackEngine.OutputIDs())
-	settingsPage = ui.NewSettingsPage(settingsStore)
-	settingsPage.SetAudioDeviceProvider(func() ([]ui.AudioDevice, error) {
-		devices, err := mediaManager.AudioDevices()
-		result := make([]ui.AudioDevice, len(devices))
-		for i, device := range devices {
-			result[i] = ui.AudioDevice{ID: device.ID, Name: device.Name, IsDefault: device.IsDefault}
-		}
-		return result, err
-	})
-	settingsPage.SetOnSaved(func() {
-		playbackEngine.RefreshDurations()
-		mediaManager.SyncOutputs(playbackEngine.OutputIDs())
-		mediaManager.RefreshAudioDeviceStatus()
-	})
-	settingsPage.SetOnReopenOutputs(func() {
-		mediaManager.EnsureOutputs(playbackEngine.OutputIDs())
-	})
-	tbCtx = ui.TBContext{
-		TopBar:        &topBar,
-		TogglePreview: playbackEngine.TogglePreview,
-		StopPreview:   playbackEngine.StopPreview,
 	}
 	go func() {
 		window := new(app.Window)
@@ -89,12 +65,60 @@ func main() {
 			app.Size(unit.Dp(1300), unit.Dp(720)),
 			app.MinSize(unit.Dp(1300), unit.Dp(720)),
 		)
-		if err := run(window); err != nil {
+		if err := application.run(window); err != nil {
 			log.Fatal(err)
 		}
 		os.Exit(0)
 	}()
 	app.Main()
+}
+
+func newApp() (*App, error) {
+	settings, err := config.Open("")
+	if err != nil {
+		return nil, err
+	}
+	showManager := show.NewShowManager()
+	engine := playback.NewEngine(showManager, settings)
+	engine.SetDurationProbe(func(source string) (int64, error) {
+		return media.ProbeDurationMs(settings.Snapshot().FFmpegPath, source)
+	})
+	engine.Start()
+	mediaBackend := media.NewManager(engine, settings)
+	mediaBackend.SyncOutputs(engine.OutputIDs())
+	settingsPage := ui.NewSettingsPage(settings)
+	application := &App{
+		Show:     showManager,
+		Playback: engine,
+		Media:    mediaBackend,
+		Settings: settings,
+		UI: UIState{
+			SettingsPage:   settingsPage,
+			ProjectLibrary: project.NewLibrary(),
+		},
+	}
+	settingsPage.SetAudioDeviceProvider(func() ([]ui.AudioDevice, error) {
+		devices, err := application.Media.AudioDevices()
+		result := make([]ui.AudioDevice, len(devices))
+		for i, device := range devices {
+			result[i] = ui.AudioDevice{ID: device.ID, Name: device.Name, IsDefault: device.IsDefault}
+		}
+		return result, err
+	})
+	settingsPage.SetOnSaved(func() {
+		application.Playback.RefreshDurations()
+		application.Media.SyncOutputs(application.Playback.OutputIDs())
+		application.Media.RefreshAudioDeviceStatus()
+	})
+	settingsPage.SetOnReopenOutputs(func() {
+		application.Media.EnsureOutputs(application.Playback.OutputIDs())
+	})
+	application.UI.TBContext = ui.TBContext{
+		TopBar:        &application.UI.TopBar,
+		TogglePreview: application.Playback.TogglePreview,
+		StopPreview:   application.Playback.StopPreview,
+	}
+	return application, nil
 }
 
 func newTheme() *material.Theme {
@@ -109,8 +133,13 @@ func newTheme() *material.Theme {
 	return th
 }
 
-func handleCueListShortcuts(gtx layout.Context) {
-	if showSettings || tbCtx.CueEditorOpen() {
+func (a *App) handleCueListShortcuts(gtx layout.Context) {
+	topBar := &a.UI.TopBar
+	playbackSidebar := &a.UI.PlaybackSidebar
+	tbCtx := &a.UI.TBContext
+	manager := a.Show
+	playbackEngine := a.Playback
+	if a.UI.ShowSettings || tbCtx.CueEditorOpen() {
 		return
 	}
 	if topBar.AddCueMenuOpen() || topBar.ActionMenuOpen() || topBar.FileMenuOpen() {
@@ -155,7 +184,7 @@ func handleCueListShortcuts(gtx layout.Context) {
 		if !ok {
 			continue
 		}
-		if dispatchDocumentShortcut(&topBar, keyEvent) {
+		if dispatchDocumentShortcut(topBar, keyEvent) {
 			return
 		}
 	}
@@ -256,7 +285,7 @@ func layoutFocusWarning(th *material.Theme, gtx layout.Context) layout.Dimension
 	})
 }
 
-func layoutAudioWarning(th *material.Theme, gtx layout.Context, warning string) layout.Dimensions {
+func layoutAudioWarning(th *material.Theme, gtx layout.Context, warning string, settingsButton *widget.Clickable) layout.Dimensions {
 	return warningBar(gtx, unit.Dp(118), func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Left: unit.Dp(24), Right: unit.Dp(24), Top: unit.Dp(14), Bottom: unit.Dp(14)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
@@ -275,7 +304,7 @@ func layoutAudioWarning(th *material.Theme, gtx layout.Context, warning string) 
 					)
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					button := material.Button(th, &audioWarningSettings, "Open audio settings")
+					button := material.Button(th, settingsButton, "Open audio settings")
 					button.Background = palette.SurfaceSunken
 					return button.Layout(gtx)
 				}),
@@ -294,7 +323,7 @@ func warningBar(gtx layout.Context, requestedHeight unit.Dp, content layout.Widg
 	return content(gtx)
 }
 
-func layoutWarnings(th *material.Theme, gtx layout.Context, windowFocused bool, audioWarning string) layout.Dimensions {
+func layoutWarnings(th *material.Theme, gtx layout.Context, windowFocused bool, audioWarning string, settingsButton *widget.Clickable) layout.Dimensions {
 	return layout.S.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.Y = 0
 		children := make([]layout.FlexChild, 0, 2)
@@ -305,14 +334,24 @@ func layoutWarnings(th *material.Theme, gtx layout.Context, windowFocused bool, 
 		}
 		if audioWarning != "" {
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return layoutAudioWarning(th, gtx, audioWarning)
+				return layoutAudioWarning(th, gtx, audioWarning, settingsButton)
 			}))
 		}
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	})
 }
 
-func run(window *app.Window) error {
+func (a *App) run(window *app.Window) error {
+	topBar := &a.UI.TopBar
+	playbackSidebar := &a.UI.PlaybackSidebar
+	tbCtx := &a.UI.TBContext
+	manager := a.Show
+	settingsStore := a.Settings
+	playbackEngine := a.Playback
+	mediaManager := a.Media
+	settingsPage := a.UI.SettingsPage
+	projectLibrary := a.UI.ProjectLibrary
+	audioWarningSettings := &a.UI.AudioWarningSettings
 	var ops op.Ops
 	windowFocused := true
 	th := newTheme()
@@ -584,11 +623,11 @@ func run(window *app.Window) error {
 			gtx := app.NewContext(&ops, e)
 			gtx.Execute(op.InvalidateCmd{At: time.Now().Add(time.Second)})
 			if audioWarningSettings.Clicked(gtx) {
-				showSettings = true
+				a.UI.ShowSettings = true
 				settingsPage.ShowAudioDevices()
 			}
 			audioWarning := mediaManager.AudioDeviceWarning()
-			handleCueListShortcuts(gtx)
+			a.handleCueListShortcuts(gtx)
 			if topBar.TakeNewRequest() {
 				playbackEngine.StopAll()
 				projectLibrary.Replace(nil)
@@ -622,10 +661,10 @@ func run(window *app.Window) error {
 					}.Layout(gtx,
 						// Top Bar
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return topBar.Layout(th, gtx, manager.HasSelectedCue(), showSettings)
+							return topBar.Layout(th, gtx, manager.HasSelectedCue(), a.UI.ShowSettings)
 						}),
 						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-							if showSettings {
+							if a.UI.ShowSettings {
 								return settingsPage.Layout(th, gtx)
 							}
 							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
@@ -655,7 +694,7 @@ func run(window *app.Window) error {
 				}),
 				// Top Bar Submenus
 				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-					if showSettings {
+					if a.UI.ShowSettings {
 						return layout.Dimensions{}
 					}
 					return tbCtx.Layout(th, gtx, manager)
@@ -664,11 +703,11 @@ func run(window *app.Window) error {
 					return topBar.LayoutFileMenu(th, gtx)
 				}),
 				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-					return layoutWarnings(th, gtx, windowFocused, audioWarning)
+					return layoutWarnings(th, gtx, windowFocused, audioWarning, audioWarningSettings)
 				}),
 			)
 			if topBar.TakePageRequest() {
-				showSettings = !showSettings
+				a.UI.ShowSettings = !a.UI.ShowSettings
 				window.Invalidate()
 			}
 			e.Frame(gtx.Ops)
