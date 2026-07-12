@@ -69,6 +69,13 @@ func (p *SettingsPage) SetAudioDeviceProvider(provider func() ([]AudioDevice, er
 	p.refreshAudioDeviceList()
 }
 
+// ShowAudioDevices refreshes and scrolls directly to the audio routing controls.
+func (p *SettingsPage) ShowAudioDevices() {
+	p.refreshAudioDeviceList()
+	p.list.Position.First = 2
+	p.list.Position.Offset = 0
+}
+
 func NewSettingsPage(store *config.Store) *SettingsPage {
 	page := &SettingsPage{store: store, list: layout.List{Axis: layout.Vertical}}
 	page.load()
@@ -298,7 +305,7 @@ func (p *SettingsPage) refreshAudioDeviceList() {
 }
 
 func newAudioDeviceDropdown(devices []AudioDevice, selectedID string) *input.Dropdown {
-	items := []input.DropdownItem{{Label: "System default", Value: ""}}
+	items := []input.DropdownItem{{Label: "Windows default routing", Value: ""}}
 	selected := 0
 	found := selectedID == ""
 	for _, device := range devices {

@@ -22,11 +22,14 @@ import (
 )
 
 type Manager struct {
-	engine   *playback.Engine
-	settings *config.Store
-	mu       sync.Mutex
-	windows  map[string]*outputWindow
-	audio    *AudioSystem
+	engine            *playback.Engine
+	settings          *config.Store
+	mu                sync.Mutex
+	windows           map[string]*outputWindow
+	audio             *AudioSystem
+	audioStatusMu     sync.Mutex
+	lastAudioCheck    time.Time
+	audioDeviceStatus string
 }
 
 func NewManager(engine *playback.Engine, settings *config.Store) *Manager {
@@ -42,6 +45,56 @@ func (m *Manager) AudioDevices() ([]AudioDevice, error) {
 		return nil, fmt.Errorf("audio output is unavailable")
 	}
 	return m.audio.Devices()
+}
+
+// AudioDeviceWarning returns a cached warning for selected devices that are no
+// longer present. Empty device IDs intentionally follow Windows' default route
+// and therefore do not depend on one particular endpoint remaining connected.
+func (m *Manager) AudioDeviceWarning() string {
+	m.audioStatusMu.Lock()
+	defer m.audioStatusMu.Unlock()
+	if !m.lastAudioCheck.IsZero() && time.Since(m.lastAudioCheck) < time.Second {
+		return m.audioDeviceStatus
+	}
+	m.lastAudioCheck = time.Now()
+	devices, err := m.AudioDevices()
+	m.audioDeviceStatus = audioDeviceWarning(m.settings.Snapshot(), devices, err)
+	return m.audioDeviceStatus
+}
+
+func (m *Manager) RefreshAudioDeviceStatus() {
+	m.audioStatusMu.Lock()
+	m.lastAudioCheck = time.Time{}
+	m.audioStatusMu.Unlock()
+}
+
+func audioDeviceWarning(settings config.Settings, devices []AudioDevice, err error) string {
+	if err != nil {
+		return "Audio device detection failed: " + err.Error()
+	}
+	if len(devices) == 0 {
+		return "No Windows audio output device is available. Playback and preview audio are offline."
+	}
+	available := make(map[string]struct{}, len(devices))
+	for _, device := range devices {
+		available[device.ID] = struct{}{}
+	}
+	_, playbackAvailable := available[settings.PlaybackAudioDevice]
+	_, previewAvailable := available[settings.PreviewAudioDevice]
+	playbackMissing := settings.PlaybackAudioDevice != "" && !playbackAvailable
+	previewMissing := settings.PreviewAudioDevice != "" && !previewAvailable
+	switch {
+	case playbackMissing && previewMissing && settings.PlaybackAudioDevice == settings.PreviewAudioDevice:
+		return "The selected playback and preview audio device is disconnected."
+	case playbackMissing && previewMissing:
+		return "The selected playback and preview audio devices are disconnected."
+	case playbackMissing:
+		return "The selected playback audio device is disconnected."
+	case previewMissing:
+		return "The selected preview audio device is disconnected."
+	default:
+		return ""
+	}
 }
 
 func (m *Manager) EnsureOutputs(outputIDs []string) {

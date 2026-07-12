@@ -22,6 +22,7 @@ import (
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
+	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"gioui.org/x/explorer"
 
@@ -44,6 +45,7 @@ var mediaManager *media.Manager
 var settingsPage *ui.SettingsPage
 var projectLibrary = project.NewLibrary()
 var showSettings bool
+var audioWarningSettings widget.Clickable
 
 func main() {
 	var err error
@@ -70,6 +72,7 @@ func main() {
 	settingsPage.SetOnSaved(func() {
 		playbackEngine.RefreshDurations()
 		mediaManager.SyncOutputs(playbackEngine.OutputIDs())
+		mediaManager.RefreshAudioDeviceStatus()
 	})
 	settingsPage.SetOnReopenOutputs(func() {
 		mediaManager.EnsureOutputs(playbackEngine.OutputIDs())
@@ -244,27 +247,68 @@ func dispatchDocumentShortcut(bar *ui.TopBar, event key.Event) bool {
 }
 
 func layoutFocusWarning(th *material.Theme, gtx layout.Context) layout.Dimensions {
+	return warningBar(gtx, unit.Dp(88), func(gtx layout.Context) layout.Dimensions {
+		return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			label := material.H3(th, "** WARNING ** NO FOCUS **")
+			label.Color = palette.White
+			return label.Layout(gtx)
+		})
+	})
+}
+
+func layoutAudioWarning(th *material.Theme, gtx layout.Context, warning string) layout.Dimensions {
+	return warningBar(gtx, unit.Dp(118), func(gtx layout.Context) layout.Dimensions {
+		return layout.Inset{Left: unit.Dp(24), Right: unit.Dp(24), Top: unit.Dp(14), Bottom: unit.Dp(14)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							label := material.H4(th, "** WARNING ** AUDIO OUTPUT UNAVAILABLE **")
+							label.Color = palette.White
+							return label.Layout(gtx)
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							label := material.Body1(th, warning)
+							label.Color = palette.White
+							return label.Layout(gtx)
+						}),
+					)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					button := material.Button(th, &audioWarningSettings, "Open audio settings")
+					button.Background = palette.SurfaceSunken
+					return button.Layout(gtx)
+				}),
+			)
+		})
+	})
+}
+
+func warningBar(gtx layout.Context, requestedHeight unit.Dp, content layout.Widget) layout.Dimensions {
 	size := gtx.Constraints.Max
-	height := gtx.Dp(unit.Dp(88))
-	if height > size.Y {
-		height = size.Y
-	}
-	top := size.Y - height
+	height := min(gtx.Dp(requestedHeight), size.Y)
+	size.Y = height
+	paint.FillShape(gtx.Ops, palette.Danger, clip.Rect{Max: size}.Op())
+	gtx.Constraints.Min = size
+	gtx.Constraints.Max = size
+	return content(gtx)
+}
 
-	paint.FillShape(
-		gtx.Ops,
-		palette.Danger,
-		clip.Rect{Min: image.Pt(0, top), Max: size}.Op(),
-	)
-
-	offset := op.Offset(image.Pt(0, top)).Push(gtx.Ops)
-	defer offset.Pop()
-	gtx.Constraints.Min = image.Pt(size.X, height)
-	gtx.Constraints.Max = gtx.Constraints.Min
-	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		label := material.H3(th, "** WARNING ** NO FOCUS **")
-		label.Color = palette.White
-		return label.Layout(gtx)
+func layoutWarnings(th *material.Theme, gtx layout.Context, windowFocused bool, audioWarning string) layout.Dimensions {
+	return layout.S.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		gtx.Constraints.Min.Y = 0
+		children := make([]layout.FlexChild, 0, 2)
+		if !windowFocused {
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layoutFocusWarning(th, gtx)
+			}))
+		}
+		if audioWarning != "" {
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layoutAudioWarning(th, gtx, audioWarning)
+			}))
+		}
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	})
 }
 
@@ -538,6 +582,12 @@ func run(window *app.Window) error {
 
 		case app.FrameEvent:
 			gtx := app.NewContext(&ops, e)
+			gtx.Execute(op.InvalidateCmd{At: time.Now().Add(time.Second)})
+			if audioWarningSettings.Clicked(gtx) {
+				showSettings = true
+				settingsPage.ShowAudioDevices()
+			}
+			audioWarning := mediaManager.AudioDeviceWarning()
 			handleCueListShortcuts(gtx)
 			if topBar.TakeNewRequest() {
 				playbackEngine.StopAll()
@@ -611,10 +661,7 @@ func run(window *app.Window) error {
 					return topBar.LayoutFileMenu(th, gtx)
 				}),
 				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-					if windowFocused {
-						return layout.Dimensions{}
-					}
-					return layoutFocusWarning(th, gtx)
+					return layoutWarnings(th, gtx, windowFocused, audioWarning)
 				}),
 			)
 			if topBar.TakePageRequest() {
