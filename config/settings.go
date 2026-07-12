@@ -10,6 +10,9 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
+
+	"github.com/syspoe/cusus/internal/atomicfile"
 )
 
 type RemoteTarget struct {
@@ -81,9 +84,12 @@ func Open(path string) (*Store, error) {
 		}
 	}
 	store := &Store{path: path, settings: Defaults()}
+	if err := atomicfile.Recover(path); err != nil {
+		return nil, fmt.Errorf("recover settings: %w", err)
+	}
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
-		if err := store.saveLocked(); err != nil {
+		if err := store.saveLocked(store.settings); err != nil {
 			return nil, err
 		}
 		return store, nil
@@ -93,7 +99,20 @@ func Open(path string) (*Store, error) {
 	}
 	settings := Defaults()
 	if err := json.Unmarshal(raw, &settings); err != nil {
-		return nil, fmt.Errorf("decode settings: %w", err)
+		backupRaw, backupErr := os.ReadFile(atomicfile.BackupPath(path))
+		backupSettings := Defaults()
+		if backupErr != nil || json.Unmarshal(backupRaw, &backupSettings) != nil {
+			return nil, fmt.Errorf("decode settings: %w", err)
+		}
+		corruptPath := fmt.Sprintf("%s.corrupt-%d", path, time.Now().UnixMilli())
+		if renameErr := os.Rename(path, corruptPath); renameErr != nil {
+			return nil, fmt.Errorf("preserve corrupt settings: %w", renameErr)
+		}
+		if renameErr := os.Rename(atomicfile.BackupPath(path), path); renameErr != nil {
+			_ = os.Rename(corruptPath, path)
+			return nil, fmt.Errorf("restore valid settings backup: %w", renameErr)
+		}
+		settings = backupSettings
 	}
 	store.settings = normalize(settings)
 	return store, nil
@@ -118,41 +137,42 @@ func (s *Store) Update(settings Settings) error {
 			return fmt.Errorf("%s is a built-in variable", name)
 		}
 	}
-	s.settings = normalize(settings)
-	return s.saveLocked()
+	candidate := normalize(settings)
+	if err := s.saveLocked(candidate); err != nil {
+		return err
+	}
+	s.settings = candidate
+	return nil
 }
 
 func (s *Store) UpdateVideoOutputGeometry(stage string, x, y, width, height int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for i := range s.settings.VideoOutputs {
-		output := &s.settings.VideoOutputs[i]
+	candidate := clone(s.settings)
+	for i := range candidate.VideoOutputs {
+		output := &candidate.VideoOutputs[i]
 		if output.Stage == stage {
 			output.X, output.Y = x, y
 			if width > 0 && height > 0 {
 				output.Width, output.Height = width, height
 			}
-			return s.saveLocked()
+			if err := s.saveLocked(candidate); err != nil {
+				return err
+			}
+			s.settings = candidate
+			return nil
 		}
 	}
 	return nil
 }
 
-func (s *Store) saveLocked() error {
-	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
-		return fmt.Errorf("create settings directory: %w", err)
-	}
-	raw, err := json.MarshalIndent(s.settings, "", "  ")
+func (s *Store) saveLocked(settings Settings) error {
+	raw, err := json.MarshalIndent(settings, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encode settings: %w", err)
 	}
-	tmp := s.path + ".tmp"
-	if err := os.WriteFile(tmp, append(raw, '\n'), 0o600); err != nil {
-		return fmt.Errorf("write settings: %w", err)
-	}
-	if err := os.Rename(tmp, s.path); err != nil {
-		_ = os.Remove(tmp)
-		return fmt.Errorf("replace settings: %w", err)
+	if err := atomicfile.Write(s.path, append(raw, '\n'), 0o600); err != nil {
+		return fmt.Errorf("persist settings: %w", err)
 	}
 	return nil
 }
