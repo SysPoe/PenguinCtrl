@@ -219,7 +219,7 @@ func (a *App) handleCueListShortcuts(gtx layout.Context) {
 			key.Filter{Name: key.NameReturn},
 			key.Filter{Name: key.NameEnter},
 			key.Filter{Name: key.NameF2},
-			key.Filter{Name: key.NameSpace},
+			key.Filter{Name: key.NameSpace, Optional: key.ModShift},
 			key.Filter{Name: key.NameDeleteForward},
 			key.Filter{Name: "C", Required: key.ModShortcut},
 			key.Filter{Name: "V", Required: key.ModShortcut},
@@ -251,7 +251,16 @@ func (a *App) handleCueListShortcuts(gtx layout.Context) {
 		case key.NameReturn, key.NameEnter, key.NameF2:
 			tbCtx.EditSelectedCue(manager)
 		case key.NameSpace:
-			if err := playbackEngine.PlaySelected(); err != nil {
+			var err error
+			if keyEvent.Modifiers.Contain(key.ModShift) {
+				err = playbackEngine.PlaySelectedOverride()
+				if err == nil {
+					a.UI.OperatorPanel.DismissBlocker()
+				}
+			} else {
+				err = playbackEngine.PlaySelected()
+			}
+			if err != nil {
 				log.Printf("play cue: %v", err)
 			}
 		case key.NameDeleteForward:

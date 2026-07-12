@@ -271,7 +271,7 @@ func linkContextProblems(cue Cue, cues []Cue) []CueProblem {
 		}
 	}
 	if (cue.Link.Target.Kind == CueTargetNext || cue.Link.Target.Kind == CueTargetNone) && index == len(cues)-1 {
-		problems = append(problems, CueProblem{Code: "link.boundary.next", Severity: ProblemBlocker, Message: "There is no next cue", Consequence: "The programmed link will do nothing.", Fix: "Choose a cue target or Manual", Field: "link.target"})
+		problems = append(problems, CueProblem{Code: "link.boundary.next", Severity: ProblemCaution, Message: "There is no next cue", Consequence: "The programmed link will do nothing at the end of the cue list.", Fix: "Choose a cue target or Manual if this was not intentional", Field: "link.target"})
 	}
 	if cue.Link.Target.Kind == CueTargetPrevious && index == 0 {
 		problems = append(problems, CueProblem{Code: "link.boundary.previous", Severity: ProblemBlocker, Message: "There is no previous cue", Consequence: "The programmed link will do nothing.", Fix: "Choose a cue target or Manual", Field: "link.target"})

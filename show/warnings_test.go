@@ -73,8 +73,8 @@ func TestLinkBoundaryCycleAndDownstreamProblems(t *testing.T) {
 	}
 	last := validSound("3", t.TempDir()+"/three.wav")
 	last.Link = CueLink{Mode: CueLinkStartPlay, Target: CueTarget{Kind: CueTargetNext}}
-	if _, ok := problemWithCode(CueProblems(last, []Cue{last}), "link.boundary.next"); !ok {
-		t.Fatal("last-cue next link was not blocked")
+	if problem, ok := problemWithCode(CueProblems(last, []Cue{last}), "link.boundary.next"); !ok || problem.Severity != ProblemCaution {
+		t.Fatalf("last-cue next link = %#v, want caution", problem)
 	}
 }
 

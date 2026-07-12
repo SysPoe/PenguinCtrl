@@ -46,6 +46,22 @@ func TestGOBarrierLatchesAttributedBlocker(t *testing.T) {
 	}
 }
 
+func TestShiftGOOverridesValidationBlocker(t *testing.T) {
+	cue := show.NewSoundCue()
+	cue.CueNumber = "1"
+	cue.Link.Mode = show.CueLinkManual
+	cue.Play.Sound.File = ""
+	engine, events := warningGateEngine(t, cue)
+
+	if err := engine.PlaySelectedOverride(); err != nil {
+		t.Fatalf("PlaySelectedOverride error = %v", err)
+	}
+	latest, ok := events.LatestUnacknowledged()
+	if !ok || latest.Severity != operatorlog.Warning || !strings.Contains(latest.Source, "override") {
+		t.Fatalf("operator override event = %#v", latest)
+	}
+}
+
 func TestGOWithoutSelectionIsVisible(t *testing.T) {
 	engine, events := warningGateEngine(t)
 	if err := engine.PlaySelected(); err == nil {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 
+	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
@@ -54,8 +55,18 @@ func (s *PlaybackSidebar) Layout(th *material.Theme, gtx layout.Context, manager
 		s.instanceID = ""
 	}
 
-	if hasSelection && s.goButton.Clicked(gtx) {
-		_ = engine.PlaySelected()
+	if hasSelection {
+		for {
+			click, ok := s.goButton.Update(gtx)
+			if !ok {
+				break
+			}
+			if click.Modifiers.Contain(key.ModShift) {
+				_ = engine.PlaySelectedOverride()
+			} else {
+				_ = engine.PlaySelected()
+			}
+		}
 	}
 	if s.stopAllButton.Clicked(gtx) {
 		engine.StopAll()

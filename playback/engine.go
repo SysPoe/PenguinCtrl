@@ -263,13 +263,24 @@ func (e *Engine) run() {
 }
 
 func (e *Engine) PlaySelected() error {
+	return e.playSelected(false)
+}
+
+// PlaySelectedOverride accepts the selected cue even when validation reports
+// blockers. Disabled cues remain disabled; the override only bypasses the
+// readiness barrier that normal GO enforces.
+func (e *Engine) PlaySelectedOverride() error {
+	return e.playSelected(true)
+}
+
+func (e *Engine) playSelected(override bool) error {
 	cue, index, ok := e.manager.SelectedCueCopy()
 	if !ok {
 		err := errors.New("no cue is selected")
 		e.recordError("Operator GO", err)
 		return err
 	}
-	return e.enqueue(cue, index, "Operator GO")
+	return e.enqueueCommand(cue, index, false, "Operator GO", override)
 }
 
 func (e *Engine) PlayIndex(index int) error {
@@ -326,7 +337,7 @@ func (e *Engine) TogglePreview(cue show.Cue) (bool, error) {
 	e.mu.Lock()
 	e.previewCueID, e.previewPaused = preview.ID, false
 	e.mu.Unlock()
-	if err := e.enqueueCommand(preview, -1, true, "Preview"); err != nil {
+	if err := e.enqueueCommand(preview, -1, true, "Preview", false); err != nil {
 		e.mu.Lock()
 		e.previewCueID = show.CueID{}
 		e.mu.Unlock()
@@ -346,10 +357,10 @@ func (e *Engine) StopPreview() {
 }
 
 func (e *Engine) enqueue(cue show.Cue, index int, origin string) error {
-	return e.enqueueCommand(cue, index, false, origin)
+	return e.enqueueCommand(cue, index, false, origin, false)
 }
 
-func (e *Engine) enqueueCommand(cue show.Cue, index int, preview bool, origin string) error {
+func (e *Engine) enqueueCommand(cue show.Cue, index int, preview bool, origin string, override bool) error {
 	if cue.Disabled {
 		err := errors.New("cue is disabled")
 		if !preview {
@@ -360,10 +371,13 @@ func (e *Engine) enqueueCommand(cue show.Cue, index int, preview bool, origin st
 	if !preview {
 		problems := e.CueProblems(cue)
 		blockers, cautions := problemMessages(problems, show.ProblemBlocker), problemMessages(problems, show.ProblemCaution)
-		if len(blockers) > 0 {
+		if len(blockers) > 0 && !override {
 			err := fmt.Errorf("cue blocked: %s", strings.Join(blockers, "; "))
 			e.recordCueError(cue, origin+" · validation", err)
 			return err
+		}
+		if len(blockers) > 0 && override && e.operatorLog != nil {
+			e.operatorLog.Add(operatorlog.Warning, origin+" · override", "GO override accepted despite: "+strings.Join(blockers, "; "), cue.ID, cue.CueNumber)
 		}
 		if len(cautions) > 0 && e.operatorLog != nil {
 			e.operatorLog.Add(operatorlog.Warning, origin+" · caution", strings.Join(cautions, "; "), cue.ID, cue.CueNumber)

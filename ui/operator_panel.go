@@ -43,6 +43,12 @@ type OperatorPanel struct {
 	cancelBlocker    widget.Clickable
 }
 
+// DismissBlocker closes a latched GO barrier after an explicit operator
+// override succeeds.
+func (p *OperatorPanel) DismissBlocker() {
+	p.showBlocker = false
+}
+
 func (p *OperatorPanel) LayoutBar(th *material.Theme, gtx layout.Context, store *operatorlog.Store, checks []operatorlog.PreflightCheck) layout.Dimensions {
 	latest, active := store.LatestUnacknowledged()
 	if active && latest.Severity == operatorlog.ShowStopping && strings.HasPrefix(latest.Source, "Operator GO") && latest.ID != p.blockerID {
@@ -64,6 +70,9 @@ func (p *OperatorPanel) LayoutBar(th *material.Theme, gtx layout.Context, store 
 	if active {
 		background = operatorSeverityColor(latest.Severity)
 		title, detail = latest.Severity.Label(), operatorEventSummary(latest)
+	} else if severity, ok := activePreflightSeverity(checks); ok {
+		background = operatorSeverityColor(severity)
+		title, detail = severity.Label(), "Preflight · "+preflightSummary(checks)
 	}
 	gtx.Constraints.Min.Y = gtx.Dp(unit.Dp(54))
 	gtx.Constraints.Max.Y = gtx.Constraints.Min.Y
@@ -94,6 +103,21 @@ func (p *OperatorPanel) LayoutBar(th *material.Theme, gtx layout.Context, store 
 			}),
 		)
 	})
+}
+
+func activePreflightSeverity(checks []operatorlog.PreflightCheck) (operatorlog.Severity, bool) {
+	highest := operatorlog.Warning
+	active := false
+	for _, check := range checks {
+		if check.Acknowledged {
+			continue
+		}
+		active = true
+		if check.Severity > highest {
+			highest = check.Severity
+		}
+	}
+	return highest, active
 }
 
 func (p *OperatorPanel) LayoutOverlay(th *material.Theme, gtx layout.Context, store *operatorlog.Store, checks []operatorlog.PreflightCheck, navigate func(cueID show.CueID, edit bool, field string), acknowledge func(fingerprint string), openSettings func(), skip func()) layout.Dimensions {
@@ -196,7 +220,7 @@ func (p *OperatorPanel) layoutBlocker(th *material.Theme, gtx layout.Context, ev
 				return layout.Inset{Top: unit.Dp(18), Bottom: unit.Dp(18), Left: unit.Dp(18), Right: unit.Dp(18)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return operatorEventCard(th, gtx, operatorSeverityColor(event.Severity), "CUE BLOCKED", operatorEventSummary(event), event.Message, false)
+							return operatorEventCard(th, gtx, operatorSeverityColor(event.Severity), "CUE BLOCKED · SHIFT+GO TO OVERRIDE", operatorEventSummary(event), event.Message, false)
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
