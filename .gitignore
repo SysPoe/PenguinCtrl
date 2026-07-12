@@ -1,2 +1,5 @@
 node_modules
 AGENTS.md
+*.wav
+.audio-normalized-tmp/
+.audio-normalized-limited-tmp/
