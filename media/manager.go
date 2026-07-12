@@ -253,7 +253,10 @@ func (o *outputWindow) run() {
 				o.routeMu.Lock()
 				o.nativeHandle = handle
 				o.routeMu.Unlock()
-				o.applyRoute(false)
+				// SetWindowPos sends synchronous messages to the Win32 window
+				// thread. Calling it from the Gio event handler deadlocks because
+				// that thread cannot dispatch the messages until Event returns.
+				go o.applyRoute(false)
 			}
 		case app.ConfigEvent:
 			if event.Config.Mode == app.Windowed && !o.route().Fullscreen {
