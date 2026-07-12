@@ -17,6 +17,7 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"gioui.org/x/component"
+	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/palette"
 	"github.com/syspoe/cusus/playback"
 	"github.com/syspoe/cusus/show"
@@ -29,7 +30,7 @@ var mainList = &widget.List{
 	},
 }
 
-var weights = []float32{1, 3, 3, 20, 5, 5, 5, 5, 3, 3, 3}
+var weights = []float32{3, 3, 3, 18, 5, 5, 5, 5, 3, 3, 3}
 
 var typeCols = map[show.CueType]color.NRGBA{
 	show.CueTypeImage:         palette.Success,
@@ -122,6 +123,7 @@ func Main(
 	gtx layout.Context,
 	manager *show.ShowManager,
 	engine *playback.Engine,
+	operatorEvents *operatorlog.Store,
 	editSelected func(),
 	moveCueActive bool,
 	moveBefore func(index int),
@@ -239,7 +241,7 @@ func Main(
 			// same width in the header or the header columns won't line up with rows.
 			return layout.Inset{Right: material.List(th, mainList).Width()}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-					makeFlexedTextHeader(th, "", weights[0], text.Middle),
+					makeFlexedTextHeader(th, "Status", weights[0], text.Middle),
 					makeFlexedTextHeader(th, "Cue #", weights[1], text.Middle),
 					makeFlexedTextHeader(th, "Type", weights[2], text.Middle),
 					makeFlexedTextHeader(th, "Description", weights[3], text.Start),
@@ -274,6 +276,18 @@ func Main(
 				if !row.collapsed {
 					children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						warningText := warningTooltipText(show.CueWarnings(cue, cues))
+						failure, cueFailed := operatorlog.Event{}, false
+						if operatorEvents != nil {
+							failure, cueFailed = operatorEvents.CueFailure(cue.ID)
+						}
+						if cueFailed {
+							failureText := fmt.Sprintf("%s at %s\n%s", failure.Severity.Label(), failure.Timestamp.Format("15:04:05"), failure.Message)
+							if warningText == "" {
+								warningText = failureText
+							} else {
+								warningText = failureText + "\n" + warningText
+							}
+						}
 						if warningTips[cueIndex].cueID != cue.ID || warningTips[cueIndex].text != warningText {
 							warningTips[cueIndex] = warningTipState{cueID: cue.ID, text: warningText}
 						}
@@ -289,7 +303,9 @@ func Main(
 						hoverColor := applyAlpha(palette.WithAlpha(cue.Color, 30), th.Bg)
 
 						bg := th.Bg
-						if cueIndex == selectedIndex {
+						if cueFailed {
+							bg = applyAlpha(palette.WithAlpha(palette.Danger, 95), th.Bg)
+						} else if cueIndex == selectedIndex {
 							bg = selectedColor
 						} else if rowClicks[cueIndex].Hovered() {
 							bg = hoverColor
@@ -328,7 +344,11 @@ func Main(
 													if warningText == "" {
 														return layout.Dimensions{Size: gtx.Constraints.Min}
 													}
-													return layoutWarningTooltip(th, gtx, &warningTips[cueIndex].area, warningText)
+													label, statusColor := "WARN", palette.Warning
+													if cueFailed {
+														label, statusColor = "FAIL", palette.Danger
+													}
+													return layoutWarningTooltip(th, gtx, &warningTips[cueIndex].area, warningText, label, statusColor)
 												})
 											}),
 											// Cue Number
@@ -563,7 +583,7 @@ func warningTooltipText(warnings []string) string {
 	return "• " + strings.Join(warnings, "\n• ")
 }
 
-func layoutWarningTooltip(th *material.Theme, gtx layout.Context, area *component.TipArea, tooltipText string) layout.Dimensions {
+func layoutWarningTooltip(th *material.Theme, gtx layout.Context, area *component.TipArea, tooltipText, statusLabel string, statusColor color.NRGBA) layout.Dimensions {
 	originalConstraints := gtx.Constraints
 	// TipArea normally limits its tooltip to the trigger's width. Give the text
 	// room to form a useful multi-line panel, then report the original cell size
@@ -574,7 +594,17 @@ func layoutWarningTooltip(th *material.Theme, gtx layout.Context, area *componen
 	dims := area.Layout(gtx, tip, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints = originalConstraints
 		return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return warningIcon.Layout(gtx, palette.Warning)
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(unit.Dp(16)))
+					return warningIcon.Layout(gtx, statusColor)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					label := material.Label(th, unit.Sp(10), statusLabel)
+					label.Color = statusColor
+					return layout.Inset{Left: unit.Dp(3)}.Layout(gtx, label.Layout)
+				}),
+			)
 		})
 	})
 	dims.Size = originalConstraints.Constrain(dims.Size)

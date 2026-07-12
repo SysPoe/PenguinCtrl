@@ -531,12 +531,13 @@ func (o *outputWindow) start(instance *playback.Instance) {
 		o.window,
 		func(report string) { o.manager.engine.HandleOutputReport(instance.ID, report) },
 		func(durationMs int64) { o.manager.engine.HandleOutputDuration(instance.ID, durationMs) },
+		func(err error) { o.manager.engine.HandleOutputError(instance.ID, err) },
 	)
 	o.players[instance.ID] = player
 	go func() {
 		if err := player.Start(); err != nil {
 			log.Printf("play %s: %v", instance.Source, err)
-			o.manager.engine.HandleOutputReport(instance.ID, "stopped")
+			o.manager.engine.HandleOutputError(instance.ID, err)
 		}
 	}()
 }

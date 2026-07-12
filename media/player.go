@@ -36,6 +36,7 @@ type Player struct {
 	window   *app.Window
 	report   func(string)
 	duration func(int64)
+	failure  func(error)
 	backend  PlaybackBackend
 
 	mu           sync.RWMutex
@@ -52,9 +53,9 @@ type Player struct {
 	started      time.Time
 }
 
-func NewPlayer(instance playback.Instance, settings *config.Store, audio *AudioSystem, window *app.Window, report func(string), duration func(int64)) *Player {
+func NewPlayer(instance playback.Instance, settings *config.Store, audio *AudioSystem, window *app.Window, report func(string), duration func(int64), failure func(error)) *Player {
 	return &Player{
-		instance: instance, settings: settings, window: window, report: report, duration: duration,
+		instance: instance, settings: settings, window: window, report: report, duration: duration, failure: failure,
 		backend: NewFFmpegBackend(settings, audio), volumeDB: instance.LevelDB,
 	}
 }
@@ -196,9 +197,15 @@ func (p *Player) restart(position time.Duration) error {
 	go func() {
 		<-session.Done()
 		p.mu.RLock()
-		ended := !p.closed && !p.paused && p.generation == generation && session.State() == LoadEnded
+		active := !p.closed && !p.paused && p.generation == generation
 		p.mu.RUnlock()
-		if ended {
+		if !active {
+			return
+		}
+		metrics := session.Metrics()
+		if metrics.State == LoadFailed && metrics.Error != "" && p.failure != nil {
+			p.failure(errors.New(metrics.Error))
+		} else if metrics.State == LoadEnded {
 			p.report("ended")
 		}
 	}()

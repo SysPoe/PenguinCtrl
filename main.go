@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -28,6 +29,7 @@ import (
 
 	"github.com/syspoe/cusus/config"
 	"github.com/syspoe/cusus/media"
+	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/palette"
 	"github.com/syspoe/cusus/playback"
 	"github.com/syspoe/cusus/project"
@@ -36,11 +38,12 @@ import (
 )
 
 type App struct {
-	Show     *show.Manager
-	Playback *playback.Engine
-	Media    media.Backend
-	Settings *config.Store
-	UI       UIState
+	Show        *show.Manager
+	Playback    *playback.Engine
+	Media       media.Backend
+	Settings    *config.Store
+	OperatorLog *operatorlog.Store
+	UI          UIState
 }
 
 type UIState struct {
@@ -51,6 +54,7 @@ type UIState struct {
 	ProjectLibrary       *project.Library
 	ShowSettings         bool
 	AudioWarningSettings widget.Clickable
+	OperatorPanel        ui.OperatorPanel
 }
 
 func main() {
@@ -79,7 +83,9 @@ func newApp() (*App, error) {
 		return nil, err
 	}
 	showManager := show.NewShowManager()
+	operatorEvents := operatorlog.NewStore()
 	engine := playback.NewEngine(showManager, settings)
+	engine.SetOperatorLog(operatorEvents)
 	engine.SetDurationProbe(func(source string) (int64, error) {
 		return media.ProbeDurationMs(settings.Snapshot().FFmpegPath, source)
 	})
@@ -88,10 +94,11 @@ func newApp() (*App, error) {
 	mediaBackend.SyncOutputs(engine.OutputIDs())
 	settingsPage := ui.NewSettingsPage(settings)
 	application := &App{
-		Show:     showManager,
-		Playback: engine,
-		Media:    mediaBackend,
-		Settings: settings,
+		Show:        showManager,
+		Playback:    engine,
+		Media:       mediaBackend,
+		Settings:    settings,
+		OperatorLog: operatorEvents,
 		UI: UIState{
 			SettingsPage:   settingsPage,
 			ProjectLibrary: project.NewLibrary(),
@@ -241,6 +248,7 @@ func (a *App) handleCueListShortcuts(gtx layout.Context) {
 		case key.NameSpace:
 			if err := playbackEngine.PlaySelected(); err != nil {
 				log.Printf("play cue: %v", err)
+				a.OperatorLog.Add(operatorlog.Warning, "Operator GO", err.Error(), show.CueID{}, "")
 			}
 		case key.NameDeleteForward:
 			tbCtx.RequestDeleteCue(manager)
@@ -353,6 +361,8 @@ func (a *App) run(window *app.Window) error {
 	mediaManager := a.Media
 	settingsPage := a.UI.SettingsPage
 	projectLibrary := a.UI.ProjectLibrary
+	operatorEvents := a.OperatorLog
+	operatorPanel := &a.UI.OperatorPanel
 	audioWarningSettings := &a.UI.AudioWarningSettings
 	var ops op.Ops
 	windowFocused := true
@@ -365,9 +375,13 @@ func (a *App) run(window *app.Window) error {
 	var currentShowPath string
 	var lastSavedDigest [sha256.Size]byte
 	var suppressAutosave bool
+	var lastAudioOperatorWarning, lastVideoOperatorWarning string
 	tbCtx.LoadWaveform = func(source string, completed func([]float32, int, int64, error)) {
 		go func() {
 			wave, err := media.ExtractWaveform(settingsStore.Snapshot().FFmpegPath, source)
+			if err != nil {
+				operatorEvents.Add(operatorlog.Recoverable, "FFmpeg waveform", err.Error(), show.CueID{}, "")
+			}
 			uiActions <- func() { completed(wave.Samples, wave.SampleRate, wave.DurationMs, err) }
 			window.Invalidate()
 		}()
@@ -376,6 +390,7 @@ func (a *App) run(window *app.Window) error {
 		window.Invalidate()
 		mediaManager.SyncOutputs(playbackEngine.OutputIDs())
 	})
+	operatorEvents.SetOnChange(window.Invalidate)
 	manager.SetOnChange(func() {
 		window.Invalidate()
 		playbackEngine.RefreshDurations()
@@ -405,6 +420,7 @@ func (a *App) run(window *app.Window) error {
 			if err != nil {
 				if !errors.Is(err, explorer.ErrUserDecline) {
 					log.Printf("pick file: %v", err)
+					operatorEvents.Add(operatorlog.Recoverable, "OS file picker", err.Error(), show.CueID{}, "")
 				}
 				return
 			}
@@ -422,6 +438,7 @@ func (a *App) run(window *app.Window) error {
 			}
 			entry, duplicate, err := projectLibrary.Add(path, kind)
 			if err != nil {
+				operatorEvents.Add(operatorlog.Recoverable, "Media library", err.Error(), show.CueID{}, "")
 				uiActions <- func() { topBar.SetStatus("Could not add file: " + err.Error()) }
 				window.Invalidate()
 				return
@@ -444,6 +461,7 @@ func (a *App) run(window *app.Window) error {
 			file, err := expl.ChooseFile(".cusus")
 			if err != nil {
 				if !errors.Is(err, explorer.ErrUserDecline) {
+					operatorEvents.Add(operatorlog.Recoverable, "Open show", err.Error(), show.CueID{}, "")
 					uiActions <- func() { topBar.SetStatus("Open failed: " + err.Error()) }
 					window.Invalidate()
 				}
@@ -460,12 +478,14 @@ func (a *App) run(window *app.Window) error {
 				defer os.Remove(tmp.Name())
 			}
 			if err != nil {
+				operatorEvents.Add(operatorlog.Recoverable, "Open show", err.Error(), show.CueID{}, "")
 				uiActions <- func() { topBar.SetStatus("Open failed: " + err.Error()) }
 				window.Invalidate()
 				return
 			}
 			manifest, files, err := project.Load(tmp.Name())
 			if err != nil {
+				operatorEvents.Add(operatorlog.Recoverable, "Open show", err.Error(), show.CueID{}, "")
 				uiActions <- func() { topBar.SetStatus("Open failed: " + err.Error()) }
 				window.Invalidate()
 				return
@@ -496,6 +516,7 @@ func (a *App) run(window *app.Window) error {
 			file, err := expl.CreateFile("show.cusus")
 			if err != nil {
 				if !errors.Is(err, explorer.ErrUserDecline) {
+					operatorEvents.Add(operatorlog.Recoverable, "Save show", err.Error(), show.CueID{}, "")
 					uiActions <- func() { topBar.SetStatus("Save failed: " + err.Error()) }
 					window.Invalidate()
 				}
@@ -513,6 +534,7 @@ func (a *App) run(window *app.Window) error {
 				err = closeErr
 			}
 			if err != nil {
+				operatorEvents.Add(operatorlog.Recoverable, "FFmpeg / save show", err.Error(), show.CueID{}, "")
 				uiActions <- func() { topBar.SetStatus("Save failed: " + err.Error()) }
 				window.Invalidate()
 				return
@@ -544,6 +566,7 @@ func (a *App) run(window *app.Window) error {
 			manifest, err := saveShowAtPath(path, snapshot, settingsStore.Snapshot().FFmpegPath)
 			saveMu.Unlock()
 			if err != nil {
+				operatorEvents.Add(operatorlog.Recoverable, "Save show", err.Error(), show.CueID{}, "")
 				uiActions <- func() { topBar.SetStatus("Save failed: " + err.Error()) }
 				window.Invalidate()
 				return
@@ -588,6 +611,7 @@ func (a *App) run(window *app.Window) error {
 			_, err := saveShowAtPath(path, snapshot, settingsStore.Snapshot().FFmpegPath)
 			saveMu.Unlock()
 			if err != nil {
+				operatorEvents.Add(operatorlog.Recoverable, "Autosave", err.Error(), show.CueID{}, "")
 				uiActions <- func() { topBar.SetStatus("Autosave failed: " + err.Error()) }
 			} else {
 				documentMu.Lock()
@@ -629,6 +653,15 @@ func (a *App) run(window *app.Window) error {
 				settingsPage.ShowAudioDevices()
 			}
 			audioWarning := mediaManager.AudioDeviceWarning()
+			videoWarning := videoRoutingWarning(mediaManager)
+			if audioWarning != "" && audioWarning != lastAudioOperatorWarning {
+				operatorEvents.Add(operatorlog.ShowStopping, "Audio output", audioWarning, show.CueID{}, "")
+			}
+			if videoWarning != "" && videoWarning != lastVideoOperatorWarning {
+				operatorEvents.Add(operatorlog.ShowStopping, "Video output", videoWarning, show.CueID{}, "")
+			}
+			lastAudioOperatorWarning, lastVideoOperatorWarning = audioWarning, videoWarning
+			preflight := buildPreflight(manager.Snapshot(), settingsStore.Snapshot(), audioWarning, videoWarning)
 			a.handleCueListShortcuts(gtx)
 			if topBar.TakeNewRequest() {
 				playbackEngine.StopAll()
@@ -665,6 +698,9 @@ func (a *App) run(window *app.Window) error {
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							return topBar.Layout(th, gtx, manager.HasSelectedCue(), a.UI.ShowSettings)
 						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return operatorPanel.LayoutBar(th, gtx, operatorEvents, preflight)
+						}),
 						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 							if a.UI.ShowSettings {
 								return settingsPage.Layout(th, gtx)
@@ -680,7 +716,7 @@ func (a *App) run(window *app.Window) error {
 								}),
 								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 									return ui.Main(
-										th, gtx, manager, playbackEngine,
+										th, gtx, manager, playbackEngine, operatorEvents,
 										func() { tbCtx.EditSelectedCue(manager) },
 										tbCtx.MoveCueActive(),
 										func(index int) { tbCtx.MoveSelectedCueBefore(manager, index) },
@@ -706,6 +742,9 @@ func (a *App) run(window *app.Window) error {
 				}),
 				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 					return layoutWarnings(th, gtx, windowFocused, audioWarning, audioWarningSettings)
+				}),
+				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+					return operatorPanel.LayoutOverlay(th, gtx, operatorEvents, preflight)
 				}),
 			)
 			if topBar.TakePageRequest() {
@@ -791,4 +830,67 @@ func saveShowAtPath(path string, current show.Show, ffmpegPath string) (project.
 	}
 	_ = os.Remove(backup)
 	return manifest, nil
+}
+
+func buildPreflight(cues []show.Cue, settings config.Settings, audioWarning, videoWarning string) []operatorlog.PreflightCheck {
+	checks := make([]operatorlog.PreflightCheck, 0)
+	if len(cues) == 0 {
+		checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.Warning, Source: "Show", Message: "The show contains no cues"})
+	}
+	needsFFmpeg, hasRemote := false, false
+	for _, cue := range cues {
+		needsFFmpeg = needsFFmpeg || cue.Type == show.CueTypeSound || cue.Type == show.CueTypeVideo
+		hasRemote = hasRemote || cue.Type == show.CueTypeRemote
+		for _, warning := range show.CueWarnings(cue, cues) {
+			checks = append(checks, operatorlog.PreflightCheck{
+				Severity: preflightWarningSeverity(warning), Source: "Cue configuration",
+				Message: warning, CueNumber: cue.CueNumber,
+			})
+		}
+	}
+	if needsFFmpeg {
+		if _, err := findExecutable(settings.FFmpegPath); err != nil {
+			checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.ShowStopping, Source: "FFmpeg", Message: err.Error()})
+		}
+		probe := ffprobeExecutable(settings.FFmpegPath)
+		if _, err := findExecutable(probe); err != nil {
+			checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.ShowStopping, Source: "FFprobe", Message: err.Error()})
+		}
+	}
+	if hasRemote && len(settings.RemoteTargets) == 0 {
+		checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.ShowStopping, Source: "Network / remote control", Message: "Remote cues exist but no remote targets are configured"})
+	}
+	if audioWarning != "" {
+		checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.ShowStopping, Source: "Audio output", Message: audioWarning})
+	}
+	if videoWarning != "" {
+		checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.ShowStopping, Source: "Video output", Message: videoWarning})
+	}
+	return checks
+}
+
+func preflightWarningSeverity(message string) operatorlog.Severity {
+	if strings.EqualFold(strings.TrimSpace(message), "Cue is disabled") {
+		return operatorlog.Warning
+	}
+	return operatorlog.ShowStopping
+}
+
+func findExecutable(path string) (string, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return "", errors.New("executable path is empty")
+	}
+	resolved, err := exec.LookPath(path)
+	if err != nil {
+		return "", fmt.Errorf("%s: %w", path, err)
+	}
+	return resolved, nil
+}
+
+func ffprobeExecutable(ffmpegPath string) string {
+	if filepath.IsAbs(ffmpegPath) {
+		return filepath.Join(filepath.Dir(ffmpegPath), "ffprobe"+filepath.Ext(ffmpegPath))
+	}
+	return "ffprobe"
 }

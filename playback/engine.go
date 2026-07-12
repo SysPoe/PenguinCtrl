@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/syspoe/cusus/config"
+	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/remote"
 	"github.com/syspoe/cusus/show"
 )
@@ -45,6 +46,7 @@ type Engine struct {
 	durationProbe   func(string) (int64, error)
 	stateEvent      chan struct{}
 	lastError       atomic.Value
+	operatorLog     *operatorlog.Store
 	onChange        func()
 	previewCueID    show.CueID
 	previewPaused   bool
@@ -69,6 +71,8 @@ func (e *Engine) Close() {
 }
 
 func (e *Engine) SetOnChange(callback func()) { e.onChange = callback }
+
+func (e *Engine) SetOperatorLog(store *operatorlog.Store) { e.operatorLog = store }
 
 func (e *Engine) SetDurationProbe(probe func(string) (int64, error)) {
 	e.mu.Lock()
@@ -329,7 +333,7 @@ func (e *Engine) execute(next command) {
 		if errors.Is(err, context.Canceled) && next.ctx.Err() != nil {
 			return
 		}
-		e.recordError(err)
+		e.recordCueError(next.cue, cueFailureSource(next.cue), err)
 		return
 	}
 	if next.cue.Type != show.CueTypeSound && next.cue.Type != show.CueTypeVideo && next.cue.Type != show.CueTypeImage {
@@ -413,7 +417,7 @@ func (e *Engine) scheduleLink(link show.CueLink, sourceIndex int, delayMs int64,
 		e.manager.SelectCue(targetIndex)
 		e.changed()
 		if err := e.enqueue(target, targetIndex); err != nil {
-			e.recordError(err)
+			e.recordCueError(target, "Cue link", err)
 		}
 	}()
 }
@@ -843,6 +847,40 @@ func (e *Engine) HandleOutputReport(instanceID, report string) {
 	e.signalState()
 }
 
+func (e *Engine) HandleOutputError(instanceID string, err error) {
+	if err == nil {
+		return
+	}
+	e.mu.RLock()
+	instance := e.instances[instanceID]
+	if instance == nil {
+		e.mu.RUnlock()
+		e.recordError("Media output", err)
+		return
+	}
+	copy := *instance
+	e.mu.RUnlock()
+	e.recordCueError(show.Cue{ID: copy.CueID, CueNumber: copy.CueNumber}, "FFmpeg / media output", err)
+	e.HandleOutputReport(instanceID, "stopped")
+}
+
+func (e *Engine) HandleOutputWarning(instanceID string, err error) {
+	if err == nil || e.operatorLog == nil {
+		return
+	}
+	e.mu.RLock()
+	instance := e.instances[instanceID]
+	if instance == nil {
+		e.mu.RUnlock()
+		e.operatorLog.Add(operatorlog.Recoverable, "FFmpeg / media output", err.Error(), show.CueID{}, "")
+		return
+	}
+	copy := *instance
+	e.mu.RUnlock()
+	e.operatorLog.Add(operatorlog.Recoverable, "FFmpeg / media output", err.Error(), copy.CueID, copy.CueNumber)
+	e.changed()
+}
+
 // HandleOutputDuration fills in durations discovered from the actual media
 // file after playback starts. This keeps the cue table useful when Clip End is
 // left at zero to mean "play the whole file".
@@ -1072,12 +1110,47 @@ func (e *Engine) LastError() string {
 	return value.(string)
 }
 
-func (e *Engine) recordError(err error) {
+func (e *Engine) recordError(source string, err error) {
+	if err == nil {
+		return
+	}
 	e.lastError.Store(err.Error())
+	if e.operatorLog != nil {
+		e.operatorLog.Add(operatorlog.Recoverable, source, err.Error(), show.CueID{}, "")
+	}
 	for _, outputID := range e.OutputIDs() {
 		e.hub.publish(Event{Action: "error", OutputID: outputID, Error: err.Error()})
 	}
 	e.changed()
+}
+
+func (e *Engine) recordCueError(cue show.Cue, source string, err error) {
+	if err == nil {
+		return
+	}
+	e.lastError.Store(err.Error())
+	if e.operatorLog != nil {
+		e.operatorLog.Add(operatorlog.ShowStopping, source, err.Error(), cue.ID, cue.CueNumber)
+	}
+	for _, outputID := range e.OutputIDs() {
+		e.hub.publish(Event{Action: "error", OutputID: outputID, Error: err.Error()})
+	}
+	e.changed()
+}
+
+func cueFailureSource(cue show.Cue) string {
+	switch cue.Type {
+	case show.CueTypeRemote:
+		return "Network / remote cue"
+	case show.CueTypeSound, show.CueTypeVideo, show.CueTypeImage:
+		return "FFmpeg / media cue"
+	case show.CueTypeWait:
+		return "Wait cue"
+	case show.CueTypeMediaControl, show.CueTypeOutputControl:
+		return "Playback control cue"
+	default:
+		return "Playback engine"
+	}
 }
 
 func waitContext(ctx context.Context, duration time.Duration) bool {
