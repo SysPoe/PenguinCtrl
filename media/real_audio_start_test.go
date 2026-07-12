@@ -1,6 +1,7 @@
 package media
 
 import (
+	"context"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -80,4 +81,47 @@ func TestRealVideoFirstStartCompletes(t *testing.T) {
 		t.Fatal("first video start hung")
 	}
 	player.Close(false)
+}
+
+func TestRealRotatedVideoDecodesWithDisplayDimensions(t *testing.T) {
+	ffmpeg, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		t.Skip("ffmpeg is not installed")
+	}
+	dir := t.TempDir()
+	basePath := filepath.Join(dir, "base.mp4")
+	rotatedPath := filepath.Join(dir, "rotated.mp4")
+	if output, err := exec.Command(ffmpeg, "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=s=320x180:r=25", "-t", "0.2", "-c:v", "libx264", "-pix_fmt", "yuv420p", basePath).CombinedOutput(); err != nil {
+		t.Fatalf("create base video: %v: %s", err, output)
+	}
+	if output, err := exec.Command(ffmpeg, "-hide_banner", "-loglevel", "error", "-display_rotation:v:0", "90", "-i", basePath, "-c", "copy", rotatedPath).CombinedOutput(); err != nil {
+		t.Skipf("ffmpeg cannot create display-rotation metadata: %v: %s", err, output)
+	}
+
+	settings, err := config.Open(filepath.Join(dir, "settings.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend := NewFFmpegBackend(settings, nil)
+	session, err := backend.Open(PlaybackRequest{Instance: playback.Instance{
+		ID: "rotated-video", CueID: show.NewCueID(), MediaType: "video", Source: rotatedPath, OutputID: "main",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+	if err := session.Preload(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	clock := NewPlaybackClock(0)
+	if err := session.Start(clock); err != nil {
+		t.Fatal(err)
+	}
+	frame := session.Frame(0)
+	if frame == nil {
+		t.Fatal("first decoded frame is nil")
+	}
+	if got := frame.Bounds().Size(); got.X != 180 || got.Y != 320 {
+		t.Fatalf("decoded frame = %dx%d, want display dimensions 180x320", got.X, got.Y)
+	}
 }

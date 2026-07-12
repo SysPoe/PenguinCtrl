@@ -12,6 +12,7 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"io"
+	"math"
 	"os"
 	"os/exec"
 	"strconv"
@@ -475,17 +476,27 @@ func (i mediaInfo) frameInterval() time.Duration {
 }
 
 func probeMediaInfo(ffmpegPath, source string) (mediaInfo, error) {
-	command := exec.Command(ffprobePath(ffmpegPath), "-v", "error", "-show_entries", "stream=codec_type,width,height,avg_frame_rate", "-of", "json", source)
+	command := exec.Command(ffprobePath(ffmpegPath), "-v", "error", "-show_entries", "stream=codec_type,width,height,avg_frame_rate:stream_tags=rotate:stream_side_data=rotation", "-of", "json", source)
 	raw, err := command.CombinedOutput()
 	if err != nil {
 		return mediaInfo{}, ffmpegCommandError("probe media streams", err, string(raw))
 	}
+	return parseMediaInfo(raw)
+}
+
+func parseMediaInfo(raw []byte) (mediaInfo, error) {
 	var result struct {
 		Streams []struct {
 			CodecType    string `json:"codec_type"`
 			Width        int    `json:"width"`
 			Height       int    `json:"height"`
 			AvgFrameRate string `json:"avg_frame_rate"`
+			Tags         struct {
+				Rotate string `json:"rotate"`
+			} `json:"tags"`
+			SideData []struct {
+				Rotation *float64 `json:"rotation"`
+			} `json:"side_data_list"`
 		} `json:"streams"`
 	}
 	if err := json.Unmarshal(raw, &result); err != nil {
@@ -498,6 +509,20 @@ func probeMediaInfo(ffmpegPath, source string) (mediaInfo, error) {
 			if !info.hasVideo {
 				info.hasVideo, info.width, info.height = true, stream.Width, stream.Height
 				info.fps = parseFrameRate(stream.AvgFrameRate)
+				rotation, _ := strconv.ParseFloat(stream.Tags.Rotate, 64)
+				for _, sideData := range stream.SideData {
+					if sideData.Rotation != nil {
+						rotation = *sideData.Rotation
+						break
+					}
+				}
+				// FFmpeg applies display rotation while decoding. Keep the raw
+				// frame dimensions in step with that output or each frame is
+				// interpreted with the wrong row stride.
+				quarterTurns := math.Round(rotation / 90)
+				if math.Abs(rotation-quarterTurns*90) < 0.01 && int(quarterTurns)%2 != 0 {
+					info.width, info.height = info.height, info.width
+				}
 			}
 		case "audio":
 			info.hasAudio = true

@@ -25,9 +25,15 @@ func (p *Player) LayoutScaled(gtx layout.Context, scaling string) layout.Dimensi
 	_ = p.Layout(gtx)
 	_ = macro.Stop()
 	p.mu.RLock()
-	frame, started := p.frame, p.started
+	frame, started, session := p.frame, p.started, p.session
 	fadeIn, volume := p.instance.FadeInMs, p.volumeDB
 	p.mu.RUnlock()
+	if session != nil && playbackNeedsRefresh(session.State()) {
+		// Player.Layout's drawing and invalidation operations above are
+		// deliberately discarded. Schedule on the real operation list so the
+		// next decoded frame is requested even after the first frame appears.
+		gtx.Execute(op.InvalidateCmd{At: time.Now().Add(time.Second / 60)})
+	}
 	if frame == nil {
 		return layout.Dimensions{Size: gtx.Constraints.Max}
 	}
@@ -62,4 +68,13 @@ func (p *Player) LayoutScaled(gtx layout.Context, scaling string) layout.Dimensi
 		fit = widget.Unscaled
 	}
 	return widget.Image{Src: paint.NewImageOp(frame), Fit: fit, Position: layout.Center}.Layout(gtx)
+}
+
+func playbackNeedsRefresh(state LoadState) bool {
+	switch state {
+	case LoadLoading, LoadReady, LoadPlaying, LoadBuffering:
+		return true
+	default:
+		return false
+	}
 }
