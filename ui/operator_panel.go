@@ -97,6 +97,9 @@ func (p *OperatorPanel) LayoutBar(th *material.Theme, gtx layout.Context, store 
 }
 
 func (p *OperatorPanel) LayoutOverlay(th *material.Theme, gtx layout.Context, store *operatorlog.Store, checks []operatorlog.PreflightCheck, navigate func(cueID show.CueID, edit bool, field string), acknowledge func(fingerprint string), openSettings func(), skip func()) layout.Dimensions {
+	// A zero-value widget.List scrolls horizontally. Both operator views are
+	// stacked card lists, so explicitly keep their shared list vertical.
+	p.list.Axis = layout.Vertical
 	if p.showBlocker {
 		if event, ok := store.Event(p.blockerID); ok {
 			return p.layoutBlocker(th, gtx, event, navigate, openSettings, skip)
