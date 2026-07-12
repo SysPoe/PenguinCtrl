@@ -70,7 +70,12 @@ func (p *Player) StartedAt() time.Time {
 
 func (p *Player) Start() error {
 	p.mu.Lock()
-	p.position = time.Duration(max(0, p.instance.ClipStartMs)) * time.Millisecond
+	startMs := max(int64(0), p.instance.ClipStartMs)
+	if p.instance.BackendStarted {
+		startMs = max(startMs, p.instance.PositionMs)
+	}
+	p.position = time.Duration(startMs) * time.Millisecond
+	p.muted = p.instance.Muted
 	p.mu.Unlock()
 	p.discoverDuration()
 	if p.instance.MediaType == "image" {
@@ -84,6 +89,12 @@ func (p *Player) Start() error {
 		p.report("started")
 	} else if err := p.restart(p.position); err != nil {
 		return err
+	}
+	if p.instance.Muted {
+		p.setMuted(true)
+	}
+	if p.instance.Paused {
+		p.pause()
 	}
 	p.scheduleFadeInReport()
 	return nil

@@ -683,18 +683,20 @@ func (e *Engine) scheduleInstanceLifecycle(instanceID string) {
 	materializeInstance(instance, time.Now())
 	remainingMs := max(int64(0), instance.DurationMs-(instance.PositionMs-instance.ClipStartMs))
 	instance.EndScheduled = true
+	instance.LifecycleGeneration++
+	generation := instance.LifecycleGeneration
 	snapshot := *instance
 	e.mu.Unlock()
 
 	fadeOutAt := remainingMs - max(int64(0), snapshot.FadeOutMs)
 	if snapshot.FadeOutMs > 0 && fadeOutAt >= 0 {
 		go func(instance Instance, wait time.Duration) {
-			if !waitContext(instance.RunContext, wait) || !e.hasInstance(instance.ID) {
+			if !waitContext(instance.RunContext, wait) || !e.lifecycleCurrent(instance.ID, generation) {
 				return
 			}
 			e.hub.publish(Event{Action: "control", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID}, Control: "fade-out", FadeMs: instance.FadeOutMs})
 			e.mu.Lock()
-			if active := e.instances[instance.ID]; active != nil {
+			if active := e.instances[instance.ID]; active != nil && active.LifecycleGeneration == generation && !active.Paused {
 				materializeInstance(active, time.Now())
 				startInstanceFade(active, -80, instance.FadeOutMs, time.Now())
 			}
@@ -703,7 +705,7 @@ func (e *Engine) scheduleInstanceLifecycle(instanceID string) {
 		}(snapshot, time.Duration(fadeOutAt)*time.Millisecond)
 	}
 	go func(id string, wait time.Duration) {
-		if waitContext(snapshot.RunContext, wait) {
+		if waitContext(snapshot.RunContext, wait) && e.lifecycleCurrent(id, generation) {
 			e.HandleOutputReport(id, "ended")
 		}
 	}(snapshot.ID, time.Duration(remainingMs)*time.Millisecond)
@@ -744,6 +746,7 @@ func (e *Engine) executeMediaControl(cue show.Cue, runCtx context.Context) error
 
 	e.mu.Lock()
 	now := time.Now()
+	reschedule := make([]string, 0, len(instances))
 	for _, matched := range instances {
 		instance := e.instances[matched.ID]
 		if instance == nil {
@@ -753,13 +756,29 @@ func (e *Engine) executeMediaControl(cue show.Cue, runCtx context.Context) error
 		switch play.Action {
 		case show.MediaControlPause:
 			instance.Paused = true
+			instance.PositionAt = time.Time{}
+			instance.EndScheduled = false
+			instance.LifecycleGeneration++
 		case show.MediaControlResume:
 			instance.Paused = false
 			instance.PositionAt = now
+			instance.EndScheduled = false
+			instance.LifecycleGeneration++
+			reschedule = append(reschedule, instance.ID)
 		case show.MediaControlSeek:
 			if play.SeekToMs != nil {
-				instance.PositionMs = *play.SeekToMs
-				instance.PositionAt = now
+				instance.PositionMs = max(instance.ClipStartMs, *play.SeekToMs)
+				if instance.ClipEndMs > instance.ClipStartMs {
+					instance.PositionMs = min(instance.PositionMs, instance.ClipEndMs)
+				}
+				if instance.Paused {
+					instance.PositionAt = time.Time{}
+				} else {
+					instance.PositionAt = now
+					reschedule = append(reschedule, instance.ID)
+				}
+				instance.EndScheduled = false
+				instance.LifecycleGeneration++
 			}
 		case show.MediaControlFadeTo, show.MediaControlSetVolume:
 			if play.LevelDB != nil {
@@ -778,6 +797,9 @@ func (e *Engine) executeMediaControl(cue show.Cue, runCtx context.Context) error
 		}
 	}
 	e.mu.Unlock()
+	for _, id := range reschedule {
+		e.scheduleInstanceLifecycle(id)
+	}
 	if play.Action == show.MediaControlFadeOut {
 		for _, instance := range instances {
 			e.scheduleLink(instance.Link, instance.CueIndex, instance.PostWaitMs, linkFadeOut, instance.RunContext)
@@ -1016,6 +1038,10 @@ func (e *Engine) HandleOutputDuration(instanceID string, durationMs int64) {
 	instance.DurationMs = durationMs
 	e.durations[instance.CueID] = durationMs
 	started := instance.BackendStarted
+	if started {
+		instance.EndScheduled = false
+		instance.LifecycleGeneration++
+	}
 	e.mu.Unlock()
 	if started {
 		e.scheduleInstanceLifecycle(instanceID)
@@ -1024,20 +1050,48 @@ func (e *Engine) HandleOutputDuration(instanceID string, durationMs int64) {
 }
 
 func (e *Engine) Subscribe(outputID string) (<-chan Event, func()) {
-	ch := e.hub.subscribe(outputID)
-	ch <- Event{Action: "sync", OutputID: outputID, Instances: e.instancesForOutput(outputID)}
+	ch, release := e.hub.subscribePaused(outputID)
+	events, _ := e.OutputSnapshot(outputID)
+	for _, event := range events {
+		ch <- event
+	}
+	release()
+	return ch, func() { e.hub.unsubscribe(outputID, ch) }
+}
+
+// OutputSnapshot returns a complete desired state for an output plus the event
+// sequence that preceded the snapshot. An output recovering from queue
+// overload or window recreation applies this state, then ignores older queued
+// sequences and continues incrementally.
+func (e *Engine) OutputSnapshot(outputID string) ([]Event, uint64) {
+	sequence := e.hub.currentSequence()
 	e.mu.RLock()
+	now := time.Now()
+	instances := make([]Instance, 0)
+	for _, instance := range e.instances {
+		if instance.OutputID != outputID {
+			continue
+		}
+		copy := *instance
+		materializeInstance(&copy, now)
+		instances = append(instances, copy)
+	}
 	visual, hasVisual := e.outputVisuals[outputID]
 	window, hasWindow := e.outputWindows[outputID]
 	e.mu.RUnlock()
+	events := []Event{{Action: "sync", OutputID: outputID, Instances: instances, Sequence: sequence}}
 	if hasVisual {
-		ch <- visual
+		visual.Sequence = sequence
+		events = append(events, visual)
 	}
 	if hasWindow {
-		ch <- window
+		window.Sequence = sequence
+		events = append(events, window)
 	}
-	return ch, func() { e.hub.unsubscribe(outputID, ch) }
+	return events, sequence
 }
+
+func (e *Engine) OutputResyncCount() uint64 { return e.hub.resyncCount() }
 
 func (e *Engine) ActiveInstances() []Instance {
 	e.mu.RLock()
@@ -1364,6 +1418,13 @@ func (e *Engine) hasInstance(id string) bool {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	return e.instances[id] != nil
+}
+
+func (e *Engine) lifecycleCurrent(id string, generation uint64) bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	instance := e.instances[id]
+	return instance != nil && instance.LifecycleGeneration == generation && !instance.Paused
 }
 
 func materializeInstance(instance *Instance, now time.Time) {

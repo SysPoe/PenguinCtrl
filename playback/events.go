@@ -3,6 +3,7 @@ package playback
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/syspoe/cusus/show"
@@ -41,9 +42,13 @@ type Instance struct {
 	RunContext     context.Context `json:"-"`
 	RequestedAt    time.Time       `json:"-"`
 	BackendStarted bool            `json:"-"`
-	LoadState      string          `json:"loadState,omitempty"`
-	StartLatencyMs int64           `json:"startLatencyMs,omitempty"`
-	Cue            show.Cue        `json:"-"`
+	// LifecycleGeneration invalidates stale fade/end timers after pause, seek,
+	// duration correction, or resume. Timers must never act on another
+	// generation of the same logical playback instance.
+	LifecycleGeneration uint64   `json:"-"`
+	LoadState           string   `json:"loadState,omitempty"`
+	StartLatencyMs      int64    `json:"startLatencyMs,omitempty"`
+	Cue                 show.Cue `json:"-"`
 }
 
 // CueExecution describes a cue that is currently doing synchronous work.
@@ -65,6 +70,7 @@ type CueExecution struct {
 }
 
 type Event struct {
+	Sequence    uint64         `json:"sequence,omitempty"`
 	Action      string         `json:"action"`
 	OutputID    string         `json:"outputId,omitempty"`
 	Instance    *Instance      `json:"instance,omitempty"`
@@ -84,6 +90,8 @@ type Event struct {
 type eventHub struct {
 	mu          sync.RWMutex
 	subscribers map[string]map[chan Event]struct{}
+	sequence    atomic.Uint64
+	resyncs     atomic.Uint64
 }
 
 func newEventHub() *eventHub {
@@ -91,7 +99,7 @@ func newEventHub() *eventHub {
 }
 
 func (h *eventHub) subscribe(outputID string) chan Event {
-	ch := make(chan Event, 32)
+	ch := make(chan Event, 256)
 	h.mu.Lock()
 	if h.subscribers[outputID] == nil {
 		h.subscribers[outputID] = map[chan Event]struct{}{}
@@ -101,6 +109,19 @@ func (h *eventHub) subscribe(outputID string) chan Event {
 	return ch
 }
 
+// subscribePaused installs a subscriber while preventing publishers from
+// overtaking its initial authoritative snapshot. The returned release function
+// must be called after the snapshot has been queued.
+func (h *eventHub) subscribePaused(outputID string) (chan Event, func()) {
+	ch := make(chan Event, 256)
+	h.mu.Lock()
+	if h.subscribers[outputID] == nil {
+		h.subscribers[outputID] = map[chan Event]struct{}{}
+	}
+	h.subscribers[outputID][ch] = struct{}{}
+	return ch, h.mu.Unlock
+}
+
 func (h *eventHub) unsubscribe(outputID string, ch chan Event) {
 	h.mu.Lock()
 	delete(h.subscribers[outputID], ch)
@@ -108,12 +129,24 @@ func (h *eventHub) unsubscribe(outputID string, ch chan Event) {
 }
 
 func (h *eventHub) publish(event Event) {
+	event.Sequence = h.sequence.Add(1)
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	for ch := range h.subscribers[event.OutputID] {
 		select {
 		case ch <- event:
 		default:
+			// Never silently lose an output mutation. Collapse an overloaded
+			// subscriber to a resync marker; the output will fetch the current
+			// authoritative engine state before processing later sequences.
+			for len(ch) > 0 {
+				<-ch
+			}
+			h.resyncs.Add(1)
+			ch <- Event{Action: "resync", OutputID: event.OutputID, Sequence: event.Sequence}
 		}
 	}
 }
+
+func (h *eventHub) currentSequence() uint64 { return h.sequence.Load() }
+func (h *eventHub) resyncCount() uint64     { return h.resyncs.Load() }

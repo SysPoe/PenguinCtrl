@@ -176,6 +176,7 @@ type outputWindow struct {
 	lastGeometry    [4]int
 	heldFrame       image.Image
 	routeMu         sync.Mutex
+	lastSequence    uint64
 }
 
 func (m *Manager) outputIDsWithConfiguredStages(outputIDs []string) []string {
@@ -491,12 +492,27 @@ func layoutFrame(gtx layout.Context, frame image.Image, scaling string) layout.D
 }
 
 func (o *outputWindow) handleEvent(event playback.Event) {
+	if event.Action == "resync" {
+		events, sequence := o.manager.engine.OutputSnapshot(o.id)
+		for _, snapshotEvent := range events {
+			o.applyEvent(snapshotEvent)
+		}
+		o.lastSequence = sequence
+		return
+	}
+	if event.Sequence > 0 && event.Sequence <= o.lastSequence {
+		return
+	}
+	o.applyEvent(event)
+	if event.Sequence > o.lastSequence {
+		o.lastSequence = event.Sequence
+	}
+}
+
+func (o *outputWindow) applyEvent(event playback.Event) {
 	switch event.Action {
 	case "sync":
-		for _, instance := range event.Instances {
-			instance := instance
-			o.start(&instance)
-		}
+		o.reconcile(event.Instances)
 	case "play":
 		o.start(event.Instance)
 	case "remove":
@@ -517,6 +533,27 @@ func (o *outputWindow) handleEvent(event playback.Event) {
 		}
 	case "output":
 		o.handleOutputControl(event)
+	}
+}
+
+func (o *outputWindow) reconcile(instances []playback.Instance) {
+	desired := make(map[string]playback.Instance, len(instances))
+	for _, instance := range instances {
+		desired[instance.ID] = instance
+	}
+	for id, player := range o.players {
+		if _, keep := desired[id]; keep {
+			continue
+		}
+		player.Close(false)
+		delete(o.players, id)
+	}
+	for _, instance := range instances {
+		if o.players[instance.ID] != nil {
+			continue
+		}
+		instance := instance
+		o.start(&instance)
 	}
 }
 
