@@ -125,6 +125,7 @@ func Main(
 	manager *show.ShowManager,
 	engine *playback.Engine,
 	operatorEvents *operatorlog.Store,
+	suppressTooltips bool,
 	editSelected func(),
 	editProblem func(field string),
 	moveCueActive bool,
@@ -380,6 +381,10 @@ func Main(
 													label, statusColor := problemBadge(problems)
 													if cueFailed {
 														label, statusColor = "FAIL", palette.Danger
+													}
+													if suppressTooltips {
+														hideWarningTooltip(&warningTips[cueIndex].area)
+														return layoutWarningBadge(th, gtx, &warningTips[cueIndex].click, label, statusColor)
 													}
 													return layoutWarningTooltip(th, gtx, &warningTips[cueIndex].area, &warningTips[cueIndex].click, warningText, label, statusColor)
 												})
@@ -685,27 +690,38 @@ func layoutWarningTooltip(th *material.Theme, gtx layout.Context, area *componen
 	tip := component.DesktopTooltip(th, tooltipText)
 	dims := area.Layout(gtx, tip, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints = originalConstraints
-		return clickable.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				if clickable.Hovered() {
-					pointer.CursorPointer.Add(gtx.Ops)
-				}
-				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(unit.Dp(16)))
-						return warningIcon.Layout(gtx, statusColor)
-					}),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						label := material.Label(th, unit.Sp(10), statusLabel)
-						label.Color = statusColor
-						return layout.Inset{Left: unit.Dp(3)}.Layout(gtx, label.Layout)
-					}),
-				)
-			})
-		})
+		return layoutWarningBadge(th, gtx, clickable, statusLabel, statusColor)
 	})
 	dims.Size = originalConstraints.Constrain(dims.Size)
 	return dims
+}
+
+func hideWarningTooltip(area *component.TipArea) {
+	area.VisibilityAnimation.State = component.Invisible
+	area.Hover.ClearTarget()
+	area.Press.ClearTarget()
+	area.LongPress.ClearTarget()
+}
+
+func layoutWarningBadge(th *material.Theme, gtx layout.Context, clickable *widget.Clickable, statusLabel string, statusColor color.NRGBA) layout.Dimensions {
+	return clickable.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			if clickable.Hovered() {
+				pointer.CursorPointer.Add(gtx.Ops)
+			}
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(unit.Dp(16)))
+					return warningIcon.Layout(gtx, statusColor)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					label := material.Label(th, unit.Sp(10), statusLabel)
+					label.Color = statusColor
+					return layout.Inset{Left: unit.Dp(3)}.Layout(gtx, label.Layout)
+				}),
+			)
+		})
+	})
 }
 
 func makeRuntimeCell(th *material.Theme, value string, weight float32) layout.FlexChild {

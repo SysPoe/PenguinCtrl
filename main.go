@@ -748,6 +748,7 @@ func (a *App) run(window *app.Window) error {
 								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 									return ui.Main(
 										th, gtx, manager, playbackEngine, operatorEvents,
+										operatorPanel.OverlayVisible(),
 										func() { tbCtx.EditSelectedCue(manager) },
 										func(field string) { tbCtx.EditSelectedCueAt(manager, field) },
 										tbCtx.MoveCueActive(),
