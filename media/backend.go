@@ -48,6 +48,7 @@ type PlaybackMetrics struct {
 	DroppedFrames  uint64
 	BufferingCount uint64
 	BufferedFrames int
+	AudioUnderruns uint64
 	Error          string
 }
 
@@ -305,6 +306,24 @@ func (s *ffmpegSession) Start(clock *PlaybackClock) error {
 		if err := audio.Start(); err != nil {
 			return s.fail(err)
 		}
+		go func() {
+			select {
+			case <-audio.Stopped():
+				if !audio.UnexpectedStop() {
+					return
+				}
+				err := errors.New("audio device stopped unexpectedly")
+				s.setRuntimeError(err)
+				s.mu.RLock()
+				cmd := s.audioCmd
+				s.mu.RUnlock()
+				if cmd != nil && cmd.Process != nil {
+					_ = cmd.Process.Kill()
+				}
+				s.doneOnce.Do(func() { close(s.done) })
+			case <-s.done:
+			}
+		}()
 	}
 	s.mu.Lock()
 	s.metrics.StartLatency = time.Since(s.request.RequestedAt)
@@ -385,6 +404,9 @@ func (s *ffmpegSession) Metrics() PlaybackMetrics {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	metrics := s.metrics
+	if s.audio != nil {
+		metrics.AudioUnderruns = s.audio.Underruns()
+	}
 	metrics.State = s.state
 	return metrics
 }
