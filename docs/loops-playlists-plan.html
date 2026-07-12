@@ -94,6 +94,7 @@
     .callout strong { color: var(--accent); }
     .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
     .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     .card {
       padding: 20px;
       border: 1px solid var(--line);
@@ -170,7 +171,7 @@
     @media (max-width: 900px) {
       .layout { grid-template-columns: 1fr; }
       nav { display: none; }
-      .grid, .grid.three { grid-template-columns: 1fr; }
+      .grid, .grid.three, .grid.four { grid-template-columns: 1fr; }
       .mock-body { grid-template-columns: 1fr; }
       .sidebar { border-left: 0; border-top: 1px solid var(--line); }
     }
@@ -190,12 +191,13 @@
 <body>
   <header class="hero shell">
     <span class="eyebrow">PenguinCtrl product plan</span>
-    <h1>Loops and playlists that remain safe during a live show</h1>
-    <p class="lede">A user-facing design and Gio-native implementation plan for repeating one cue, running an ordered set of cues, and stopping that automation predictably. The proposal extends the current cue list and playback engine; it does not introduce a browser or server runtime.</p>
+    <h1>Loops, playlists and vamps that remain safe during a live show</h1>
+    <p class="lede">A user-facing design and Gio-native implementation plan for repeating one cue, running an ordered set of cues, vamping until the operator releases the sequence, and stopping that automation predictably. The proposal extends the current cue list and playback engine; it does not introduce a browser or server runtime.</p>
     <div class="meta">
       <span class="pill good">Recommended direction</span>
       <span class="pill">Native Gio UI</span>
       <span class="pill">Shared sequence runner</span>
+      <span class="pill">GO-released vamps</span>
       <span class="pill">Backward-compatible show loading</span>
       <span class="pill">12 July 2026</span>
     </div>
@@ -206,6 +208,7 @@
       <a href="#recommendation">Recommendation</a>
       <a href="#language">User language</a>
       <a href="#behaviour">Operator behaviour</a>
+      <a href="#vamps">Vamps and holds</a>
       <a href="#mockup">Cue-list mockup</a>
       <a href="#editor">Editor mockup</a>
       <a href="#runtime">Runtime rules</a>
@@ -219,10 +222,10 @@
       <section id="recommendation">
         <h2>Recommendation</h2>
         <div class="callout">
-          <strong>Build two simple user features on one internal mechanism.</strong>
-          <p>Add a <b>Repeat</b> setting to normal cues for the common “loop this sound/video/image” case. Add <b>Playlist</b> as a new cue type when several existing cues should run as a sequence. Both use a cancellable sequence runner in <code>playback</code>; neither is simulated by creating circular cue links.</p>
+          <strong>Build three clear user features on one internal mechanism.</strong>
+          <p>Add <b>Repeat</b> for a fixed or endless loop, <b>Playlist</b> for an ordered sequence, and <b>Vamp until GO</b> for an intro / repeating middle / outro structure. All three use a cancellable sequence runner in <code>playback</code>; none is simulated by creating circular cue links.</p>
         </div>
-        <div class="grid three" style="margin-top:16px">
+        <div class="grid four" style="margin-top:16px">
           <article class="card">
             <span class="number">01</span>
             <h3>Repeat a cue</h3>
@@ -235,6 +238,11 @@
           </article>
           <article class="card">
             <span class="number">03</span>
+            <h3>Vamp until GO</h3>
+            <p class="muted">Play an intro once, repeat a cue or range, then leave at the next safe boundary when GO is pressed.</p>
+          </article>
+          <article class="card">
+            <span class="number">04</span>
             <h3>Fail safe</h3>
             <p class="muted">STOP ALL and FADE ALL cancel future playlist starts before stopping or fading active media.</p>
           </article>
@@ -250,6 +258,9 @@
             <tr><td>Play through N times</td><td>Total passes, including the first. “3 times” always means three complete plays.</td><td>“Repeat count 3”, which some users read as four total plays.</td></tr>
             <tr><td>Loop forever</td><td>Continue until Stop, Stop All, Fade All, show close, or app shutdown.</td><td>“Infinite” as the only label.</td></tr>
             <tr><td>Playlist</td><td>An ordered list of references to existing cues. Editing the original cue updates the playlist item.</td><td>Calling existing organisational groups playlists; groups currently have different semantics.</td></tr>
+            <tr><td>Vamp until GO</td><td>Repeat the marked vamp region until GO arms a clean exit at the next boundary.</td><td>Calling this “Loop forever”; a vamp has a deliberate operator-controlled exit.</td></tr>
+            <tr><td>Hold for GO</td><td>Finish the current item, wait indefinitely, then continue when GO is pressed.</td><td>Using a zero-duration Wait cue, which does not communicate operator intent.</td></tr>
+            <tr><td>Loop In / Loop Out</td><td>Positions inside one media file that define the intended repeating region. Audio before Loop In is the intro; audio after Loop Out is the outro.</td><td>Confusing these with clip start/end, which discard the intro or outro.</td></tr>
             <tr><td>Delay between plays</td><td>Silence/wait after an item ends and before the next begins.</td><td>Reusing Post Wait without explaining which level owns it.</td></tr>
           </tbody>
         </table>
@@ -287,7 +298,7 @@
         <table style="margin-top:16px">
           <thead><tr><th>Action</th><th>When idle</th><th>While playlist/loop is running</th></tr></thead>
           <tbody>
-            <tr><td>GO / Space</td><td>Starts the selected cue or playlist.</td><td>If the same runner is already active, it does not create a duplicate run. The sidebar offers Restart explicitly.</td></tr>
+            <tr><td>GO / Space</td><td>Starts the selected cue or playlist.</td><td>If the transport-focused runner is vamping, GO arms its exit; if it is holding, GO continues it. Otherwise it does not create a duplicate run. Restart remains explicit.</td></tr>
             <tr><td>Pause</td><td>Disabled.</td><td>Pauses active media and freezes the inter-item delay/repeat timer. Resume continues from the same position.</td></tr>
             <tr><td>Next</td><td>Disabled.</td><td>Stops the current playlist-owned media and starts the next item. On the last item it obeys the repeat setting.</td></tr>
             <tr><td>Previous</td><td>Disabled.</td><td>If more than 3 seconds into an item, restarts it; otherwise moves to the previous item.</td></tr>
@@ -296,6 +307,52 @@
             <tr><td>FADE ALL</td><td>Fades current media.</td><td>First cancels every runner so the fade cannot accidentally trigger the next item, then fades all media.</td></tr>
           </tbody>
         </table>
+      </section>
+
+      <section id="vamps">
+        <h2>Vamps, holds and loop regions</h2>
+        <div class="callout">
+          <strong>A vamp is not just an infinite loop.</strong>
+          <p>It has a musical or show-safe way out. The operator presses GO while the vamp is running; PenguinCtrl shows <b>EXIT ARMED</b>, finishes the current loop at its configured boundary, and then continues into the outro or next playlist item.</p>
+        </div>
+        <div class="grid three" style="margin-top:16px">
+          <article class="card">
+            <span class="kicker">Whole cue</span>
+            <h3>Vamp one cue</h3>
+            <p>A normal cue repeats until GO. By default, GO lets the current pass finish before continuing. This is suitable for complete music beds or repeated waits.</p>
+          </article>
+          <article class="card">
+            <span class="kicker">Playlist range</span>
+            <h3>Vamp several items</h3>
+            <p>Mark a first and last playlist item. The intro items run once, the marked range repeats, and the outro items run after GO releases the vamp.</p>
+          </article>
+          <article class="card">
+            <span class="kicker">Inside media</span>
+            <h3>Vamp part of a file</h3>
+            <p>Set Loop In and Loop Out on the existing waveform/timeline. The intro plays once, the region loops, and release allows playback past Loop Out into the file’s outro.</p>
+          </article>
+        </div>
+
+        <table style="margin-top:16px">
+          <thead><tr><th>Setting</th><th>Recommended default</th><th>User-visible result</th></tr></thead>
+          <tbody>
+            <tr><td>Exit at boundary</td><td>End of current vamp pass</td><td>GO changes the status from <b>VAMPING · Pass 6</b> to <b>EXIT ARMED · End of pass</b>. The current pass is not cut short.</td></tr>
+            <tr><td>Exit immediately</td><td>Secondary action, not the default</td><td><b>Release Now</b> jumps to the outro/next item, optionally using the configured exit fade.</td></tr>
+            <tr><td>Maximum passes</td><td>Unlimited</td><td>An optional safety limit stops with a warning or auto-releases, according to the editor choice.</td></tr>
+            <tr><td>Hold after item</td><td>Off</td><td>When enabled, the playlist displays <b>HOLDING · GO to continue</b> after that item completes.</td></tr>
+            <tr><td>Transport focus</td><td>The most recently started sequence</td><td>The large GO button controls that active vamp/hold even if ordinary cue selection has advanced. Selecting another active sequence explicitly changes transport focus.</td></tr>
+          </tbody>
+        </table>
+
+        <div class="flow" style="margin-top:16px" aria-label="Vamp runtime flow">
+          <div class="flow-step"><b>Intro</b>Play once</div><div class="arrow">→</div>
+          <div class="flow-step"><b>Vamping</b>Repeat marked region</div><div class="arrow">→ GO</div>
+          <div class="flow-step"><b>Exit armed</b>Finish current pass</div><div class="arrow">→</div>
+          <div class="flow-step"><b>Outro</b>Continue once</div><div class="arrow">→</div>
+          <div class="flow-step"><b>Complete</b>Fire playlist link once</div>
+        </div>
+
+        <p class="small muted"><b>Gapless note:</b> playlist-range vamps can reuse the sequence runner, but a seamless in-file audio vamp needs loop-aware playback in <code>media/player.go</code>. Repeatedly restarting FFmpeg at Loop In may introduce a gap; production-quality musical vamps should keep decoded audio buffered or use a seekable decoder/clock path and test the boundary audibly.</p>
       </section>
 
       <section id="mockup">
@@ -320,7 +377,7 @@
               <div class="controls">
                 <span class="button">Previous</span><span class="button">Next</span>
                 <span class="button">Pause</span><span class="button">Stop</span>
-                <span class="button go">GO / Restart</span>
+                <span class="button go">GO / Release Vamp</span>
               </div>
             </aside>
           </div>
@@ -336,6 +393,7 @@
             <div class="field"><span>Order</span><span class="input">Sequential ▾</span></div>
             <div class="field"><span>Play mode</span><span class="input">Loop forever ▾</span></div>
             <div class="field"><span>Between items</span><span class="input">500 ms</span></div>
+            <div class="field"><span>Vamp region</span><span class="input">Items 2–3 · Release at end of pass</span></div>
             <div class="field"><span>On item error</span><span class="input">Stop playlist ▾</span></div>
             <div class="playlist-items">
               <div class="playlist-item"><span>↕</span><b>1</b><span>Cue 1.2 — Welcome bed</span><span>Remove</span></div>
@@ -353,7 +411,7 @@
           <div class="flow-step"><b>Idle</b>GO creates one run</div><div class="arrow">→</div>
           <div class="flow-step"><b>Starting</b>Resolve and validate order</div><div class="arrow">→</div>
           <div class="flow-step"><b>Playing</b>Run current item</div><div class="arrow">→</div>
-          <div class="flow-step"><b>Between</b>Apply delay</div><div class="arrow">→</div>
+          <div class="flow-step"><b>Vamp / hold</b>Repeat or await GO</div><div class="arrow">→</div>
           <div class="flow-step"><b>Finish / repeat</b>Link once or next pass</div>
         </div>
         <div class="grid">
@@ -363,7 +421,11 @@
           </article>
           <article class="card decision">
             <h3>One active run per source cue</h3>
-            <p>Pressing GO twice on the same looping cue or Playlist cue does not stack duplicate automation. An explicit <b>Restart</b> cancels and replaces its run. Different playlists may run concurrently.</p>
+            <p>Pressing GO on a transport-focused vamp releases it; pressing GO on a hold continues it. It never stacks duplicate automation. An explicit <b>Restart</b> cancels and replaces a run. Different playlists may run concurrently.</p>
+          </article>
+          <article class="card decision">
+            <h3>GO becomes a transport command</h3>
+            <p>Add one <code>Engine.Go()</code> path for the sidebar button and Space shortcut. It first services the focused active vamp/hold; only when none needs GO does it call the selected cue. This avoids different keyboard and button behaviour.</p>
           </article>
           <article class="card warning">
             <h3>Completion must be explicit</h3>
@@ -382,16 +444,18 @@
         <table>
           <thead><tr><th>Area</th><th>Proposed change</th><th>Why</th></tr></thead>
           <tbody>
-            <tr><td><code>show/cue.go</code></td><td>Add <code>CueTypePlaylist</code>, <code>CueRepeat</code>, and <code>PlaylistPlay</code> containing cue IDs, order, total-pass mode, delay and error policy.</td><td>Keeps the saved intent explicit and testable.</td></tr>
+            <tr><td><code>show/cue.go</code></td><td>Add <code>CueTypePlaylist</code>, <code>CueRepeat</code>, <code>VampRegion</code>, stable playlist item IDs, per-item Hold for GO, and <code>PlaylistPlay</code>.</td><td>Keeps repeat, vamp and operator-hold intent explicit and testable.</td></tr>
             <tr><td><code>show/constructors.go</code></td><td>Add safe defaults: Repeat = Once; Playlist = Sequential, Once, Stop on error.</td><td>Old cues behave exactly as they do today.</td></tr>
             <tr><td><code>show/clone.go</code></td><td>Deep-copy playlist item slices and repeat settings.</td><td>Duplicate/edit operations must not share backing arrays.</td></tr>
-            <tr><td><code>show/warnings.go</code></td><td>Detect missing/duplicate IDs, self-reference, playlist cycles, zero-duration looping images, empty playlists and invalid counts.</td><td>Problems appear in the existing warning column before GO.</td></tr>
-            <tr><td><code>playback/runner.go</code> (new)</td><td>Own run context, source cue, item/pass index, pause state, item-owned instances and completion channel.</td><td>Provides cancellation and progress without overloading media instances.</td></tr>
-            <tr><td><code>playback/engine.go</code></td><td>Refactor execution into an internal request with <code>suppressLink</code>, <code>ownerRunID</code> and completion reporting. Register/cancel active runners.</td><td>Playlist children cannot trigger unrelated links; Stop/Fade can cancel first.</td></tr>
-            <tr><td><code>playback/events.go</code></td><td>Add immutable <code>SequenceRun</code> snapshots: state, item/pass counters, current cue ID and last error.</td><td>Gio can repaint from snapshots without sharing mutable state.</td></tr>
-            <tr><td><code>ui/cue_edit*</code></td><td>Add Repeat tab to cues and Playlist tab/item editor to Playlist cues.</td><td>Matches the existing tabbed editor rather than adding a new window.</td></tr>
+            <tr><td><code>show/warnings.go</code></td><td>Detect missing IDs, self-reference, playlist cycles, invalid vamp ranges/loop points, zero-duration looping images, empty playlists and invalid counts.</td><td>Problems appear in the existing warning column before GO.</td></tr>
+            <tr><td><code>playback/runner.go</code> (new)</td><td>Own run context, transport focus, item/pass/vamp index, exit-armed and hold state, pause state, item-owned instances and completion channel.</td><td>Provides cancellation and deterministic GO handling without overloading media instances.</td></tr>
+            <tr><td><code>playback/engine.go</code></td><td>Add unified <code>Go()</code>; refactor execution into an internal request with <code>suppressLink</code>, <code>ownerRunID</code> and completion reporting. Register/cancel/focus active runners.</td><td>Playlist children cannot escape through links and every GO surface has identical semantics.</td></tr>
+            <tr><td><code>playback/events.go</code></td><td>Add immutable <code>SequenceRun</code> snapshots: state, item/pass/vamp counters, current cue ID, exit boundary and last error.</td><td>Gio can repaint VAMPING, EXIT ARMED and HOLDING states without sharing mutable state.</td></tr>
+            <tr><td><code>show/media_cue.go</code></td><td>Add optional <code>MediaVamp</code> loop-in/out points and exit behaviour to Sound and Video play data.</td><td>Preserves intro and outro while keeping old media cues unchanged when the field is absent.</td></tr>
+            <tr><td><code>media/player.go</code></td><td>Add loop-in/out playback and an armed “continue past Loop Out” command tied to the playback clock.</td><td>Enables intro/loop/outro vamps inside one audio or video file without restarting the entire cue.</td></tr>
+            <tr><td><code>ui/cue_edit*</code> and <code>ui/timecode_timeline.go</code></td><td>Add Repeat/Vamp controls, Loop In/Out handles, playlist vamp-range markers and Hold for GO per item.</td><td>Uses the existing tabbed editor and waveform instead of a separate surface.</td></tr>
             <tr><td><code>ui/main_page.go</code></td><td>Add Playlist type label, progress text, expandable child rows and warnings.</td><td>Makes automated progression visible in the primary operator view.</td></tr>
-            <tr><td><code>ui/playback_sidebar.go</code></td><td>Show active run status and Previous / Next / Pause / Restart / Stop controls.</td><td>Operators should not need to reopen the editor during playback.</td></tr>
+            <tr><td><code>main.go</code> and <code>ui/playback_sidebar.go</code></td><td>Route Space and the large GO button through <code>Engine.Go()</code>; show transport focus, Release Vamp, Release Now, Continue, Previous / Next / Pause / Restart / Stop.</td><td>Operators should not need to reopen the editor and cannot release the wrong concurrent sequence silently.</td></tr>
             <tr><td><code>project/archive.go</code></td><td>Load absent repeat/playlist fields as zero-value “Once”; validate version compatibility and referenced cue IDs.</td><td>Existing <code>.cusus</code> shows keep opening unchanged.</td></tr>
           </tbody>
         </table>
@@ -404,14 +468,34 @@
     DelayMs    int64
 }
 
+type PlaylistItem struct {
+    ID        PlaylistItemID
+    CueID     CueID
+    HoldAfter bool // HOLDING until Engine.Go()
+}
+
+type VampRegion struct {
+    FirstItemID PlaylistItemID
+    LastItemID  PlaylistItemID
+    ExitMode    VampExitMode // end_of_pass, immediate
+    MaxPasses   int          // 0 = unlimited
+}
+
 type PlaylistPlay struct {
-    CueIDs      []CueID
+    Items       []PlaylistItem // stable item ID + referenced cue ID + hold
     Order       PlaylistOrder // sequential, shuffle
     Repeat      CueRepeat
     BetweenMs   int64
+    Vamp        *VampRegion // first/last item IDs + exit mode
     OnError     PlaylistErrorPolicy // stop, skip
+}
+
+type MediaVamp struct {
+    LoopInMs  int64
+    LoopOutMs int64
+    ExitMode  VampExitMode
 }</code></pre>
-          <p class="small muted">Use “total plays” in the model and UI so stored values have one unambiguous meaning. Playlist references should remain stable through cue renumbering because they use UUID cue IDs.</p>
+          <p class="small muted">Use stable playlist item IDs because the same cue may appear more than once and a vamp boundary must identify the exact occurrence. Use “total plays” in the model and UI so stored values have one unambiguous meaning.</p>
         </div>
       </section>
 
@@ -421,7 +505,9 @@ type PlaylistPlay struct {
           <article class="card"><span class="number">1</span><h3>Runner foundation</h3><p>Add models, cloning, warnings, completion reporting, cancellation, repeat-one-cue support and engine tests. No playlist UI yet.</p><p class="small muted">Lowest-risk seam: prove Stop All / Fade All and final-link semantics first.</p></article>
           <article class="card"><span class="number">2</span><h3>Repeat UI</h3><p>Add the Repeat tab, row progress (“Pass 2 / 4”), validation and sidebar Stop/Restart behaviour.</p><p class="small muted">This gives immediate useful looping before the larger playlist editor lands.</p></article>
           <article class="card"><span class="number">3</span><h3>Playlist cue</h3><p>Add Playlist type, cue picker, reorder/remove controls, sequential playback, progress snapshots and missing-reference warnings.</p><p class="small muted">Ship Sequential + Stop on error first.</p></article>
-          <article class="card"><span class="number">4</span><h3>Transport polish</h3><p>Add Previous/Next/Pause, expandable child monitoring, shuffle-without-immediate-repeat, skip-on-error and accessibility/keyboard handling.</p><p class="small muted">Native smoke-test the real Gio window after static tests.</p></article>
+          <article class="card"><span class="number">4</span><h3>Vamps and holds</h3><p>Add playlist vamp ranges, per-item Hold for GO, transport focus, <code>Engine.Go()</code>, EXIT ARMED status and Release Now.</p><p class="small muted">Prove concurrent sequences cannot consume the wrong GO.</p></article>
+          <article class="card"><span class="number">5</span><h3>Media loop regions</h3><p>Add Loop In/Out handles and clock-aware intro/loop/outro playback, then measure and audibly test boundary gaps.</p><p class="small muted">Do not claim seamless musical looping until the decoder path proves it.</p></article>
+          <article class="card"><span class="number">6</span><h3>Transport polish</h3><p>Add Previous/Next/Pause, expandable child monitoring, shuffle-without-immediate-repeat, skip-on-error and accessibility/keyboard handling.</p><p class="small muted">Native smoke-test the real Gio window after static tests.</p></article>
         </div>
       </section>
 
@@ -437,6 +523,12 @@ type PlaylistPlay struct {
           <li>Remote/control items complete after dispatch; a finite Wait completes when satisfied.</li>
           <li>Invalid image duration, self-reference, nested cycle and deleted cue reference produce clear warnings.</li>
           <li>Pressing GO twice on the same active Playlist cue does not create a second runner.</li>
+          <li>GO during a vamp arms one exit, finishes the current pass, runs the outro once and fires the Playlist cue link once.</li>
+          <li>Release Now exits immediately using the configured fade and never starts another vamp pass.</li>
+          <li>A Hold for GO remains stable indefinitely and exactly one GO continues it.</li>
+          <li>Space and the large GO button share the same focused-run behaviour; concurrent vamps cannot both consume one GO.</li>
+          <li>An in-file vamp plays the intro once, repeats only Loop In–Loop Out, and continues through the outro after release.</li>
+          <li>Audio loop-boundary QA measures the discontinuity and includes an audible test; “seamless” is accepted only if no restart gap is heard.</li>
           <li>Different Playlist cues can run concurrently and Stop on one does not stop unrelated playback.</li>
           <li>Pause freezes media and delay timers; resume does not lose or duplicate an item.</li>
           <li>Save/reopen preserves cue order, repeat settings and stable cue references.</li>
@@ -453,10 +545,12 @@ type PlaylistPlay struct {
           <article class="card decision"><h3>Recommended: groups stay separate</h3><p>The current GroupID work is organisational. Do not make every group runnable or overload group movement rules with playlist semantics.</p></article>
           <article class="card decision"><h3>Recommended: suppress child links</h3><p>A playlist owns its order. Only the Playlist cue’s link fires after the sequence has completely finished.</p></article>
           <article class="card decision"><h3>Recommended: stop on error</h3><p>For live use, silent skipping is surprising. Start with Stop and surface the failed item; add opt-in Skip later.</p></article>
+          <article class="card decision"><h3>Recommended: GO exits at a boundary</h3><p>The normal release finishes the current cue, playlist vamp pass or media Loop Out. Keep immediate exit as a clearly labelled secondary action.</p></article>
+          <article class="card decision"><h3>Recommended: explicit transport focus</h3><p>One active runner owns GO. Starting a sequence focuses it; selecting another active sequence moves focus. The sidebar always names what GO will control.</p></article>
         </div>
       </section>
 
-      <footer class="foot">Prepared against the current PenguinCtrl Gio cue model, playback engine, link scheduler, cue editor, cue list and playback sidebar. This file is a design plan only; no runtime behaviour is changed.</footer>
+      <footer class="foot">Prepared against the current PenguinCtrl Gio cue model, playback engine, media player, playback clock, link scheduler, timecode editor, cue list and playback sidebar. This file is a design plan only; no runtime behaviour is changed.</footer>
     </main>
   </div>
 </body>
