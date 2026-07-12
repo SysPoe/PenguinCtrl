@@ -60,6 +60,10 @@ func cueListCellInset() layout.Inset {
 
 var rowClicks []widget.Clickable = make([]widget.Clickable, 0)
 var moveToEndClick widget.Clickable
+var collapsedCueGroups = map[show.GroupID]bool{}
+var groupHeaderClicks = map[show.GroupID]*widget.Clickable{}
+var groupBeforeClicks = map[show.GroupID]*widget.Clickable{}
+var groupAfterClicks = map[show.GroupID]*widget.Clickable{}
 var warningIcon, _ = widget.NewIcon(icons.AlertWarning)
 var warningTips []warningTipState
 var lastListSelection = -2
@@ -68,6 +72,49 @@ type warningTipState struct {
 	cueID show.CueID
 	text  string
 	area  component.TipArea
+}
+
+type cueListRow struct {
+	cueIndex    int
+	groupID     show.GroupID
+	showHeader  bool
+	lastInGroup bool
+	collapsed   bool
+}
+
+func buildCueListRows(cues []show.Cue) []cueListRow {
+	rows := make([]cueListRow, 0, len(cues))
+	for index := 0; index < len(cues); {
+		cue := cues[index]
+		if cue.GroupID == (show.GroupID{}) {
+			rows = append(rows, cueListRow{cueIndex: index})
+			index++
+			continue
+		}
+		last := index
+		for last+1 < len(cues) && cues[last+1].GroupID == cue.GroupID {
+			last++
+		}
+		collapsed := collapsedCueGroups[cue.GroupID]
+		if collapsed {
+			rows = append(rows, cueListRow{cueIndex: index, groupID: cue.GroupID, showHeader: true, lastInGroup: true, collapsed: true})
+		} else {
+			for cueIndex := index; cueIndex <= last; cueIndex++ {
+				rows = append(rows, cueListRow{cueIndex: cueIndex, groupID: cue.GroupID, showHeader: cueIndex == index, lastInGroup: cueIndex == last})
+			}
+		}
+		index = last + 1
+	}
+	return rows
+}
+
+func groupClickable(items map[show.GroupID]*widget.Clickable, id show.GroupID) *widget.Clickable {
+	clickable := items[id]
+	if clickable == nil {
+		clickable = new(widget.Clickable)
+		items[id] = clickable
+	}
+	return clickable
 }
 
 func Main(
@@ -79,8 +126,12 @@ func Main(
 	moveCueActive bool,
 	moveBefore func(index int),
 	moveToEnd func(),
+	moveIntoGroup func(groupID show.GroupID),
+	moveBeforeGroup func(groupID show.GroupID),
+	moveAfterGroup func(groupID show.GroupID),
 ) layout.Dimensions {
 	cues := manager.Snapshot()
+	rows := buildCueListRows(cues)
 	activeByCue := map[show.CueID]playback.Instance{}
 	executionByCue := map[show.CueID]playback.CueExecution{}
 	knownDurations := map[show.CueID]int64{}
@@ -118,6 +169,26 @@ func Main(
 	}
 
 	moveHandled := false
+	for _, group := range manager.Groups() {
+		id := group.ID
+		if moveCueActive {
+			if !moveHandled && groupClickable(groupBeforeClicks, id).Clicked(gtx) && moveBeforeGroup != nil {
+				moveBeforeGroup(id)
+				moveHandled = true
+			}
+			if !moveHandled && groupClickable(groupHeaderClicks, id).Clicked(gtx) && moveIntoGroup != nil {
+				moveIntoGroup(id)
+				moveHandled = true
+			}
+			if !moveHandled && groupClickable(groupAfterClicks, id).Clicked(gtx) && moveAfterGroup != nil {
+				moveAfterGroup(id)
+				moveHandled = true
+			}
+		} else if groupClickable(groupHeaderClicks, id).Clicked(gtx) {
+			collapsedCueGroups[id] = !collapsedCueGroups[id]
+			rows = buildCueListRows(cues)
+		}
+	}
 	for i := range rowClicks {
 		for {
 			click, ok := rowClicks[i].Update(gtx)
@@ -147,7 +218,18 @@ func Main(
 		selectedIndex = -1
 	}
 	if selectedIndex != lastListSelection {
-		scrollCueIntoView(selectedIndex)
+		visibleSelection := -1
+		selectedGroup := show.GroupID{}
+		if selectedIndex >= 0 && selectedIndex < len(cues) {
+			selectedGroup = cues[selectedIndex].GroupID
+		}
+		for index, row := range rows {
+			if row.cueIndex == selectedIndex || (row.collapsed && row.groupID == selectedGroup) {
+				visibleSelection = index
+				break
+			}
+		}
+		scrollCueIntoView(visibleSelection)
 		lastListSelection = selectedIndex
 	}
 
@@ -172,219 +254,282 @@ func Main(
 			})
 		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			itemCount := len(cues)
+			itemCount := len(rows)
 			if moveCueActive {
 				itemCount++
 			}
 			return material.List(th, mainList).Layout(gtx, itemCount, func(gtx layout.Context, index int) layout.Dimensions {
-				if index == len(cues) {
+				if index == len(rows) {
 					return layoutMoveCueToEndTarget(th, gtx)
 				}
-				cue := cues[index]
-				warningText := warningTooltipText(show.CueWarnings(cue, cues))
-				if warningTips[index].cueID != cue.ID || warningTips[index].text != warningText {
-					warningTips[index] = warningTipState{cueID: cue.ID, text: warningText}
+				row := rows[index]
+				cueIndex := row.cueIndex
+				cue := cues[cueIndex]
+				children := make([]layout.FlexChild, 0, 3)
+				if row.showHeader {
+					children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layoutCueGroupHeader(th, gtx, cue, manager.Groups(), moveCueActive)
+					}))
 				}
-				instance, active := activeByCue[cue.ID]
-				execution, executing := executionByCue[cue.ID]
-				duration, elapsed, remaining, volume := cueRuntimeLabels(cue, instance, active, execution, executing, knownDurations[cue.ID])
-				progress := cuePlaybackProgress(cue, instance, active, execution, executing, knownDurations[cue.ID])
-				borderHeightDp := unit.Dp(1)
-				borderHeight := max(1, gtx.Dp(borderHeightDp))
+				if !row.collapsed {
+					children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						warningText := warningTooltipText(show.CueWarnings(cue, cues))
+						if warningTips[cueIndex].cueID != cue.ID || warningTips[cueIndex].text != warningText {
+							warningTips[cueIndex] = warningTipState{cueID: cue.ID, text: warningText}
+						}
+						instance, active := activeByCue[cue.ID]
+						execution, executing := executionByCue[cue.ID]
+						duration, elapsed, remaining, volume := cueRuntimeLabels(cue, instance, active, execution, executing, knownDurations[cue.ID])
+						progress := cuePlaybackProgress(cue, instance, active, execution, executing, knownDurations[cue.ID])
+						borderHeightDp := unit.Dp(1)
+						borderHeight := max(1, gtx.Dp(borderHeightDp))
 
-				cueTypeCol := typeCols[cue.Type]
-				selectedColor := applyAlpha(palette.WithAlpha(cue.Color, 50), th.ContrastBg)
-				hoverColor := applyAlpha(palette.WithAlpha(cue.Color, 30), th.Bg)
+						cueTypeCol := typeCols[cue.Type]
+						selectedColor := applyAlpha(palette.WithAlpha(cue.Color, 50), th.ContrastBg)
+						hoverColor := applyAlpha(palette.WithAlpha(cue.Color, 30), th.Bg)
 
-				bg := th.Bg
-				if index == selectedIndex {
-					bg = selectedColor
-				} else if rowClicks[index].Hovered() {
-					bg = hoverColor
-				}
-				cueBg := applyAlpha(cue.Color, bg)
+						bg := th.Bg
+						if cueIndex == selectedIndex {
+							bg = selectedColor
+						} else if rowClicks[cueIndex].Hovered() {
+							bg = hoverColor
+						}
+						cueBg := applyAlpha(cue.Color, bg)
 
-				if rowClicks[index].Hovered() {
-					pointer.CursorPointer.Add(gtx.Ops)
-				}
+						if rowClicks[cueIndex].Hovered() {
+							pointer.CursorPointer.Add(gtx.Ops)
+						}
 
-				return rowClicks[index].Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return layout.Background{}.Layout(gtx,
-						func(gtx layout.Context) layout.Dimensions {
-							size := gtx.Constraints.Min
-							borderRect := image.Rectangle{
-								Min: image.Pt(0, size.Y-borderHeight),
-								Max: size,
-							}
+						return rowClicks[cueIndex].Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return layout.Background{}.Layout(gtx,
+								func(gtx layout.Context) layout.Dimensions {
+									size := gtx.Constraints.Min
+									borderRect := image.Rectangle{
+										Min: image.Pt(0, size.Y-borderHeight),
+										Max: size,
+									}
 
-							bgRect := image.Rectangle{
-								Min: image.Pt(0, 0),
-								Max: image.Pt(size.X, size.Y-borderHeight),
-							}
+									bgRect := image.Rectangle{
+										Min: image.Pt(0, 0),
+										Max: image.Pt(size.X, size.Y-borderHeight),
+									}
 
-							paint.FillShape(gtx.Ops, bg, clip.Rect(bgRect).Op())
-							paint.FillShape(gtx.Ops, mainDividerCol, clip.Rect(borderRect).Op())
+									paint.FillShape(gtx.Ops, bg, clip.Rect(bgRect).Op())
+									paint.FillShape(gtx.Ops, mainDividerCol, clip.Rect(borderRect).Op())
 
-							return layout.Dimensions{Size: size}
-						},
-						func(gtx layout.Context) layout.Dimensions {
-							return layout.Inset{Bottom: borderHeightDp}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-								return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-									// Warnings
-									layout.Flexed(weights[0], func(gtx layout.Context) layout.Dimensions {
-										return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-											if warningText == "" {
-												return layout.Dimensions{Size: gtx.Constraints.Min}
-											}
-											return layoutWarningTooltip(th, gtx, &warningTips[index].area, warningText)
-										})
-									}),
-									// Cue Number
-									layout.Flexed(weights[1], func(gtx layout.Context) layout.Dimensions {
-										return layout.Background{}.Layout(gtx,
-											func(gtx layout.Context) layout.Dimensions {
-												size := gtx.Constraints.Min
-												radius := gtx.Dp(cueListBadgeRadius)
-
-												paint.FillShape(
-													gtx.Ops,
-													cueBg,
-													clip.UniformRRect(image.Rectangle{Max: size}, radius).Op(gtx.Ops),
-												)
-
-												return layout.Dimensions{Size: size}
-											},
-											func(gtx layout.Context) layout.Dimensions {
+									return layout.Dimensions{Size: size}
+								},
+								func(gtx layout.Context) layout.Dimensions {
+									return layout.Inset{Bottom: borderHeightDp}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+										return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+											// Warnings
+											layout.Flexed(weights[0], func(gtx layout.Context) layout.Dimensions {
 												return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-													el := material.Body2(th, cue.CueNumber)
-													el.Color = contrastColor(cueBg)
+													if warningText == "" {
+														return layout.Dimensions{Size: gtx.Constraints.Min}
+													}
+													return layoutWarningTooltip(th, gtx, &warningTips[cueIndex].area, warningText)
+												})
+											}),
+											// Cue Number
+											layout.Flexed(weights[1], func(gtx layout.Context) layout.Dimensions {
+												return layout.Background{}.Layout(gtx,
+													func(gtx layout.Context) layout.Dimensions {
+														size := gtx.Constraints.Min
+														radius := gtx.Dp(cueListBadgeRadius)
+
+														paint.FillShape(
+															gtx.Ops,
+															cueBg,
+															clip.UniformRRect(image.Rectangle{Max: size}, radius).Op(gtx.Ops),
+														)
+
+														return layout.Dimensions{Size: size}
+													},
+													func(gtx layout.Context) layout.Dimensions {
+														return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+															el := material.Body2(th, cue.CueNumber)
+															el.Color = contrastColor(cueBg)
+															el.Alignment = text.Middle
+															return layoutTruncatedText(gtx, el)
+														})
+													},
+												)
+											}),
+											// Cue Type
+											layout.Flexed(weights[2], func(gtx layout.Context) layout.Dimensions {
+												return layout.Background{}.Layout(gtx,
+													func(gtx layout.Context) layout.Dimensions {
+														size := gtx.Constraints.Min
+														radius := gtx.Dp(cueListBadgeRadius)
+
+														paint.FillShape(
+															gtx.Ops,
+															cueTypeCol,
+															clip.UniformRRect(image.Rectangle{Max: size}, radius).Op(gtx.Ops),
+														)
+														return layout.Dimensions{Size: size}
+													},
+													func(gtx layout.Context) layout.Dimensions {
+
+														return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+															var str = ""
+															switch cue.Type {
+															case show.CueTypeImage:
+																str = "Image"
+															case show.CueTypeWait:
+																str = "Wait"
+															case show.CueTypeVideo:
+																str = "Video"
+															case show.CueTypeSound:
+																str = "Sound"
+															case show.CueTypeRemote:
+																str = "Remote"
+															case show.CueTypeMediaControl:
+																str = "MediaCtrl"
+															case show.CueTypeOutputControl:
+																str = "OutputCtrl"
+															default:
+																str = "Unknown"
+															}
+															el := material.Body2(th, str)
+															el.Color = contrastColor(cueTypeCol)
+															el.Alignment = text.Middle
+															return layoutTruncatedText(gtx, el)
+														})
+													},
+												)
+											}),
+											// Description / live playback progress
+											makeDescriptionProgressCell(th, descriptionLabel(cue.Description), progress, cueTypeCol, weights[3]),
+											// TODO Action
+											// Duration
+											makeRuntimeCell(th, duration, weights[4]),
+											// Elapsed
+											makeRuntimeCell(th, elapsed, weights[5]),
+											// Remaining
+											makeRuntimeCell(th, remaining, weights[6]),
+											// Volume
+											makeRuntimeCell(th, volume, weights[7]),
+											// Pre
+											layout.Flexed(weights[8], func(gtx layout.Context) layout.Dimensions {
+												return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+													el := material.Body2(th, fmt.Sprint(cue.Timing.PreWaitMs))
 													el.Alignment = text.Middle
 													return layoutTruncatedText(gtx, el)
 												})
-											},
-										)
-									}),
-									// Cue Type
-									layout.Flexed(weights[2], func(gtx layout.Context) layout.Dimensions {
-										return layout.Background{}.Layout(gtx,
-											func(gtx layout.Context) layout.Dimensions {
-												size := gtx.Constraints.Min
-												radius := gtx.Dp(cueListBadgeRadius)
-
-												paint.FillShape(
-													gtx.Ops,
-													cueTypeCol,
-													clip.UniformRRect(image.Rectangle{Max: size}, radius).Op(gtx.Ops),
-												)
-												return layout.Dimensions{Size: size}
-											},
-											func(gtx layout.Context) layout.Dimensions {
-
+											}),
+											// Post
+											layout.Flexed(weights[9], func(gtx layout.Context) layout.Dimensions {
+												return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+													el := material.Body2(th, fmt.Sprint(cue.Timing.PostWaitMs))
+													el.Alignment = text.Middle
+													return layoutTruncatedText(gtx, el)
+												})
+											}),
+											// Link
+											layout.Flexed(weights[10], func(gtx layout.Context) layout.Dimensions {
 												return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 													var str = ""
-													switch cue.Type {
-													case show.CueTypeImage:
-														str = "Image"
-													case show.CueTypeWait:
-														str = "Wait"
-													case show.CueTypeVideo:
-														str = "Video"
-													case show.CueTypeSound:
-														str = "Sound"
-													case show.CueTypeRemote:
-														str = "Remote"
-													case show.CueTypeMediaControl:
-														str = "MediaCtrl"
-													case show.CueTypeOutputControl:
-														str = "OutputCtrl"
+													switch cue.Link.Mode {
+													case show.CueLinkManual:
+														str = "MAN"
+													case show.CueLinkStartAdvance:
+														str = "SA"
+													case show.CueLinkStartPlay:
+														str = "SP"
+													case show.CueLinkFadeInAdvance:
+														str = "FIA"
+													case show.CueLinkFadeInPlay:
+														str = "FIP"
+													case show.CueLinkFadeOutAdvance:
+														str = "FOA"
+													case show.CueLinkFadeOutPlay:
+														str = "FOP"
+													case show.CueLinkEndAdvance:
+														str = "EA"
+													case show.CueLinkEndPlay:
+														str = "EP"
 													default:
-														str = "Unknown"
+														str = "?"
 													}
+
+													switch cue.Link.Target.Kind {
+													case show.CueTargetNext:
+														str += "->N"
+													case show.CueTargetPrevious:
+														str += "->P"
+													case show.CueTargetCue:
+														str += "->C"
+													default:
+													}
+
 													el := material.Body2(th, str)
-													el.Color = contrastColor(cueTypeCol)
 													el.Alignment = text.Middle
 													return layoutTruncatedText(gtx, el)
 												})
-											},
+											}),
 										)
-									}),
-									// Description / live playback progress
-									makeDescriptionProgressCell(th, descriptionLabel(cue.Description), progress, cueTypeCol, weights[3]),
-									// TODO Action
-									// Duration
-									makeRuntimeCell(th, duration, weights[4]),
-									// Elapsed
-									makeRuntimeCell(th, elapsed, weights[5]),
-									// Remaining
-									makeRuntimeCell(th, remaining, weights[6]),
-									// Volume
-									makeRuntimeCell(th, volume, weights[7]),
-									// Pre
-									layout.Flexed(weights[8], func(gtx layout.Context) layout.Dimensions {
-										return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-											el := material.Body2(th, fmt.Sprint(cue.Timing.PreWaitMs))
-											el.Alignment = text.Middle
-											return layoutTruncatedText(gtx, el)
-										})
-									}),
-									// Post
-									layout.Flexed(weights[9], func(gtx layout.Context) layout.Dimensions {
-										return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-											el := material.Body2(th, fmt.Sprint(cue.Timing.PostWaitMs))
-											el.Alignment = text.Middle
-											return layoutTruncatedText(gtx, el)
-										})
-									}),
-									// Link
-									layout.Flexed(weights[10], func(gtx layout.Context) layout.Dimensions {
-										return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-											var str = ""
-											switch cue.Link.Mode {
-											case show.CueLinkManual:
-												str = "MAN"
-											case show.CueLinkStartAdvance:
-												str = "SA"
-											case show.CueLinkStartPlay:
-												str = "SP"
-											case show.CueLinkFadeInAdvance:
-												str = "FIA"
-											case show.CueLinkFadeInPlay:
-												str = "FIP"
-											case show.CueLinkFadeOutAdvance:
-												str = "FOA"
-											case show.CueLinkFadeOutPlay:
-												str = "FOP"
-											case show.CueLinkEndAdvance:
-												str = "EA"
-											case show.CueLinkEndPlay:
-												str = "EP"
-											default:
-												str = "?"
-											}
-
-											switch cue.Link.Target.Kind {
-											case show.CueTargetNext:
-												str += "->N"
-											case show.CueTargetPrevious:
-												str += "->P"
-											case show.CueTargetCue:
-												str += "->C"
-											default:
-											}
-
-											el := material.Body2(th, str)
-											el.Alignment = text.Middle
-											return layoutTruncatedText(gtx, el)
-										})
-									}),
-								)
-							})
-						},
-					)
-				})
+									})
+								},
+							)
+						})
+					}))
+				}
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 			})
 		}),
 	)
+}
+
+func layoutCueGroupHeader(th *material.Theme, gtx layout.Context, cue show.Cue, groups []show.CueGroup, moveCueActive bool) layout.Dimensions {
+	title := strings.TrimSpace(cue.GroupTitle)
+	if title == "" {
+		title = "Untitled Group"
+	}
+	count := 0
+	for _, group := range groups {
+		if group.ID == cue.GroupID {
+			count = group.Count
+			break
+		}
+	}
+	if moveCueActive {
+		return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+			makeFlexedBtnWithColor(th, groupClickable(groupBeforeClicks, cue.GroupID), "Before "+title, palette.SurfaceRaised, 1),
+			makeFlexedBtnWithColor(th, groupClickable(groupHeaderClicks, cue.GroupID), "Into "+title, palette.Primary, 1),
+			makeFlexedBtnWithColor(th, groupClickable(groupAfterClicks, cue.GroupID), "After "+title, palette.SurfaceRaised, 1),
+		)
+	}
+	clickable := groupClickable(groupHeaderClicks, cue.GroupID)
+	if clickable.Hovered() {
+		pointer.CursorPointer.Add(gtx.Ops)
+	}
+	indicator := "▾"
+	if collapsedCueGroups[cue.GroupID] {
+		indicator = "▸"
+	}
+	label := fmt.Sprintf("%s  %s  ·  %d cues", indicator, title, count)
+	return clickable.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		gtx.Constraints.Min.Y = gtx.Dp(unit.Dp(36))
+		return layout.Background{}.Layout(gtx,
+			func(gtx layout.Context) layout.Dimensions {
+				bg := palette.Surface
+				if clickable.Hovered() {
+					bg = th.ContrastBg
+				}
+				paint.FillShape(gtx.Ops, bg, clip.Rect{Max: gtx.Constraints.Min}.Op())
+				return layout.Dimensions{Size: gtx.Constraints.Min}
+			},
+			func(gtx layout.Context) layout.Dimensions {
+				return layout.Inset{Left: unit.Dp(10), Right: unit.Dp(10), Top: unit.Dp(7), Bottom: unit.Dp(7)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					text := stableBody1(th, label)
+					text.Color = palette.Text
+					return layoutTruncatedText(gtx, text)
+				})
+			},
+		)
+	})
 }
 
 func layoutMoveCueToEndTarget(th *material.Theme, gtx layout.Context) layout.Dimensions {

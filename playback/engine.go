@@ -244,6 +244,7 @@ func (e *Engine) TogglePreview(cue show.Cue) (bool, error) {
 
 	preview := show.CloneCue(cue)
 	preview.ID = show.NewCueID()
+	preview.GroupID, preview.GroupTitle = show.GroupID{}, ""
 	preview.Disabled = false
 	preview.Timing = show.CueTiming{}
 	preview.Link = show.CueLink{Mode: show.CueLinkManual}
@@ -355,7 +356,7 @@ func (e *Engine) startExecution(next command, phase string, durationMs int64) st
 	id := uuid.NewString()
 	e.mu.Lock()
 	e.executions[id] = &CueExecution{
-		ID: id, CueID: next.cue.ID, CueIndex: next.index, CueType: next.cue.Type,
+		ID: id, CueID: next.cue.ID, GroupID: next.cue.GroupID, CueIndex: next.index, CueType: next.cue.Type,
 		Phase: phase, StartedAt: now, PhaseAt: now, DurationMs: durationMs,
 	}
 	e.mu.Unlock()
@@ -455,7 +456,7 @@ func (e *Engine) startMedia(next command) error {
 	settings := e.settings.Snapshot()
 	now := time.Now()
 	instance := &Instance{
-		ID: uuid.NewString(), CueID: cue.ID, CueNumber: cue.CueNumber, CueIndex: cueIndex, Link: cue.Link, PostWaitMs: cue.Timing.PostWaitMs,
+		ID: uuid.NewString(), CueID: cue.ID, GroupID: cue.GroupID, CueNumber: cue.CueNumber, CueIndex: cueIndex, Link: cue.Link, PostWaitMs: cue.Timing.PostWaitMs,
 		Preview:   next.preview,
 		StartedAt: now, PositionAt: now, RunContext: next.ctx,
 	}
@@ -980,6 +981,8 @@ func (e *Engine) matchingInstances(target show.MediaTarget) []Instance {
 		switch target.Kind {
 		case show.MediaTargetCue:
 			matches = instance.CueID == target.CueID
+		case show.MediaTargetGroup:
+			matches = instance.GroupID != (show.GroupID{}) && instance.GroupID == target.GroupID
 		case show.MediaTargetInstance:
 			matches = instance.ID == target.InstanceID
 		case show.MediaTargetAllAudio:

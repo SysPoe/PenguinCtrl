@@ -318,6 +318,16 @@ func mediaTargetWarnings(target MediaTarget, cues []Cue) []string {
 	switch target.Kind {
 	case MediaTargetCue:
 		return targetCueWarnings(target.CueID, cues)
+	case MediaTargetGroup:
+		if target.GroupID == (GroupID{}) {
+			return []string{"Missing target cue group"}
+		}
+		for _, cue := range cues {
+			if cue.GroupID == target.GroupID {
+				return nil
+			}
+		}
+		return []string{"Target cue group was not found"}
 	case MediaTargetInstance:
 		if strings.TrimSpace(target.InstanceID) == "" {
 			return []string{"Missing target instance ID"}

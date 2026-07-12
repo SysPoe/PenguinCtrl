@@ -10,6 +10,8 @@ type Cue struct {
 	ID          CueID
 	CueNumber   string
 	Description string
+	GroupID     GroupID
+	GroupTitle  string
 
 	Type     CueType
 	Disabled bool
@@ -25,9 +27,19 @@ type Cue struct {
 
 type CueID uuid.UUID
 
+// GroupID identifies a visual and operational cue group. Group membership is
+// stored on each cue so older show files remain valid and empty groups cannot
+// become orphaned from their cues.
+type GroupID uuid.UUID
+
 func NewCueID() CueID {
 	id, _ := uuid.NewV7()
 	return CueID(id)
+}
+
+func NewGroupID() GroupID {
+	id, _ := uuid.NewV7()
+	return GroupID(id)
 }
 
 type CueType int

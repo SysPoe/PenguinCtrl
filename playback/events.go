@@ -11,6 +11,7 @@ import (
 type Instance struct {
 	ID             string          `json:"id"`
 	CueID          show.CueID      `json:"cueId"`
+	GroupID        show.GroupID    `json:"groupId,omitempty"`
 	CueNumber      string          `json:"cueNumber"`
 	OutputID       string          `json:"outputId"`
 	Preview        bool            `json:"preview,omitempty"`
@@ -47,6 +48,7 @@ type Instance struct {
 type CueExecution struct {
 	ID          string
 	CueID       show.CueID
+	GroupID     show.GroupID
 	CueIndex    int
 	CueType     show.CueType
 	Phase       string

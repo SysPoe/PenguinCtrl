@@ -16,6 +16,7 @@ import (
 	"gioui.org/widget/material"
 	"github.com/syspoe/cusus/palette"
 	"github.com/syspoe/cusus/show"
+	"github.com/syspoe/cusus/ui/input"
 )
 
 type TBContext struct {
@@ -40,12 +41,19 @@ type TBContext struct {
 	btnDuplicateCue         widget.Clickable
 	btnCopyCue              widget.Clickable
 	btnPasteCue             widget.Clickable
+	btnCreateGroup          widget.Clickable
+	btnRenameGroup          widget.Clickable
+	btnUngroupCue           widget.Clickable
 	btnConfirmDelete        widget.Clickable
 	btnCancelDelete         widget.Clickable
+	btnConfirmGroup         widget.Clickable
+	btnCancelGroup          widget.Clickable
 
 	copiedCue     *show.Cue
 	moveCueActive bool
 	confirmDelete bool
+	groupDialog   string
+	groupName     *input.Text
 	modalTag      struct{}
 
 	cueEditUI CueEditUI
@@ -75,11 +83,53 @@ func (ctx *TBContext) EditSelectedCue(manager *show.ShowManager) bool {
 }
 
 func (ctx *TBContext) CueEditorOpen() bool {
-	return ctx.cueEditUI.show
+	return ctx.cueEditUI.show || ctx.groupDialog != ""
 }
 
 func (ctx *TBContext) DeleteConfirmationOpen() bool {
 	return ctx.confirmDelete
+}
+
+func (ctx *TBContext) GroupDialogOpen() bool { return ctx.groupDialog != "" }
+
+func (ctx *TBContext) openGroupDialog(manager *show.ShowManager, mode string) bool {
+	if !manager.HasSelectedCue() {
+		return false
+	}
+	value := fmt.Sprintf("Group %d", len(manager.Groups())+1)
+	if mode == "rename" {
+		group, ok := manager.SelectedGroup()
+		if !ok {
+			return false
+		}
+		value = group.Title
+	}
+	ctx.TopBar.setAllFalse()
+	ctx.moveCueActive = false
+	ctx.groupDialog = mode
+	ctx.groupName = input.NewText("Group name", value)
+	ctx.groupName.Focus()
+	return true
+}
+
+func (ctx *TBContext) confirmGroupDialog(manager *show.ShowManager) bool {
+	if ctx.groupDialog == "" || ctx.groupName == nil {
+		return false
+	}
+	var changed bool
+	if ctx.groupDialog == "create" {
+		changed = manager.CreateGroupForSelected(ctx.groupName.Value)
+	} else {
+		changed = manager.RenameSelectedGroup(ctx.groupName.Value)
+	}
+	if changed {
+		ctx.groupDialog, ctx.groupName = "", nil
+	}
+	return changed
+}
+
+func (ctx *TBContext) cancelGroupDialog() {
+	ctx.groupDialog, ctx.groupName = "", nil
 }
 
 func (ctx *TBContext) RequestDeleteCue(manager *show.ShowManager) bool {
@@ -161,6 +211,30 @@ func (ctx *TBContext) MoveSelectedCueToEnd(manager *show.ShowManager) bool {
 	return manager.MoveSelectedCueToEnd()
 }
 
+func (ctx *TBContext) MoveSelectedCueIntoGroup(manager *show.ShowManager, groupID show.GroupID) bool {
+	if !ctx.moveCueActive {
+		return false
+	}
+	ctx.moveCueActive = false
+	return manager.MoveSelectedCueIntoGroup(groupID, true)
+}
+
+func (ctx *TBContext) MoveSelectedCueBeforeGroup(manager *show.ShowManager, groupID show.GroupID) bool {
+	if !ctx.moveCueActive {
+		return false
+	}
+	ctx.moveCueActive = false
+	return manager.MoveSelectedCueBeforeGroup(groupID)
+}
+
+func (ctx *TBContext) MoveSelectedCueAfterGroup(manager *show.ShowManager, groupID show.GroupID) bool {
+	if !ctx.moveCueActive {
+		return false
+	}
+	ctx.moveCueActive = false
+	return manager.MoveSelectedCueAfterGroup(groupID)
+}
+
 func (ctx *TBContext) handleButtonClicks(gtx layout.Context, manager *show.ShowManager) {
 	if ctx.btnDeleteCue.Clicked(gtx) {
 		ctx.RequestDeleteCue(manager)
@@ -181,11 +255,27 @@ func (ctx *TBContext) handleButtonClicks(gtx layout.Context, manager *show.ShowM
 	if ctx.btnPasteCue.Clicked(gtx) {
 		ctx.PasteCueBeforeSelected(manager)
 	}
+	if ctx.btnCreateGroup.Clicked(gtx) {
+		ctx.openGroupDialog(manager, "create")
+	}
+	if ctx.btnRenameGroup.Clicked(gtx) {
+		ctx.openGroupDialog(manager, "rename")
+	}
+	if ctx.btnUngroupCue.Clicked(gtx) {
+		ctx.TopBar.setAllFalse()
+		manager.UngroupSelectedCue()
+	}
 	if ctx.btnConfirmDelete.Clicked(gtx) {
 		ctx.ConfirmDeleteCue(manager)
 	}
 	if ctx.btnCancelDelete.Clicked(gtx) {
 		ctx.CancelDeleteCue()
+	}
+	if ctx.btnConfirmGroup.Clicked(gtx) {
+		ctx.confirmGroupDialog(manager)
+	}
+	if ctx.btnCancelGroup.Clicked(gtx) {
+		ctx.cancelGroupDialog()
 	}
 
 	if ctx.btnCueTypeSound.Clicked(gtx) {
@@ -229,6 +319,7 @@ func (ctx *TBContext) Layout(th *material.Theme, gtx layout.Context, manager *sh
 			defer op.Offset(ctx.TopBar.actionPos).Push(gtx.Ops).Pop()
 			if ctx.TopBar.showAction {
 				hasSelection := manager.HasSelectedCue()
+				_, hasGroup := manager.SelectedGroup()
 				return layout.Flex{Axis: layout.Vertical, Alignment: layout.Baseline}.Layout(gtx,
 					makeFixedWidthBtnEnabled(th, &ctx.btnDeleteCue, "Delete Cue", menuWidth, hasSelection),
 					makeFixedWidthBtnEnabled(th, &ctx.btnEditCue, "Edit Cue", menuWidth, hasSelection),
@@ -236,6 +327,9 @@ func (ctx *TBContext) Layout(th *material.Theme, gtx layout.Context, manager *sh
 					makeFixedWidthBtnEnabled(th, &ctx.btnDuplicateCue, "Duplicate", menuWidth, hasSelection),
 					makeFixedWidthBtnEnabled(th, &ctx.btnCopyCue, "Copy", menuWidth, hasSelection),
 					makeFixedWidthBtnEnabled(th, &ctx.btnPasteCue, "Paste Before", menuWidth, hasSelection && ctx.copiedCue != nil),
+					makeFixedWidthBtnEnabled(th, &ctx.btnCreateGroup, "Create Group…", menuWidth, hasSelection && !hasGroup),
+					makeFixedWidthBtnEnabled(th, &ctx.btnRenameGroup, "Rename Group…", menuWidth, hasGroup),
+					makeFixedWidthBtnEnabled(th, &ctx.btnUngroupCue, "Remove from Group", menuWidth, hasGroup),
 				)
 			}
 			return layout.Dimensions{}
@@ -266,7 +360,77 @@ func (ctx *TBContext) Layout(th *material.Theme, gtx layout.Context, manager *sh
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 			return ctx.layoutDeleteConfirmation(th, gtx, manager)
 		}),
+		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+			return ctx.layoutGroupDialog(th, gtx, manager)
+		}),
 	)
+}
+
+func (ctx *TBContext) layoutGroupDialog(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.Dimensions {
+	if ctx.groupDialog == "" || ctx.groupName == nil {
+		return layout.Dimensions{}
+	}
+	ctx.HandleGroupDialogKeys(gtx, manager)
+	if ctx.groupDialog == "" || ctx.groupName == nil {
+		return layout.Dimensions{}
+	}
+	size := gtx.Constraints.Max
+	paint.FillShape(gtx.Ops, palette.WithAlpha(palette.Black, 0xB0), clip.Rect{Max: size}.Op())
+	hitArea := clip.Rect{Max: size}.Push(gtx.Ops)
+	event.Op(gtx.Ops, &ctx.modalTag)
+	hitArea.Pop()
+	title := "Create Cue Group"
+	if ctx.groupDialog == "rename" {
+		title = "Rename Cue Group"
+	}
+	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		panelWidth := min(gtx.Constraints.Max.X, gtx.Dp(unit.Dp(440)))
+		gtx.Constraints.Min = image.Pt(panelWidth, gtx.Dp(unit.Dp(190)))
+		gtx.Constraints.Max = gtx.Constraints.Min
+		return layout.Background{}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			paint.FillShape(gtx.Ops, th.ContrastBg, clip.UniformRRect(image.Rectangle{Max: gtx.Constraints.Min}, gtx.Dp(unit.Dp(8))).Op(gtx.Ops))
+			return layout.Dimensions{Size: gtx.Constraints.Min}
+		}, func(gtx layout.Context) layout.Dimensions {
+			return layout.UniformInset(unit.Dp(20)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+					layout.Rigid(material.H6(th, title).Layout),
+					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+						return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							return ctx.groupName.Layout(th, gtx)
+						})
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+							makeFlexedBtnWithColor(th, &ctx.btnCancelGroup, "Cancel", palette.SurfaceRaised, 1),
+							makeFlexedBtnWithColor(th, &ctx.btnConfirmGroup, "Save", palette.Primary, 1),
+						)
+					}),
+				)
+			})
+		})
+	})
+}
+
+func (ctx *TBContext) HandleGroupDialogKeys(gtx layout.Context, manager *show.ShowManager) {
+	if ctx.groupDialog == "" {
+		return
+	}
+	for {
+		event, ok := gtx.Event(key.Filter{Name: key.NameEscape}, key.Filter{Name: key.NameReturn}, key.Filter{Name: key.NameEnter})
+		if !ok {
+			return
+		}
+		keyEvent, ok := event.(key.Event)
+		if !ok || keyEvent.State != key.Press {
+			continue
+		}
+		if keyEvent.Name == key.NameEscape {
+			ctx.cancelGroupDialog()
+		} else {
+			ctx.confirmGroupDialog(manager)
+		}
+		return
+	}
 }
 
 func (ctx *TBContext) layoutDeleteConfirmation(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.Dimensions {

@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"image/color"
 	"strconv"
 	"strings"
@@ -130,6 +131,8 @@ var (
 		"All Video",
 		"All Media",
 		"Output ID",
+		"Current Track",
+		"Cue Group",
 	}
 	mediaControlActionLabels = []string{
 		"Fade To",
@@ -470,9 +473,62 @@ func (ctx *CueEditUI) appendMediaTargetRows(rows []cueEditFormRow, th *material.
 		rows = append(rows, textRow(th, "Output ID", ctx.page.text[prefix+"OutputID"], func(value string) {
 			target.OutputID = value
 		}))
+	case show.MediaTargetGroup:
+		rows = append(rows, ctx.groupTargetDropdownRow(th, "Target Group", prefix+"Group", manager, &target.GroupID))
 	}
 
 	return rows
+}
+
+func (ctx *CueEditUI) groupTargetDropdownRow(th *material.Theme, label, key string, manager *show.ShowManager, target *show.GroupID) cueEditFormRow {
+	items := groupDropdownItems(manager)
+	selected := 0
+	for index, item := range items {
+		if item.Value == uuid.UUID(*target).String() {
+			selected = index
+			break
+		}
+	}
+	dropdown := ctx.page.dropdown[key]
+	if dropdown == nil {
+		dropdown = input.NewDropdown(items, selected)
+		ctx.page.dropdown[key] = dropdown
+	} else {
+		dropdown.SetItems(items, selected)
+	}
+	return dropdownRow(th, label, dropdown, func(selected int) {
+		if selected < 0 || selected >= len(dropdown.Items) {
+			return
+		}
+		id, err := uuid.Parse(strings.TrimSpace(dropdown.Items[selected].Value))
+		if err != nil {
+			*target = show.GroupID{}
+			return
+		}
+		*target = show.GroupID(id)
+	})
+}
+
+func groupDropdownItems(manager *show.ShowManager) []input.DropdownItem {
+	if manager == nil {
+		return []input.DropdownItem{{Label: "No cue groups available", Value: ""}}
+	}
+	groups := manager.Groups()
+	if len(groups) == 0 {
+		return []input.DropdownItem{{Label: "No cue groups available", Value: ""}}
+	}
+	items := make([]input.DropdownItem, 0, len(groups))
+	for _, group := range groups {
+		title := strings.TrimSpace(group.Title)
+		if title == "" {
+			title = "Untitled Group"
+		}
+		items = append(items, input.DropdownItem{
+			Label: fmt.Sprintf("%s (%d cues)", title, group.Count),
+			Value: uuid.UUID(group.ID).String(),
+		})
+	}
+	return items
 }
 
 func (ctx *CueEditUI) cueTargetDropdownRow(th *material.Theme, label, key string, manager *show.ShowManager, target *show.CueID) cueEditFormRow {

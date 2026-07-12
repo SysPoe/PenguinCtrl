@@ -64,6 +64,7 @@ type MediaTarget struct {
 	Kind MediaTargetKind
 
 	CueID      CueID
+	GroupID    GroupID
 	InstanceID string
 	OutputID   string
 
@@ -87,4 +88,7 @@ const (
 	// MediaTargetCurrentTrack is resolved by a timecode event to the media
 	// instance whose timeline scheduled the event.
 	MediaTargetCurrentTrack
+
+	// MediaTargetGroup matches live media started by any cue in the group.
+	MediaTargetGroup
 )

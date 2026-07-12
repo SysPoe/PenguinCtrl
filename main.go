@@ -644,6 +644,9 @@ func run(window *app.Window) error {
 										tbCtx.MoveCueActive(),
 										func(index int) { tbCtx.MoveSelectedCueBefore(manager, index) },
 										func() { tbCtx.MoveSelectedCueToEnd(manager) },
+										func(groupID show.GroupID) { tbCtx.MoveSelectedCueIntoGroup(manager, groupID) },
+										func(groupID show.GroupID) { tbCtx.MoveSelectedCueBeforeGroup(manager, groupID) },
+										func(groupID show.GroupID) { tbCtx.MoveSelectedCueAfterGroup(manager, groupID) },
 									)
 								}),
 							)
