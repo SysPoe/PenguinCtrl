@@ -327,6 +327,25 @@ func layoutAudioWarning(th *material.Theme, gtx layout.Context, warning string, 
 	})
 }
 
+func layoutVideoOutputWarning(th *material.Theme, gtx layout.Context, warning string) layout.Dimensions {
+	return warningBar(gtx, unit.Dp(92), func(gtx layout.Context) layout.Dimensions {
+		return layout.Inset{Left: unit.Dp(24), Right: unit.Dp(24), Top: unit.Dp(12), Bottom: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					label := material.H5(th, "** WARNING ** VIDEO DISPLAY MISSING **")
+					label.Color = palette.White
+					return label.Layout(gtx)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					label := material.Body1(th, warning)
+					label.Color = palette.White
+					return label.Layout(gtx)
+				}),
+			)
+		})
+	})
+}
+
 func warningBar(gtx layout.Context, requestedHeight unit.Dp, content layout.Widget) layout.Dimensions {
 	size := gtx.Constraints.Max
 	height := min(gtx.Dp(requestedHeight), size.Y)
@@ -337,7 +356,7 @@ func warningBar(gtx layout.Context, requestedHeight unit.Dp, content layout.Widg
 	return content(gtx)
 }
 
-func layoutWarnings(th *material.Theme, gtx layout.Context, windowFocused bool, audioWarning string, settingsButton *widget.Clickable) layout.Dimensions {
+func layoutWarnings(th *material.Theme, gtx layout.Context, windowFocused bool, audioWarning, videoWarning string, settingsButton *widget.Clickable) layout.Dimensions {
 	return layout.S.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.Y = 0
 		children := make([]layout.FlexChild, 0, 2)
@@ -349,6 +368,11 @@ func layoutWarnings(th *material.Theme, gtx layout.Context, windowFocused bool, 
 		if audioWarning != "" {
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layoutAudioWarning(th, gtx, audioWarning, settingsButton)
+			}))
+		}
+		if videoWarning != "" {
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layoutVideoOutputWarning(th, gtx, videoWarning)
 			}))
 		}
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
@@ -749,7 +773,7 @@ func (a *App) run(window *app.Window) error {
 					return topBar.LayoutFileMenu(th, gtx)
 				}),
 				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-					return layoutWarnings(th, gtx, windowFocused, audioWarning, audioWarningSettings)
+					return layoutWarnings(th, gtx, windowFocused, audioWarning, videoWarning, audioWarningSettings)
 				}),
 				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 					return operatorPanel.LayoutOverlay(th, gtx, operatorEvents, preflight, func(cueID show.CueID, edit bool, field string) {

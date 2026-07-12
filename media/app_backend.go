@@ -5,6 +5,9 @@ type Backend interface {
 	AudioDevices() ([]AudioDevice, error)
 	AudioDeviceWarning() string
 	RefreshAudioDeviceStatus()
+	VideoDisplays() ([]VideoDisplay, error)
+	VideoOutputWarning() string
+	RefreshVideoOutputStatus()
 	EnsureOutputs([]string)
 	SyncOutputs([]string)
 }
