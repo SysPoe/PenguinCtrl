@@ -1561,6 +1561,9 @@ func problemMessages(problems []show.CueProblem, severity show.ProblemSeverity) 
 }
 
 func (e *Engine) StopAll() {
+	if e.operatorLog != nil {
+		e.operatorLog.Diagnostic("Operator action", "STOP ALL dispatched", nil)
+	}
 	e.mu.Lock()
 	e.runCancel()
 	e.runCtx, e.runCancel = context.WithCancel(e.ctx)
@@ -1577,6 +1580,22 @@ func (e *Engine) StopAll() {
 	for _, instance := range instances {
 		e.HandleOutputReport(instance.ID, "stopped")
 	}
+}
+
+// BlackoutAll immediately asserts black on every configured/active output.
+// It is deliberately independent from cue selection and keyboard focus.
+func (e *Engine) BlackoutAll() {
+	for _, outputID := range e.OutputIDs() {
+		event := Event{Action: "output", OutputID: outputID, Control: "blackout"}
+		e.mu.Lock()
+		e.outputVisuals[outputID] = event
+		e.mu.Unlock()
+		e.hub.publish(event)
+	}
+	if e.operatorLog != nil {
+		e.operatorLog.Diagnostic("Operator action", "Emergency blackout asserted on all outputs", nil)
+	}
+	e.signalState()
 }
 
 // ControlMedia applies an operator control directly to matching live media.

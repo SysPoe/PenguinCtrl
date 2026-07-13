@@ -46,6 +46,13 @@ type VideoOutput struct {
 	DisplayConfirmed bool   `json:"displayConfirmed,omitempty"`
 }
 
+type WindowPlacement struct {
+	X      int `json:"x,omitempty"`
+	Y      int `json:"y,omitempty"`
+	Width  int `json:"width"`
+	Height int `json:"height"`
+}
+
 type Settings struct {
 	FFmpegPath                string            `json:"ffmpegPath"`
 	DefaultPlayback           string            `json:"defaultPlayback"`
@@ -62,6 +69,7 @@ type Settings struct {
 	RemoteSuccessPolicy       string            `json:"remoteSuccessPolicy,omitempty"`
 	CacheQuotaGB              int               `json:"cacheQuotaGb,omitempty"`
 	CacheReserveGB            int               `json:"cacheReserveGb,omitempty"`
+	OperatorWindow            WindowPlacement   `json:"operatorWindow"`
 }
 
 const (
@@ -85,6 +93,7 @@ func Defaults() Settings {
 		RemoteSuccessPolicy:   RemoteSuccessAll,
 		CacheQuotaGB:          20,
 		CacheReserveGB:        5,
+		OperatorWindow:        WindowPlacement{X: 80, Y: 80, Width: 1300, Height: 720},
 	}
 }
 
@@ -293,6 +302,11 @@ func normalize(in Settings) Settings {
 	}
 	in.CacheQuotaGB = min(500, max(1, in.CacheQuotaGB))
 	in.CacheReserveGB = min(100, max(1, in.CacheReserveGB))
+	if in.OperatorWindow.Width <= 0 && in.OperatorWindow.Height <= 0 {
+		in.OperatorWindow = Defaults().OperatorWindow
+	}
+	in.OperatorWindow.Width = min(7680, max(480, in.OperatorWindow.Width))
+	in.OperatorWindow.Height = min(4320, max(320, in.OperatorWindow.Height))
 	return in
 }
 

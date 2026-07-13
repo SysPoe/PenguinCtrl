@@ -87,11 +87,12 @@ func runMain() (exitCode int) {
 	defer func() { crashreport.CloseFatalOutput(cleanExit) }()
 	runResult := make(chan error, 1)
 	crashreport.Go("operator-window", func() {
+		placement := application.Settings.Snapshot().OperatorWindow
 		window := new(app.Window)
 		window.Option(
 			app.Title("CuSus"),
-			app.Size(unit.Dp(1300), unit.Dp(720)),
-			app.MinSize(unit.Dp(1300), unit.Dp(720)),
+			app.Size(unit.Dp(placement.Width), unit.Dp(placement.Height)),
+			app.MinSize(unit.Dp(480), unit.Dp(320)),
 		)
 		runResult <- application.run(window)
 	})
@@ -239,6 +240,24 @@ func (a *App) handleCueListShortcuts(gtx layout.Context) {
 	tbCtx := &a.UI.TBContext
 	manager := a.Show
 	playbackEngine := a.Playback
+	for {
+		event, ok := gtx.Event(
+			key.Filter{Name: key.NameF12},
+			key.Filter{Name: "B", Required: key.ModShortcut | key.ModShift},
+		)
+		if !ok {
+			break
+		}
+		keyEvent, ok := event.(key.Event)
+		if !ok || keyEvent.State != key.Press {
+			continue
+		}
+		if keyEvent.Name == key.NameF12 {
+			playbackEngine.StopAll()
+		} else {
+			playbackEngine.BlackoutAll()
+		}
+	}
 	if a.UI.ShowSettings || tbCtx.CueEditorOpen() {
 		return
 	}
@@ -522,6 +541,8 @@ func (a *App) run(window *app.Window) error {
 	audioWarningSettings := &a.UI.AudioWarningSettings
 	var ops op.Ops
 	windowFocused := true
+	var operatorHandle uintptr
+	operatorPlacementApplied := false
 	th := newTheme()
 	expl := explorer.NewExplorer(window)
 	uiActions := make(chan func(), 16)
@@ -881,6 +902,13 @@ func (a *App) run(window *app.Window) error {
 					operatorEvents.Add(operatorlog.ShowStopping, "Edit recovery", err.Error(), show.CueID{}, "")
 				}
 			}
+			if placement, ok := operatorWindowPlacement(operatorHandle); ok {
+				settings := settingsStore.Snapshot()
+				settings.OperatorWindow = placement
+				if err := settingsStore.Update(settings); err != nil {
+					operatorEvents.Add(operatorlog.Recoverable, "Operator window", "Could not persist window placement: "+err.Error(), show.CueID{}, "")
+				}
+			}
 			if err := tasks.Close(3 * time.Second); err != nil {
 				operatorEvents.Diagnostic("Shutdown", err.Error(), nil)
 			}
@@ -891,6 +919,16 @@ func (a *App) run(window *app.Window) error {
 		case app.ConfigEvent:
 			windowFocused = e.Config.Focused
 			window.Invalidate()
+
+		case app.ViewEvent:
+			if handle := operatorViewHandle(e); handle != 0 {
+				operatorHandle = handle
+				if !operatorPlacementApplied {
+					operatorPlacementApplied = true
+					placement := settingsStore.Snapshot().OperatorWindow
+					tasks.Go("operator-window-placement", func(context.Context) { applyOperatorPlacement(handle, placement) })
+				}
+			}
 
 		case app.FrameEvent:
 			now := time.Now()
@@ -910,6 +948,14 @@ func (a *App) run(window *app.Window) error {
 			if safetyResume.Clicked(gtx) {
 				playbackEngine.AcknowledgeSafetyLatch()
 				topBar.SetStatus("Playback re-armed after operator acknowledgement · press GO when ready")
+			}
+			if topBar.TakeStopAllRequest() {
+				playbackEngine.StopAll()
+				topBar.SetStatus("STOP ALL dispatched · F12")
+			}
+			if topBar.TakeBlackoutRequest() {
+				playbackEngine.BlackoutAll()
+				topBar.SetStatus("BLACKOUT asserted · Ctrl+Shift+B")
 			}
 			audioWarning := mediaManager.AudioDeviceWarning()
 			videoWarning := videoRoutingWarning(mediaManager)
@@ -973,6 +1019,20 @@ func (a *App) run(window *app.Window) error {
 						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 							if a.UI.ShowSettings {
 								return settingsPage.Layout(th, gtx)
+							}
+							if gtx.Constraints.Max.X < gtx.Dp(unit.Dp(850)) {
+								return ui.Main(
+									th, gtx, manager, playbackEngine, operatorEvents,
+									operatorPanel.OverlayVisible() || documentGuard.Visible(),
+									func() { tbCtx.EditSelectedCue(manager) },
+									func(field string) { tbCtx.EditSelectedCueAt(manager, field) },
+									tbCtx.MoveCueActive(),
+									func(index int) { tbCtx.MoveSelectedCueBefore(manager, index) },
+									func() { tbCtx.MoveSelectedCueToEnd(manager) },
+									func(groupID show.GroupID) { tbCtx.MoveSelectedCueIntoGroup(manager, groupID) },
+									func(groupID show.GroupID) { tbCtx.MoveSelectedCueBeforeGroup(manager, groupID) },
+									func(groupID show.GroupID) { tbCtx.MoveSelectedCueAfterGroup(manager, groupID) },
+								)
 							}
 							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {

@@ -26,21 +26,25 @@ type TopBar struct {
 	showAddCue bool
 	showFile   bool
 
-	btnAction widget.Clickable
-	btnAddCue widget.Clickable
-	btnFile   widget.Clickable
-	btnPage   widget.Clickable
-	btnNew    widget.Clickable
-	btnLoad   widget.Clickable
-	btnSave   widget.Clickable
-	btnSaveAs widget.Clickable
+	btnAction   widget.Clickable
+	btnAddCue   widget.Clickable
+	btnFile     widget.Clickable
+	btnPage     widget.Clickable
+	btnNew      widget.Clickable
+	btnLoad     widget.Clickable
+	btnSave     widget.Clickable
+	btnSaveAs   widget.Clickable
+	btnStopAll  widget.Clickable
+	btnBlackout widget.Clickable
 
-	pageRequested bool
-	newRequested  bool
-	loadRequested bool
-	saveRequested bool
-	saveAsRequest bool
-	status        string
+	pageRequested   bool
+	newRequested    bool
+	loadRequested   bool
+	saveRequested   bool
+	saveAsRequest   bool
+	stopAllRequest  bool
+	blackoutRequest bool
+	status          string
 }
 
 func (tb *TopBar) setAllFalse() {
@@ -72,7 +76,9 @@ func (tb *TopBar) HasKeyboardFocus(gtx layout.Context) bool {
 		gtx.Focused(&tb.btnAddCue) ||
 		gtx.Focused(&tb.btnFile) ||
 		gtx.Focused(&tb.btnSave) ||
-		gtx.Focused(&tb.btnPage)
+		gtx.Focused(&tb.btnPage) ||
+		gtx.Focused(&tb.btnStopAll) ||
+		gtx.Focused(&tb.btnBlackout)
 }
 
 func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, settingsPage bool) layout.Dimensions {
@@ -114,11 +120,23 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, set
 		tb.setAllFalse()
 		tb.showFile = !wasOpen
 	}
+	if tb.btnStopAll.Clicked(gtx) {
+		tb.stopAllRequest = true
+	}
+	if tb.btnBlackout.Clicked(gtx) {
+		tb.blackoutRequest = true
+	}
 	var actionSize image.Point
 	var addCueSize image.Point
 	var fileSize image.Point
 	var pageSize image.Point
+	var stopSize image.Point
+	var blackoutSize image.Point
 	windowWidth := gtx.Constraints.Max.X
+	compact := windowWidth < gtx.Dp(unit.Dp(900))
+	if compact {
+		tb.showAction, tb.showAddCue = false, false
+	}
 
 	setButtonPositions := func(startX int, windowWidth int) {
 		x := startX
@@ -151,6 +169,8 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, set
 		Axis:      layout.Horizontal,
 		Alignment: layout.Middle,
 	}.Layout(gtx,
+		makeMeasuredBtnWithColor(th, &tb.btnStopAll, "STOP ALL", &stopSize, palette.Danger),
+		makeMeasuredBtnWithColor(th, &tb.btnBlackout, "BLACKOUT", &blackoutSize, palette.SurfaceSunken),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			setButtonPositions(gtx.Constraints.Max.X, windowWidth)
 
@@ -162,8 +182,28 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, set
 			title.TextSize = unit.Sp(float32(topBarHeight) * 0.6)
 			return layoutStableText(gtx, title.Layout)
 		}),
-		makeMeasuredBtnEnabled(th, &tb.btnAction, "Action", &actionSize, canEditCue && !settingsPage),
-		makeMeasuredBtnEnabled(th, &tb.btnAddCue, "Add Cue", &addCueSize, !settingsPage),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if compact {
+				return layout.Dimensions{}
+			}
+			if !canEditCue || settingsPage {
+				gtx = gtx.Disabled()
+			}
+			dims := layoutButton(th, gtx, &tb.btnAction, "Action", th.ContrastBg)
+			actionSize = dims.Size
+			return dims
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if compact {
+				return layout.Dimensions{}
+			}
+			if settingsPage {
+				gtx = gtx.Disabled()
+			}
+			dims := layoutButton(th, gtx, &tb.btnAddCue, "Add Cue", th.ContrastBg)
+			addCueSize = dims.Size
+			return dims
+		}),
 		makeMeasuredBtn(th, &tb.btnFile, "File", &fileSize),
 		makeMeasuredBtn(th, &tb.btnPage, utils.Ter(settingsPage, "Cue List", "Settings"), &pageSize),
 	)
@@ -242,5 +282,17 @@ func (tb *TopBar) SetStatus(status string) { tb.status = status }
 func (tb *TopBar) TakePageRequest() bool {
 	requested := tb.pageRequested
 	tb.pageRequested = false
+	return requested
+}
+
+func (tb *TopBar) TakeStopAllRequest() bool {
+	requested := tb.stopAllRequest
+	tb.stopAllRequest = false
+	return requested
+}
+
+func (tb *TopBar) TakeBlackoutRequest() bool {
+	requested := tb.blackoutRequest
+	tb.blackoutRequest = false
 	return requested
 }
