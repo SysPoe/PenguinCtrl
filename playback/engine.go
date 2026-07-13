@@ -749,7 +749,7 @@ func (e *Engine) execute(next command) {
 			e.finishCueRun(next.cue.ID, next.runID, cancel)
 		}
 	}()
-	executionID := e.startExecution(next, "pre-wait", cueExecutionDuration(next.cue))
+	executionID := e.startExecution(next, "pre-wait", max(int64(0), next.cue.Timing.PreWaitMs))
 	defer e.finishExecution(executionID)
 	if !waitContext(next.ctx, time.Duration(max(0, next.cue.Timing.PreWaitMs))*time.Millisecond) {
 		return
@@ -767,11 +767,11 @@ func (e *Engine) execute(next command) {
 	}
 	dispatchedAt := time.Now()
 	e.recordCommand(next, dispatchedAt, time.Time{})
-	e.updateExecution(executionID, "action", 0)
+	e.updateExecution(executionID, "action", cueActionDuration(next.cue))
 	// A Start link is tied to GO reaching the cue, not to completion of the
 	// cue's action. Scheduling it here also keeps links working when the cue's
 	// own action reports an error.
-	e.scheduleLink(next.cue.Link, next.index, next.cue.Timing.PostWaitMs, linkStart, next.ctx)
+	e.scheduleLink(next.cue, next.index, next.cue.Timing.PostWaitMs, linkStart, next.ctx)
 	var err error
 	if next.cue.Type == show.CueTypeWait {
 		e.advanceDispatch(next.sequence)
@@ -829,7 +829,7 @@ func (e *Engine) execute(next command) {
 		return
 	}
 	if next.cue.Type != show.CueTypeSound && next.cue.Type != show.CueTypeVideo && next.cue.Type != show.CueTypeImage {
-		e.scheduleLink(next.cue.Link, next.index, next.cue.Timing.PostWaitMs, linkEnd, next.ctx)
+		e.scheduleLink(next.cue, next.index, next.cue.Timing.PostWaitMs, linkEnd, next.ctx)
 	}
 }
 
@@ -929,13 +929,6 @@ func cueActionDuration(cue show.Cue) int64 {
 	return 0
 }
 
-func cueExecutionDuration(cue show.Cue) int64 {
-	if cue.Type == show.CueTypeWait && cue.Play.Wait != nil && cue.Play.Wait.Kind != show.WaitDuration {
-		return 0
-	}
-	return max(int64(0), cue.Timing.PreWaitMs) + cueActionDuration(cue)
-}
-
 func (e *Engine) startExecution(next command, phase string, durationMs int64) string {
 	now := time.Now()
 	id := uuid.NewString()
@@ -954,9 +947,7 @@ func (e *Engine) updateExecution(id, phase string, durationMs int64) {
 	if execution := e.executions[id]; execution != nil {
 		execution.Phase = phase
 		execution.PhaseAt = time.Now()
-		if durationMs > 0 {
-			execution.DurationMs = durationMs
-		}
+		execution.DurationMs = max(int64(0), durationMs)
 	}
 	e.mu.Unlock()
 	e.changed()
@@ -978,18 +969,23 @@ const (
 	linkEnd
 )
 
-func (e *Engine) scheduleLink(link show.CueLink, sourceIndex int, delayMs int64, moment linkMoment, runCtx context.Context) {
-	if !linkMatches(link.Mode, moment) {
+func (e *Engine) scheduleLink(source show.Cue, sourceIndex int, delayMs int64, moment linkMoment, runCtx context.Context) {
+	if !linkMatches(source.Link.Mode, moment) {
 		return
 	}
 	e.goOwned(func() {
+		executionID := ""
+		if delayMs > 0 {
+			executionID = e.startExecution(command{cue: source, index: sourceIndex}, "post-wait", delayMs)
+			defer e.finishExecution(executionID)
+		}
 		if !waitContext(runCtx, time.Duration(max(0, delayMs))*time.Millisecond) {
 			return
 		}
-		target, targetIndex, ok := e.resolveTarget(link.Target, sourceIndex)
+		target, targetIndex, ok := e.resolveTarget(source.Link.Target, sourceIndex)
 		if !ok {
 			cues := e.manager.Snapshot()
-			if nextLinkFallsPastEnd(link.Target, sourceIndex, len(cues)) {
+			if nextLinkFallsPastEnd(source.Link.Target, sourceIndex, len(cues)) {
 				e.manager.DeselectCue()
 				e.changed()
 				return
@@ -1001,7 +997,7 @@ func (e *Engine) scheduleLink(link show.CueLink, sourceIndex int, delayMs int64,
 			}
 			return
 		}
-		if link.Mode == show.CueLinkStartAdvance || link.Mode == show.CueLinkFadeInAdvance || link.Mode == show.CueLinkFadeOutAdvance || link.Mode == show.CueLinkEndAdvance {
+		if source.Link.Mode == show.CueLinkStartAdvance || source.Link.Mode == show.CueLinkFadeInAdvance || source.Link.Mode == show.CueLinkFadeOutAdvance || source.Link.Mode == show.CueLinkEndAdvance {
 			e.manager.SelectCue(targetIndex)
 			e.changed()
 			return
@@ -1316,7 +1312,7 @@ func (e *Engine) executeMediaControl(cue show.Cue, runCtx context.Context) error
 	}
 	if play.Action == show.MediaControlFadeOut {
 		for _, instance := range instances {
-			e.scheduleLink(instance.Link, instance.CueIndex, instance.PostWaitMs, linkFadeOut, instance.RunContext)
+			e.scheduleLink(instance.Cue, instance.CueIndex, instance.PostWaitMs, linkFadeOut, instance.RunContext)
 		}
 	}
 	if play.Action == show.MediaControlStop || play.Action == show.MediaControlFadeOut {
@@ -1495,19 +1491,19 @@ func (e *Engine) HandleOutputReport(instanceID, report string) {
 	switch report {
 	case "started":
 		if copy.FadeInMs == 0 {
-			e.scheduleLink(copy.Link, copy.CueIndex, copy.PostWaitMs, linkFadeIn, copy.RunContext)
+			e.scheduleLink(copy.Cue, copy.CueIndex, copy.PostWaitMs, linkFadeIn, copy.RunContext)
 		}
 		e.scheduleInstanceLifecycle(copy.ID)
 		e.scheduleTimecode(copy.ID, copy.Cue, copy.CueIndex, copy.RunContext)
 	case "presented":
 		e.replaceSingleLayerVisual(copy)
 	case "fade-in-complete":
-		e.scheduleLink(copy.Link, copy.CueIndex, copy.PostWaitMs, linkFadeIn, copy.RunContext)
+		e.scheduleLink(copy.Cue, copy.CueIndex, copy.PostWaitMs, linkFadeIn, copy.RunContext)
 	case "fade-out-start":
-		e.scheduleLink(copy.Link, copy.CueIndex, copy.PostWaitMs, linkFadeOut, copy.RunContext)
+		e.scheduleLink(copy.Cue, copy.CueIndex, copy.PostWaitMs, linkFadeOut, copy.RunContext)
 	case "ended", "stopped":
 		e.hub.publish(Event{Action: "remove", OutputID: copy.OutputID, InstanceIDs: []string{copy.ID}})
-		e.scheduleLink(copy.Link, copy.CueIndex, copy.PostWaitMs, linkEnd, copy.RunContext)
+		e.scheduleLink(copy.Cue, copy.CueIndex, copy.PostWaitMs, linkEnd, copy.RunContext)
 		e.finishCueRun(copy.CueID, copy.RunID, copy.Link.Mode == show.CueLinkManual)
 	}
 	e.signalState()
@@ -1565,7 +1561,7 @@ func (e *Engine) replaceSingleLayerVisual(presented Instance) {
 			Action: "control", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID},
 			Control: "fade-out", FadeMs: fadeMs,
 		})
-		e.scheduleLink(instance.Link, instance.CueIndex, instance.PostWaitMs, linkFadeOut, instance.RunContext)
+		e.scheduleLink(instance.Cue, instance.CueIndex, instance.PostWaitMs, linkFadeOut, instance.RunContext)
 		if fadeMs == 0 {
 			e.HandleOutputReport(instance.ID, "ended")
 			continue
@@ -1707,7 +1703,7 @@ func (e *Engine) ActiveExecutions() []CueExecution {
 	result := make([]CueExecution, 0, len(e.executions))
 	for _, execution := range e.executions {
 		copy := *execution
-		copy.ElapsedMs = max(int64(0), now.Sub(copy.StartedAt).Milliseconds())
+		copy.ElapsedMs = max(int64(0), now.Sub(copy.PhaseAt).Milliseconds())
 		if copy.DurationMs > 0 {
 			copy.ElapsedMs = min(copy.ElapsedMs, copy.DurationMs)
 			copy.RemainingMs = max(int64(0), copy.DurationMs-copy.ElapsedMs)

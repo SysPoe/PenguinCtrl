@@ -59,8 +59,8 @@ type Instance struct {
 
 // CueExecution describes a cue that is currently doing synchronous work.
 // Media cues continue to be represented by Instance after their start action
-// completes; this type makes pre-waits, wait cues, and other blocking actions
-// observable to the cue-list UI as well.
+// completes; this type makes pre/post waits, wait cues, and other blocking
+// actions observable to the cue-list UI as well.
 type CueExecution struct {
 	ID          string
 	CueID       show.CueID

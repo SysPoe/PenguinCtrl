@@ -329,6 +329,7 @@ func Main(
 						execution, executing := executionByCue[cue.ID]
 						duration, elapsed, remaining, volume := cueRuntimeLabels(cue, instance, active, execution, executing, knownDurations[cue.ID])
 						progress := cuePlaybackProgress(cue, instance, active, execution, executing, knownDurations[cue.ID])
+						preLabel, preProgress, postLabel, postProgress := cueWaitCellValues(cue, execution, executing)
 						borderHeightDp := unit.Dp(1)
 						borderHeight := max(1, gtx.Dp(borderHeightDp))
 
@@ -470,21 +471,9 @@ func Main(
 											// Volume
 											makeRuntimeCell(th, volume, weights[7]),
 											// Pre
-											layout.Flexed(weights[8], func(gtx layout.Context) layout.Dimensions {
-												return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-													el := material.Body2(th, fmt.Sprint(cue.Timing.PreWaitMs))
-													el.Alignment = text.Middle
-													return layoutTruncatedText(gtx, el)
-												})
-											}),
+											makeProgressCell(th, preLabel, preProgress, cueTypeCol, weights[8], text.Middle),
 											// Post
-											layout.Flexed(weights[9], func(gtx layout.Context) layout.Dimensions {
-												return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-													el := material.Body2(th, fmt.Sprint(cue.Timing.PostWaitMs))
-													el.Alignment = text.Middle
-													return layoutTruncatedText(gtx, el)
-												})
-											}),
+											makeProgressCell(th, postLabel, postProgress, cueTypeCol, weights[9], text.Middle),
 											// Link
 											layout.Flexed(weights[10], func(gtx layout.Context) layout.Dimensions {
 												return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -735,6 +724,10 @@ func makeRuntimeCell(th *material.Theme, value string, weight float32) layout.Fl
 }
 
 func makeDescriptionProgressCell(th *material.Theme, value string, progress float32, progressColor color.NRGBA, weight float32) layout.FlexChild {
+	return makeProgressCell(th, value, progress, progressColor, weight, text.Start)
+}
+
+func makeProgressCell(th *material.Theme, value string, progress float32, progressColor color.NRGBA, weight float32, alignment text.Alignment) layout.FlexChild {
 	return layout.Flexed(weight, func(gtx layout.Context) layout.Dimensions {
 		return layout.Background{}.Layout(gtx,
 			func(gtx layout.Context) layout.Dimensions {
@@ -749,7 +742,9 @@ func makeDescriptionProgressCell(th *material.Theme, value string, progress floa
 			},
 			func(gtx layout.Context) layout.Dimensions {
 				return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return layoutTruncatedText(gtx, stableBody2(th, value))
+					label := stableBody2(th, value)
+					label.Alignment = alignment
+					return layoutTruncatedText(gtx, label)
 				})
 			},
 		)
@@ -764,6 +759,9 @@ func descriptionLabel(description string) string {
 }
 
 func cuePlaybackProgress(cue show.Cue, instance playback.Instance, active bool, execution playback.CueExecution, executing bool, knownDurationMs int64) float32 {
+	if executing && (execution.Phase == "pre-wait" || execution.Phase == "post-wait") {
+		return 0
+	}
 	if !active {
 		if executing && execution.DurationMs > 0 {
 			return min(float32(1), float32(execution.ElapsedMs)/float32(execution.DurationMs))
@@ -782,6 +780,31 @@ func cuePlaybackProgress(cue show.Cue, instance playback.Instance, active bool, 
 	}
 	elapsedMs := max(int64(0), instance.PositionMs-instance.ClipStartMs)
 	return min(float32(1), float32(elapsedMs)/float32(durationMs))
+}
+
+func cueWaitCellValues(cue show.Cue, execution playback.CueExecution, executing bool) (string, float32, string, float32) {
+	preLabel := fmt.Sprint(cue.Timing.PreWaitMs)
+	postLabel := fmt.Sprint(cue.Timing.PostWaitMs)
+	if !executing || execution.DurationMs <= 0 {
+		return preLabel, 0, postLabel, 0
+	}
+	progress := min(float32(1), float32(execution.ElapsedMs)/float32(execution.DurationMs))
+	switch execution.Phase {
+	case "pre-wait":
+		return waitCountdownLabel(execution.RemainingMs), progress, postLabel, 0
+	case "post-wait":
+		return preLabel, 0, waitCountdownLabel(execution.RemainingMs), progress
+	default:
+		return preLabel, 0, postLabel, 0
+	}
+}
+
+func waitCountdownLabel(remainingMs int64) string {
+	remainingMs = max(int64(0), remainingMs)
+	if remainingMs <= 100 {
+		return "0"
+	}
+	return fmt.Sprint((remainingMs / 100) * 100)
 }
 
 func cueRuntimeLabels(cue show.Cue, instance playback.Instance, active bool, execution playback.CueExecution, executing bool, knownDurationMs int64) (string, string, string, string) {
