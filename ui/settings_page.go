@@ -60,33 +60,37 @@ type videoOutputFields struct {
 }
 
 type SettingsPage struct {
-	store                *config.Store
-	initialized          bool
-	list                 layout.List
-	ffmpegPath           *input.Text
-	defaultPlayback      *input.Text
-	defaultMediaOutput   *input.Text
-	playbackAudioDevice  *input.Dropdown
-	previewAudioDevice   *input.Dropdown
-	audioDevices         []AudioDevice
-	audioDeviceProvider  func() ([]AudioDevice, error)
-	videoDisplays        []VideoDisplay
-	videoDisplayProvider func() ([]VideoDisplay, error)
-	videoOutputs         []*videoOutputFields
-	targets              []*remoteTargetFields
-	variables            []*variableFields
-	addTarget            widget.Clickable
-	addVariable          widget.Clickable
-	save                 widget.Clickable
-	reload               widget.Clickable
-	reopenOutputs        widget.Clickable
-	refreshAudioDevices  widget.Clickable
-	refreshDisplays      widget.Clickable
-	addVideoOutput       widget.Clickable
-	status               string
-	statusError          bool
-	onSaved              func()
-	onReopenOutputs      func()
+	store                     *config.Store
+	initialized               bool
+	list                      layout.List
+	ffmpegPath                *input.Text
+	defaultPlayback           *input.Text
+	defaultMediaOutput        *input.Text
+	playbackAudioDevice       *input.Dropdown
+	playbackAudioRecovery     *input.Dropdown
+	playbackBackupAudioDevice *input.Dropdown
+	previewAudioDevice        *input.Dropdown
+	previewAudioRecovery      *input.Dropdown
+	previewBackupAudioDevice  *input.Dropdown
+	audioDevices              []AudioDevice
+	audioDeviceProvider       func() ([]AudioDevice, error)
+	videoDisplays             []VideoDisplay
+	videoDisplayProvider      func() ([]VideoDisplay, error)
+	videoOutputs              []*videoOutputFields
+	targets                   []*remoteTargetFields
+	variables                 []*variableFields
+	addTarget                 widget.Clickable
+	addVariable               widget.Clickable
+	save                      widget.Clickable
+	reload                    widget.Clickable
+	reopenOutputs             widget.Clickable
+	refreshAudioDevices       widget.Clickable
+	refreshDisplays           widget.Clickable
+	addVideoOutput            widget.Clickable
+	status                    string
+	statusError               bool
+	onSaved                   func()
+	onReopenOutputs           func()
 }
 
 func (p *SettingsPage) SetOnSaved(callback func()) { p.onSaved = callback }
@@ -122,7 +126,11 @@ func (p *SettingsPage) load() {
 	p.defaultPlayback = input.NewText("Default playback", settings.DefaultPlayback)
 	p.defaultMediaOutput = input.NewText("Default media output", settings.DefaultMediaOutput)
 	p.playbackAudioDevice = newAudioDeviceDropdown(p.audioDevices, settings.PlaybackAudioDevice)
+	p.playbackAudioRecovery = newAudioRecoveryDropdown(settings.PlaybackAudioRecovery)
+	p.playbackBackupAudioDevice = newAudioDeviceDropdown(p.audioDevices, settings.PlaybackBackupAudioDevice)
 	p.previewAudioDevice = newAudioDeviceDropdown(p.audioDevices, settings.PreviewAudioDevice)
+	p.previewAudioRecovery = newAudioRecoveryDropdown(settings.PreviewAudioRecovery)
+	p.previewBackupAudioDevice = newAudioDeviceDropdown(p.audioDevices, settings.PreviewBackupAudioDevice)
 	p.videoOutputs = make([]*videoOutputFields, 0, len(settings.VideoOutputs))
 	for _, output := range settings.VideoOutputs {
 		p.videoOutputs = append(p.videoOutputs, newVideoOutputFields(output, p.videoDisplays))
@@ -237,7 +245,19 @@ func (p *SettingsPage) saveSettings() {
 	settings.DefaultPlayback = strings.TrimSpace(p.defaultPlayback.Value)
 	settings.DefaultMediaOutput = strings.TrimSpace(p.defaultMediaOutput.Value)
 	settings.PlaybackAudioDevice = selectedDropdownValue(p.playbackAudioDevice)
+	settings.PlaybackAudioRecovery = selectedDropdownValue(p.playbackAudioRecovery)
+	settings.PlaybackBackupAudioDevice = selectedDropdownValue(p.playbackBackupAudioDevice)
 	settings.PreviewAudioDevice = selectedDropdownValue(p.previewAudioDevice)
+	settings.PreviewAudioRecovery = selectedDropdownValue(p.previewAudioRecovery)
+	settings.PreviewBackupAudioDevice = selectedDropdownValue(p.previewBackupAudioDevice)
+	if settings.PlaybackAudioRecovery == config.AudioRecoveryNamedBackup && settings.PlaybackBackupAudioDevice == "" {
+		p.status, p.statusError = "Playback named-backup policy requires a backup device", true
+		return
+	}
+	if settings.PreviewAudioRecovery == config.AudioRecoveryNamedBackup && settings.PreviewBackupAudioDevice == "" {
+		p.status, p.statusError = "Preview named-backup policy requires a backup device", true
+		return
+	}
 	settings.VideoOutputs = make([]config.VideoOutput, 0, len(p.videoOutputs))
 	stages := make(map[string]struct{}, len(p.videoOutputs))
 	for _, fields := range p.videoOutputs {
@@ -349,7 +369,19 @@ func (p *SettingsPage) audioSection(th *material.Theme, gtx layout.Context) layo
 			return settingsField(th, gtx, "Playback", p.playbackAudioDevice.Layout)
 		},
 		func(gtx layout.Context) layout.Dimensions {
+			return settingsField(th, gtx, "Playback loss policy", p.playbackAudioRecovery.Layout)
+		},
+		func(gtx layout.Context) layout.Dimensions {
+			return settingsField(th, gtx, "Playback backup", p.playbackBackupAudioDevice.Layout)
+		},
+		func(gtx layout.Context) layout.Dimensions {
 			return settingsField(th, gtx, "Preview", p.previewAudioDevice.Layout)
+		},
+		func(gtx layout.Context) layout.Dimensions {
+			return settingsField(th, gtx, "Preview loss policy", p.previewAudioRecovery.Layout)
+		},
+		func(gtx layout.Context) layout.Dimensions {
+			return settingsField(th, gtx, "Preview backup", p.previewBackupAudioDevice.Layout)
 		},
 		func(gtx layout.Context) layout.Dimensions {
 			return layoutButton(th, gtx, &p.refreshAudioDevices, "Refresh audio devices", th.ContrastBg)
@@ -369,15 +401,32 @@ func (p *SettingsPage) refreshAudioDeviceList() {
 	p.audioDevices = devices
 	settings := p.store.Snapshot()
 	playbackID, previewID := settings.PlaybackAudioDevice, settings.PreviewAudioDevice
+	playbackBackupID, previewBackupID := settings.PlaybackBackupAudioDevice, settings.PreviewBackupAudioDevice
 	if p.playbackAudioDevice != nil {
 		playbackID = selectedDropdownValue(p.playbackAudioDevice)
 	}
 	if p.previewAudioDevice != nil {
 		previewID = selectedDropdownValue(p.previewAudioDevice)
 	}
+	if p.playbackBackupAudioDevice != nil {
+		playbackBackupID = selectedDropdownValue(p.playbackBackupAudioDevice)
+	}
+	if p.previewBackupAudioDevice != nil {
+		previewBackupID = selectedDropdownValue(p.previewBackupAudioDevice)
+	}
 	p.playbackAudioDevice = newAudioDeviceDropdown(devices, playbackID)
 	p.previewAudioDevice = newAudioDeviceDropdown(devices, previewID)
+	p.playbackBackupAudioDevice = newAudioDeviceDropdown(devices, playbackBackupID)
+	p.previewBackupAudioDevice = newAudioDeviceDropdown(devices, previewBackupID)
 	p.status, p.statusError = fmt.Sprintf("Found %d audio device(s)", len(devices)), false
+}
+
+func newAudioRecoveryDropdown(policy string) *input.Dropdown {
+	return enumDropdown([]input.DropdownItem{
+		{Label: "Fail closed", Value: config.AudioRecoveryFailClosed},
+		{Label: "Follow Windows default", Value: config.AudioRecoveryFollowDefault},
+		{Label: "Switch to named backup", Value: config.AudioRecoveryNamedBackup},
+	}, policy)
 }
 
 func newAudioDeviceDropdown(devices []AudioDevice, selectedID string) *input.Dropdown {

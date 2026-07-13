@@ -40,24 +40,36 @@ type VideoOutput struct {
 }
 
 type Settings struct {
-	FFmpegPath          string            `json:"ffmpegPath"`
-	DefaultPlayback     string            `json:"defaultPlayback"`
-	DefaultMediaOutput  string            `json:"defaultMediaOutput"`
-	PlaybackAudioDevice string            `json:"playbackAudioDevice,omitempty"`
-	PreviewAudioDevice  string            `json:"previewAudioDevice,omitempty"`
-	VideoOutputs        []VideoOutput     `json:"videoOutputs,omitempty"`
-	Variables           map[string]string `json:"variables"`
-	RemoteTargets       []RemoteTarget    `json:"remoteTargets"`
+	FFmpegPath                string            `json:"ffmpegPath"`
+	DefaultPlayback           string            `json:"defaultPlayback"`
+	DefaultMediaOutput        string            `json:"defaultMediaOutput"`
+	PlaybackAudioDevice       string            `json:"playbackAudioDevice,omitempty"`
+	PlaybackAudioRecovery     string            `json:"playbackAudioRecovery,omitempty"`
+	PlaybackBackupAudioDevice string            `json:"playbackBackupAudioDevice,omitempty"`
+	PreviewAudioDevice        string            `json:"previewAudioDevice,omitempty"`
+	PreviewAudioRecovery      string            `json:"previewAudioRecovery,omitempty"`
+	PreviewBackupAudioDevice  string            `json:"previewBackupAudioDevice,omitempty"`
+	VideoOutputs              []VideoOutput     `json:"videoOutputs,omitempty"`
+	Variables                 map[string]string `json:"variables"`
+	RemoteTargets             []RemoteTarget    `json:"remoteTargets"`
 }
+
+const (
+	AudioRecoveryFailClosed    = "fail-closed"
+	AudioRecoveryFollowDefault = "follow-default"
+	AudioRecoveryNamedBackup   = "named-backup"
+)
 
 func Defaults() Settings {
 	return Settings{
-		FFmpegPath:         "ffmpeg",
-		DefaultPlayback:    "1",
-		DefaultMediaOutput: "main",
-		VideoOutputs:       []VideoOutput{{Stage: "main", Fullscreen: true, Width: 960, Height: 540, ResolutionWidth: 1920, ResolutionHeight: 1080, Scaling: "contain", IdleBehavior: "black", Layers: 1}},
-		Variables:          map[string]string{},
-		RemoteTargets:      []RemoteTarget{{Name: "Local console", Host: "127.0.0.1", OSCPort: 8000, ERCPort: 6553}},
+		FFmpegPath:            "ffmpeg",
+		DefaultPlayback:       "1",
+		DefaultMediaOutput:    "main",
+		PlaybackAudioRecovery: AudioRecoveryFailClosed,
+		PreviewAudioRecovery:  AudioRecoveryFailClosed,
+		VideoOutputs:          []VideoOutput{{Stage: "main", Fullscreen: true, Width: 960, Height: 540, ResolutionWidth: 1920, ResolutionHeight: 1080, Scaling: "contain", IdleBehavior: "black", Layers: 1}},
+		Variables:             map[string]string{},
+		RemoteTargets:         []RemoteTarget{{Name: "Local console", Host: "127.0.0.1", OSCPort: 8000, ERCPort: 6553}},
 	}
 }
 
@@ -189,6 +201,10 @@ func normalize(in Settings) Settings {
 	}
 	in.PlaybackAudioDevice = strings.TrimSpace(in.PlaybackAudioDevice)
 	in.PreviewAudioDevice = strings.TrimSpace(in.PreviewAudioDevice)
+	in.PlaybackBackupAudioDevice = strings.TrimSpace(in.PlaybackBackupAudioDevice)
+	in.PreviewBackupAudioDevice = strings.TrimSpace(in.PreviewBackupAudioDevice)
+	in.PlaybackAudioRecovery = normalizeAudioRecovery(in.PlaybackAudioRecovery)
+	in.PreviewAudioRecovery = normalizeAudioRecovery(in.PreviewAudioRecovery)
 	seenStages := make(map[string]struct{}, len(in.VideoOutputs))
 	outputs := make([]VideoOutput, 0, len(in.VideoOutputs)+1)
 	for _, output := range in.VideoOutputs {
@@ -246,6 +262,22 @@ func normalize(in Settings) Settings {
 		}
 	}
 	return in
+}
+
+func normalizeAudioRecovery(policy string) string {
+	switch strings.TrimSpace(policy) {
+	case AudioRecoveryFollowDefault, AudioRecoveryNamedBackup:
+		return strings.TrimSpace(policy)
+	default:
+		return AudioRecoveryFailClosed
+	}
+}
+
+func AudioRoute(settings Settings, preview bool) (deviceID, policy, backupID string) {
+	if preview {
+		return settings.PreviewAudioDevice, normalizeAudioRecovery(settings.PreviewAudioRecovery), settings.PreviewBackupAudioDevice
+	}
+	return settings.PlaybackAudioDevice, normalizeAudioRecovery(settings.PlaybackAudioRecovery), settings.PlaybackBackupAudioDevice
 }
 
 func clone(in Settings) Settings {

@@ -94,11 +94,7 @@ func (a *AudioSystem) NewPreparedPlayer(reader io.Reader, preview bool) (*device
 	if a == nil || a.context == nil {
 		return nil, fmt.Errorf("audio output is unavailable")
 	}
-	settings := a.settings.Snapshot()
-	deviceID := settings.PlaybackAudioDevice
-	if preview {
-		deviceID = settings.PreviewAudioDevice
-	}
+	deviceID, recoveryPolicy, backupID := config.AudioRoute(a.settings.Snapshot(), preview)
 
 	mixer, err := a.mixer(deviceID)
 	if err != nil {
@@ -108,6 +104,7 @@ func (a *AudioSystem) NewPreparedPlayer(reader io.Reader, preview bool) (*device
 	player := &devicePlayer{
 		reader: reader, ring: newPCMRing(audioRingBytes), done: make(chan struct{}),
 		ready: make(chan struct{}), stopped: make(chan struct{}), mixer: mixer,
+		recoveryPolicy: recoveryPolicy, backupDeviceID: backupID,
 	}
 	player.volume.Store(1)
 	go player.fillRing()
@@ -326,10 +323,43 @@ func (m *endpointMixer) recover() {
 		}
 		backoff = min(4*time.Second, backoff*2)
 	}
+	failed := false
 	for _, source := range m.sources.Load().([]*devicePlayer) {
-		source.stoppedOnce.Do(func() { close(source.stopped) })
+		if !m.failover(source) {
+			failed = true
+			source.stoppedOnce.Do(func() { close(source.stopped) })
+		}
 	}
-	m.failed.Store(true)
+	m.failed.Store(failed)
+	if !failed {
+		m.recoveries.Add(1)
+	}
+}
+
+func (m *endpointMixer) failover(source *devicePlayer) bool {
+	targetID, allowed := fallbackDeviceID(source.recoveryPolicy, source.backupDeviceID)
+	if !allowed {
+		return false
+	}
+	if targetID == m.deviceID || (source.recoveryPolicy == config.AudioRecoveryNamedBackup && targetID == "") {
+		return false
+	}
+	target, err := m.system.mixer(targetID)
+	if err != nil || target == m {
+		return false
+	}
+	return source.rebind(m, target)
+}
+
+func fallbackDeviceID(policy, backupID string) (string, bool) {
+	switch policy {
+	case config.AudioRecoveryFollowDefault:
+		return "", true
+	case config.AudioRecoveryNamedBackup:
+		return strings.TrimSpace(backupID), strings.TrimSpace(backupID) != ""
+	default:
+		return "", false
+	}
 }
 
 func (m *endpointMixer) close() {
@@ -348,21 +378,37 @@ func (m *endpointMixer) close() {
 }
 
 type devicePlayer struct {
-	reader      io.Reader
-	mixer       *endpointMixer
-	volume      atomic.Uint64
-	ring        *pcmRing
-	done        chan struct{}
-	ready       chan struct{}
-	readyOnce   sync.Once
-	stopped     chan struct{}
-	stoppedOnce sync.Once
-	intentional atomic.Bool
-	eof         atomic.Bool
-	underruns   atomic.Uint64
-	mu          sync.Mutex
-	closed      bool
-	started     bool
+	reader         io.Reader
+	mixer          *endpointMixer
+	recoveryPolicy string
+	backupDeviceID string
+	volume         atomic.Uint64
+	ring           *pcmRing
+	done           chan struct{}
+	ready          chan struct{}
+	readyOnce      sync.Once
+	stopped        chan struct{}
+	stoppedOnce    sync.Once
+	intentional    atomic.Bool
+	eof            atomic.Bool
+	underruns      atomic.Uint64
+	mu             sync.Mutex
+	closed         bool
+	started        bool
+}
+
+func (p *devicePlayer) rebind(from, target *endpointMixer) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed || p.mixer != from {
+		return p.closed
+	}
+	if err := target.add(p); err != nil {
+		return false
+	}
+	p.mixer = target
+	from.remove(p)
+	return true
 }
 
 func (p *devicePlayer) Start() error {

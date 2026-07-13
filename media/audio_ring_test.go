@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"testing"
 	"time"
+
+	"github.com/syspoe/cusus/config"
 )
 
 func TestPCMRingWrapsWithoutLosingOrder(t *testing.T) {
@@ -85,5 +87,20 @@ func TestEndpointMixerCombinesSourcesWithoutAllocation(t *testing.T) {
 	second.ring.write(make([]byte, 4))
 	if allocations := testing.AllocsPerRun(100, func() { mixer.mix(output, nil, 1) }); allocations != 0 {
 		t.Fatalf("mixer callback allocated %v times", allocations)
+	}
+}
+
+func TestFallbackDevicePolicy(t *testing.T) {
+	if _, ok := fallbackDeviceID(config.AudioRecoveryFailClosed, "backup"); ok {
+		t.Fatal("fail-closed policy selected a fallback")
+	}
+	if id, ok := fallbackDeviceID(config.AudioRecoveryFollowDefault, "backup"); !ok || id != "" {
+		t.Fatalf("follow-default fallback = %q, %v", id, ok)
+	}
+	if id, ok := fallbackDeviceID(config.AudioRecoveryNamedBackup, " backup "); !ok || id != "backup" {
+		t.Fatalf("named fallback = %q, %v", id, ok)
+	}
+	if _, ok := fallbackDeviceID(config.AudioRecoveryNamedBackup, " "); ok {
+		t.Fatal("empty named fallback was accepted")
 	}
 }
