@@ -67,9 +67,13 @@ func (p *OperatorPanel) LayoutBar(th *material.Theme, gtx layout.Context, store 
 	if p.preflightButton.Clicked(gtx) {
 		p.showPreflight, p.showLog = !p.showPreflight, false
 	}
-	if active && p.ackButton.Clicked(gtx) {
-		store.Acknowledge(latest.ID)
-		latest, active = store.LatestUnacknowledged()
+	if (active || p.status != "") && p.ackButton.Clicked(gtx) {
+		if active {
+			store.Acknowledge(latest.ID)
+			latest, active = store.LatestUnacknowledged()
+		} else {
+			p.status = ""
+		}
 	}
 
 	background, title, detail := operatorStatusPresentation(p.status, p.healthStatus)
@@ -93,7 +97,7 @@ func (p *OperatorPanel) LayoutBar(th *material.Theme, gtx layout.Context, store 
 				return label.Layout(gtx)
 			}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				if !active {
+				if !active && p.status == "" {
 					gtx = gtx.Disabled()
 				}
 				return operatorButton(th, gtx, &p.ackButton, "ACK")

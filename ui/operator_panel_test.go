@@ -1,9 +1,14 @@
 package ui
 
 import (
+	"image"
 	"image/color"
 	"testing"
 
+	"gioui.org/layout"
+	"gioui.org/op"
+	"gioui.org/unit"
+	"gioui.org/widget/material"
 	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/palette"
 )
@@ -26,6 +31,23 @@ func TestOperatorStatusPresentation(t *testing.T) {
 				t.Fatalf("presentation = %#v, %q, %q; want %#v, %q, %q", gotColor, gotTitle, gotDetail, test.wantColor, test.wantTitle, test.wantDetail)
 			}
 		})
+	}
+}
+
+func TestOperatorStatusCanBeAcknowledged(t *testing.T) {
+	var panel OperatorPanel
+	panel.SetStatus("Loaded show.cusus · recovery journal on")
+	panel.ackButton.Click()
+
+	gtx := layout.Context{
+		Ops:         new(op.Ops),
+		Constraints: layout.Exact(image.Pt(1280, 54)),
+		Metric:      unit.Metric{PxPerDp: 1, PxPerSp: 1},
+	}
+	panel.LayoutBar(material.NewTheme(), gtx, operatorlog.NewStore(), nil)
+
+	if panel.status != "" {
+		t.Fatalf("acknowledged status = %q, want empty", panel.status)
 	}
 }
 
