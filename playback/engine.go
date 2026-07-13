@@ -989,6 +989,11 @@ func (e *Engine) scheduleLink(link show.CueLink, sourceIndex int, delayMs int64,
 		target, targetIndex, ok := e.resolveTarget(link.Target, sourceIndex)
 		if !ok {
 			cues := e.manager.Snapshot()
+			if nextLinkFallsPastEnd(link.Target, sourceIndex, len(cues)) {
+				e.manager.DeselectCue()
+				e.changed()
+				return
+			}
 			if sourceIndex >= 0 && sourceIndex < len(cues) {
 				e.recordCueError(cues[sourceIndex], "Cue link", errors.New("linked cue target does not exist"))
 			} else {
@@ -1005,6 +1010,11 @@ func (e *Engine) scheduleLink(link show.CueLink, sourceIndex int, delayMs int64,
 		e.changed()
 		_ = e.enqueue(target, targetIndex, fmt.Sprintf("Cue link from %s", cueDisplayNumberAt(e.manager.Snapshot(), sourceIndex)))
 	})
+}
+
+func nextLinkFallsPastEnd(target show.CueTarget, sourceIndex, cueCount int) bool {
+	return (target.Kind == show.CueTargetNone || target.Kind == show.CueTargetNext) &&
+		cueCount > 0 && sourceIndex == cueCount-1
 }
 
 func linkMatches(mode show.CueLinkMode, moment linkMoment) bool {

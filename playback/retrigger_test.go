@@ -31,6 +31,7 @@ func TestSecondGOMediaRestartsInsteadOfOverlapping(t *testing.T) {
 		t.Fatal(err)
 	}
 	cue := show.NewSoundCue()
+	cue.Link.Mode = show.CueLinkManual
 	cue.Play.Sound.File = mediaPath
 	cue.Play.Sound.ClipEndMs = 1000
 	engine := retriggerTestEngine(t, cue)
@@ -57,6 +58,7 @@ func TestSecondGOMediaRestartsInsteadOfOverlapping(t *testing.T) {
 
 func TestSecondGOWaitRestartsTimer(t *testing.T) {
 	cue := show.NewWaitCue()
+	cue.Link.Mode = show.CueLinkManual
 	cue.Play.Wait.DurationMs = 160
 	engine := retriggerTestEngine(t, cue)
 

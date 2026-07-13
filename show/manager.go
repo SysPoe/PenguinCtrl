@@ -248,6 +248,18 @@ func (sm *ShowManager) SelectCue(index int) {
 	sm.changed()
 }
 
+// DeselectCue clears the current cue-list selection.
+func (sm *ShowManager) DeselectCue() {
+	sm.mu.Lock()
+	if sm.SelectedCueIndex == -1 {
+		sm.mu.Unlock()
+		return
+	}
+	sm.SelectedCueIndex = -1
+	sm.mu.Unlock()
+	sm.changed()
+}
+
 // MoveSelection moves by a relative number of cues and clamps at either end.
 // With no current selection, moving down selects the first cue and moving up
 // selects the last cue.
