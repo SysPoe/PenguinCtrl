@@ -852,7 +852,8 @@ func (e *Engine) startMedia(next command) error {
 	now := time.Now()
 	instance := &Instance{
 		ID: uuid.NewString(), CueID: cue.ID, GroupID: cue.GroupID, CueNumber: cue.CueNumber, CueIndex: cueIndex, Link: cue.Link, PostWaitMs: cue.Timing.PostWaitMs,
-		Preview: next.preview, RunID: next.runID,
+		LayerOrder: next.sequence,
+		Preview:    next.preview, RunID: next.runID,
 		StartedAt: now, RequestedAt: now, PositionAt: now, RunContext: next.ctx, LoadState: "loading", Cue: show.CloneCue(cue),
 	}
 	switch cue.Type {

@@ -14,6 +14,7 @@ type Instance struct {
 	CueID          show.CueID      `json:"cueId"`
 	GroupID        show.GroupID    `json:"groupId,omitempty"`
 	CueNumber      string          `json:"cueNumber"`
+	LayerOrder     uint64          `json:"layerOrder,omitempty"`
 	OutputID       string          `json:"outputId"`
 	Preview        bool            `json:"preview,omitempty"`
 	MediaType      string          `json:"mediaType"`

@@ -541,9 +541,11 @@ func (o *outputWindow) layoutCanvas(gtx layout.Context) layout.Dimensions {
 
 func (o *outputWindow) layoutContent(gtx layout.Context, route config.VideoOutput) layout.Dimensions {
 	if o.blackout {
+		o.setVisibleDecoders(nil)
 		return layout.Dimensions{Size: gtx.Constraints.Max}
 	}
 	if o.test {
+		o.setVisibleDecoders(nil)
 		return layoutTestPattern(gtx)
 	}
 	visible := make([]*Player, 0, len(o.players))
@@ -552,10 +554,11 @@ func (o *outputWindow) layoutContent(gtx layout.Context, route config.VideoOutpu
 			visible = append(visible, player)
 		}
 	}
-	sort.SliceStable(visible, func(i, j int) bool { return visible[i].StartedAt().Before(visible[j].StartedAt()) })
+	sort.SliceStable(visible, func(i, j int) bool { return playerLayerLess(visible[i], visible[j]) })
 	if len(visible) > route.Layers {
 		visible = visible[len(visible)-route.Layers:]
 	}
+	o.setVisibleDecoders(visible)
 	if len(visible) > 0 {
 		children := make([]layout.StackChild, 0, len(visible))
 		for _, player := range visible {
@@ -580,6 +583,27 @@ func (o *outputWindow) layoutContent(gtx layout.Context, route config.VideoOutpu
 		return layout.Center.Layout(gtx, label.Layout)
 	}
 	return layout.Dimensions{Size: gtx.Constraints.Max}
+}
+
+func playerLayerLess(first, second *Player) bool {
+	if first.instance.LayerOrder != second.instance.LayerOrder {
+		return first.instance.LayerOrder < second.instance.LayerOrder
+	}
+	if !first.StartedAt().Equal(second.StartedAt()) {
+		return first.StartedAt().Before(second.StartedAt())
+	}
+	return first.instance.ID < second.instance.ID
+}
+
+func (o *outputWindow) setVisibleDecoders(visible []*Player) {
+	shown := make(map[*Player]struct{}, len(visible))
+	for _, player := range visible {
+		shown[player] = struct{}{}
+	}
+	for _, player := range o.players {
+		_, ok := shown[player]
+		player.SetDecodeVisible(ok)
+	}
 }
 
 func (o *outputWindow) layoutGuides(gtx layout.Context, route config.VideoOutput) layout.Dimensions {

@@ -39,18 +39,19 @@ type Player struct {
 	failure  func(error)
 	backend  PlaybackBackend
 
-	mu           sync.RWMutex
-	frame        image.Image
-	session      PlaybackSession
-	clock        *PlaybackClock
-	position     time.Duration
-	paused       bool
-	closed       bool
-	muted        bool
-	volumeDB     float64
-	volumeFadeID uint64
-	generation   int
-	started      time.Time
+	mu            sync.RWMutex
+	frame         image.Image
+	session       PlaybackSession
+	clock         *PlaybackClock
+	position      time.Duration
+	paused        bool
+	closed        bool
+	muted         bool
+	volumeDB      float64
+	volumeFadeID  uint64
+	generation    int
+	started       time.Time
+	decodeVisible bool
 }
 
 func NewPlayer(instance playback.Instance, settings *config.Store, audio *AudioSystem, window *app.Window, report func(string), duration func(int64), failure func(error)) *Player {
@@ -60,11 +61,36 @@ func NewPlayer(instance playback.Instance, settings *config.Store, audio *AudioS
 func NewPlayerWithBackend(instance playback.Instance, settings *config.Store, backend PlaybackBackend, window *app.Window, report func(string), duration func(int64), failure func(error)) *Player {
 	return &Player{
 		instance: instance, settings: settings, window: window, report: report, duration: duration, failure: failure,
-		backend: backend, volumeDB: instance.LevelDB,
+		backend: backend, volumeDB: instance.LevelDB, decodeVisible: true,
 	}
 }
 
 func (p *Player) MediaType() string { return p.instance.MediaType }
+
+// SetDecodeVisible suspends only obscured video decoding. The logical clock
+// continues, and revealing the layer restarts at the current presentation time.
+func (p *Player) SetDecodeVisible(visible bool) {
+	p.mu.Lock()
+	if p.instance.MediaType != "video" || p.closed || p.decodeVisible == visible {
+		p.mu.Unlock()
+		return
+	}
+	p.decodeVisible = visible
+	if !visible {
+		if p.clock != nil {
+			p.position = p.clock.Position()
+		}
+		p.generation++
+		p.stopSessionLocked()
+		p.mu.Unlock()
+		return
+	}
+	position, paused := p.position, p.paused
+	p.mu.Unlock()
+	if !paused {
+		go func() { _ = p.restart(position) }()
+	}
+}
 
 func (p *Player) StartedAt() time.Time {
 	p.mu.RLock()
@@ -202,9 +228,11 @@ func (p *Player) restart(position time.Duration) error {
 	}
 	session.SetVolume(volume)
 	session.SetMuted(muted)
-	if err := session.Preload(context.Background()); err != nil {
-		session.Close()
-		return err
+	if session.State() != LoadReady {
+		if err := session.Preload(context.Background()); err != nil {
+			session.Close()
+			return err
+		}
 	}
 	p.mu.Lock()
 	if p.closed || p.generation != generation {

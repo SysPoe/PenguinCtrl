@@ -27,11 +27,15 @@ import (
 )
 
 const (
-	decodedFrameBuffer = 2
-	mediaProbeTimeout  = 10 * time.Second
-	maxVideoDimension  = 8192
-	maxVideoPixels     = 7680 * 4320
-	maxVideoFrameRate  = 240
+	decodedFrameBuffer        = 2
+	mediaProbeTimeout         = 10 * time.Second
+	maxVideoDimension         = 8192
+	maxVideoPixels            = 7680 * 4320
+	maxVideoFrameRate         = 240
+	maxVideoBitRate           = 500_000_000
+	maxAudioBitRate           = 20_000_000
+	maxDecoderSessions        = 12
+	maxVideoBufferBytes int64 = 512 << 20
 )
 
 type LoadState string
@@ -95,6 +99,7 @@ type FFmpegBackend struct {
 	ctx        context.Context
 	cancel     context.CancelFunc
 	closed     bool
+	admission  *decoderAdmission
 }
 
 type warmSession struct {
@@ -102,9 +107,51 @@ type warmSession struct {
 	warmed  time.Time
 }
 
+type decoderAdmission struct {
+	mu       sync.Mutex
+	sessions int
+	bytes    int64
+	notify   chan struct{}
+}
+
+func newDecoderAdmission() *decoderAdmission {
+	return &decoderAdmission{notify: make(chan struct{}, 1)}
+}
+
+func (a *decoderAdmission) acquire(ctx, sessionCtx context.Context, bytes int64) bool {
+	for {
+		a.mu.Lock()
+		if a.sessions < maxDecoderSessions && a.bytes+bytes <= maxVideoBufferBytes {
+			a.sessions++
+			a.bytes += bytes
+			a.mu.Unlock()
+			return true
+		}
+		a.mu.Unlock()
+		select {
+		case <-ctx.Done():
+			return false
+		case <-sessionCtx.Done():
+			return false
+		case <-a.notify:
+		}
+	}
+}
+
+func (a *decoderAdmission) release(bytes int64) {
+	a.mu.Lock()
+	a.sessions = max(0, a.sessions-1)
+	a.bytes = max(int64(0), a.bytes-bytes)
+	a.mu.Unlock()
+	select {
+	case a.notify <- struct{}{}:
+	default:
+	}
+}
+
 func NewFFmpegBackend(settings *config.Store, audio *AudioSystem) *FFmpegBackend {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &FFmpegBackend{settings: settings, audio: audio, warm: map[string]warmSession{}, warming: map[string]struct{}{}, warmFailed: map[string]time.Time{}, ctx: ctx, cancel: cancel}
+	return &FFmpegBackend{settings: settings, audio: audio, warm: map[string]warmSession{}, warming: map[string]struct{}{}, warmFailed: map[string]time.Time{}, ctx: ctx, cancel: cancel, admission: newDecoderAdmission()}
 }
 
 func (b *FFmpegBackend) Open(request PlaybackRequest) (PlaybackSession, error) {
@@ -117,6 +164,10 @@ func (b *FFmpegBackend) Open(request PlaybackRequest) (PlaybackSession, error) {
 	if warmed, ok := b.warm[key]; ok {
 		delete(b.warm, key)
 		b.warmMu.Unlock()
+		if warmed.session.State() != LoadReady {
+			warmed.session.Close()
+			return b.openFresh(request)
+		}
 		if session, ok := warmed.session.(*ffmpegSession); ok {
 			session.rebind(request)
 		}
@@ -258,10 +309,13 @@ type ffmpegSession struct {
 	ctx             context.Context
 	cancel          context.CancelFunc
 
-	frames  chan decodedFrame
-	frameMu sync.Mutex
-	current *decodedFrame
-	pending *decodedFrame
+	frames        chan decodedFrame
+	frameMu       sync.Mutex
+	current       *decodedFrame
+	pending       *decodedFrame
+	framePool     sync.Pool
+	admitted      bool
+	admittedBytes int64
 }
 
 func (s *ffmpegSession) rebind(request PlaybackRequest) {
@@ -278,6 +332,17 @@ func (s *ffmpegSession) Preload(ctx context.Context) error {
 		return s.fail(err)
 	}
 	s.info = info
+	bufferBytes := int64(0)
+	if s.request.Instance.MediaType == "video" && info.hasVideo {
+		width, height := decodeSize(info.width, info.height, config.VideoOutputFor(s.backend.settings.Snapshot(), s.request.Instance.OutputID))
+		bufferBytes = int64(width) * int64(height) * 4 * (decodedFrameBuffer + 2)
+	}
+	if !s.backend.admission.acquire(ctx, s.ctx, bufferBytes) {
+		return s.fail(errors.New("decoder admission cancelled or resource budget exhausted"))
+	}
+	s.mu.Lock()
+	s.admitted, s.admittedBytes = true, bufferBytes
+	s.mu.Unlock()
 	type result struct{ err error }
 	results := make(chan result, 2)
 	components := 0
@@ -290,6 +355,7 @@ func (s *ffmpegSession) Preload(ctx context.Context) error {
 		go func() { results <- result{err: s.preloadAudio()} }()
 	}
 	if components == 0 {
+		s.Close()
 		return s.fail(errors.New("media has no usable audio or video stream"))
 	}
 	timer := time.NewTimer(15 * time.Second)
@@ -380,7 +446,7 @@ func (s *ffmpegSession) decodeVideo(cmd *exec.Cmd, reader io.Reader, first chan<
 	var index int64
 	firstSent := false
 	for {
-		frame := image.NewRGBA(image.Rect(0, 0, s.info.width, s.info.height))
+		frame := s.acquireFrame()
 		if _, err := io.ReadFull(reader, frame.Pix[:frameSize]); err != nil {
 			if !firstSent {
 				waitErr := cmd.Wait()
@@ -409,6 +475,22 @@ func (s *ffmpegSession) decodeVideo(cmd *exec.Cmd, reader io.Reader, first chan<
 	}
 	if err := cmd.Wait(); err != nil {
 		s.setRuntimeError(ffmpegCommandError("video decoder", err, stderr.String()))
+	}
+}
+
+func (s *ffmpegSession) acquireFrame() *image.RGBA {
+	if pooled := s.framePool.Get(); pooled != nil {
+		frame := pooled.(*image.RGBA)
+		if frame.Rect.Dx() == s.info.width && frame.Rect.Dy() == s.info.height {
+			return frame
+		}
+	}
+	return image.NewRGBA(image.Rect(0, 0, s.info.width, s.info.height))
+}
+
+func (s *ffmpegSession) recycleFrame(frame *image.RGBA) {
+	if frame != nil {
+		s.framePool.Put(frame)
 	}
 }
 
@@ -574,7 +656,11 @@ func (s *ffmpegSession) Frame(position time.Duration) image.Image {
 	interval := s.info.frameInterval()
 	due := 0
 	for s.pending != nil && s.pending.pts <= position+interval/2 {
+		previous := s.current
 		s.current, s.pending = s.pending, nil
+		if previous != nil {
+			s.recycleFrame(previous.image)
+		}
 		due++
 		select {
 		case next := <-s.frames:
@@ -657,6 +743,8 @@ func (s *ffmpegSession) Close() {
 	}
 	s.closed, s.state, s.metrics.State = true, LoadClosed, LoadClosed
 	videoCmd, audioCmd, audio := s.videoCmd, s.audioCmd, s.audio
+	admitted, admittedBytes := s.admitted, s.admittedBytes
+	s.admitted = false
 	s.audio = nil
 	s.mu.Unlock()
 	s.doneOnce.Do(func() { close(s.done) })
@@ -669,6 +757,9 @@ func (s *ffmpegSession) Close() {
 	}
 	if audio != nil {
 		_ = audio.Close()
+	}
+	if admitted {
+		s.backend.admission.release(admittedBytes)
 	}
 }
 
@@ -700,6 +791,8 @@ func ffmpegCommandError(operation string, err error, stderr string) error {
 type mediaInfo struct {
 	width, height int
 	fps           float64
+	videoBitRate  int64
+	audioBitRate  int64
 	hasVideo      bool
 	hasAudio      bool
 }
@@ -714,7 +807,7 @@ func (i mediaInfo) frameInterval() time.Duration {
 func probeMediaInfo(ffmpegPath, source string) (mediaInfo, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), mediaProbeTimeout)
 	defer cancel()
-	command := processgroup.CommandContext(ctx, ffprobePath(ffmpegPath), "-v", "error", "-show_entries", "stream=codec_type,width,height,avg_frame_rate:stream_tags=rotate:stream_side_data=rotation", "-of", "json", source)
+	command := processgroup.CommandContext(ctx, ffprobePath(ffmpegPath), "-v", "error", "-show_entries", "stream=codec_type,width,height,avg_frame_rate,bit_rate:stream_tags=rotate:stream_side_data=rotation", "-of", "json", source)
 	raw, err := processgroup.CombinedOutput(command)
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
@@ -732,6 +825,7 @@ func parseMediaInfo(raw []byte) (mediaInfo, error) {
 			Width        int    `json:"width"`
 			Height       int    `json:"height"`
 			AvgFrameRate string `json:"avg_frame_rate"`
+			BitRate      string `json:"bit_rate"`
 			Tags         struct {
 				Rotate string `json:"rotate"`
 			} `json:"tags"`
@@ -750,6 +844,7 @@ func parseMediaInfo(raw []byte) (mediaInfo, error) {
 			if !info.hasVideo {
 				info.hasVideo, info.width, info.height = true, stream.Width, stream.Height
 				info.fps = parseFrameRate(stream.AvgFrameRate)
+				info.videoBitRate, _ = strconv.ParseInt(stream.BitRate, 10, 64)
 				rotation, _ := strconv.ParseFloat(stream.Tags.Rotate, 64)
 				for _, sideData := range stream.SideData {
 					if sideData.Rotation != nil {
@@ -767,6 +862,8 @@ func parseMediaInfo(raw []byte) (mediaInfo, error) {
 			}
 		case "audio":
 			info.hasAudio = true
+			bitRate, _ := strconv.ParseInt(stream.BitRate, 10, 64)
+			info.audioBitRate += max(int64(0), bitRate)
 		}
 	}
 	if info.hasVideo {
@@ -776,6 +873,12 @@ func parseMediaInfo(raw []byte) (mediaInfo, error) {
 		if info.fps > maxVideoFrameRate {
 			return mediaInfo{}, fmt.Errorf("video frame rate %.2f exceeds the supported %.0f fps limit", info.fps, float64(maxVideoFrameRate))
 		}
+		if info.videoBitRate > maxVideoBitRate {
+			return mediaInfo{}, fmt.Errorf("video bitrate %d exceeds the supported %d bit/s limit", info.videoBitRate, maxVideoBitRate)
+		}
+	}
+	if info.audioBitRate > maxAudioBitRate {
+		return mediaInfo{}, fmt.Errorf("audio bitrate %d exceeds the supported %d bit/s limit", info.audioBitRate, maxAudioBitRate)
 	}
 	return info, nil
 }
