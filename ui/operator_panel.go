@@ -501,6 +501,8 @@ func preflightQuantity(count int, singular string) string {
 
 func preflightSeverityLabel(severity operatorlog.Severity) string {
 	switch severity {
+	case operatorlog.Info:
+		return "INFORMATION"
 	case operatorlog.ShowStopping, operatorlog.CueFailure:
 		return "BLOCKER"
 	case operatorlog.Recoverable:

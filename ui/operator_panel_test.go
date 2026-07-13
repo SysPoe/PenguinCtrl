@@ -41,4 +41,7 @@ func TestPreflightPresentationDoesNotCallChecksFailures(t *testing.T) {
 	if got := preflightSeverityLabel(operatorlog.ShowStopping); got != "BLOCKER" {
 		t.Fatalf("preflight blocker label = %q", got)
 	}
+	if got := preflightSeverityLabel(operatorlog.Info); got != "INFORMATION" {
+		t.Fatalf("preflight info label = %q", got)
+	}
 }

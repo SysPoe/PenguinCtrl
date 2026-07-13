@@ -208,6 +208,7 @@ func outputHealth(backend media.Backend, settings config.Settings) []health.Comp
 			component.State, component.Summary = health.Failed, "Assigned display is disconnected"
 		case !output.DisplayConfirmed:
 			component.State, component.Summary = health.Degraded, "Physical display mapping has not been operator-confirmed"
+			component.Details["operatorConfirmationPending"] = true
 		}
 		result = append(result, component)
 	}
@@ -285,6 +286,9 @@ func healthPreflightChecks(snapshot health.Snapshot) []operatorlog.PreflightChec
 			continue
 		}
 		severity := operatorlog.Warning
+		if pending, _ := component.Details["operatorConfirmationPending"].(bool); pending {
+			severity = operatorlog.Info
+		}
 		affectedCues, hasAffectedCues := component.Details["affectedCues"].([]string)
 		if component.State == health.Failed && (component.Kind == "engine" || component.Kind == "timecode" || (hasAffectedCues && len(affectedCues) > 0)) {
 			severity = operatorlog.ShowStopping

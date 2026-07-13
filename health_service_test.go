@@ -103,3 +103,21 @@ func TestOutputHealthReportsEnumerationFailureAsDegraded(t *testing.T) {
 		t.Fatalf("output health = %+v", components)
 	}
 }
+
+func TestUnconfirmedDisplayMappingIsInformational(t *testing.T) {
+	backend := &healthBackendStub{displays: []media.VideoDisplay{{ID: "main-display"}}}
+	components := outputHealth(backend, config.Settings{VideoOutputs: []config.VideoOutput{{Stage: "main", DisplayID: "main-display"}}})
+	checks := healthPreflightChecks(health.NewSnapshot(components))
+	if len(checks) != 1 || checks[0].Severity != operatorlog.Info {
+		t.Fatalf("display confirmation checks = %+v", checks)
+	}
+}
+
+func TestDisplayEnumerationFailureRemainsWarning(t *testing.T) {
+	backend := &healthBackendStub{displayErr: errors.New("display service offline")}
+	components := outputHealth(backend, config.Settings{VideoOutputs: []config.VideoOutput{{Stage: "main"}}})
+	checks := healthPreflightChecks(health.NewSnapshot(components))
+	if len(checks) != 1 || checks[0].Severity != operatorlog.Warning {
+		t.Fatalf("display enumeration checks = %+v", checks)
+	}
+}
