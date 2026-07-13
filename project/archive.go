@@ -75,6 +75,7 @@ func SaveWithProgress(dst io.Writer, current show.Show, ffmpegPath string, progr
 		source string
 	}
 	assets := map[string]pendingAsset{}
+	usedAssetPaths := map[string]struct{}{}
 
 	for i := range manifest.Show.Cues {
 		cue := &manifest.Show.Cues[i]
@@ -115,7 +116,7 @@ func SaveWithProgress(dst io.Writer, current show.Show, ffmpegPath string, progr
 			id := hash[:24] + "-" + kind
 			pending = pendingAsset{asset: Asset{
 				ID: id, Name: filepath.Base(path), Kind: kind,
-				Path: "media/" + id + ext, SourceSHA256: hash, Format: format,
+				Path: uniqueAssetPath(path, ext, usedAssetPaths), SourceSHA256: hash, Format: format,
 			}, source: path}
 			assets[key] = pending
 		}
@@ -196,6 +197,27 @@ func archiveAssetFormat(kind, source string) (extension, format string) {
 		}
 	default:
 		return "", ""
+	}
+}
+
+func uniqueAssetPath(source, extension string, used map[string]struct{}) string {
+	base := filepath.Base(source)
+	stem := strings.TrimSuffix(base, filepath.Ext(base))
+	if stem == "" {
+		stem = base
+	}
+	for suffix := 0; ; suffix++ {
+		name := stem + extension
+		if suffix > 0 {
+			name = fmt.Sprintf("%s-%d%s", stem, suffix, extension)
+		}
+		path := "media/" + name
+		key := strings.ToLower(path)
+		if _, exists := used[key]; exists {
+			continue
+		}
+		used[key] = struct{}{}
+		return path
 	}
 }
 

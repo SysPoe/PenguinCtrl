@@ -87,3 +87,45 @@ func TestSaveWithProgressDoesNotMutateShowSnapshot(t *testing.T) {
 		t.Fatalf("caller cue ID = %v, want zero value", got)
 	}
 }
+
+func TestSavePreservesMediaFilenameAndNumbersCollisions(t *testing.T) {
+	var cues []show.Cue
+	for i, content := range []string{"first", "second", "third"} {
+		directory := filepath.Join(t.TempDir(), content)
+		if err := os.MkdirAll(directory, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		source := filepath.Join(directory, "abcd.opus")
+		if err := os.WriteFile(source, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		cues = append(cues, show.Cue{
+			CueNumber: string(rune('1' + i)),
+			Type:      show.CueTypeSound,
+			Play:      show.CuePlay{Sound: &show.SoundPlay{File: source}},
+		})
+	}
+
+	var archive bytes.Buffer
+	manifest, err := Save(&archive, show.Show{Cues: cues}, filepath.Join(t.TempDir(), "missing-ffmpeg"))
+	if err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	want := []string{"media/abcd.opus", "media/abcd-1.opus", "media/abcd-2.opus"}
+	for i, cue := range manifest.Show.Cues {
+		if got := cue.Play.Sound.File; got != want[i] {
+			t.Errorf("cue %d media path = %q, want %q", i, got, want[i])
+		}
+	}
+}
+
+func TestUniqueAssetPathUsesConvertedExtension(t *testing.T) {
+	used := map[string]struct{}{}
+	if got := uniqueAssetPath(filepath.Join("source", "abcd.wav"), ".opus", used); got != "media/abcd.opus" {
+		t.Fatalf("first media path = %q, want %q", got, "media/abcd.opus")
+	}
+	if got := uniqueAssetPath(filepath.Join("other", "abcd.mp3"), ".opus", used); got != "media/abcd-1.opus" {
+		t.Fatalf("second media path = %q, want %q", got, "media/abcd-1.opus")
+	}
+}
