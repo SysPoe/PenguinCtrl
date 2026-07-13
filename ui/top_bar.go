@@ -89,6 +89,30 @@ func (tb *TopBar) HasKeyboardFocus(gtx layout.Context) bool {
 		gtx.Focused(&tb.btnBlackout)
 }
 
+func (tb *TopBar) setMenuPositions(windowWidth, barHeight, menuWidthPx int, actionSize, addCueSize, fileSize, pageSize image.Point) {
+	// The top-bar controls are right-aligned after the flexible title.
+	x := windowWidth - actionSize.X - addCueSize.X - fileSize.X - pageSize.X
+	maxMenuX := windowWidth - menuWidthPx
+	if maxMenuX < 0 {
+		maxMenuX = 0
+	}
+	menuX := func(x int) int {
+		if x > maxMenuX {
+			return maxMenuX
+		}
+		if x < 0 {
+			return 0
+		}
+		return x
+	}
+
+	tb.actionPos = image.Pt(menuX(x), barHeight)
+	x += actionSize.X
+	tb.addCuePos = image.Pt(menuX(x), barHeight)
+	x += addCueSize.X
+	tb.filePos = image.Pt(menuX(x), barHeight)
+}
+
 func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, settingsPage bool) layout.Dimensions {
 	barHeight := gtx.Dp(unit.Dp(topBarHeight))
 
@@ -145,33 +169,6 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, set
 		tb.showAction, tb.showAddCue = false, false
 	}
 
-	setButtonPositions := func(startX int, windowWidth int) {
-		x := startX
-		y := barHeight
-		maxMenuX := windowWidth - gtx.Dp(unit.Dp(menuWidth))
-		if maxMenuX < 0 {
-			maxMenuX = 0
-		}
-		menuX := func(x int) int {
-			if x > maxMenuX {
-				return maxMenuX
-			}
-			if x < 0 {
-				return 0
-			}
-			return x
-		}
-
-		// Both menus start directly below their top-bar buttons.
-		tb.actionPos = image.Pt(menuX(x), y)
-		x += actionSize.X
-
-		tb.addCuePos = image.Pt(menuX(x), y)
-		x += addCueSize.X
-
-		tb.filePos = image.Pt(menuX(x), y)
-	}
-
 	return layout.Flex{
 		Axis:      layout.Horizontal,
 		Alignment: layout.Middle,
@@ -189,7 +186,9 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, set
 		}),
 		makeMeasuredBtnWithColor(th, &tb.btnBlackout, "BLACKOUT", &blackoutSize, palette.SurfaceSunken),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			setButtonPositions(gtx.Constraints.Max.X, windowWidth)
+			// Flex measures rigid children before flexed children, so all trailing
+			// button widths are available at this point.
+			tb.setMenuPositions(windowWidth, barHeight, gtx.Dp(unit.Dp(menuWidth)), actionSize, addCueSize, fileSize, pageSize)
 
 			title := stableBody1(th, "CuSus ඞා")
 			title.Color = palette.White
