@@ -37,15 +37,17 @@ func (ctx *CueEditUI) drawTimeline(th *material.Theme, gtx layout.Context, marke
 	}
 	ctx.drawWaveformBars(gtx, size)
 	ctx.drawFadeZones(gtx, size)
+	ctx.drawClipHandles(gtx, size)
 	ctx.drawActionDurationBars(gtx, size, *markers)
 	// Range selection overlay.
 	if t.dragMode == timelineDragRange {
-		x1, x2 := t.msToX(min(t.dragStartMs, t.dragCurrentMs), size.X), t.msToX(max(t.dragStartMs, t.dragCurrentMs), size.X)
+		x1 := t.msToX(ctx.timelineCueToTrackMs(min(t.dragStartMs, t.dragCurrentMs)), size.X)
+		x2 := t.msToX(ctx.timelineCueToTrackMs(max(t.dragStartMs, t.dragCurrentMs)), size.X)
 		paint.FillShape(gtx.Ops, palette.WithAlpha(palette.Primary, 0x35), clip.Rect{Min: image.Pt(x1, 0), Max: image.Pt(x2, size.Y)}.Op())
 	}
 	// Markers and labels.
 	for i, m := range *markers {
-		x := t.msToX(m.TimeMs, size.X)
+		x := t.msToX(ctx.timelineCueToTrackMs(m.TimeMs), size.X)
 		if x < 0 || x > size.X {
 			continue
 		}
@@ -60,7 +62,7 @@ func (ctx *CueEditUI) drawTimeline(th *material.Theme, gtx layout.Context, marke
 		ctx.drawMarkerLabel(th, gtx, m, i, x, size)
 	}
 	// Playhead.
-	px := t.msToX(t.playheadMs, size.X)
+	px := t.msToX(ctx.timelineCueToTrackMs(t.playheadMs), size.X)
 	paint.FillShape(gtx.Ops, palette.Danger, clip.Rect{Min: image.Pt(px-1, 0), Max: image.Pt(px+2, size.Y)}.Op())
 	area := clip.Rect{Max: size}.Push(gtx.Ops)
 	event.Op(gtx.Ops, &t.tag)
@@ -73,15 +75,15 @@ func (ctx *CueEditUI) timecodeEditorRows(th *material.Theme, markers *[]show.Tim
 	rows := []cueEditFormRow{timecodeSectionRow(th, "Clip and fades")}
 	if play := ctx.cue.Play.Sound; play != nil {
 		rows = append(rows,
-			integerRow(th, "Clip start", ctx.page.integer["soundClipStartMs"], func(v int) { play.ClipStartMs = int64(max(0, v)) }),
-			integerRow(th, "Clip end", ctx.page.integer["soundClipEndMs"], func(v int) { play.ClipEndMs = int64(max(0, v)) }),
+			integerRow(th, "Clip start", ctx.page.integer["soundClipStartMs"], func(v int) { ctx.setTimecodeClipStart(int64(v)) }),
+			integerRow(th, "Clip end", ctx.page.integer["soundClipEndMs"], func(v int) { ctx.setTimecodeClipEnd(int64(v)) }),
 			integerRow(th, "Fade in", ctx.page.integer["soundFadeInMs"], func(v int) { play.FadeInMs = int64(max(0, v)) }),
 			integerRow(th, "Fade out", ctx.page.integer["soundFadeOutMs"], func(v int) { play.FadeOutMs = int64(max(0, v)) }),
 		)
 	} else if play := ctx.cue.Play.Video; play != nil {
 		rows = append(rows,
-			integerRow(th, "Clip start", ctx.page.integer["videoClipStartMs"], func(v int) { play.ClipStartMs = int64(max(0, v)) }),
-			integerRow(th, "Clip end", ctx.page.integer["videoClipEndMs"], func(v int) { play.ClipEndMs = int64(max(0, v)) }),
+			integerRow(th, "Clip start", ctx.page.integer["videoClipStartMs"], func(v int) { ctx.setTimecodeClipStart(int64(v)) }),
+			integerRow(th, "Clip end", ctx.page.integer["videoClipEndMs"], func(v int) { ctx.setTimecodeClipEnd(int64(v)) }),
 			integerRow(th, "Fade in", ctx.page.integer["videoFadeInMs"], func(v int) { play.FadeInMs = int64(max(0, v)) }),
 			integerRow(th, "Fade out", ctx.page.integer["videoFadeOutMs"], func(v int) { play.FadeOutMs = int64(max(0, v)) }),
 		)
@@ -197,13 +199,14 @@ func (ctx *CueEditUI) drawWaveformBars(gtx layout.Context, size image.Point) {
 	if len(t.waveSamples) == 0 || t.waveSampleRate <= 0 {
 		return
 	}
-	_, clipStart, _, _ := ctx.timecodeMediaDetails()
+	_, clipStart, clipEnd, _ := ctx.timecodeMediaDetails()
+	clipDuration := max(int64(0), clipEnd-clipStart)
 	fadeIn, fadeOut := ctx.timecodeFades()
 	center := size.Y / 2
 	amp := float64(size.Y) * 0.40
 	for x := 0; x < size.X; x++ {
-		fromMs := t.viewStartMs + int64(float64(x)/float64(size.X)*float64(t.viewDuration())) + clipStart
-		toMs := t.viewStartMs + int64(float64(x+1)/float64(size.X)*float64(t.viewDuration())) + clipStart
+		fromMs := t.viewStartMs + int64(float64(x)/float64(size.X)*float64(t.viewDuration()))
+		toMs := t.viewStartMs + int64(float64(x+1)/float64(size.X)*float64(t.viewDuration()))
 		a := int(fromMs * int64(t.waveSampleRate) / 1000)
 		b := int(toMs * int64(t.waveSampleRate) / 1000)
 		a = max(0, min(a, len(t.waveSamples)))
@@ -213,12 +216,15 @@ func (ctx *CueEditUI) drawWaveformBars(gtx layout.Context, size image.Point) {
 			peak = max(peak, t.waveSamples[i])
 		}
 		timelineMs := fromMs - clipStart
-		gain := float64(1)
-		if fadeIn > 0 {
-			gain = min(gain, max(float64(0), float64(timelineMs)/float64(fadeIn)))
-		}
-		if fadeOut > 0 {
-			gain = min(gain, max(float64(0), float64(t.durationMs-timelineMs)/float64(fadeOut)))
+		gain := float64(0.25)
+		if timelineMs >= 0 && timelineMs <= clipDuration {
+			gain = 1
+			if fadeIn > 0 {
+				gain = min(gain, max(float64(0), float64(timelineMs)/float64(fadeIn)))
+			}
+			if fadeOut > 0 {
+				gain = min(gain, max(float64(0), float64(clipDuration-timelineMs)/float64(fadeOut)))
+			}
 		}
 		h := max(1, int(float64(peak)*amp*gain))
 		paint.FillShape(gtx.Ops, palette.WithAlpha(palette.Success, 0xD0), clip.Rect{Min: image.Pt(x, center-h), Max: image.Pt(x+1, center+h)}.Op())
@@ -228,21 +234,39 @@ func (ctx *CueEditUI) drawWaveformBars(gtx layout.Context, size image.Point) {
 func (ctx *CueEditUI) drawFadeZones(gtx layout.Context, size image.Point) {
 	t := &ctx.timeline
 	fadeIn, fadeOut := ctx.timecodeFades()
+	clipStart, clipEnd, ok := ctx.timecodeClipRange()
+	if !ok {
+		clipStart, clipEnd = 0, ctx.timecodeCueDuration()
+	}
+	clipDuration := max(int64(0), clipEnd-clipStart)
 	zone := palette.WithAlpha(palette.Accent, 0x24)
 	if fadeIn > 0 {
-		x1, x2 := t.msToX(0, size.X), t.msToX(min(fadeIn, t.durationMs), size.X)
+		x1, x2 := t.msToX(clipStart, size.X), t.msToX(clipStart+min(fadeIn, clipDuration), size.X)
 		paint.FillShape(gtx.Ops, zone, clip.Rect{Min: image.Pt(max(0, x1), 0), Max: image.Pt(min(size.X, x2), size.Y)}.Op())
 	}
 	if fadeOut > 0 {
-		x1, x2 := t.msToX(max(int64(0), t.durationMs-fadeOut), size.X), t.msToX(t.durationMs, size.X)
+		x1, x2 := t.msToX(clipStart+max(int64(0), clipDuration-fadeOut), size.X), t.msToX(clipEnd, size.X)
 		paint.FillShape(gtx.Ops, zone, clip.Rect{Min: image.Pt(max(0, x1), 0), Max: image.Pt(min(size.X, x2), size.Y)}.Op())
 	}
 	bottom := size.Y - 34
-	inX := t.msToX(fadeIn, size.X)
-	outX := t.msToX(max(int64(0), t.durationMs-fadeOut), size.X)
+	inX := t.msToX(clipStart+fadeIn, size.X)
+	outX := t.msToX(clipStart+max(int64(0), clipDuration-fadeOut), size.X)
 	handle := palette.Accent
 	paint.FillShape(gtx.Ops, handle, clip.Rect{Min: image.Pt(inX-2, bottom), Max: image.Pt(inX+3, size.Y)}.Op())
 	paint.FillShape(gtx.Ops, handle, clip.Rect{Min: image.Pt(outX-2, bottom), Max: image.Pt(outX+3, size.Y)}.Op())
+}
+
+func (ctx *CueEditUI) drawClipHandles(gtx layout.Context, size image.Point) {
+	startMs, endMs, ok := ctx.timecodeClipRange()
+	if !ok || endMs <= startMs {
+		return
+	}
+	t := &ctx.timeline
+	startX := t.msToX(startMs, size.X)
+	endX := t.msToX(endMs, size.X)
+	height := min(34, size.Y)
+	paint.FillShape(gtx.Ops, palette.Success, clip.Rect{Min: image.Pt(startX-3, 0), Max: image.Pt(startX+4, height)}.Op())
+	paint.FillShape(gtx.Ops, palette.Warning, clip.Rect{Min: image.Pt(endX-3, 0), Max: image.Pt(endX+4, height)}.Op())
 }
 
 func (ctx *CueEditUI) drawActionDurationBars(gtx layout.Context, size image.Point, markers []show.TimecodeMarker) {
@@ -252,8 +276,8 @@ func (ctx *CueEditUI) drawActionDurationBars(gtx layout.Context, size image.Poin
 		if duration == nil || *duration <= 0 {
 			continue
 		}
-		x1 := t.msToX(markers[i].TimeMs, size.X)
-		x2 := t.msToX(markers[i].TimeMs+*duration, size.X)
+		x1 := t.msToX(ctx.timelineCueToTrackMs(markers[i].TimeMs), size.X)
+		x2 := t.msToX(ctx.timelineCueToTrackMs(markers[i].TimeMs+*duration), size.X)
 		y := 38 + (i%4)*20
 		paint.FillShape(gtx.Ops, palette.WithAlpha(palette.Primary, 0xC0), clip.Rect{Min: image.Pt(x1, y-3), Max: image.Pt(x2, y+4)}.Op())
 		paint.FillShape(gtx.Ops, palette.Primary, clip.Rect{Min: image.Pt(x2-2, y-8), Max: image.Pt(x2+3, y+9)}.Op())
@@ -311,7 +335,7 @@ func (ctx *CueEditUI) renderNativeTimecodeEditor(th *material.Theme, gtx layout.
 			return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions { return ctx.drawTimeline(th, gtx, markers, manager) })
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			status := "Drag actions or their fade bars; drag the bottom fade handles; wheel pans; Ctrl+wheel zooms."
+			status := "Drag the top start/end handles, actions or fade bars; bottom handles adjust fades; wheel pans; Ctrl+wheel zooms."
 			if ctx.timeline.loading {
 				status = "Loading waveform…"
 			} else if ctx.timeline.waveError != "" {

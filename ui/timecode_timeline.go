@@ -18,6 +18,8 @@ const (
 	timelineDragMarkers
 	timelineDragRange
 	timelineDragPan
+	timelineDragClipStart
+	timelineDragClipEnd
 	timelineDragFadeIn
 	timelineDragFadeOut
 	timelineDragActionDuration
@@ -45,6 +47,7 @@ type timecodeTimelineState struct {
 	waveSampleRate int
 	waveDurationMs int64
 	waveError      string
+	defaultClipEnd bool
 
 	dragMode        timelineDragMode
 	dragPointer     pointer.ID
@@ -52,6 +55,9 @@ type timecodeTimelineState struct {
 	dragLastX       float32
 	dragStartMs     int64
 	dragCurrentMs   int64
+	dragClipStartMs int64
+	dragClipEndMs   int64
+	dragViewMs      int64
 	dragIndexes     []int
 	dragIndex       int
 	dragMarkerTimes []int64
@@ -90,6 +96,110 @@ func (ctx *CueEditUI) timecodeMediaDetails() (source string, clipStartMs, clipEn
 		return "", 0, ctx.cue.Play.Image.DurationMs, ctx.cue.Play.Image.DurationMs
 	}
 	return "", 0, 0, 0
+}
+
+func (ctx *CueEditUI) timecodeClipRange() (startMs, endMs int64, ok bool) {
+	switch {
+	case ctx.cue.Play.Sound != nil:
+		return ctx.cue.Play.Sound.ClipStartMs, ctx.cue.Play.Sound.ClipEndMs, true
+	case ctx.cue.Play.Video != nil:
+		return ctx.cue.Play.Video.ClipStartMs, ctx.cue.Play.Video.ClipEndMs, true
+	default:
+		return 0, 0, false
+	}
+}
+
+func clampMediaClipRange(startMs, endMs, trackDurationMs int64, defaultEnd bool) (int64, int64) {
+	startMs, endMs = max(int64(0), startMs), max(int64(0), endMs)
+	if trackDurationMs <= 0 {
+		if endMs > 0 && startMs >= endMs {
+			startMs = max(int64(0), endMs-1)
+		}
+		return startMs, endMs
+	}
+	if defaultEnd || endMs <= 0 || endMs > trackDurationMs {
+		endMs = trackDurationMs
+	}
+	startMs = min(startMs, max(int64(0), endMs-1))
+	return startMs, endMs
+}
+
+func (ctx *CueEditUI) applyTimecodeClipRange(startMs, endMs int64) {
+	switch {
+	case ctx.cue.Play.Sound != nil:
+		ctx.cue.Play.Sound.ClipStartMs, ctx.cue.Play.Sound.ClipEndMs = startMs, endMs
+		ctx.page.integer["soundClipStartMs"].Value, ctx.page.integer["soundClipEndMs"].Value = int(startMs), int(endMs)
+	case ctx.cue.Play.Video != nil:
+		ctx.cue.Play.Video.ClipStartMs, ctx.cue.Play.Video.ClipEndMs = startMs, endMs
+		ctx.page.integer["videoClipStartMs"].Value, ctx.page.integer["videoClipEndMs"].Value = int(startMs), int(endMs)
+	}
+}
+
+func (ctx *CueEditUI) syncTimecodeClipToTrack(defaultEnd bool) {
+	startMs, endMs, ok := ctx.timecodeClipRange()
+	if !ok {
+		return
+	}
+	startMs, endMs = clampMediaClipRange(startMs, endMs, ctx.timeline.waveDurationMs, defaultEnd)
+	ctx.applyTimecodeClipRange(startMs, endMs)
+}
+
+func (ctx *CueEditUI) setTimecodeClipStart(startMs int64) {
+	_, endMs, ok := ctx.timecodeClipRange()
+	if !ok {
+		return
+	}
+	trackDurationMs := ctx.timeline.waveDurationMs
+	if trackDurationMs > 0 && (endMs <= 0 || endMs > trackDurationMs) {
+		endMs = trackDurationMs
+	}
+	limit := trackDurationMs
+	if endMs > 0 {
+		limit = endMs
+	}
+	startMs = max(int64(0), startMs)
+	if limit > 0 {
+		startMs = min(startMs, max(int64(0), limit-1))
+	}
+	ctx.applyTimecodeClipRange(startMs, endMs)
+	ctx.updateTimelineDuration()
+}
+
+func (ctx *CueEditUI) setTimecodeClipEnd(endMs int64) {
+	startMs, _, ok := ctx.timecodeClipRange()
+	if !ok {
+		return
+	}
+	trackDurationMs := ctx.timeline.waveDurationMs
+	startMs = max(int64(0), startMs)
+	if trackDurationMs > 0 {
+		startMs = min(startMs, max(int64(0), trackDurationMs-1))
+		if endMs <= 0 {
+			endMs = trackDurationMs
+		}
+		endMs = min(trackDurationMs, max(startMs+1, endMs))
+	} else {
+		endMs = max(int64(0), endMs)
+		if endMs > 0 {
+			endMs = max(startMs+1, endMs)
+		}
+	}
+	ctx.applyTimecodeClipRange(startMs, endMs)
+	ctx.updateTimelineDuration()
+}
+
+func (ctx *CueEditUI) setTimecodeMediaSource(file *string, clipEndMs *int64, endInputKey, value string) {
+	changed := !sameFilePath(*file, value)
+	*file = value
+	if !changed {
+		return
+	}
+	*clipEndMs = 0
+	if field := ctx.page.integer[endInputKey]; field != nil {
+		field.Value = 0
+	}
+	ctx.timeline.defaultClipEnd = true
+	ctx.ensureTimelineWaveform()
 }
 
 func (ctx *CueEditUI) timecodeFades() (fadeInMs, fadeOutMs int64) {
@@ -133,12 +243,13 @@ func markerActionDuration(marker *show.TimecodeMarker) *int64 {
 func (ctx *CueEditUI) ensureTimelineWaveform() {
 	t := &ctx.timeline
 	t.ensure()
-	source, clipStart, clipEnd, configured := ctx.timecodeMediaDetails()
+	source, _, _, configured := ctx.timecodeMediaDetails()
 	if configured > 0 {
 		t.durationMs = configured
 	}
 	if source == t.source {
-		ctx.updateTimelineDuration(clipStart, clipEnd)
+		ctx.syncTimecodeClipToTrack(false)
+		ctx.updateTimelineDuration()
 		return
 	}
 	t.source, t.waveSamples, t.waveError = source, nil, ""
@@ -147,7 +258,7 @@ func (ctx *CueEditUI) ensureTimelineWaveform() {
 	t.loadSerial++
 	serial := t.loadSerial
 	if strings.TrimSpace(source) == "" || ctx.loadWaveform == nil {
-		ctx.updateTimelineDuration(clipStart, clipEnd)
+		ctx.updateTimelineDuration()
 		return
 	}
 	t.loading = true
@@ -160,28 +271,60 @@ func (ctx *CueEditUI) ensureTimelineWaveform() {
 		if err != nil {
 			t.waveError = err.Error()
 		}
-		ctx.updateTimelineDuration(clipStart, clipEnd)
+		ctx.syncTimecodeClipToTrack(t.defaultClipEnd)
+		t.defaultClipEnd = false
+		ctx.updateTimelineDuration()
 	})
-	ctx.updateTimelineDuration(clipStart, clipEnd)
+	ctx.updateTimelineDuration()
 }
 
-func (ctx *CueEditUI) updateTimelineDuration(clipStart, clipEnd int64) {
+func (ctx *CueEditUI) updateTimelineDuration() {
 	t := &ctx.timeline
-	duration := t.waveDurationMs - clipStart
-	if clipEnd > clipStart {
-		duration = clipEnd - clipStart
+	_, clipStart, clipEnd, _ := ctx.timecodeMediaDetails()
+	duration := t.waveDurationMs
+	if duration <= 0 && clipEnd > 0 {
+		duration = clipEnd
 	}
 	if ctx.cue.Play.Image != nil {
 		duration = ctx.cue.Play.Image.DurationMs
 	}
-	if markers := cueTimecodeMarkers(&ctx.cue); markers != nil {
-		for _, marker := range *markers {
-			duration = max(duration, marker.TimeMs+1000)
+	if duration <= 0 {
+		if markers := cueTimecodeMarkers(&ctx.cue); markers != nil {
+			for _, marker := range *markers {
+				duration = max(duration, clipStart+marker.TimeMs+1000)
+			}
 		}
 	}
 	t.durationMs = max(int64(1000), duration)
-	t.playheadMs = min(max(int64(0), t.playheadMs), t.durationMs)
+	t.playheadMs = min(max(int64(0), t.playheadMs), ctx.timecodeCueDuration())
 	t.clampView()
+}
+
+func (ctx *CueEditUI) timecodeCueDuration() int64 {
+	startMs, endMs, ok := ctx.timecodeClipRange()
+	if ok && endMs > startMs {
+		return endMs - startMs
+	}
+	if ctx.cue.Play.Image != nil {
+		return max(int64(0), ctx.cue.Play.Image.DurationMs)
+	}
+	return max(int64(0), ctx.timeline.durationMs-startMs)
+}
+
+func (ctx *CueEditUI) timelineCueToTrackMs(cueMs int64) int64 {
+	startMs, _, ok := ctx.timecodeClipRange()
+	if !ok {
+		startMs = 0
+	}
+	return startMs + cueMs
+}
+
+func (ctx *CueEditUI) timelineTrackToCueMs(trackMs int64) int64 {
+	startMs, _, ok := ctx.timecodeClipRange()
+	if !ok {
+		startMs = 0
+	}
+	return min(ctx.timecodeCueDuration(), max(int64(0), trackMs-startMs))
 }
 
 func (t *timecodeTimelineState) viewDuration() int64 {

@@ -49,10 +49,12 @@ func (ctx *CueEditUI) renderMediaTab(th *material.Theme, gtx layout.Context) lay
 	rows := []cueEditFormRow{}
 	if play := ctx.cue.Play.Sound; play != nil {
 		rows = append(rows,
-			ctx.fileRow(th, "File", "audio", ctx.page.text["soundFile"], ctx.page.dropdown["soundProjectFile"], ctx.page.button["soundFileBrowse"], soundFileExtensions, func(value string) { play.File = value }),
+			ctx.fileRow(th, "File", "audio", ctx.page.text["soundFile"], ctx.page.dropdown["soundProjectFile"], ctx.page.button["soundFileBrowse"], soundFileExtensions, func(value string) {
+				ctx.setTimecodeMediaSource(&play.File, &play.ClipEndMs, "soundClipEndMs", value)
+			}),
 			textRow(th, "Output ID", ctx.page.text["soundOutputID"], func(value string) { play.OutputID = value }),
-			integerRow(th, "Clip Start MS", ctx.page.integer["soundClipStartMs"], func(value int) { play.ClipStartMs = int64(value) }),
-			integerRow(th, "Clip End MS", ctx.page.integer["soundClipEndMs"], func(value int) { play.ClipEndMs = int64(value) }),
+			integerRow(th, "Clip Start MS", ctx.page.integer["soundClipStartMs"], func(value int) { ctx.setTimecodeClipStart(int64(value)) }),
+			integerRow(th, "Clip End MS", ctx.page.integer["soundClipEndMs"], func(value int) { ctx.setTimecodeClipEnd(int64(value)) }),
 			integerRow(th, "Fade In MS", ctx.page.integer["soundFadeInMs"], func(value int) { play.FadeInMs = int64(value) }),
 			integerRow(th, "Fade Out MS", ctx.page.integer["soundFadeOutMs"], func(value int) { play.FadeOutMs = int64(value) }),
 			floatRow(th, "Level dB", ctx.page.float["soundLevelDB"], func(value float64) { play.LevelDB = value }),
@@ -60,10 +62,12 @@ func (ctx *CueEditUI) renderMediaTab(th *material.Theme, gtx layout.Context) lay
 	}
 	if play := ctx.cue.Play.Video; play != nil {
 		rows = append(rows,
-			ctx.fileRow(th, "File", "video", ctx.page.text["videoFile"], ctx.page.dropdown["videoProjectFile"], ctx.page.button["videoFileBrowse"], videoFileExtensions, func(value string) { play.File = value }),
+			ctx.fileRow(th, "File", "video", ctx.page.text["videoFile"], ctx.page.dropdown["videoProjectFile"], ctx.page.button["videoFileBrowse"], videoFileExtensions, func(value string) {
+				ctx.setTimecodeMediaSource(&play.File, &play.ClipEndMs, "videoClipEndMs", value)
+			}),
 			textRow(th, "Output ID", ctx.page.text["videoOutputID"], func(value string) { play.OutputID = value }),
-			integerRow(th, "Clip Start MS", ctx.page.integer["videoClipStartMs"], func(value int) { play.ClipStartMs = int64(value) }),
-			integerRow(th, "Clip End MS", ctx.page.integer["videoClipEndMs"], func(value int) { play.ClipEndMs = int64(value) }),
+			integerRow(th, "Clip Start MS", ctx.page.integer["videoClipStartMs"], func(value int) { ctx.setTimecodeClipStart(int64(value)) }),
+			integerRow(th, "Clip End MS", ctx.page.integer["videoClipEndMs"], func(value int) { ctx.setTimecodeClipEnd(int64(value)) }),
 			integerRow(th, "Fade In MS", ctx.page.integer["videoFadeInMs"], func(value int) { play.FadeInMs = int64(value) }),
 			integerRow(th, "Fade Out MS", ctx.page.integer["videoFadeOutMs"], func(value int) { play.FadeOutMs = int64(value) }),
 			floatRow(th, "Level dB", ctx.page.float["videoLevelDB"], func(value float64) { play.LevelDB = value }),

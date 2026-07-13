@@ -51,7 +51,7 @@ func (ctx *CueEditUI) pasteTimelineMarkers(markers *[]show.TimecodeMarker, paste
 	for _, marker := range pasted {
 		maximumOffset = max(maximumOffset, marker.TimeMs-minimum)
 	}
-	base := min(max(int64(0), t.hoverMs), max(int64(0), t.durationMs-maximumOffset))
+	base := min(max(int64(0), t.hoverMs), max(int64(0), ctx.timecodeCueDuration()-maximumOffset))
 	t.selected = map[int]bool{}
 	for _, marker := range pasted {
 		marker.TimeMs = base + marker.TimeMs - minimum
@@ -60,7 +60,7 @@ func (ctx *CueEditUI) pasteTimelineMarkers(markers *[]show.TimecodeMarker, paste
 	sortTimecodeMarkers(markers)
 	t.selected = map[int]bool{}
 	ctx.resetTimecodeInputs()
-	ctx.updateTimelineDuration(0, 0)
+	ctx.updateTimelineDuration()
 }
 
 func (ctx *CueEditUI) handleTimelineKeys(gtx layout.Context, markers *[]show.TimecodeMarker) {
@@ -149,7 +149,7 @@ func (ctx *CueEditUI) timelineToolbar(th *material.Theme, gtx layout.Context, ma
 			}
 		}
 		ctx.resetTimecodeInputs()
-		ctx.updateTimelineDuration(0, 0)
+		ctx.updateTimelineDuration()
 	}
 	if t.preview.Clicked(gtx) {
 		ctx.toggleTimecodePreview()
@@ -196,11 +196,12 @@ func (ctx *CueEditUI) handleTimelinePointer(gtx layout.Context, size image.Point
 			break
 		}
 		e := ev.(pointer.Event)
-		t.hoverMs = t.xToMs(e.Position.X, size.X)
+		hoverTrackMs := t.xToMs(e.Position.X, size.X)
+		t.hoverMs = ctx.timelineTrackToCueMs(hoverTrackMs)
 		switch e.Kind {
 		case pointer.Scroll:
 			if e.Modifiers.Contain(key.ModShortcut) {
-				anchor := t.hoverMs
+				anchor := hoverTrackMs
 				oldDur := t.viewDuration()
 				frac := float64(anchor-t.viewStartMs) / float64(oldDur)
 				t.zoom = math.Max(1, math.Min(64, t.zoom*math.Pow(1.12, float64(-e.Scroll.Y)/50)))
@@ -219,10 +220,18 @@ func (ctx *CueEditUI) handleTimelinePointer(gtx layout.Context, size image.Point
 				t.dragMode = timelineDragPan
 				break
 			}
+			clipStart, clipEnd, hasClip := ctx.timecodeClipRange()
+			clipDuration := max(int64(0), clipEnd-clipStart)
 			fadeIn, fadeOut := ctx.timecodeFades()
-			if e.Position.Y >= float32(size.Y-34) && math.Abs(float64(float32(t.msToX(fadeIn, size.X))-e.Position.X)) <= 9 {
+			if hasClip && clipDuration > 0 && e.Position.Y <= 34 && math.Abs(float64(float32(t.msToX(clipStart, size.X))-e.Position.X)) <= 10 {
+				t.dragClipStartMs, t.dragClipEndMs, t.dragViewMs = clipStart, clipEnd, t.viewDuration()
+				t.dragMode = timelineDragClipStart
+			} else if hasClip && clipDuration > 0 && e.Position.Y <= 34 && math.Abs(float64(float32(t.msToX(clipEnd, size.X))-e.Position.X)) <= 10 {
+				t.dragClipStartMs, t.dragClipEndMs, t.dragViewMs = clipStart, clipEnd, t.viewDuration()
+				t.dragMode = timelineDragClipEnd
+			} else if e.Position.Y >= float32(size.Y-34) && math.Abs(float64(float32(t.msToX(ctx.timelineCueToTrackMs(fadeIn), size.X))-e.Position.X)) <= 9 {
 				t.dragMode = timelineDragFadeIn
-			} else if e.Position.Y >= float32(size.Y-34) && math.Abs(float64(float32(t.msToX(max(int64(0), t.durationMs-fadeOut), size.X))-e.Position.X)) <= 9 {
+			} else if e.Position.Y >= float32(size.Y-34) && math.Abs(float64(float32(t.msToX(ctx.timelineCueToTrackMs(max(int64(0), ctx.timecodeCueDuration()-fadeOut)), size.X))-e.Position.X)) <= 9 {
 				t.dragMode = timelineDragFadeOut
 			} else if durationIndex := ctx.timelineActionDurationAt(e.Position.X, e.Position.Y, size, *markers); durationIndex >= 0 {
 				t.checkpoint(*markers)
@@ -247,7 +256,7 @@ func (ctx *CueEditUI) handleTimelinePointer(gtx layout.Context, size image.Point
 				for i, markerIndex := range t.dragIndexes {
 					t.dragMarkerTimes[i] = (*markers)[markerIndex].TimeMs
 				}
-				t.dragStartMs = t.xToMs(e.Position.X, size.X)
+				t.dragStartMs = t.hoverMs
 				t.dragChanged = false
 				t.dragMode = timelineDragMarkers
 			} else if e.Modifiers.Contain(key.ModShift) {
@@ -275,6 +284,12 @@ func (ctx *CueEditUI) handleTimelinePointer(gtx layout.Context, size image.Point
 				t.viewStartMs -= int64(float64(delta) / float64(max(1, size.X)) * float64(t.viewDuration()))
 				t.clampView()
 				t.dragLastX = e.Position.X
+			case timelineDragClipStart:
+				delta := int64(float64(e.Position.X-t.dragStartX) / float64(max(1, size.X)) * float64(t.dragViewMs))
+				ctx.setTimecodeClipStart(t.dragClipStartMs + delta)
+			case timelineDragClipEnd:
+				delta := int64(float64(e.Position.X-t.dragStartX) / float64(max(1, size.X)) * float64(t.dragViewMs))
+				ctx.setTimecodeClipEnd(t.dragClipEndMs + delta)
 			case timelineDragMarkers:
 				if !t.dragChanged {
 					t.checkpoint(*markers)
@@ -286,16 +301,16 @@ func (ctx *CueEditUI) handleTimelinePointer(gtx layout.Context, size image.Point
 					minTime = min(minTime, tm)
 					maxTime = max(maxTime, tm)
 				}
-				delta = max(-minTime, min(delta, t.durationMs-maxTime))
+				delta = max(-minTime, min(delta, ctx.timecodeCueDuration()-maxTime))
 				for i, index := range t.dragIndexes {
 					(*markers)[index].TimeMs = t.dragMarkerTimes[i] + delta
 				}
 			case timelineDragFadeIn:
 				_, fadeOut := ctx.timecodeFades()
-				ctx.setTimecodeFades(min(t.durationMs, t.hoverMs), fadeOut)
+				ctx.setTimecodeFades(min(ctx.timecodeCueDuration(), t.hoverMs), fadeOut)
 			case timelineDragFadeOut:
 				fadeIn, _ := ctx.timecodeFades()
-				ctx.setTimecodeFades(fadeIn, min(t.durationMs, max(int64(0), t.durationMs-t.hoverMs)))
+				ctx.setTimecodeFades(fadeIn, min(ctx.timecodeCueDuration(), max(int64(0), ctx.timecodeCueDuration()-t.hoverMs)))
 			case timelineDragActionDuration:
 				if t.dragIndex >= 0 && t.dragIndex < len(*markers) {
 					if duration := markerActionDuration(&(*markers)[t.dragIndex]); duration != nil {
@@ -323,7 +338,7 @@ func (ctx *CueEditUI) timelineActionDurationAt(px, py float32, size image.Point,
 		if duration == nil || *duration <= 0 {
 			continue
 		}
-		x := float32(t.msToX(markers[i].TimeMs+*duration, size.X))
+		x := float32(t.msToX(ctx.timelineCueToTrackMs(markers[i].TimeMs+*duration), size.X))
 		y := float32(38 + (i%4)*20)
 		if math.Abs(float64(x-px)) <= 9 && math.Abs(float64(y-py)) <= 10 {
 			return i
@@ -336,7 +351,7 @@ func (ctx *CueEditUI) timelineMarkerAt(x float32, width int, markers []show.Time
 	t := &ctx.timeline
 	best, distance := -1, float32(9)
 	for i, m := range markers {
-		mx := float32(t.msToX(m.TimeMs, width))
+		mx := float32(t.msToX(ctx.timelineCueToTrackMs(m.TimeMs), width))
 		d := float32(math.Abs(float64(mx - x)))
 		if d <= distance {
 			best, distance = i, d

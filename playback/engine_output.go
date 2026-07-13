@@ -151,7 +151,9 @@ func (e *Engine) HandleOutputError(instanceID string, err error) {
 	instance := e.instances[instanceID]
 	if instance == nil {
 		e.mu.RUnlock()
-		e.recordError("Media output", err)
+		// Output workers can finish after a stop/removal has already retired the
+		// instance. Their late close/superseded errors are stale lifecycle noise;
+		// recording them here can create an unbounded operator-log flood.
 		return
 	}
 	copy := *instance
