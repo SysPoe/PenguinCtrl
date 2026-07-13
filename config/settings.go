@@ -16,10 +16,12 @@ import (
 )
 
 type RemoteTarget struct {
-	Name    string `json:"name"`
-	Host    string `json:"host"`
-	OSCPort int    `json:"oscPort"`
-	ERCPort int    `json:"ercPort"`
+	Name       string `json:"name"`
+	Host       string `json:"host"`
+	OSCPort    int    `json:"oscPort"`
+	ERCPort    int    `json:"ercPort"`
+	HealthPort int    `json:"healthPort,omitempty"`
+	AckPort    int    `json:"ackPort,omitempty"`
 }
 
 type VideoOutput struct {
@@ -52,12 +54,15 @@ type Settings struct {
 	VideoOutputs              []VideoOutput     `json:"videoOutputs,omitempty"`
 	Variables                 map[string]string `json:"variables"`
 	RemoteTargets             []RemoteTarget    `json:"remoteTargets"`
+	RemoteSuccessPolicy       string            `json:"remoteSuccessPolicy,omitempty"`
 }
 
 const (
 	AudioRecoveryFailClosed    = "fail-closed"
 	AudioRecoveryFollowDefault = "follow-default"
 	AudioRecoveryNamedBackup   = "named-backup"
+	RemoteSuccessAll           = "all"
+	RemoteSuccessAny           = "any"
 )
 
 func Defaults() Settings {
@@ -70,6 +75,7 @@ func Defaults() Settings {
 		VideoOutputs:          []VideoOutput{{Stage: "main", Fullscreen: true, Width: 960, Height: 540, ResolutionWidth: 1920, ResolutionHeight: 1080, Scaling: "contain", IdleBehavior: "black", Layers: 1}},
 		Variables:             map[string]string{},
 		RemoteTargets:         []RemoteTarget{{Name: "Local console", Host: "127.0.0.1", OSCPort: 8000, ERCPort: 6553}},
+		RemoteSuccessPolicy:   RemoteSuccessAll,
 	}
 }
 
@@ -260,6 +266,15 @@ func normalize(in Settings) Settings {
 		if target.ERCPort < 0 || target.ERCPort > 65535 {
 			target.ERCPort = 0
 		}
+		if target.HealthPort < 0 || target.HealthPort > 65535 {
+			target.HealthPort = 0
+		}
+		if target.AckPort < 0 || target.AckPort > 65535 {
+			target.AckPort = 0
+		}
+	}
+	if in.RemoteSuccessPolicy != RemoteSuccessAny {
+		in.RemoteSuccessPolicy = RemoteSuccessAll
 	}
 	return in
 }

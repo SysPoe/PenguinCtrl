@@ -95,7 +95,10 @@ func (e *Engine) Start() { go e.run() }
 func (e *Engine) Close() {
 	e.cancel()
 	<-e.done
+	e.remote.Close()
 }
+
+func (e *Engine) RemoteHealth() []remote.TargetHealth { return e.remote.Health() }
 
 func (e *Engine) SetOnChange(callback func()) { e.onChange = callback }
 
@@ -607,7 +610,11 @@ func (e *Engine) execute(next command) {
 		} else {
 			err = e.remote.Dispatch(e.ctx, *next.cue.Play.Remote, next.cue)
 			if err == nil && e.operatorLog != nil {
-				e.operatorLog.Add(operatorlog.Warning, next.origin+" · remote result", "Command sent; UDP delivery is unconfirmed", next.cue.ID, next.cue.CueNumber)
+				message := "Command sent; UDP delivery is unconfirmed"
+				if e.remote.LastDispatchAcknowledged() {
+					message = "Command acknowledged by the configured idempotent relay"
+				}
+				e.operatorLog.Add(operatorlog.Warning, next.origin+" · remote result", message, next.cue.ID, next.cue.CueNumber)
 			}
 		}
 	case show.CueTypeWait:

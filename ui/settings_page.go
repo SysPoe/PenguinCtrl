@@ -16,11 +16,13 @@ import (
 )
 
 type remoteTargetFields struct {
-	name    *input.Text
-	host    *input.Text
-	oscPort *input.Integer
-	ercPort *input.Integer
-	remove  widget.Clickable
+	name       *input.Text
+	host       *input.Text
+	oscPort    *input.Integer
+	ercPort    *input.Integer
+	healthPort *input.Integer
+	ackPort    *input.Integer
+	remove     widget.Clickable
 }
 
 type variableFields struct {
@@ -66,6 +68,7 @@ type SettingsPage struct {
 	ffmpegPath                *input.Text
 	defaultPlayback           *input.Text
 	defaultMediaOutput        *input.Text
+	remoteSuccessPolicy       *input.Dropdown
 	playbackAudioDevice       *input.Dropdown
 	playbackAudioRecovery     *input.Dropdown
 	playbackBackupAudioDevice *input.Dropdown
@@ -125,6 +128,7 @@ func (p *SettingsPage) load() {
 	p.ffmpegPath = input.NewText("FFmpeg executable", settings.FFmpegPath)
 	p.defaultPlayback = input.NewText("Default playback", settings.DefaultPlayback)
 	p.defaultMediaOutput = input.NewText("Default media output", settings.DefaultMediaOutput)
+	p.remoteSuccessPolicy = enumDropdown([]input.DropdownItem{{Label: "Require every target", Value: config.RemoteSuccessAll}, {Label: "Any redundant target", Value: config.RemoteSuccessAny}}, settings.RemoteSuccessPolicy)
 	p.playbackAudioDevice = newAudioDeviceDropdown(p.audioDevices, settings.PlaybackAudioDevice)
 	p.playbackAudioRecovery = newAudioRecoveryDropdown(settings.PlaybackAudioRecovery)
 	p.playbackBackupAudioDevice = newAudioDeviceDropdown(p.audioDevices, settings.PlaybackBackupAudioDevice)
@@ -157,6 +161,7 @@ func newRemoteTargetFields(target config.RemoteTarget) *remoteTargetFields {
 	return &remoteTargetFields{
 		name: input.NewText("Name", target.Name), host: input.NewText("Host", target.Host),
 		oscPort: input.NewOptionalInteger("OSC port", target.OSCPort), ercPort: input.NewOptionalInteger("ERC port", target.ERCPort),
+		healthPort: input.NewOptionalInteger("Health TCP", target.HealthPort), ackPort: input.NewOptionalInteger("Ack relay TCP", target.AckPort),
 	}
 }
 
@@ -280,10 +285,11 @@ func (p *SettingsPage) saveSettings() {
 		})
 	}
 	settings.RemoteTargets = make([]config.RemoteTarget, 0, len(p.targets))
+	settings.RemoteSuccessPolicy = selectedDropdownValue(p.remoteSuccessPolicy)
 	for _, target := range p.targets {
 		settings.RemoteTargets = append(settings.RemoteTargets, config.RemoteTarget{
 			Name: strings.TrimSpace(target.name.Value), Host: strings.TrimSpace(target.host.Value),
-			OSCPort: target.oscPort.Value, ERCPort: target.ercPort.Value,
+			OSCPort: target.oscPort.Value, ERCPort: target.ercPort.Value, HealthPort: target.healthPort.Value, AckPort: target.ackPort.Value,
 		})
 	}
 	settings.Variables = map[string]string{}
@@ -595,18 +601,23 @@ func selectedDropdownValue(dropdown *input.Dropdown) string {
 func (p *SettingsPage) targetsSection(th *material.Theme, gtx layout.Context) layout.Dimensions {
 	rows := make([]layout.Widget, 0, len(p.targets)+2)
 	rows = append(rows, func(gtx layout.Context) layout.Dimensions {
-		return settingsColumnHeaders(th, gtx, []string{"Name", "Host", "OSC port", "ERC port", ""})
+		return settingsField(th, gtx, "Redundant-target success", p.remoteSuccessPolicy.Layout)
+	})
+	rows = append(rows, func(gtx layout.Context) layout.Dimensions {
+		return settingsColumnHeaders(th, gtx, []string{"Name", "Host", "OSC", "ERC", "Health", "Ack", ""})
 	})
 	for _, fields := range p.targets {
 		fields := fields
 		rows = append(rows, func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle, Spacing: layout.SpaceStart}.Layout(gtx,
-					layout.Flexed(0.22, func(gtx layout.Context) layout.Dimensions { return fields.name.Layout(th, gtx) }),
-					layout.Flexed(0.32, func(gtx layout.Context) layout.Dimensions { return fields.host.Layout(th, gtx) }),
-					layout.Flexed(0.16, func(gtx layout.Context) layout.Dimensions { return fields.oscPort.Layout(th, gtx) }),
-					layout.Flexed(0.16, func(gtx layout.Context) layout.Dimensions { return fields.ercPort.Layout(th, gtx) }),
-					layout.Flexed(0.14, func(gtx layout.Context) layout.Dimensions {
+					layout.Flexed(0.18, func(gtx layout.Context) layout.Dimensions { return fields.name.Layout(th, gtx) }),
+					layout.Flexed(0.25, func(gtx layout.Context) layout.Dimensions { return fields.host.Layout(th, gtx) }),
+					layout.Flexed(0.11, func(gtx layout.Context) layout.Dimensions { return fields.oscPort.Layout(th, gtx) }),
+					layout.Flexed(0.11, func(gtx layout.Context) layout.Dimensions { return fields.ercPort.Layout(th, gtx) }),
+					layout.Flexed(0.11, func(gtx layout.Context) layout.Dimensions { return fields.healthPort.Layout(th, gtx) }),
+					layout.Flexed(0.11, func(gtx layout.Context) layout.Dimensions { return fields.ackPort.Layout(th, gtx) }),
+					layout.Flexed(0.13, func(gtx layout.Context) layout.Dimensions {
 						return layoutButton(th, gtx, &fields.remove, "Remove", th.ContrastBg)
 					}),
 				)

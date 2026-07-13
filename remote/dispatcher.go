@@ -1,12 +1,19 @@
 package remote
 
 import (
+	"bufio"
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/syspoe/cusus/config"
 	"github.com/syspoe/cusus/show"
@@ -29,18 +36,65 @@ func (udpSender) Send(ctx context.Context, host string, port int, payload []byte
 		return err
 	}
 	defer conn.Close()
+	if deadline, ok := ctx.Deadline(); ok {
+		_ = conn.SetWriteDeadline(deadline)
+	}
 	_, err = conn.Write(payload)
 	return err
 }
 
 type Dispatcher struct {
-	settings settingsProvider
-	sender   packetSender
+	settings         settingsProvider
+	sender           packetSender
+	ctx              context.Context
+	cancel           context.CancelFunc
+	done             chan struct{}
+	nextID           atomic.Uint64
+	lastAcknowledged atomic.Bool
+	healthMu         sync.RWMutex
+	health           map[string]TargetHealth
+}
+
+type TargetHealth struct {
+	Name                string
+	Host                string
+	Known               bool
+	Reachable           bool
+	Acknowledged        bool
+	LastChecked         time.Time
+	LastSuccess         time.Time
+	LastError           string
+	RoundTrip           time.Duration
+	ConsecutiveFailures int
 }
 
 func NewDispatcher(settings settingsProvider) *Dispatcher {
-	return &Dispatcher{settings: settings, sender: udpSender{}}
+	ctx, cancel := context.WithCancel(context.Background())
+	dispatcher := &Dispatcher{settings: settings, sender: udpSender{}, ctx: ctx, cancel: cancel, done: make(chan struct{}), health: map[string]TargetHealth{}}
+	go dispatcher.monitor()
+	return dispatcher
 }
+
+func (d *Dispatcher) Close() {
+	if d.cancel == nil {
+		return
+	}
+	d.cancel()
+	<-d.done
+}
+
+func (d *Dispatcher) Health() []TargetHealth {
+	d.healthMu.RLock()
+	defer d.healthMu.RUnlock()
+	result := make([]TargetHealth, 0, len(d.health))
+	for _, health := range d.health {
+		result = append(result, health)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
+	return result
+}
+
+func (d *Dispatcher) LastDispatchAcknowledged() bool { return d.lastAcknowledged.Load() }
 
 func (d *Dispatcher) Dispatch(ctx context.Context, play show.RemotePlay, cue show.Cue) error {
 	if play.Action == show.RemoteActionNone {
@@ -52,22 +106,168 @@ func (d *Dispatcher) Dispatch(ctx context.Context, play show.RemotePlay, cue sho
 		return errors.New("no remote control targets are configured")
 	}
 
-	var dispatchErrors []error
+	d.lastAcknowledged.Store(false)
+	type result struct {
+		acknowledged bool
+		err          error
+	}
+	results := make(chan result, len(settings.RemoteTargets))
 	for _, target := range settings.RemoteTargets {
-		protocol, port, err := selectTransport(play.Protocol, target)
-		if err != nil {
-			dispatchErrors = append(dispatchErrors, fmt.Errorf("%s: %w", targetLabel(target), err))
-			continue
-		}
-		payload, err := buildPayload(protocol, resolved)
-		if err == nil {
-			err = d.sender.Send(ctx, target.Host, port, payload)
-		}
-		if err != nil {
-			dispatchErrors = append(dispatchErrors, fmt.Errorf("%s: %w", targetLabel(target), err))
+		target := target
+		go func() {
+			acknowledged, err := d.dispatchTarget(ctx, target, play.Protocol, resolved)
+			results <- result{acknowledged: acknowledged, err: err}
+		}()
+	}
+	var dispatchErrors []error
+	successes := 0
+	acknowledgedSuccesses := 0
+	for range settings.RemoteTargets {
+		result := <-results
+		if result.err != nil {
+			dispatchErrors = append(dispatchErrors, result.err)
+		} else {
+			successes++
+			if result.acknowledged {
+				acknowledgedSuccesses++
+			}
 		}
 	}
+	if settings.RemoteSuccessPolicy == config.RemoteSuccessAny && successes > 0 {
+		d.lastAcknowledged.Store(acknowledgedSuccesses > 0)
+		return nil
+	}
+	if len(dispatchErrors) == 0 {
+		d.lastAcknowledged.Store(acknowledgedSuccesses == successes && successes > 0)
+	}
 	return errors.Join(dispatchErrors...)
+}
+
+func (d *Dispatcher) dispatchTarget(parent context.Context, target config.RemoteTarget, requested show.RemoteProtocol, play show.RemotePlay) (bool, error) {
+	protocol, port, err := selectTransport(requested, target)
+	if err != nil {
+		return false, fmt.Errorf("%s: %w", targetLabel(target), err)
+	}
+	payload, err := buildPayload(protocol, play)
+	if err != nil {
+		return false, fmt.Errorf("%s: %w", targetLabel(target), err)
+	}
+	started := time.Now()
+	ctx, cancel := context.WithTimeout(parent, 750*time.Millisecond)
+	defer cancel()
+	acknowledged := false
+	if target.AckPort > 0 {
+		id := fmt.Sprintf("%d-%d", time.Now().UnixMilli(), d.nextID.Add(1))
+		for attempt := 0; attempt < 3; attempt++ {
+			err = sendAcknowledged(ctx, target.Host, target.AckPort, id, payload)
+			if err == nil {
+				acknowledged = true
+				break
+			}
+			if ctx.Err() != nil {
+				break
+			}
+		}
+	} else {
+		err = d.sender.Send(ctx, target.Host, port, payload)
+	}
+	d.recordHealth(target, err, acknowledged, time.Since(started))
+	if err != nil {
+		return false, fmt.Errorf("%s: %w", targetLabel(target), err)
+	}
+	return acknowledged, nil
+}
+
+func sendAcknowledged(ctx context.Context, host string, port int, id string, payload []byte) error {
+	conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", net.JoinHostPort(host, strconv.Itoa(port)))
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if deadline, ok := ctx.Deadline(); ok {
+		_ = conn.SetDeadline(deadline)
+	}
+	request := struct {
+		ID      string `json:"id"`
+		Payload string `json:"payload"`
+	}{ID: id, Payload: base64.StdEncoding.EncodeToString(payload)}
+	if err := json.NewEncoder(conn).Encode(request); err != nil {
+		return err
+	}
+	response, err := bufio.NewReader(conn).ReadString('\n')
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(response) != "ACK "+id {
+		return fmt.Errorf("unexpected acknowledgement %q", strings.TrimSpace(response))
+	}
+	return nil
+}
+
+func (d *Dispatcher) recordHealth(target config.RemoteTarget, err error, acknowledged bool, roundTrip time.Duration) {
+	key := targetLabel(target)
+	d.healthMu.Lock()
+	health := d.health[key]
+	health.Name, health.Host, health.Known, health.LastChecked, health.RoundTrip = key, target.Host, true, time.Now(), roundTrip
+	health.Acknowledged = acknowledged
+	if err == nil {
+		health.Reachable, health.LastSuccess, health.LastError, health.ConsecutiveFailures = true, time.Now(), "", 0
+	} else {
+		health.Reachable, health.LastError, health.ConsecutiveFailures = false, err.Error(), health.ConsecutiveFailures+1
+	}
+	d.health[key] = health
+	d.healthMu.Unlock()
+}
+
+func (d *Dispatcher) monitor() {
+	defer close(d.done)
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+	for {
+		d.probeTargets()
+		select {
+		case <-d.ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func (d *Dispatcher) probeTargets() {
+	var probes sync.WaitGroup
+	for _, target := range d.settings.Snapshot().RemoteTargets {
+		if target.HealthPort <= 0 {
+			continue
+		}
+		target := target
+		probes.Add(1)
+		go func() {
+			defer probes.Done()
+			started := time.Now()
+			ctx, cancel := context.WithTimeout(d.ctx, 500*time.Millisecond)
+			defer cancel()
+			conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", net.JoinHostPort(target.Host, strconv.Itoa(target.HealthPort)))
+			if err == nil {
+				_ = conn.Close()
+			}
+			d.recordProbeHealth(target, err, time.Since(started))
+		}()
+	}
+	probes.Wait()
+}
+
+func (d *Dispatcher) recordProbeHealth(target config.RemoteTarget, err error, roundTrip time.Duration) {
+	key := targetLabel(target)
+	d.healthMu.Lock()
+	health := d.health[key]
+	health.Name, health.Host, health.Known, health.LastChecked, health.RoundTrip = key, target.Host, true, time.Now(), roundTrip
+	if err == nil {
+		health.Reachable, health.LastSuccess, health.LastError, health.ConsecutiveFailures = true, time.Now(), "", 0
+	} else {
+		health.Reachable, health.LastError, health.ConsecutiveFailures = false, err.Error(), health.ConsecutiveFailures+1
+	}
+	d.health[key] = health
+	d.healthMu.Unlock()
 }
 
 func resolvePlay(play show.RemotePlay, settings config.Settings, cueNumber string) show.RemotePlay {
