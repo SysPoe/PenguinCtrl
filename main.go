@@ -301,6 +301,10 @@ func (a *App) handleCueListShortcuts(gtx layout.Context) {
 			playbackEngine.BlackoutAll()
 		}
 	}
+	if topBar.EmergencyStopConfirmationOpen() {
+		topBar.HandleEmergencyStopConfirmationKeys(gtx)
+		return
+	}
 	if a.UI.ShowSettings || tbCtx.CueEditorOpen() {
 		return
 	}
@@ -1050,10 +1054,6 @@ func (a *App) run(window *app.Window) error {
 					})
 				}
 			}
-			if topBar.TakeStopAllRequest() {
-				playbackEngine.StopAll()
-				operatorPanel.SetStatus("STOP ALL dispatched · F12")
-			}
 			if topBar.TakeBlackoutRequest() {
 				playbackEngine.BlackoutAll()
 				operatorPanel.SetStatus("BLACKOUT asserted · Ctrl+Shift+B")
@@ -1207,6 +1207,9 @@ func (a *App) run(window *app.Window) error {
 				}),
 				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 					return documentGuard.Layout(th, gtx)
+				}),
+				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+					return topBar.LayoutEmergencyStopConfirmation(th, gtx)
 				}),
 			)
 			switch documentGuard.TakeChoice() {

@@ -3,6 +3,9 @@ package ui
 import (
 	"image"
 
+	"gioui.org/io/event"
+	"gioui.org/io/key"
+	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -26,17 +29,18 @@ type TopBar struct {
 	showAddCue bool
 	showFile   bool
 
-	btnAction   widget.Clickable
-	btnAddCue   widget.Clickable
-	btnFile     widget.Clickable
-	btnPage     widget.Clickable
-	btnNew      widget.Clickable
-	btnLoad     widget.Clickable
-	btnSave     widget.Clickable
-	btnSaveAs   widget.Clickable
-	btnEStop    widget.Clickable
-	btnStopAll  widget.Clickable
-	btnBlackout widget.Clickable
+	btnAction       widget.Clickable
+	btnAddCue       widget.Clickable
+	btnFile         widget.Clickable
+	btnPage         widget.Clickable
+	btnNew          widget.Clickable
+	btnLoad         widget.Clickable
+	btnSave         widget.Clickable
+	btnSaveAs       widget.Clickable
+	btnEStop        widget.Clickable
+	btnBlackout     widget.Clickable
+	btnEStopConfirm widget.Clickable
+	btnEStopCancel  widget.Clickable
 
 	pageRequested   bool
 	newRequested    bool
@@ -44,10 +48,11 @@ type TopBar struct {
 	saveRequested   bool
 	saveAsRequest   bool
 	eStopRequest    bool
-	stopAllRequest  bool
 	blackoutRequest bool
 	eStopResetting  bool
+	eStopConfirming bool
 	statusSink      func(string)
+	eStopModal      struct{}
 }
 
 func (tb *TopBar) setAllFalse() {
@@ -81,7 +86,6 @@ func (tb *TopBar) HasKeyboardFocus(gtx layout.Context) bool {
 		gtx.Focused(&tb.btnSave) ||
 		gtx.Focused(&tb.btnPage) ||
 		gtx.Focused(&tb.btnEStop) ||
-		gtx.Focused(&tb.btnStopAll) ||
 		gtx.Focused(&tb.btnBlackout)
 }
 
@@ -95,7 +99,7 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, set
 	// Make bg
 	paint.FillShape(
 		gtx.Ops,
-		palette.Danger,
+		palette.Surface,
 		clip.Rect{Max: image.Point{
 			X: gtx.Constraints.Max.X,
 			Y: barHeight,
@@ -125,10 +129,7 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, set
 		tb.showFile = !wasOpen
 	}
 	if !tb.eStopResetting && tb.btnEStop.Clicked(gtx) {
-		tb.eStopRequest = true
-	}
-	if tb.btnStopAll.Clicked(gtx) {
-		tb.stopAllRequest = true
+		tb.RequestEmergencyStop()
 	}
 	if tb.btnBlackout.Clicked(gtx) {
 		tb.blackoutRequest = true
@@ -137,7 +138,6 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, set
 	var addCueSize image.Point
 	var fileSize image.Point
 	var pageSize image.Point
-	var stopSize image.Point
 	var blackoutSize image.Point
 	windowWidth := gtx.Constraints.Max.X
 	compact := windowWidth < gtx.Dp(unit.Dp(900))
@@ -187,7 +187,6 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, set
 			dims := layoutButton(th, gtx, &tb.btnEStop, label, palette.Danger)
 			return dims
 		}),
-		makeMeasuredBtnWithColor(th, &tb.btnStopAll, "STOP ALL", &stopSize, palette.Danger),
 		makeMeasuredBtnWithColor(th, &tb.btnBlackout, "BLACKOUT", &blackoutSize, palette.SurfaceSunken),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			setButtonPositions(gtx.Constraints.Max.X, windowWidth)
@@ -226,9 +225,23 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, set
 
 func (tb *TopBar) RequestEmergencyStop() {
 	if !tb.eStopResetting {
-		tb.eStopRequest = true
+		tb.setAllFalse()
+		tb.eStopConfirming = true
 	}
 }
+
+func (tb *TopBar) EmergencyStopConfirmationOpen() bool { return tb.eStopConfirming }
+
+func (tb *TopBar) ConfirmEmergencyStop() bool {
+	if !tb.eStopConfirming || tb.eStopResetting {
+		return false
+	}
+	tb.eStopConfirming = false
+	tb.eStopRequest = true
+	return true
+}
+
+func (tb *TopBar) CancelEmergencyStop() { tb.eStopConfirming = false }
 
 func (tb *TopBar) TakeEmergencyStopRequest() bool {
 	requested := tb.eStopRequest
@@ -240,7 +253,91 @@ func (tb *TopBar) SetEmergencyResetting(resetting bool) {
 	tb.eStopResetting = resetting
 	if resetting {
 		tb.eStopRequest = false
+		tb.eStopConfirming = false
 	}
+}
+
+func (tb *TopBar) HandleEmergencyStopConfirmationKeys(gtx layout.Context) {
+	if !tb.eStopConfirming {
+		return
+	}
+	for {
+		event, ok := gtx.Event(
+			key.Filter{Name: key.NameEscape},
+			key.Filter{Name: key.NameReturn},
+			key.Filter{Name: key.NameEnter},
+		)
+		if !ok {
+			return
+		}
+		keyEvent, ok := event.(key.Event)
+		if !ok || keyEvent.State != key.Press {
+			continue
+		}
+		if keyEvent.Name == key.NameEscape {
+			tb.CancelEmergencyStop()
+		} else {
+			tb.ConfirmEmergencyStop()
+		}
+		return
+	}
+}
+
+func (tb *TopBar) LayoutEmergencyStopConfirmation(th *material.Theme, gtx layout.Context) layout.Dimensions {
+	if !tb.eStopConfirming {
+		return layout.Dimensions{}
+	}
+	if tb.btnEStopConfirm.Clicked(gtx) {
+		tb.ConfirmEmergencyStop()
+	}
+	if tb.btnEStopCancel.Clicked(gtx) {
+		tb.CancelEmergencyStop()
+	}
+
+	size := gtx.Constraints.Max
+	paint.FillShape(gtx.Ops, palette.WithAlpha(palette.Black, 0xB8), clip.Rect{Max: size}.Op())
+	hitArea := clip.Rect{Max: size}.Push(gtx.Ops)
+	event.Op(gtx.Ops, &tb.eStopModal)
+	hitArea.Pop()
+	for {
+		_, ok := gtx.Event(pointer.Filter{
+			Target: &tb.eStopModal,
+			Kinds:  pointer.Press | pointer.Release | pointer.Move | pointer.Drag | pointer.Scroll | pointer.Enter | pointer.Leave | pointer.Cancel,
+		})
+		if !ok {
+			break
+		}
+	}
+
+	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		panelWidth := min(gtx.Constraints.Max.X, gtx.Dp(unit.Dp(480)))
+		panelHeight := min(gtx.Constraints.Max.Y, gtx.Dp(unit.Dp(210)))
+		gtx.Constraints.Min = image.Pt(panelWidth, panelHeight)
+		gtx.Constraints.Max = gtx.Constraints.Min
+		return layout.Background{}.Layout(gtx,
+			func(gtx layout.Context) layout.Dimensions {
+				paint.FillShape(gtx.Ops, palette.SurfaceRaised, clip.UniformRRect(image.Rectangle{Max: gtx.Constraints.Min}, gtx.Dp(unit.Dp(10))).Op(gtx.Ops))
+				return layout.Dimensions{Size: gtx.Constraints.Min}
+			},
+			func(gtx layout.Context) layout.Dimensions {
+				return layout.UniformInset(unit.Dp(24)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+						layout.Rigid(material.H6(th, "Confirm E-STOP").Layout),
+						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+							message := "E-STOP force-stops playback and reinitializes all media outputs. Continue?"
+							return layout.Center.Layout(gtx, material.Body1(th, message).Layout)
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+								makeFlexedBtnWithColor(th, &tb.btnEStopCancel, "Cancel", palette.SurfaceRaised, 1),
+								makeFlexedBtnWithColor(th, &tb.btnEStopConfirm, "Activate E-STOP", palette.Danger, 1),
+							)
+						}),
+					)
+				})
+			},
+		)
+	})
 }
 
 // SetStatusSink routes compatibility status updates to the operator status
@@ -324,12 +421,6 @@ func (tb *TopBar) RequestSaveAs() {
 func (tb *TopBar) TakePageRequest() bool {
 	requested := tb.pageRequested
 	tb.pageRequested = false
-	return requested
-}
-
-func (tb *TopBar) TakeStopAllRequest() bool {
-	requested := tb.stopAllRequest
-	tb.stopAllRequest = false
 	return requested
 }
 
