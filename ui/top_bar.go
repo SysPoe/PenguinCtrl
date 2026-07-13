@@ -45,6 +45,7 @@ type TopBar struct {
 	stopAllRequest  bool
 	blackoutRequest bool
 	status          string
+	healthStatus    string
 }
 
 func (tb *TopBar) setAllFalse() {
@@ -175,6 +176,9 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, set
 			setButtonPositions(gtx.Constraints.Max.X, windowWidth)
 
 			text := "CuSus ඞා"
+			if tb.healthStatus != "" {
+				text += "  ·  HEALTH " + tb.healthStatus
+			}
 			if tb.status != "" {
 				text += "  ·  " + tb.status
 			}
@@ -278,6 +282,8 @@ func (tb *TopBar) RequestSaveAs() {
 }
 
 func (tb *TopBar) SetStatus(status string) { tb.status = status }
+
+func (tb *TopBar) SetHealth(status string) { tb.healthStatus = status }
 
 func (tb *TopBar) TakePageRequest() bool {
 	requested := tb.pageRequested

@@ -30,6 +30,7 @@ import (
 	"gioui.org/x/explorer"
 
 	"github.com/syspoe/cusus/config"
+	"github.com/syspoe/cusus/health"
 	"github.com/syspoe/cusus/internal/buildinfo"
 	"github.com/syspoe/cusus/internal/crashreport"
 	"github.com/syspoe/cusus/internal/taskgroup"
@@ -557,6 +558,13 @@ func (a *App) run(window *app.Window) error {
 	lastMixerUnderruns := map[string]uint64{}
 	var safetyResume widget.Clickable
 	lastFrameAt := time.Now()
+	healthMonitor := newHealthService(func() []health.Component {
+		documentMu.RLock()
+		path, dirty := currentShowPath, showDigest(manager.ShowSnapshot()) != lastSavedDigest
+		documentMu.RUnlock()
+		return collectHealthComponents(playbackEngine, mediaManager, settingsStore.Snapshot(), path, dirty)
+	})
+	defer healthMonitor.Close()
 	power := startPowerKeeper()
 	defer power.Close()
 	preflightService := newPreflightService()
@@ -891,6 +899,7 @@ func (a *App) run(window *app.Window) error {
 			if err := tasks.Close(3 * time.Second); err != nil {
 				operatorEvents.Diagnostic("Shutdown", err.Error(), nil)
 			}
+			healthMonitor.Close()
 			playbackEngine.Close()
 			mediaManager.Close()
 			return e.Err
@@ -958,7 +967,10 @@ func (a *App) run(window *app.Window) error {
 				lastMixerUnderruns[metrics.EndpointID] = metrics.TotalUnderruns
 			}
 			lastAudioOperatorWarning, lastVideoOperatorWarning = audioWarning, videoWarning
+			healthSnapshot := healthMonitor.Snapshot()
+			topBar.SetHealth(healthSnapshot.Overall.String())
 			preflight := preflightService.Request(manager.ShowSnapshot(), settingsStore.Snapshot(), audioWarning, videoWarning, playbackEngine.RemoteHealth(), playbackEngine.CueProblems)
+			preflight = append(preflight, healthPreflightChecks(healthSnapshot)...)
 			for i := range preflight {
 				preflight[i].Acknowledged = manager.ProblemAcknowledged(preflight[i].Fingerprint)
 			}

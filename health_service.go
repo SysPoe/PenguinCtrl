@@ -1,0 +1,250 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/syspoe/cusus/config"
+	"github.com/syspoe/cusus/health"
+	"github.com/syspoe/cusus/media"
+	"github.com/syspoe/cusus/operatorlog"
+	"github.com/syspoe/cusus/playback"
+)
+
+type healthService struct {
+	ctx      context.Context
+	cancel   context.CancelFunc
+	wg       sync.WaitGroup
+	mu       sync.RWMutex
+	latest   health.Snapshot
+	provider func() []health.Component
+}
+
+func newHealthService(provider func() []health.Component) *healthService {
+	ctx, cancel := context.WithCancel(context.Background())
+	service := &healthService{ctx: ctx, cancel: cancel, provider: provider, latest: health.NewSnapshot(nil)}
+	service.wg.Add(1)
+	go service.run()
+	return service
+}
+
+func (s *healthService) run() {
+	defer s.wg.Done()
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+	for {
+		snapshot := health.NewSnapshot(s.provider())
+		s.mu.Lock()
+		s.latest = snapshot
+		s.mu.Unlock()
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func (s *healthService) Snapshot() health.Snapshot {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	copyOf := s.latest
+	copyOf.Components = append([]health.Component(nil), s.latest.Components...)
+	return copyOf
+}
+
+func (s *healthService) Close() { s.cancel(); s.wg.Wait() }
+
+func collectHealthComponents(engine *playback.Engine, backend media.Backend, settings config.Settings, documentPath string, dirty bool) []health.Component {
+	components := []health.Component{engineHealth(engine), archiveHealth(documentPath, dirty)}
+	components = append(components, audioHealth(engine, backend, settings)...)
+	components = append(components, outputHealth(backend, settings)...)
+	components = append(components, decoderHealth(engine)...)
+	components = append(components, remoteTargetHealth(engine)...)
+	components = append(components, diskHealth(settings))
+	return components
+}
+
+func engineHealth(engine *playback.Engine) health.Component {
+	component := health.Component{ID: "engine", Kind: "engine", Name: "Playback engine", State: health.Normal, Summary: "Command coordinator is armed", Action: "Open Event Log for command and failure history"}
+	if reason := engine.SafetyLatchReason(); reason != "" {
+		component.State, component.Summary, component.Action = health.Failed, reason, "Acknowledge the interruption banner, verify outputs, then re-arm GO"
+	} else if message := engine.LastError(); message != "" {
+		component.State, component.Summary = health.Degraded, message
+	}
+	component.Details = map[string]any{"activeCues": len(engine.ActiveInstances()), "activeExecutions": len(engine.ActiveExecutions())}
+	return component
+}
+
+func archiveHealth(path string, dirty bool) health.Component {
+	component := health.Component{ID: "archive", Kind: "archive", Name: "Show archive", State: health.Normal, Summary: "Current show matches its durable checkpoint", Action: "Use Save or Save As to create a verified archive"}
+	if dirty && strings.TrimSpace(path) == "" {
+		component.State, component.Summary = health.Degraded, "Show has unsaved edits and has not been published to a .cusus archive"
+	} else if dirty {
+		component.State, component.Summary = health.Degraded, "Show has edits newer than the last verified archive"
+	}
+	component.Details = map[string]any{"path": path, "dirty": dirty}
+	return component
+}
+
+func audioHealth(engine *playback.Engine, backend media.Backend, settings config.Settings) []health.Component {
+	instances := engine.ActiveInstances()
+	affected := func(endpoint string) []string {
+		var result []string
+		for _, instance := range instances {
+			if instance.MediaType != "audio" && instance.MediaType != "video" {
+				continue
+			}
+			selected, _, _ := config.AudioRoute(settings, instance.Preview)
+			if selected == endpoint {
+				result = append(result, instance.CueNumber)
+			}
+		}
+		return result
+	}
+	metrics := backend.AudioMixerMetrics()
+	result := make([]health.Component, 0, len(metrics)+1)
+	if warning := backend.AudioDeviceWarning(); warning != "" {
+		result = append(result, health.Component{ID: "audio-route", Kind: "audio", Name: "Audio routing", State: health.Failed, Summary: warning, Action: "Open Settings > Audio devices and select an available primary/backup route"})
+	}
+	for _, metric := range metrics {
+		endpoint := metric.EndpointID
+		name := endpoint
+		if name == "" {
+			name = "Windows default endpoint"
+		}
+		component := health.Component{ID: "audio-" + endpoint, Kind: "audio", Name: name, State: health.Normal, Summary: "Audio callback is running", Action: "Open Settings > Audio devices; STOP affected cues if recovery fails"}
+		switch {
+		case metric.Failed:
+			component.State, component.Summary = health.Failed, "Endpoint recovery failed"
+		case metric.Recovering:
+			component.State, component.Summary = health.Recovering, "Endpoint stopped; bounded recovery is in progress"
+		case metric.TotalUnderruns > 0:
+			component.State, component.Summary = health.Degraded, fmt.Sprintf("Endpoint has %d audio underruns", metric.TotalUnderruns)
+		}
+		component.Details = map[string]any{"endpointId": endpoint, "affectedCues": affected(endpoint), "activeSources": metric.ActiveSources, "lastSuccessfulCallback": metric.LastCallback, "recoveryCount": metric.RecoveryCount, "underruns": metric.TotalUnderruns}
+		result = append(result, component)
+	}
+	if len(result) == 0 {
+		result = append(result, health.Component{ID: "audio-idle", Kind: "audio", Name: "Audio system", State: health.Normal, Summary: "No active endpoint mixer; configured routes are available", Action: "Play the pre-show test tone on every route"})
+	}
+	return result
+}
+
+func outputHealth(backend media.Backend, settings config.Settings) []health.Component {
+	displays, err := backend.VideoDisplays()
+	available := map[string]bool{"": true}
+	for _, display := range displays {
+		available[display.ID] = true
+	}
+	result := make([]health.Component, 0, len(settings.VideoOutputs))
+	for _, output := range settings.VideoOutputs {
+		component := health.Component{ID: "output-" + output.Stage, Kind: "output", Name: output.Stage, State: health.Normal, Summary: "Display mapping is available and confirmed", Action: "Open Settings > Video outputs, identify the display, and confirm mapping", Details: map[string]any{"displayId": output.DisplayID, "fullscreen": output.Fullscreen, "confirmed": output.DisplayConfirmed}}
+		switch {
+		case err != nil:
+			component.State, component.Summary = health.Degraded, "Display topology could not be enumerated: "+err.Error()
+		case !available[output.DisplayID]:
+			component.State, component.Summary = health.Failed, "Assigned display is disconnected"
+		case !output.DisplayConfirmed:
+			component.State, component.Summary = health.Degraded, "Physical display mapping has not been operator-confirmed"
+		}
+		result = append(result, component)
+	}
+	return result
+}
+
+func decoderHealth(engine *playback.Engine) []health.Component {
+	var result []health.Component
+	for _, instance := range engine.ActiveInstances() {
+		if instance.MediaType != "audio" && instance.MediaType != "video" {
+			continue
+		}
+		component := health.Component{ID: "decoder-" + instance.ID, Kind: "decoder", Name: "Cue " + instance.CueNumber, State: health.Normal, Summary: "Decoder is playing", Action: "STOP the cue, inspect Event Log, then retry or skip", Details: map[string]any{"instanceId": instance.ID, "loadState": instance.LoadState, "startLatencyMs": instance.StartLatencyMs}}
+		switch instance.LoadState {
+		case string(media.LoadFailed):
+			component.State, component.Summary = health.Failed, "Decoder failed"
+		case string(media.LoadLoading), string(media.LoadBuffering):
+			component.State, component.Summary = health.Recovering, "Decoder is loading or buffering"
+		}
+		result = append(result, component)
+	}
+	if len(result) == 0 {
+		result = append(result, health.Component{ID: "decoder-idle", Kind: "decoder", Name: "Media decoders", State: health.Normal, Summary: "No active decoder failures", Action: "Run full preflight before GO"})
+	}
+	return result
+}
+
+func remoteTargetHealth(engine *playback.Engine) []health.Component {
+	states := engine.RemoteHealth()
+	result := make([]health.Component, 0, len(states))
+	for _, state := range states {
+		component := health.Component{ID: "remote-" + state.Name, Kind: "remote", Name: state.Name, State: health.Normal, Summary: "Target is reachable", Action: "Check target power/network, address and acknowledgement relay", Details: map[string]any{"host": state.Host, "lastSuccess": state.LastSuccess, "roundTrip": state.RoundTrip, "acknowledged": state.Acknowledged}}
+		switch {
+		case !state.Known:
+			component.State, component.Summary = health.Recovering, "Waiting for first target health probe"
+		case !state.Reachable:
+			component.State, component.Summary = health.Failed, "Target is unreachable: "+state.LastError
+		case !state.Acknowledged:
+			component.State, component.Summary = health.Degraded, "Target is reachable but delivery is unacknowledged"
+		}
+		result = append(result, component)
+	}
+	if len(result) == 0 {
+		result = append(result, health.Component{ID: "remote-none", Kind: "remote", Name: "Remote targets", State: health.Normal, Summary: "No remote targets are configured", Action: "Configure targets before adding remote cues"})
+	}
+	return result
+}
+
+func diskHealth(settings config.Settings) health.Component {
+	component := health.Component{ID: "disk-cache", Kind: "disk", Name: "Cache volume", State: health.Normal, Summary: "Free-space reserve is available", Action: "Close playback, clear unreferenced cache, or move shows to a volume with more free space"}
+	root, err := os.UserCacheDir()
+	if err == nil {
+		root = filepath.Join(root, "CuSus")
+		_ = os.MkdirAll(root, 0o755)
+		var available uint64
+		available, err = diskAvailableBytes(root)
+		reserve := uint64(settings.CacheReserveGB) << 30
+		component.Details = map[string]any{"path": root, "availableBytes": available, "reserveBytes": reserve}
+		if err == nil && available < reserve {
+			component.State, component.Summary = health.Failed, "Free space is below the configured reserve"
+		} else if err == nil && available < reserve*2 {
+			component.State, component.Summary = health.Degraded, "Free space is approaching the configured reserve"
+		}
+	}
+	if err != nil {
+		component.State, component.Summary = health.Degraded, "Free space could not be measured: "+err.Error()
+	}
+	return component
+}
+
+func healthPreflightChecks(snapshot health.Snapshot) []operatorlog.PreflightCheck {
+	var result []operatorlog.PreflightCheck
+	for _, component := range snapshot.Components {
+		if component.State == health.Normal {
+			continue
+		}
+		severity := operatorlog.Warning
+		if component.State == health.Failed {
+			severity = operatorlog.ShowStopping
+		}
+		message := component.State.String() + ": " + component.Summary
+		if cues, ok := component.Details["affectedCues"].([]string); ok && len(cues) > 0 {
+			message += "; affected cues " + strings.Join(cues, ", ")
+		}
+		if callback, ok := component.Details["lastSuccessfulCallback"].(time.Time); ok && !callback.IsZero() {
+			message += "; last callback " + callback.Format(time.RFC3339Nano)
+		}
+		result = append(result, operatorlog.PreflightCheck{
+			Severity: severity, Code: "health." + component.Kind + "." + component.ID,
+			Source: "Health · " + component.Name, Message: message,
+			Consequence: "The component is not in its normal show-ready state", Fix: component.Action,
+			Fingerprint: "health:" + component.ID + ":" + component.State.String() + ":" + component.Summary,
+		})
+	}
+	return result
+}
