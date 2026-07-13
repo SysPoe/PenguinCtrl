@@ -104,3 +104,15 @@ func TestFallbackDevicePolicy(t *testing.T) {
 		t.Fatal("empty named fallback was accepted")
 	}
 }
+
+func TestPlayerRecoveryDelegatesTargetEndpoint(t *testing.T) {
+	player := &devicePlayer{}
+	called := ""
+	player.SetRecoveryHandler(func(deviceID string) error {
+		called = deviceID
+		return nil
+	})
+	if !player.recoverTo("backup-device") || called != "backup-device" {
+		t.Fatalf("recovery target = %q", called)
+	}
+}

@@ -95,7 +95,10 @@ func (a *AudioSystem) NewPreparedPlayer(reader io.Reader, preview bool) (*device
 		return nil, fmt.Errorf("audio output is unavailable")
 	}
 	deviceID, recoveryPolicy, backupID := config.AudioRoute(a.settings.Snapshot(), preview)
+	return a.newPreparedPlayer(reader, deviceID, recoveryPolicy, backupID)
+}
 
+func (a *AudioSystem) newPreparedPlayer(reader io.Reader, deviceID, recoveryPolicy, backupID string) (*devicePlayer, error) {
 	mixer, err := a.mixer(deviceID)
 	if err != nil {
 		return nil, err
@@ -344,11 +347,7 @@ func (m *endpointMixer) failover(source *devicePlayer) bool {
 	if targetID == m.deviceID || (source.recoveryPolicy == config.AudioRecoveryNamedBackup && targetID == "") {
 		return false
 	}
-	target, err := m.system.mixer(targetID)
-	if err != nil || target == m {
-		return false
-	}
-	return source.rebind(m, target)
+	return source.recoverTo(targetID)
 }
 
 func fallbackDeviceID(policy, backupID string) (string, bool) {
@@ -395,20 +394,24 @@ type devicePlayer struct {
 	mu             sync.Mutex
 	closed         bool
 	started        bool
+	recovery       func(string) error
 }
 
-func (p *devicePlayer) rebind(from, target *endpointMixer) bool {
+func (p *devicePlayer) SetRecoveryHandler(handler func(string) error) {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.closed || p.mixer != from {
-		return p.closed
+	p.recovery = handler
+	p.mu.Unlock()
+}
+
+func (p *devicePlayer) recoverTo(deviceID string) bool {
+	p.mu.Lock()
+	if p.closed {
+		p.mu.Unlock()
+		return true
 	}
-	if err := target.add(p); err != nil {
-		return false
-	}
-	p.mixer = target
-	from.remove(p)
-	return true
+	handler := p.recovery
+	p.mu.Unlock()
+	return handler != nil && handler(deviceID) == nil
 }
 
 func (p *devicePlayer) Start() error {

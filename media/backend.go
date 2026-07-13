@@ -119,20 +119,22 @@ type ffmpegSession struct {
 	path    string
 	info    mediaInfo
 
-	mu        sync.RWMutex
-	state     LoadState
-	metrics   PlaybackMetrics
-	muted     bool
-	volume    float64
-	videoCmd  *exec.Cmd
-	audioCmd  *exec.Cmd
-	audio     *devicePlayer
-	closed    bool
-	done      chan struct{}
-	doneOnce  sync.Once
-	component sync.WaitGroup
-	ctx       context.Context
-	cancel    context.CancelFunc
+	mu              sync.RWMutex
+	state           LoadState
+	metrics         PlaybackMetrics
+	muted           bool
+	volume          float64
+	videoCmd        *exec.Cmd
+	audioCmd        *exec.Cmd
+	audio           *devicePlayer
+	clock           *PlaybackClock
+	audioGeneration uint64
+	closed          bool
+	done            chan struct{}
+	doneOnce        sync.Once
+	component       sync.WaitGroup
+	ctx             context.Context
+	cancel          context.CancelFunc
 
 	frames  chan decodedFrame
 	frameMu sync.Mutex
@@ -311,16 +313,97 @@ func (s *ffmpegSession) preloadAudio() error {
 		return err
 	}
 	s.mu.Lock()
+	s.audioGeneration++
+	generation := s.audioGeneration
 	s.audioCmd, s.audio = cmd, player
 	s.audio.SetVolume(dbVolume(s.volume, s.muted))
+	player.SetRecoveryHandler(s.recoverAudio)
 	s.mu.Unlock()
 	s.component.Add(1)
-	go func() {
-		defer s.component.Done()
-		if err := cmd.Wait(); err != nil {
-			s.setRuntimeError(ffmpegCommandError("audio decoder", err, stderr.String()))
-		}
-	}()
+	go s.waitAudioCommand(cmd, &stderr, generation)
+	return nil
+}
+
+func (s *ffmpegSession) waitAudioCommand(cmd *exec.Cmd, stderr *bytes.Buffer, generation uint64) {
+	defer s.component.Done()
+	err := cmd.Wait()
+	s.mu.RLock()
+	current, closed := s.audioGeneration == generation, s.closed
+	s.mu.RUnlock()
+	if err != nil && current && !closed {
+		s.setRuntimeError(ffmpegCommandError("audio decoder", err, stderr.String()))
+	}
+}
+
+func (s *ffmpegSession) recoverAudio(targetDeviceID string) error {
+	s.mu.Lock()
+	if s.closed || s.clock == nil || s.audio == nil {
+		s.mu.Unlock()
+		return errors.New("media session is not available for audio recovery")
+	}
+	position := s.clock.Position()
+	oldCommand, oldPlayer := s.audioCmd, s.audio
+	s.audioGeneration++
+	generation := s.audioGeneration
+	volume, muted := s.volume, s.muted
+	s.component.Add(1)
+	s.mu.Unlock()
+	if oldCommand != nil && oldCommand.Process != nil {
+		_ = oldCommand.Process.Kill()
+	}
+
+	args := mediaInputArgs(position, s.request.Instance.ClipEndMs)
+	args = append(args, "-i", s.path, "-map", "0:a:0", "-vn", "-f", "s16le", "-ar", strconv.Itoa(audioSampleRate), "-ac", strconv.Itoa(audioChannels), "pipe:1")
+	cmd := exec.CommandContext(s.ctx, s.backend.settings.Snapshot().FFmpegPath, args...)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		s.component.Done()
+		return err
+	}
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Start(); err != nil {
+		s.component.Done()
+		return err
+	}
+	reader := bufio.NewReaderSize(stdout, 64*1024)
+	if _, err := reader.Peek(4096); err != nil {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		s.component.Done()
+		return ffmpegCommandError("recover audio", err, stderr.String())
+	}
+	_, policy, backupID := config.AudioRoute(s.backend.settings.Snapshot(), s.request.Instance.Preview)
+	replacement, err := s.backend.audio.newPreparedPlayer(reader, targetDeviceID, policy, backupID)
+	if err != nil {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		s.component.Done()
+		return err
+	}
+	replacement.SetRecoveryHandler(s.recoverAudio)
+	replacement.SetVolume(dbVolume(volume, muted))
+	if err := replacement.Start(); err != nil {
+		_ = replacement.Close()
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		s.component.Done()
+		return err
+	}
+	s.mu.Lock()
+	if s.closed || s.audioGeneration != generation {
+		s.mu.Unlock()
+		_ = replacement.Close()
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		s.component.Done()
+		return errors.New("audio recovery was superseded")
+	}
+	s.audioCmd, s.audio = cmd, replacement
+	s.mu.Unlock()
+	_ = oldPlayer.Close()
+	go s.waitAudioCommand(cmd, &stderr, generation)
+	go s.watchAudioDevice(replacement)
 	return nil
 }
 
@@ -332,30 +415,14 @@ func (s *ffmpegSession) Start(clock *PlaybackClock) error {
 		return fmt.Errorf("media is not ready (state %s)", state)
 	}
 	audio := s.audio
+	s.clock = clock
 	s.mu.Unlock()
 	clock.Start()
 	if audio != nil {
 		if err := audio.Start(); err != nil {
 			return s.fail(err)
 		}
-		go func() {
-			select {
-			case <-audio.Stopped():
-				if !audio.UnexpectedStop() {
-					return
-				}
-				err := errors.New("audio device stopped unexpectedly")
-				s.setRuntimeError(err)
-				s.mu.RLock()
-				cmd := s.audioCmd
-				s.mu.RUnlock()
-				if cmd != nil && cmd.Process != nil {
-					_ = cmd.Process.Kill()
-				}
-				s.doneOnce.Do(func() { close(s.done) })
-			case <-s.done:
-			}
-		}()
+		go s.watchAudioDevice(audio)
 	}
 	s.mu.Lock()
 	s.metrics.StartLatency = time.Since(s.request.RequestedAt)
