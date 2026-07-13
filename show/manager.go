@@ -210,7 +210,8 @@ func (sm *ShowManager) GetCue(index int) *Cue {
 	if index < 0 || index >= len(sm.show.Cues) {
 		return nil
 	}
-	return &sm.show.Cues[index]
+	clone := CloneCue(sm.show.Cues[index])
+	return &clone
 }
 
 func (sm *ShowManager) GetCueByID(id CueID) *Cue {
@@ -218,14 +219,18 @@ func (sm *ShowManager) GetCueByID(id CueID) *Cue {
 	defer sm.mu.RUnlock()
 	for i := range sm.show.Cues {
 		if sm.show.Cues[i].ID == id {
-			return &sm.show.Cues[i]
+			clone := CloneCue(sm.show.Cues[i])
+			return &clone
 		}
 	}
 	return nil
 }
 
 func (sm *ShowManager) Cues() *[]Cue {
-	return &sm.show.Cues
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+	clone := cloneCues(sm.show.Cues)
+	return &clone
 }
 
 func (sm *ShowManager) SelectCue(index int) {
@@ -286,7 +291,8 @@ func (sm *ShowManager) SelectedCue() *Cue {
 	if sm.SelectedCueIndex < 0 || sm.SelectedCueIndex >= len(sm.show.Cues) {
 		return nil
 	}
-	return &sm.show.Cues[sm.SelectedCueIndex]
+	clone := CloneCue(sm.show.Cues[sm.SelectedCueIndex])
+	return &clone
 }
 
 func (sm *ShowManager) HasSelectedCue() bool {
@@ -296,7 +302,7 @@ func (sm *ShowManager) HasSelectedCue() bool {
 func (sm *ShowManager) Snapshot() []Cue {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
-	return append([]Cue(nil), sm.show.Cues...)
+	return cloneCues(sm.show.Cues)
 }
 
 // ShowSnapshot returns an independent copy suitable for saving.
@@ -370,7 +376,7 @@ func (sm *ShowManager) SelectedCueCopy() (Cue, int, bool) {
 	if sm.SelectedCueIndex < 0 || sm.SelectedCueIndex >= len(sm.show.Cues) {
 		return Cue{}, -1, false
 	}
-	return sm.show.Cues[sm.SelectedCueIndex], sm.SelectedCueIndex, true
+	return CloneCue(sm.show.Cues[sm.SelectedCueIndex]), sm.SelectedCueIndex, true
 }
 
 func (sm *ShowManager) CueByIDCopy(id CueID) (Cue, int, bool) {
@@ -378,7 +384,7 @@ func (sm *ShowManager) CueByIDCopy(id CueID) (Cue, int, bool) {
 	defer sm.mu.RUnlock()
 	for index, cue := range sm.show.Cues {
 		if cue.ID == id {
-			return cue, index, true
+			return CloneCue(cue), index, true
 		}
 	}
 	return Cue{}, -1, false

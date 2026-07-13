@@ -2,6 +2,8 @@ package project
 
 import (
 	"archive/zip"
+	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/syspoe/cusus/show"
 )
@@ -16,16 +19,23 @@ import (
 const (
 	Format  = "cusus-show"
 	Version = 1
+
+	maxArchiveEntries = 16384
+	maxManifestBytes  = 16 << 20
+	maxAssetBytes     = 16 << 30
+	maxArchiveBytes   = 128 << 30
+	maxExpansionRatio = 1000
 )
 
 type Asset struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	Kind         string `json:"kind"`
-	Path         string `json:"path"`
-	SourceSHA256 string `json:"sourceSha256"`
-	Format       string `json:"format"`
-	Size         int64  `json:"size"`
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	Kind          string `json:"kind"`
+	Path          string `json:"path"`
+	SourceSHA256  string `json:"sourceSha256"`
+	ContentSHA256 string `json:"contentSha256,omitempty"`
+	Format        string `json:"format"`
+	Size          int64  `json:"size"`
 }
 
 type Manifest struct {
@@ -111,6 +121,10 @@ func Save(dst io.Writer, current show.Show, ffmpegPath string) (Manifest, error)
 			return Manifest{}, err
 		}
 		pending.asset.Size = info.Size()
+		pending.asset.ContentSHA256, err = HashFile(converted)
+		if err != nil {
+			return Manifest{}, fmt.Errorf("hash bundled %s %q: %w", pending.asset.Kind, pending.asset.Name, err)
+		}
 		entry, err := zw.CreateHeader(&zip.FileHeader{Name: pending.asset.Path, Method: zip.Store})
 		if err == nil {
 			var input *os.File
@@ -151,21 +165,44 @@ func Load(path string) (Manifest, []File, error) {
 		return Manifest{}, nil, fmt.Errorf("open .cusus archive: %w", err)
 	}
 	defer zr.Close()
-	var manifest Manifest
+	if len(zr.File) > maxArchiveEntries {
+		return Manifest{}, nil, fmt.Errorf("archive has %d entries; limit is %d", len(zr.File), maxArchiveEntries)
+	}
+	entries := make(map[string]*zip.File, len(zr.File))
+	var totalBytes uint64
 	for _, entry := range zr.File {
-		if entry.Name != "manifest.json" {
-			continue
+		name := filepath.ToSlash(entry.Name)
+		if _, duplicate := entries[name]; duplicate {
+			return Manifest{}, nil, fmt.Errorf("duplicate archive entry %q", name)
 		}
-		reader, err := entry.Open()
-		if err != nil {
-			return Manifest{}, nil, err
+		entries[name] = entry
+		totalBytes += entry.UncompressedSize64
+		if totalBytes > maxArchiveBytes {
+			return Manifest{}, nil, fmt.Errorf("archive expands beyond %d bytes", int64(maxArchiveBytes))
 		}
-		err = json.NewDecoder(reader).Decode(&manifest)
-		reader.Close()
-		if err != nil {
-			return Manifest{}, nil, fmt.Errorf("decode show manifest: %w", err)
+		if entry.UncompressedSize64 > 0 && entry.CompressedSize64 == 0 {
+			return Manifest{}, nil, fmt.Errorf("archive entry %q has an invalid compressed size", name)
 		}
-		break
+		if entry.CompressedSize64 > 0 && entry.UncompressedSize64/entry.CompressedSize64 > maxExpansionRatio {
+			return Manifest{}, nil, fmt.Errorf("archive entry %q exceeds the expansion-ratio limit", name)
+		}
+	}
+	var manifest Manifest
+	manifestEntry := entries["manifest.json"]
+	if manifestEntry == nil {
+		return Manifest{}, nil, fmt.Errorf("archive has no manifest.json")
+	}
+	if manifestEntry.UncompressedSize64 > maxManifestBytes {
+		return Manifest{}, nil, fmt.Errorf("manifest exceeds %d bytes", maxManifestBytes)
+	}
+	reader, err := manifestEntry.Open()
+	if err != nil {
+		return Manifest{}, nil, err
+	}
+	err = json.NewDecoder(io.LimitReader(reader, maxManifestBytes+1)).Decode(&manifest)
+	reader.Close()
+	if err != nil {
+		return Manifest{}, nil, fmt.Errorf("decode show manifest: %w", err)
 	}
 	if manifest.Format != Format || manifest.Version != Version {
 		return Manifest{}, nil, fmt.Errorf("unsupported .cusus format %q version %d", manifest.Format, manifest.Version)
@@ -179,40 +216,170 @@ func Load(path string) (Manifest, []File, error) {
 		return Manifest{}, nil, err
 	}
 	root := filepath.Join(cacheRoot, "CuSus", "shows", digest[:24])
-	if err := os.MkdirAll(filepath.Join(root, "media"), 0o755); err != nil {
+	parent := filepath.Dir(root)
+	if err := os.MkdirAll(parent, 0o755); err != nil {
+		return Manifest{}, nil, err
+	}
+	temporary, err := os.MkdirTemp(parent, ".extract-*")
+	if err != nil {
+		return Manifest{}, nil, fmt.Errorf("create extraction directory: %w", err)
+	}
+	defer os.RemoveAll(temporary)
+	if err := os.MkdirAll(filepath.Join(temporary, "media"), 0o755); err != nil {
 		return Manifest{}, nil, err
 	}
 	assetByPath := make(map[string]Asset, len(manifest.Assets))
+	assetIDs := make(map[string]struct{}, len(manifest.Assets))
 	for _, asset := range manifest.Assets {
-		assetByPath[filepath.ToSlash(asset.Path)] = asset
+		name := filepath.ToSlash(asset.Path)
+		if err := validateAsset(asset, name); err != nil {
+			return Manifest{}, nil, err
+		}
+		if _, duplicate := assetByPath[name]; duplicate {
+			return Manifest{}, nil, fmt.Errorf("duplicate manifest asset path %q", name)
+		}
+		if _, duplicate := assetIDs[asset.ID]; duplicate {
+			return Manifest{}, nil, fmt.Errorf("duplicate manifest asset ID %q", asset.ID)
+		}
+		assetByPath[name] = asset
+		assetIDs[asset.ID] = struct{}{}
+	}
+	if err := validateShowAssetReferences(manifest.Show, assetByPath); err != nil {
+		return Manifest{}, nil, err
 	}
 	files := make([]File, 0, len(manifest.Assets))
-	for _, entry := range zr.File {
-		asset, ok := assetByPath[filepath.ToSlash(entry.Name)]
-		if !ok {
-			continue
+	for name, asset := range assetByPath {
+		entry := entries[name]
+		if entry == nil {
+			return Manifest{}, nil, fmt.Errorf("manifest asset %q is missing from archive", name)
 		}
-		target := filepath.Join(root, filepath.FromSlash(asset.Path))
-		if !strings.HasPrefix(filepath.Clean(target), filepath.Clean(root)+string(os.PathSeparator)) {
-			return Manifest{}, nil, fmt.Errorf("unsafe media path %q", asset.Path)
+		if entry.UncompressedSize64 != uint64(asset.Size) {
+			return Manifest{}, nil, fmt.Errorf("asset %q size is %d bytes; manifest declares %d", name, entry.UncompressedSize64, asset.Size)
 		}
+		target := filepath.Join(temporary, filepath.FromSlash(name))
 		reader, err := entry.Open()
 		if err != nil {
 			return Manifest{}, nil, err
 		}
-		out, err := os.Create(target)
+		out, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+		hash := sha256.New()
+		var copied int64
 		if err == nil {
-			_, err = io.Copy(out, reader)
-			out.Close()
+			copied, err = io.Copy(io.MultiWriter(out, hash), io.LimitReader(reader, asset.Size+1))
+			if syncErr := out.Sync(); err == nil {
+				err = syncErr
+			}
+			if closeErr := out.Close(); err == nil {
+				err = closeErr
+			}
 		}
 		reader.Close()
 		if err != nil {
 			return Manifest{}, nil, fmt.Errorf("extract %q: %w", asset.Name, err)
 		}
-		files = append(files, File{Name: asset.Name, Source: target, Hash: asset.SourceSHA256, Kind: asset.Kind})
+		if copied != asset.Size {
+			return Manifest{}, nil, fmt.Errorf("asset %q extracted %d bytes; expected %d", name, copied, asset.Size)
+		}
+		contentHash := fmt.Sprintf("%x", hash.Sum(nil))
+		if asset.ContentSHA256 != "" && !strings.EqualFold(contentHash, asset.ContentSHA256) {
+			return Manifest{}, nil, fmt.Errorf("asset %q failed SHA-256 verification", name)
+		}
+		files = append(files, File{Name: asset.Name, Source: filepath.Join(root, filepath.FromSlash(name)), Hash: asset.SourceSHA256, Kind: asset.Kind})
+	}
+	for name := range entries {
+		if strings.HasPrefix(name, "media/") {
+			if _, declared := assetByPath[name]; !declared {
+				return Manifest{}, nil, fmt.Errorf("archive contains undeclared media entry %q", name)
+			}
+		}
+	}
+	if err := publishExtractedShow(temporary, root); err != nil {
+		return Manifest{}, nil, err
 	}
 	resolveLoadedPaths(&manifest.Show, root)
 	return manifest, files, nil
+}
+
+func validateAsset(asset Asset, name string) error {
+	if asset.ID == "" || strings.TrimSpace(asset.Name) == "" {
+		return fmt.Errorf("manifest contains an asset with no ID or name")
+	}
+	if name != filepath.ToSlash(filepath.Clean(name)) || !strings.HasPrefix(name, "media/") || strings.Contains(name, "\\") {
+		return fmt.Errorf("unsafe media path %q", asset.Path)
+	}
+	if asset.Size <= 0 || asset.Size > maxAssetBytes {
+		return fmt.Errorf("asset %q has invalid size %d", name, asset.Size)
+	}
+	wantFormat := map[string]string{"audio": "opus", "video": "webm", "image": "webp"}[asset.Kind]
+	if wantFormat == "" || asset.Format != wantFormat {
+		return fmt.Errorf("asset %q has unsupported kind/format %q/%q", name, asset.Kind, asset.Format)
+	}
+	for label, value := range map[string]string{"source": asset.SourceSHA256, "content": asset.ContentSHA256} {
+		if value == "" && label == "content" { // Version 1 archives created before content hashes remain readable.
+			continue
+		}
+		if len(value) != sha256.Size*2 {
+			return fmt.Errorf("asset %q has invalid %s SHA-256", name, label)
+		}
+		for _, char := range value {
+			if !strings.ContainsRune("0123456789abcdefABCDEF", char) {
+				return fmt.Errorf("asset %q has invalid %s SHA-256", name, label)
+			}
+		}
+	}
+	return nil
+}
+
+func validateShowAssetReferences(current show.Show, assets map[string]Asset) error {
+	for _, cue := range current.Cues {
+		var source string
+		switch cue.Type {
+		case show.CueTypeSound:
+			if cue.Play.Sound != nil {
+				source = cue.Play.Sound.File
+			}
+		case show.CueTypeVideo:
+			if cue.Play.Video != nil {
+				source = cue.Play.Video.File
+			}
+		case show.CueTypeImage:
+			if cue.Play.Image != nil {
+				source = cue.Play.Image.File
+			}
+		}
+		source = filepath.ToSlash(strings.TrimSpace(source))
+		if source == "" {
+			continue
+		}
+		if _, ok := assets[source]; !ok {
+			return fmt.Errorf("cue %q references undeclared archive asset %q", cue.CueNumber, source)
+		}
+	}
+	return nil
+}
+
+func publishExtractedShow(temporary, root string) error {
+	if _, err := os.Stat(root); os.IsNotExist(err) {
+		if err := os.Rename(temporary, root); err != nil {
+			return fmt.Errorf("publish extracted show: %w", err)
+		}
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("inspect extracted show cache: %w", err)
+	}
+	backup := root + ".previous"
+	if err := os.RemoveAll(backup); err != nil {
+		return fmt.Errorf("remove old extraction backup: %w", err)
+	}
+	if err := os.Rename(root, backup); err != nil {
+		return fmt.Errorf("preserve extracted show cache: %w", err)
+	}
+	if err := os.Rename(temporary, root); err != nil {
+		_ = os.Rename(backup, root)
+		return fmt.Errorf("publish extracted show: %w", err)
+	}
+	_ = os.RemoveAll(backup)
+	return nil
 }
 
 func resolveLoadedPaths(loaded *show.Show, root string) {
@@ -274,7 +441,10 @@ func transcode(ffmpegPath, source, kind, sourceHash string) (string, error) {
 	}
 	var lastOutput []byte
 	for _, args := range attempts {
-		lastOutput, err = exec.Command(ffmpegPath, append(common, args...)...).CombinedOutput()
+		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
+		lastOutput, err = exec.CommandContext(ctx, ffmpegPath, append(common, args...)...).CombinedOutput()
+		timedOut := ctx.Err() == context.DeadlineExceeded
+		cancel()
 		if err == nil {
 			if err := os.Rename(temporary, output); err != nil {
 				_ = os.Remove(temporary)
@@ -283,6 +453,9 @@ func transcode(ffmpegPath, source, kind, sourceHash string) (string, error) {
 			return output, nil
 		}
 		_ = os.Remove(temporary)
+		if timedOut {
+			return "", fmt.Errorf("ffmpeg conversion timed out after 6h")
+		}
 	}
 	return "", fmt.Errorf("ffmpeg conversion failed: %v: %s", err, strings.TrimSpace(string(lastOutput)))
 }

@@ -38,6 +38,15 @@ func TestDisabledIsStateNotWarning(t *testing.T) {
 	}
 }
 
+func TestUnsupportedPositiveGainIsBlocked(t *testing.T) {
+	cue := validSound("1", "track.wav")
+	cue.Play.Sound.LevelDB = 12.1
+	problem, ok := problemWithCode(CueProblems(cue, []Cue{cue}), "media.level.unsupported")
+	if !ok || problem.Severity != ProblemBlocker {
+		t.Fatalf("gain problem = %#v", problem)
+	}
+}
+
 func TestResolvedMediaAndRemoteBlockers(t *testing.T) {
 	settings := config.Defaults()
 	mediaCue := validSound("1", "{unknown}/track.wav")

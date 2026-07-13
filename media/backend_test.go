@@ -100,6 +100,17 @@ func TestParseMediaInfoRejectsInvalidJSON(t *testing.T) {
 	}
 }
 
+func TestParseMediaInfoRejectsUnsafeDecodeResources(t *testing.T) {
+	for _, raw := range []string{
+		`{"streams":[{"codec_type":"video","width":9000,"height":1080,"avg_frame_rate":"30/1"}]}`,
+		`{"streams":[{"codec_type":"video","width":7680,"height":4320,"avg_frame_rate":"300/1"}]}`,
+	} {
+		if _, err := parseMediaInfo([]byte(raw)); err == nil {
+			t.Fatalf("parseMediaInfo(%s) succeeded, want resource-limit error", raw)
+		}
+	}
+}
+
 func TestPlaybackNeedsRefreshOnlyForActiveDecoderStates(t *testing.T) {
 	for _, state := range []LoadState{LoadLoading, LoadReady, LoadPlaying, LoadBuffering} {
 		if !playbackNeedsRefresh(state) {

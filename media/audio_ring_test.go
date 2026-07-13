@@ -2,6 +2,7 @@ package media
 
 import (
 	"bytes"
+	"encoding/binary"
 	"testing"
 	"time"
 )
@@ -21,6 +22,23 @@ func TestPCMRingWrapsWithoutLosingOrder(t *testing.T) {
 	remaining := make([]byte, 8)
 	if n := ring.read(remaining); n != 8 || !bytes.Equal(remaining, []byte{5, 6, 7, 8, 9, 10, 11, 12}) {
 		t.Fatalf("wrapped read = %d %v", n, remaining)
+	}
+}
+
+func TestAudioGainBoostsAndSaturatesWithoutWrapping(t *testing.T) {
+	player := &devicePlayer{ring: newPCMRing(16)}
+	player.SetVolume(dbVolume(12, false))
+	input := make([]byte, 4)
+	binary.LittleEndian.PutUint16(input[0:], uint16(int16(1000)))
+	binary.LittleEndian.PutUint16(input[2:], uint16(int16(20000)))
+	player.ring.write(input)
+	output := make([]byte, 4)
+	player.readSamples(output, nil, 1)
+	if got := int16(binary.LittleEndian.Uint16(output[0:])); got <= 1000 {
+		t.Fatalf("boosted sample = %d, want > 1000", got)
+	}
+	if got := int16(binary.LittleEndian.Uint16(output[2:])); got != 32767 {
+		t.Fatalf("saturated sample = %d, want 32767", got)
 	}
 }
 

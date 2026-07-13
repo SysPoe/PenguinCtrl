@@ -168,12 +168,14 @@ func (p *devicePlayer) readSamples(output, _ []byte, _ uint32) {
 		p.underruns.Add(1)
 	}
 	volume := float64FromBits(p.volume.Load())
-	if volume >= 0.9999 {
+	if math.Abs(volume-1) < 0.0001 {
 		return
 	}
 	for i := 0; i+1 < len(output); i += 2 {
 		sample := int16(binary.LittleEndian.Uint16(output[i:]))
-		scaled := int16(float64(sample) * volume)
+		scaledValue := float64(sample) * volume
+		scaledValue = max(-32768.0, min(32767.0, scaledValue))
+		scaled := int16(scaledValue)
 		binary.LittleEndian.PutUint16(output[i:], uint16(scaled))
 	}
 }
@@ -216,7 +218,7 @@ func (p *devicePlayer) UnexpectedStop() bool     { return !p.intentional.Load() 
 func (p *devicePlayer) Underruns() uint64        { return p.underruns.Load() }
 
 func (p *devicePlayer) SetVolume(volume float64) {
-	p.volume.Store(float64Bits(max(0, min(1, volume))))
+	p.volume.Store(float64Bits(max(0, min(math.Pow(10, 12.0/20), volume))))
 }
 
 func (p *devicePlayer) Close() error {

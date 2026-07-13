@@ -492,9 +492,14 @@ func sourcePath(source string) (string, error) {
 }
 
 func probeMediaDuration(ffmpegPath, source string) (time.Duration, error) {
-	command := exec.Command(ffprobePath(ffmpegPath), "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", source)
+	ctx, cancel := context.WithTimeout(context.Background(), mediaProbeTimeout)
+	defer cancel()
+	command := exec.CommandContext(ctx, ffprobePath(ffmpegPath), "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", source)
 	output, err := command.Output()
 	if err != nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return 0, fmt.Errorf("probe media duration timed out after %s", mediaProbeTimeout)
+		}
 		return 0, fmt.Errorf("probe media duration: %w", err)
 	}
 	seconds, err := strconv.ParseFloat(strings.TrimSpace(string(output)), 64)
@@ -527,5 +532,5 @@ func dbVolume(db float64, muted bool) float64 {
 	if muted || db <= -80 {
 		return 0
 	}
-	return min(1.0, math.Pow(10, db/20))
+	return min(math.Pow(10, 12.0/20), math.Pow(10, db/20))
 }

@@ -1,10 +1,12 @@
 package media
 
 import (
+	"context"
 	"encoding/binary"
 	"fmt"
 	"math"
 	"os/exec"
+	"time"
 )
 
 // Waveform is a low-rate mono representation of a media file. Samples are
@@ -29,9 +31,14 @@ func ExtractWaveform(ffmpegPath, source string) (Waveform, error) {
 		return Waveform{}, err
 	}
 	const sampleRate = 400
-	cmd := exec.Command(ffmpegPath, "-v", "error", "-i", path, "-map", "0:a:0", "-ac", "1", "-ar", fmt.Sprint(sampleRate), "-f", "s16le", "pipe:1")
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, ffmpegPath, "-v", "error", "-i", path, "-map", "0:a:0", "-ac", "1", "-ar", fmt.Sprint(sampleRate), "-f", "s16le", "pipe:1")
 	raw, err := cmd.Output()
 	if err != nil {
+		if ctx.Err() != nil {
+			return Waveform{SampleRate: sampleRate, DurationMs: duration.Milliseconds()}, fmt.Errorf("decode waveform timed out: %w", ctx.Err())
+		}
 		return Waveform{SampleRate: sampleRate, DurationMs: duration.Milliseconds()}, fmt.Errorf("decode waveform: %w", err)
 	}
 	samples := make([]float32, len(raw)/2)

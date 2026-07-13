@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/url"
 	"path/filepath"
 	"regexp"
@@ -69,9 +70,38 @@ func CueProblems(cue Cue, cues []Cue) []CueProblem {
 	}
 	problems = append(problems, cueNumberProblems(cue, cues)...)
 	problems = append(problems, cuePayloadProblems(cue)...)
+	problems = append(problems, cueLevelProblems(cue)...)
 	problems = append(problems, linkContextProblems(cue, cues)...)
 	problems = append(problems, timecodeIntegrityProblems(cue)...)
 	return uniqueProblems(problems)
+}
+
+func cueLevelProblems(cue Cue) []CueProblem {
+	var levels []float64
+	switch cue.Type {
+	case CueTypeSound:
+		if cue.Play.Sound != nil {
+			levels = append(levels, cue.Play.Sound.LevelDB)
+		}
+	case CueTypeVideo:
+		if cue.Play.Video != nil {
+			levels = append(levels, cue.Play.Video.LevelDB)
+		}
+	case CueTypeMediaControl:
+		if cue.Play.MediaControl != nil && cue.Play.MediaControl.LevelDB != nil {
+			levels = append(levels, *cue.Play.MediaControl.LevelDB)
+		}
+	}
+	for _, level := range levels {
+		if math.IsNaN(level) || math.IsInf(level, 0) || level > 12 {
+			return []CueProblem{{
+				Code: "media.level.unsupported", Severity: ProblemBlocker,
+				Message:     "Media level exceeds the supported +12 dB headroom",
+				Consequence: "The programmed gain cannot be reproduced safely.", Fix: "Set level to +12 dB or lower", Field: "media",
+			}}
+		}
+	}
+	return nil
 }
 
 // CueProblemsWithContext resolves templates and validates settings-dependent

@@ -25,7 +25,13 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
-const decodedFrameBuffer = 2
+const (
+	decodedFrameBuffer = 2
+	mediaProbeTimeout  = 10 * time.Second
+	maxVideoDimension  = 8192
+	maxVideoPixels     = 7680 * 4320
+	maxVideoFrameRate  = 240
+)
 
 type LoadState string
 
@@ -94,9 +100,11 @@ func (b *FFmpegBackend) Open(request PlaybackRequest) (PlaybackSession, error) {
 	if request.RequestedAt.IsZero() {
 		request.RequestedAt = time.Now()
 	}
+	ctx, cancel := context.WithCancel(context.Background())
 	return &ffmpegSession{
 		backend: b, request: request, path: path, state: LoadIdle,
 		frames: make(chan decodedFrame, decodedFrameBuffer), done: make(chan struct{}),
+		ctx: ctx, cancel: cancel,
 	}, nil
 }
 
@@ -123,6 +131,8 @@ type ffmpegSession struct {
 	done      chan struct{}
 	doneOnce  sync.Once
 	component sync.WaitGroup
+	ctx       context.Context
+	cancel    context.CancelFunc
 
 	frames  chan decodedFrame
 	frameMu sync.Mutex
@@ -275,7 +285,7 @@ func (s *ffmpegSession) decodeVideo(cmd *exec.Cmd, reader io.Reader, first chan<
 func (s *ffmpegSession) preloadAudio() error {
 	args := mediaInputArgs(s.request.Position, s.request.Instance.ClipEndMs)
 	args = append(args, "-i", s.path, "-map", "0:a:0", "-vn", "-f", "s16le", "-ar", strconv.Itoa(audioSampleRate), "-ac", strconv.Itoa(audioChannels), "pipe:1")
-	cmd := exec.Command(s.backend.settings.Snapshot().FFmpegPath, args...)
+	cmd := exec.CommandContext(s.ctx, s.backend.settings.Snapshot().FFmpegPath, args...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return err
@@ -446,6 +456,7 @@ func (s *ffmpegSession) Close() {
 	s.audio = nil
 	s.mu.Unlock()
 	s.doneOnce.Do(func() { close(s.done) })
+	s.cancel()
 	if videoCmd != nil && videoCmd.Process != nil {
 		_ = videoCmd.Process.Kill()
 	}
@@ -497,9 +508,14 @@ func (i mediaInfo) frameInterval() time.Duration {
 }
 
 func probeMediaInfo(ffmpegPath, source string) (mediaInfo, error) {
-	command := exec.Command(ffprobePath(ffmpegPath), "-v", "error", "-show_entries", "stream=codec_type,width,height,avg_frame_rate:stream_tags=rotate:stream_side_data=rotation", "-of", "json", source)
+	ctx, cancel := context.WithTimeout(context.Background(), mediaProbeTimeout)
+	defer cancel()
+	command := exec.CommandContext(ctx, ffprobePath(ffmpegPath), "-v", "error", "-show_entries", "stream=codec_type,width,height,avg_frame_rate:stream_tags=rotate:stream_side_data=rotation", "-of", "json", source)
 	raw, err := command.CombinedOutput()
 	if err != nil {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			return mediaInfo{}, fmt.Errorf("ffmpeg probe media streams timed out after %s", mediaProbeTimeout)
+		}
 		return mediaInfo{}, ffmpegCommandError("probe media streams", err, string(raw))
 	}
 	return parseMediaInfo(raw)
@@ -547,6 +563,14 @@ func parseMediaInfo(raw []byte) (mediaInfo, error) {
 			}
 		case "audio":
 			info.hasAudio = true
+		}
+	}
+	if info.hasVideo {
+		if info.width <= 0 || info.height <= 0 || info.width > maxVideoDimension || info.height > maxVideoDimension || int64(info.width)*int64(info.height) > maxVideoPixels {
+			return mediaInfo{}, fmt.Errorf("video dimensions %dx%d exceed the supported decode limit", info.width, info.height)
+		}
+		if info.fps > maxVideoFrameRate {
+			return mediaInfo{}, fmt.Errorf("video frame rate %.2f exceeds the supported %.0f fps limit", info.fps, float64(maxVideoFrameRate))
 		}
 	}
 	return info, nil
