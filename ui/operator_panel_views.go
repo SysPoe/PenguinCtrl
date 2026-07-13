@@ -99,6 +99,10 @@ func (p *OperatorPanel) layoutEvents(th *material.Theme, gtx layout.Context, eve
 	if len(events) == 0 {
 		return layout.Center.Layout(gtx, material.Body1(th, "No operator events recorded").Layout)
 	}
+	// A Gio list otherwise adopts the width of its widest visible child. Since
+	// visible cards change while scrolling, that makes the scrollbar move with
+	// the content instead of staying at the edge of the viewport.
+	gtx.Constraints.Min.X = gtx.Constraints.Max.X
 	return material.List(th, &p.list).Layout(gtx, len(events), func(gtx layout.Context, index int) layout.Dimensions {
 		event := events[len(events)-1-index]
 		status := event.Severity.Label()

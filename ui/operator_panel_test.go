@@ -51,6 +51,26 @@ func TestOperatorStatusCanBeAcknowledged(t *testing.T) {
 	}
 }
 
+func TestOperatorEventListFillsViewportWidth(t *testing.T) {
+	var panel OperatorPanel
+	panel.list.Axis = layout.Vertical
+	gtx := layout.Context{
+		Ops:         new(op.Ops),
+		Constraints: layout.Constraints{Max: image.Pt(640, 480)},
+		Metric:      unit.Metric{PxPerDp: 1, PxPerSp: 1},
+	}
+	events := []operatorlog.Event{{
+		Severity: operatorlog.Recoverable,
+		Source:   "Media output",
+		Message:  "player is closed",
+	}}
+
+	dimensions := panel.layoutEvents(material.NewTheme(), gtx, events)
+	if dimensions.Size.X != gtx.Constraints.Max.X {
+		t.Fatalf("event list width = %d, want viewport width %d", dimensions.Size.X, gtx.Constraints.Max.X)
+	}
+}
+
 func TestPreflightPresentationDoesNotCallChecksFailures(t *testing.T) {
 	checks := []operatorlog.PreflightCheck{
 		{Severity: operatorlog.ShowStopping},
