@@ -767,7 +767,15 @@ func (p *SettingsPage) targetsSection(th *material.Theme, gtx layout.Context) la
 		return settingsField(th, gtx, "Redundant-target success", p.remoteSuccessPolicy.Layout)
 	})
 	rows = append(rows, func(gtx layout.Context) layout.Dimensions {
-		return settingsColumnHeaders(th, gtx, []string{"Name", "Host", "OSC", "ERC", "Health", "Ack", ""})
+		return settingsColumnHeaders(th, gtx, []settingsColumnHeader{
+			{label: "Name", weight: 0.18},
+			{label: "Host", weight: 0.25},
+			{label: "OSC", weight: 0.11},
+			{label: "ERC", weight: 0.11},
+			{label: "Health", weight: 0.11},
+			{label: "Ack", weight: 0.11},
+			{weight: 0.13},
+		})
 	})
 	for _, fields := range p.targets {
 		fields := fields
@@ -796,7 +804,11 @@ func (p *SettingsPage) targetsSection(th *material.Theme, gtx layout.Context) la
 func (p *SettingsPage) variablesSection(th *material.Theme, gtx layout.Context) layout.Dimensions {
 	rows := make([]layout.Widget, 0, len(p.variables)+2)
 	rows = append(rows, func(gtx layout.Context) layout.Dimensions {
-		return settingsColumnHeaders(th, gtx, []string{"Variable", "Value", ""})
+		return settingsColumnHeaders(th, gtx, []settingsColumnHeader{
+			{label: "Variable", weight: 0.3},
+			{label: "Value", weight: 0.55},
+			{weight: 0.15},
+		})
 	})
 	for _, fields := range p.variables {
 		fields := fields
@@ -845,19 +857,21 @@ func settingsField(th *material.Theme, gtx layout.Context, label string, field f
 	})
 }
 
-func settingsColumnHeaders(th *material.Theme, gtx layout.Context, headers []string) layout.Dimensions {
+type settingsColumnHeader struct {
+	label  string
+	weight float32
+}
+
+func settingsColumnHeaders(th *material.Theme, gtx layout.Context, headers []settingsColumnHeader) layout.Dimensions {
 	children := make([]layout.FlexChild, len(headers))
 	for i, header := range headers {
 		header := header
-		weight := float32(1)
-		if len(headers) == 5 {
-			weight = []float32{0.22, 0.32, 0.16, 0.16, 0.14}[i]
-		} else {
-			weight = []float32{0.3, 0.55, 0.15}[i]
+		if header.weight <= 0 {
+			header.weight = 1
 		}
-		children[i] = layout.Flexed(weight, func(gtx layout.Context) layout.Dimensions {
+		children[i] = layout.Flexed(header.weight, func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Left: unit.Dp(8), Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return layoutStableText(gtx, stableBody2(th, header).Layout)
+				return layoutStableText(gtx, stableBody2(th, header.label).Layout)
 			})
 		})
 	}
