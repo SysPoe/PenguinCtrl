@@ -24,6 +24,7 @@ import (
 	"github.com/syspoe/cusus/internal/processgroup"
 	"github.com/syspoe/cusus/playback"
 	"github.com/syspoe/cusus/show"
+	_ "golang.org/x/image/webp"
 )
 
 const (
