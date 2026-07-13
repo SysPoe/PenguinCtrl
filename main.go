@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -28,6 +29,7 @@ import (
 	"gioui.org/x/explorer"
 
 	"github.com/syspoe/cusus/config"
+	"github.com/syspoe/cusus/internal/crashreport"
 	"github.com/syspoe/cusus/media"
 	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/palette"
@@ -60,24 +62,50 @@ type UIState struct {
 	OperatorPanel        ui.OperatorPanel
 }
 
-func main() {
+func main() { os.Exit(runMain()) }
+
+func runMain() (exitCode int) {
+	defer func() {
+		if value := recover(); value != nil {
+			_ = crashreport.Write("main", value, debug.Stack())
+			log.Printf("fatal panic: %v", value)
+			exitCode = 2
+		}
+	}()
 	application, err := newApp()
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		return 1
 	}
-	go func() {
+	if err := crashreport.InstallFatalOutput(); err != nil {
+		log.Printf("install fatal crash output: %v", err)
+		return 1
+	}
+	cleanExit := false
+	defer func() { crashreport.CloseFatalOutput(cleanExit) }()
+	runResult := make(chan error, 1)
+	crashreport.Go("operator-window", func() {
 		window := new(app.Window)
 		window.Option(
 			app.Title("CuSus"),
 			app.Size(unit.Dp(1300), unit.Dp(720)),
 			app.MinSize(unit.Dp(1300), unit.Dp(720)),
 		)
-		if err := application.run(window); err != nil {
-			log.Fatal(err)
-		}
-		os.Exit(0)
-	}()
+		runResult <- application.run(window)
+	})
 	app.Main()
+	select {
+	case err := <-runResult:
+		if err != nil {
+			log.Print(err)
+			return 1
+		}
+	case <-time.After(2 * time.Second):
+		log.Print("operator window stopped without a shutdown result")
+		return 1
+	}
+	cleanExit = true
+	return 0
 }
 
 func newApp() (*App, error) {
@@ -85,6 +113,7 @@ func newApp() (*App, error) {
 	if err != nil {
 		return nil, err
 	}
+	crashreport.SetDirectory(filepath.Join(filepath.Dir(settings.Path()), "crashes"))
 	showManager := show.NewShowManager()
 	journal, err := project.OpenEditJournal(filepath.Join(filepath.Dir(settings.Path()), "show-recovery.jsonl"))
 	if err != nil {
