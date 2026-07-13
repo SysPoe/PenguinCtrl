@@ -28,6 +28,8 @@ type Manager struct {
 	settings          *config.Store
 	mu                sync.Mutex
 	windows           map[string]*outputWindow
+	desired           map[string]struct{}
+	closed            bool
 	audio             *AudioSystem
 	audioStatusMu     sync.Mutex
 	lastAudioCheck    time.Time
@@ -45,7 +47,7 @@ func NewManager(engine *playback.Engine, settings *config.Store) *Manager {
 	if err != nil {
 		log.Printf("initialize audio output: %v", err)
 	}
-	manager := &Manager{engine: engine, settings: settings, windows: map[string]*outputWindow{}, audio: context}
+	manager := &Manager{engine: engine, settings: settings, windows: map[string]*outputWindow{}, desired: map[string]struct{}{}, audio: context}
 	manager.refreshDisplays(true)
 	go manager.monitorDisplays()
 	return manager
@@ -109,7 +111,13 @@ func audioDeviceWarning(settings config.Settings, devices []AudioDevice, err err
 }
 
 func (m *Manager) EnsureOutputs(outputIDs []string) {
-	for _, outputID := range m.outputIDsWithConfiguredStages(outputIDs) {
+	outputIDs = m.outputIDsWithConfiguredStages(outputIDs)
+	m.mu.Lock()
+	for _, outputID := range outputIDs {
+		m.desired[outputID] = struct{}{}
+	}
+	m.mu.Unlock()
+	for _, outputID := range outputIDs {
 		m.ensureOutput(outputID)
 	}
 }
@@ -119,9 +127,13 @@ func (m *Manager) SyncOutputs(outputIDs []string) {
 	desired := make(map[string]struct{}, len(outputIDs))
 	for _, outputID := range outputIDs {
 		desired[outputID] = struct{}{}
-		m.ensureOutput(outputID)
 	}
 	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return
+	}
+	m.desired = desired
 	var stale []*outputWindow
 	for outputID, output := range m.windows {
 		if _, keep := desired[outputID]; !keep {
@@ -129,6 +141,9 @@ func (m *Manager) SyncOutputs(outputIDs []string) {
 		}
 	}
 	m.mu.Unlock()
+	for _, outputID := range outputIDs {
+		m.ensureOutput(outputID)
+	}
 	for _, output := range stale {
 		if output.window != nil {
 			output.window.Perform(system.ActionClose)
@@ -141,6 +156,10 @@ func (m *Manager) ensureOutput(outputID string) {
 		return
 	}
 	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return
+	}
 	if _, exists := m.windows[outputID]; exists {
 		m.mu.Unlock()
 		return
@@ -155,6 +174,36 @@ func (m *Manager) removed(outputID string) {
 	m.mu.Lock()
 	delete(m.windows, outputID)
 	m.mu.Unlock()
+}
+
+func (m *Manager) shouldRecoverOutput(outputID string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closed {
+		return false
+	}
+	_, desired := m.desired[outputID]
+	return desired
+}
+
+func (m *Manager) Close() {
+	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return
+	}
+	m.closed = true
+	m.desired = map[string]struct{}{}
+	windows := make([]*outputWindow, 0, len(m.windows))
+	for _, output := range m.windows {
+		windows = append(windows, output)
+	}
+	m.mu.Unlock()
+	for _, output := range windows {
+		if output.window != nil {
+			output.window.Perform(system.ActionClose)
+		}
+	}
 }
 
 type outputWindow struct {
@@ -208,8 +257,8 @@ func (o *outputWindow) run() {
 	o.geometryUpdates = make(chan [4]int, 1)
 	defer func() {
 		o.manager.removed(o.id)
-		if o.reopening {
-			o.manager.ensureOutput(o.id)
+		if o.reopening || o.manager.shouldRecoverOutput(o.id) {
+			time.AfterFunc(250*time.Millisecond, func() { o.manager.ensureOutput(o.id) })
 		}
 	}()
 	log.Printf("opening media output %q", o.id)

@@ -159,18 +159,20 @@
   <section id="critical" class="break">
     <h2>Critical findings — fix before show-critical use</h2>
 
-    <article class="finding critical">
-      <h3><span class="badge critical">R-01 Critical</span>Playback and control events are silently dropped</h3>
+    <article class="finding complete">
+      <h3><span class="badge complete">R-01 Complete</span>Playback and control delivery reconciles from authoritative state</h3>
       <p><strong>Impact:</strong> a GO, STOP, fade, seek, blackout, or remove can exist in engine state but never reach the output window. The operator may see a cue as active while nothing plays, or press STOP while output continues.</p>
       <p class="evidence"><strong>Evidence:</strong> <code>playback/events.go:105-113</code> uses a non-blocking send with an empty <code>default</code>; subscriber buffers are only 32 events. <code>media/manager.go:181-198</code> adds another bounded handoff. There is no sequence number, acknowledgment, retry, or reconciliation after a dropped incremental event.</p>
       <p><strong>Recommendation:</strong> replace the lossy fan-out with a per-output state machine and reliable command mailbox. Give every mutation a monotonic sequence number; require the output to acknowledge application; on a gap, send a complete authoritative snapshot. STOP/blackout must use a reserved, non-droppable priority path. Add queue-depth, gap, and apply-latency telemetry. Test with a deliberately frozen output event loop.</p>
+      <p class="callout good"><strong>Completed:</strong> output events carry monotonic sequence numbers, overload collapses to a mandatory resync marker, and both resync and new subscriptions apply a complete authoritative engine snapshot before later increments. STOP and blackout therefore cannot remain silently lost behind an overloaded incremental queue.</p>
     </article>
 
-    <article class="finding critical">
-      <h3><span class="badge critical">R-02 Critical</span>Pause and seek do not correct lifecycle timers</h3>
+    <article class="finding complete">
+      <h3><span class="badge complete">R-02 Complete</span>Pause and seek replace lifecycle timers</h3>
       <p><strong>Impact:</strong> paused media still reaches its originally scheduled logical end; seeking backward can end early and seeking forward can end late. End links may fire while media is paused or at the wrong point in the file.</p>
       <p class="evidence"><strong>Evidence:</strong> <code>playback/engine.go:566-600</code> schedules one wall-time end goroutine and sets <code>EndScheduled</code>. <code>playback/engine.go:632-667</code> updates position/paused flags but neither cancels nor recreates that timer. The player restarts on seek/resume in <code>media/player.go:276-325</code>, while engine timing remains unchanged.</p>
       <p><strong>Recommendation:</strong> give each instance a lifecycle generation/cancel function. Pause cancels its fade/end timers; resume and seek materialise position and schedule fresh timers from remaining media time. Ignore reports from stale generations. Use one injectable monotonic clock and build deterministic tests for pause-before-fade, long pause, forward/back seek, repeated seek, and Stop All races.</p>
+      <p class="callout good"><strong>Completed:</strong> lifecycle work is generation-based; pause invalidates pending completion, and resume or seek materialises the position and schedules from the new remaining duration. Deterministic tests cover stale pause and backward-seek timers.</p>
     </article>
 
     <article class="finding critical">
@@ -188,12 +190,12 @@
       <p class="complete">Completed sub-action: endpoint loss and video-audio startup failures now produce a latched, persistent operator alarm and preflight blocker. Continuity/rebind policy remains open.</p>
     </article>
 
-    <article class="finding critical">
-      <h3><span class="badge critical">R-05 Critical</span>Output-window loss creates ghost playback and is not self-healing</h3>
+    <article class="finding complete">
+      <h3><span class="badge complete">R-05 Complete</span>Desired output windows recover from loss</h3>
       <p><strong>Impact:</strong> Windows, a monitor hotplug, the operator, or a Gio error can close an output. Its players stop, but the engine retains live instances; waits and control cues then reason about media that is not actually playing. The output is removed and normally remains absent.</p>
       <p class="evidence"><strong>Evidence:</strong> <code>media/manager.go:169-209</code> closes players with <code>report=false</code> on <code>DestroyEvent</code> and removes the window. Reopen occurs only when the explicit <code>reopening</code> flag is set. <code>SyncOutputs</code> is event-driven, not a health supervisor.</p>
       <p><strong>Recommendation:</strong> distinguish intentional operator close from crash/device/display loss. In show mode, prevent accidental close or immediately recreate the assigned output with backoff. On loss, reconcile every player with engine state: either resume at current monotonic position or atomically mark instances failed/stopped and block dependent links. Add heartbeat and generation IDs so stale windows cannot report against replacements.</p>
-      <p class="complete">Completed sub-action: missing displays/output windows and output/player failures are visible in preflight, the warning surface, cue rows, and the operator incident log. Automatic recovery remains open.</p>
+      <p class="callout good"><strong>Completed:</strong> the manager now distinguishes removed outputs from still-desired outputs, suppresses recovery during controlled shutdown, and recreates an unexpectedly closed desired window with backoff. Every replacement subscribes through an ordered authoritative snapshot containing materialised current positions, so ghost engine instances reconcile into the new generation.</p>
     </article>
 
     <article class="finding complete">
@@ -209,6 +211,7 @@
       <p><strong>Impact:</strong> closing, crashing, starting a new show, or opening another show can lose recent work. A queued autosave is not flushed on shutdown. Save As can leave a partial user-selected file. Autosave replacement has a Windows/OneDrive-sensitive gap.</p>
       <p class="evidence"><strong>Evidence:</strong> <code>main.go:520-559</code> debounces autosave in an unmanaged goroutine; <code>main.go:574-577</code> closes playback and returns without draining it. New/Open paths do not require dirty confirmation. Save As writes directly through the explorer handle at <code>main.go:453-487</code>. Replacement at <code>main.go:733-748</code> temporarily moves the old file aside and ignores several cleanup/restore errors.</p>
       <p><strong>Recommendation:</strong> maintain a small write-ahead edit journal independent of the portable media archive. On every mutation, append and flush a versioned record; periodically checkpoint a compact show snapshot. On startup, offer verified recovery. Track dirty state and require Save/Discard/Cancel for New, Open, and Close. Save As to a sibling temporary file, fsync, validate by reopening, then replace. Retain timestamped recovery generations rather than one fixed backup.</p>
+      <p class="complete">Completed sub-action: every changed show generation is appended to a bounded, versioned JSONL journal and fsynced independently of media packaging; torn final writes are ignored; records are digest-validated; startup restores the latest dirty generation; successful save/load writes a clean generation; normal close flushes dirty state; and Save As now uses sibling-temp publication. Explicit Save/Discard/Cancel UI for New/Open remains open.</p>
     </article>
   </section>
 
@@ -227,7 +230,7 @@
 
     <article class="finding high"><h3><span class="badge high">R-13 High</span>Autosave performs heavy full-archive work during playback</h3><p>Every autosave calls <code>project.Save</code>, which walks cue media and writes an entire ZIP. Cached transcoding reduces codec cost but not hashing/copying/archive I/O. This can compete with media playback for disk, CPU, memory, and OneDrive locks. Keep fast journal/checkpoint autosave separate from explicit portable “Package Show.” Throttle background maintenance, pause it in show mode, and monitor disk latency.</p></article>
 
-    <article class="finding high"><h3><span class="badge high">R-14 High</span>Settings persistence is not safely transactional on Windows</h3><p><code>config.Store.Update</code> assigns the in-memory settings before disk save, so a save failure leaves memory and disk disagreeing. <code>saveLocked</code> renames <code>settings.json.tmp</code> directly over the destination (<code>config/settings.go:91-121</code>), which is not a reliable replace operation on Windows when the destination exists. Save a candidate first, flush and validate it, use a Windows-safe replace/backup sequence, and commit the in-memory value only after success. Recover orphaned temp/backup files on startup.</p></article>
+    <article class="finding complete"><h3><span class="badge complete">R-14 Complete</span>Settings updates are transactional and recoverable</h3><p>A candidate is encoded and flushed before publication, the previous primary is retained as a last-known-good generation during Windows replacement, failed publication leaves the in-memory snapshot unchanged, startup restores an interrupted replacement, and corrupt primaries are preserved before falling back to the verified backup. Failure, replacement, recovery, and corrupt-primary tests cover the boundary.</p></article>
 
     <article class="finding high"><h3><span class="badge high">R-15 High</span>Remote delivery assurance remains open; result wording complete</h3><p>UDP sockets are created per target per cue and a successful write is treated as success (<code>remote/dispatcher.go:25-70</code>). There is no acknowledgment, retry, heartbeat, deadline, deduplication ID, or primary/backup policy; targets are contacted sequentially. Where the console permits it, use an acknowledged protocol and idempotent command IDs. Otherwise show “sent/unconfirmed,” continuously monitor target reachability, set tight per-target deadlines, and execute redundant targets concurrently with a declared success policy.</p><p class="complete">Completed sub-action: UDP success is now reported as sent/unconfirmed and transport/target incompatibility is blocked before queueing. Active health, retry, and acknowledgement remain open.</p></article>
 

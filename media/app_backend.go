@@ -10,4 +10,5 @@ type Backend interface {
 	RefreshVideoOutputStatus()
 	EnsureOutputs([]string)
 	SyncOutputs([]string)
+	Close()
 }

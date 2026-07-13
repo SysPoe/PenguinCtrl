@@ -38,12 +38,15 @@ import (
 )
 
 type App struct {
-	Show        *show.Manager
-	Playback    *playback.Engine
-	Media       media.Backend
-	Settings    *config.Store
-	OperatorLog *operatorlog.Store
-	UI          UIState
+	Show          *show.Manager
+	Playback      *playback.Engine
+	Media         media.Backend
+	Settings      *config.Store
+	OperatorLog   *operatorlog.Store
+	Journal       *project.EditJournal
+	Recovered     bool
+	RecoveredPath string
+	UI            UIState
 }
 
 type UIState struct {
@@ -83,6 +86,17 @@ func newApp() (*App, error) {
 		return nil, err
 	}
 	showManager := show.NewShowManager()
+	journal, err := project.OpenEditJournal(filepath.Join(filepath.Dir(settings.Path()), "show-recovery.jsonl"))
+	if err != nil {
+		return nil, err
+	}
+	recovered, hasRecovery, err := journal.Recover()
+	if err != nil {
+		return nil, err
+	}
+	if hasRecovery {
+		showManager.ReplaceShow(recovered.Show)
+	}
 	operatorEvents := operatorlog.NewStore()
 	operatorEvents.SetLogPath(filepath.Join(filepath.Dir(settings.Path()), "operator-events.jsonl"))
 	engine := playback.NewEngine(showManager, settings)
@@ -98,11 +112,14 @@ func newApp() (*App, error) {
 	mediaBackend.SyncOutputs(engine.OutputIDs())
 	settingsPage := ui.NewSettingsPage(settings)
 	application := &App{
-		Show:        showManager,
-		Playback:    engine,
-		Media:       mediaBackend,
-		Settings:    settings,
-		OperatorLog: operatorEvents,
+		Show:          showManager,
+		Playback:      engine,
+		Media:         mediaBackend,
+		Settings:      settings,
+		OperatorLog:   operatorEvents,
+		Journal:       journal,
+		Recovered:     hasRecovery,
+		RecoveredPath: recovered.DocumentPath,
 		UI: UIState{
 			SettingsPage:   settingsPage,
 			ProjectLibrary: project.NewLibrary(),
@@ -409,8 +426,12 @@ func (a *App) run(window *app.Window) error {
 	autosaveRequests := make(chan struct{}, 1)
 	var documentMu sync.RWMutex
 	var saveMu sync.Mutex
-	var currentShowPath string
-	var lastSavedDigest [sha256.Size]byte
+	currentShowPath := a.RecoveredPath
+	lastSavedDigest := showDigest(manager.ShowSnapshot())
+	if a.Recovered {
+		lastSavedDigest = [sha256.Size]byte{}
+		topBar.SetStatus("Recovered unsaved show edits · save to confirm recovery")
+	}
 	var suppressAutosave bool
 	var lastAudioOperatorWarning, lastVideoOperatorWarning string
 	tbCtx.LoadWaveform = func(source string, completed func([]float32, int, int64, error)) {
@@ -429,6 +450,15 @@ func (a *App) run(window *app.Window) error {
 	})
 	operatorEvents.SetOnChange(window.Invalidate)
 	manager.SetOnChange(func() {
+		snapshot := manager.ShowSnapshot()
+		documentMu.RLock()
+		path, suppressed, dirty := currentShowPath, suppressAutosave, showDigest(snapshot) != lastSavedDigest
+		documentMu.RUnlock()
+		if !suppressed && dirty && a.Journal != nil {
+			if err := a.Journal.RecordDirty(snapshot, path); err != nil {
+				operatorEvents.Add(operatorlog.ShowStopping, "Edit recovery", err.Error(), show.CueID{}, "")
+			}
+		}
 		window.Invalidate()
 		playbackEngine.RefreshDurations()
 		mediaManager.SyncOutputs(playbackEngine.OutputIDs())
@@ -539,6 +569,11 @@ func (a *App) run(window *app.Window) error {
 				lastSavedDigest = showDigest(manifest.Show)
 				suppressAutosave = false
 				documentMu.Unlock()
+				if a.Journal != nil {
+					if err := a.Journal.MarkSaved(manifest.Show, loadedPath); err != nil {
+						operatorEvents.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
+					}
+				}
 				topBar.SetStatus("Loaded " + documentName(loadedPath) + " · autosave on")
 			}
 			window.Invalidate()
@@ -560,16 +595,20 @@ func (a *App) run(window *app.Window) error {
 				return
 			}
 			path := explorerPath(file)
+			if closeErr := file.Close(); closeErr != nil {
+				operatorEvents.Add(operatorlog.Recoverable, "Save show", closeErr.Error(), show.CueID{}, "")
+				return
+			}
+			if strings.TrimSpace(path) == "" {
+				operatorEvents.Add(operatorlog.Recoverable, "Save show", "file picker did not return a filesystem path", show.CueID{}, "")
+				return
+			}
 			uiActions <- func() { topBar.SetStatus("Saving and optimizing bundled media…") }
 			window.Invalidate()
 			snapshot := manager.ShowSnapshot()
 			saveMu.Lock()
-			manifest, err := project.Save(file, snapshot, settingsStore.Snapshot().FFmpegPath)
-			closeErr := file.Close()
+			manifest, err := saveShowAtPath(path, snapshot, settingsStore.Snapshot().FFmpegPath)
 			saveMu.Unlock()
-			if err == nil {
-				err = closeErr
-			}
 			if err != nil {
 				operatorEvents.Add(operatorlog.Recoverable, "FFmpeg / save show", err.Error(), show.CueID{}, "")
 				uiActions <- func() { topBar.SetStatus("Save failed: " + err.Error()) }
@@ -580,6 +619,11 @@ func (a *App) run(window *app.Window) error {
 			currentShowPath = path
 			lastSavedDigest = showDigest(snapshot)
 			documentMu.Unlock()
+			if a.Journal != nil {
+				if err := a.Journal.MarkSaved(snapshot, path); err != nil {
+					operatorEvents.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
+				}
+			}
 			uiActions <- func() {
 				topBar.SetStatus("Saved " + documentName(path) + " · autosave on · " + formatFileCount(len(manifest.Assets)))
 			}
@@ -611,6 +655,11 @@ func (a *App) run(window *app.Window) error {
 			documentMu.Lock()
 			lastSavedDigest = showDigest(snapshot)
 			documentMu.Unlock()
+			if a.Journal != nil {
+				if err := a.Journal.MarkSaved(snapshot, path); err != nil {
+					operatorEvents.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
+				}
+			}
 			uiActions <- func() {
 				topBar.SetStatus("Saved " + documentName(path) + " · autosave on · " + formatFileCount(len(manifest.Assets)))
 			}
@@ -654,6 +703,11 @@ func (a *App) run(window *app.Window) error {
 				documentMu.Lock()
 				lastSavedDigest = digest
 				documentMu.Unlock()
+				if a.Journal != nil {
+					if err := a.Journal.MarkSaved(snapshot, path); err != nil {
+						operatorEvents.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
+					}
+				}
 				uiActions <- func() { topBar.SetStatus("Autosaved " + documentName(path)) }
 			}
 			window.Invalidate()
@@ -675,7 +729,17 @@ func (a *App) run(window *app.Window) error {
 
 		switch e := e.(type) {
 		case app.DestroyEvent:
+			snapshot := manager.ShowSnapshot()
+			documentMu.RLock()
+			path, dirty := currentShowPath, showDigest(snapshot) != lastSavedDigest
+			documentMu.RUnlock()
+			if dirty && a.Journal != nil {
+				if err := a.Journal.RecordDirty(snapshot, path); err != nil {
+					operatorEvents.Add(operatorlog.ShowStopping, "Edit recovery", err.Error(), show.CueID{}, "")
+				}
+			}
 			playbackEngine.Close()
+			mediaManager.Close()
 			return e.Err
 
 		case app.ConfigEvent:
@@ -715,6 +779,9 @@ func (a *App) run(window *app.Window) error {
 				lastSavedDigest = showDigest(show.Show{})
 				suppressAutosave = false
 				documentMu.Unlock()
+				if a.Journal != nil {
+					_ = a.Journal.MarkSaved(show.Show{}, "")
+				}
 				topBar.SetStatus("New untitled show · choose Save to start autosave")
 			}
 			if topBar.TakeLoadRequest() {
