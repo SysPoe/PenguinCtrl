@@ -9,6 +9,7 @@ import (
 
 	"github.com/syspoe/cusus/config"
 	"github.com/syspoe/cusus/operatorlog"
+	"github.com/syspoe/cusus/remote"
 	"github.com/syspoe/cusus/show"
 )
 
@@ -129,5 +130,16 @@ func TestNoMediaControlMatchIsVisibleResult(t *testing.T) {
 	latest, ok := events.LatestUnacknowledged()
 	if !ok || !strings.Contains(latest.Message, "No active media matched") {
 		t.Fatalf("result event = %#v", latest)
+	}
+}
+
+func TestRemoteResultMessageNamesAttemptedProtocol(t *testing.T) {
+	result := remote.DispatchResult{Protocols: []show.RemoteProtocol{show.RemoteProtocolERC}}
+	if message := remoteDispatchMessage(result, false); message != "Command sent via ERC; UDP delivery is unconfirmed" {
+		t.Fatalf("message = %q", message)
+	}
+	result.Protocols = []show.RemoteProtocol{show.RemoteProtocolOSC, show.RemoteProtocolERC}
+	if message := remoteDispatchMessage(result, true); message != "Command sent via OSC/ERC and acknowledged by the configured idempotent relay" {
+		t.Fatalf("message = %q", message)
 	}
 }

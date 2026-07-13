@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/syspoe/cusus/operatorlog"
+	"github.com/syspoe/cusus/remote"
 	"github.com/syspoe/cusus/show"
 )
 
@@ -63,7 +65,11 @@ func (e *Engine) execute(next command) {
 		if next.cue.Play.Remote == nil {
 			err = errors.New("remote cue has no remote action")
 		} else {
-			dispatch := func() error { return e.remote.Dispatch(e.ctx, *next.cue.Play.Remote, next.cue) }
+			var result remote.DispatchResult
+			dispatch := func() error {
+				result, err = e.remote.DispatchWithResult(e.ctx, *next.cue.Play.Remote, next.cue)
+				return err
+			}
 			e.mu.RLock()
 			authorize := e.remoteAuthority
 			e.mu.RUnlock()
@@ -73,10 +79,10 @@ func (e *Engine) execute(next command) {
 				err = dispatch()
 			}
 			if err == nil && e.operatorLog != nil {
-				message := "Command sent; UDP delivery is unconfirmed"
+				message := remoteDispatchMessage(result, false)
 				severity := operatorlog.Warning
-				if e.remote.LastDispatchAcknowledged() {
-					message = "Command acknowledged by the configured idempotent relay"
+				if result.Acknowledged {
+					message = remoteDispatchMessage(result, true)
 					severity = operatorlog.Info
 				}
 				e.operatorLog.Add(severity, next.origin+" · remote result", message, next.cue.ID, next.cue.CueNumber)
@@ -109,6 +115,26 @@ func (e *Engine) execute(next command) {
 	if next.cue.Type != show.CueTypeSound && next.cue.Type != show.CueTypeVideo && next.cue.Type != show.CueTypeImage {
 		e.scheduleLink(next.cue, next.index, next.cue.Timing.PostWaitMs, linkEnd, next.ctx)
 	}
+}
+
+func remoteDispatchMessage(result remote.DispatchResult, acknowledged bool) string {
+	protocols := make([]string, 0, len(result.Protocols))
+	for _, protocol := range result.Protocols {
+		switch protocol {
+		case show.RemoteProtocolOSC:
+			protocols = append(protocols, "OSC")
+		case show.RemoteProtocolERC:
+			protocols = append(protocols, "ERC")
+		}
+	}
+	transport := ""
+	if len(protocols) > 0 {
+		transport = " via " + strings.Join(protocols, "/")
+	}
+	if acknowledged {
+		return "Command sent" + transport + " and acknowledged by the configured idempotent relay"
+	}
+	return "Command sent" + transport + "; UDP delivery is unconfirmed"
 }
 
 func (e *Engine) awaitDispatch(ctx context.Context, sequence uint64) bool {

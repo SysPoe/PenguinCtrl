@@ -68,6 +68,14 @@ type TargetHealth struct {
 	ConsecutiveFailures int
 }
 
+// DispatchResult describes how a remote command was sent. Protocols contains
+// the concrete transports selected for the configured targets, including the
+// transport chosen when the cue requested Auto.
+type DispatchResult struct {
+	Acknowledged bool
+	Protocols    []show.RemoteProtocol
+}
+
 func NewDispatcher(settings settingsProvider) *Dispatcher {
 	ctx, cancel := context.WithCancel(context.Background())
 	dispatcher := &Dispatcher{settings: settings, sender: udpSender{}, ctx: ctx, cancel: cancel, done: make(chan struct{}), health: map[string]TargetHealth{}}
@@ -97,17 +105,23 @@ func (d *Dispatcher) Health() []TargetHealth {
 func (d *Dispatcher) LastDispatchAcknowledged() bool { return d.lastAcknowledged.Load() }
 
 func (d *Dispatcher) Dispatch(ctx context.Context, play show.RemotePlay, cue show.Cue) error {
+	_, err := d.DispatchWithResult(ctx, play, cue)
+	return err
+}
+
+func (d *Dispatcher) DispatchWithResult(ctx context.Context, play show.RemotePlay, cue show.Cue) (DispatchResult, error) {
 	if play.Action == show.RemoteActionNone {
-		return nil
+		return DispatchResult{}, nil
 	}
 	settings := d.settings.Snapshot()
 	resolved := resolvePlay(play, settings, cue.CueNumber)
 	if len(settings.RemoteTargets) == 0 {
-		return errors.New("no remote control targets are configured")
+		return DispatchResult{}, errors.New("no remote control targets are configured")
 	}
 
 	d.lastAcknowledged.Store(false)
 	type result struct {
+		protocol     show.RemoteProtocol
 		acknowledged bool
 		err          error
 	}
@@ -115,15 +129,19 @@ func (d *Dispatcher) Dispatch(ctx context.Context, play show.RemotePlay, cue sho
 	for _, target := range settings.RemoteTargets {
 		target := target
 		go func() {
-			acknowledged, err := d.dispatchTarget(ctx, target, play.Protocol, resolved)
-			results <- result{acknowledged: acknowledged, err: err}
+			protocol, acknowledged, err := d.dispatchTarget(ctx, target, play.Protocol, resolved)
+			results <- result{protocol: protocol, acknowledged: acknowledged, err: err}
 		}()
 	}
 	var dispatchErrors []error
+	protocols := map[show.RemoteProtocol]struct{}{}
 	successes := 0
 	acknowledgedSuccesses := 0
 	for range settings.RemoteTargets {
 		result := <-results
+		if result.protocol == show.RemoteProtocolOSC || result.protocol == show.RemoteProtocolERC {
+			protocols[result.protocol] = struct{}{}
+		}
 		if result.err != nil {
 			dispatchErrors = append(dispatchErrors, result.err)
 		} else {
@@ -133,24 +151,37 @@ func (d *Dispatcher) Dispatch(ctx context.Context, play show.RemotePlay, cue sho
 			}
 		}
 	}
+	dispatchResult := DispatchResult{Protocols: orderedProtocols(protocols)}
 	if settings.RemoteSuccessPolicy == config.RemoteSuccessAny && successes > 0 {
-		d.lastAcknowledged.Store(acknowledgedSuccesses > 0)
-		return nil
+		dispatchResult.Acknowledged = acknowledgedSuccesses > 0
+		d.lastAcknowledged.Store(dispatchResult.Acknowledged)
+		return dispatchResult, nil
 	}
 	if len(dispatchErrors) == 0 {
-		d.lastAcknowledged.Store(acknowledgedSuccesses == successes && successes > 0)
+		dispatchResult.Acknowledged = acknowledgedSuccesses == successes && successes > 0
+		d.lastAcknowledged.Store(dispatchResult.Acknowledged)
 	}
-	return errors.Join(dispatchErrors...)
+	return dispatchResult, errors.Join(dispatchErrors...)
 }
 
-func (d *Dispatcher) dispatchTarget(parent context.Context, target config.RemoteTarget, requested show.RemoteProtocol, play show.RemotePlay) (bool, error) {
+func orderedProtocols(protocols map[show.RemoteProtocol]struct{}) []show.RemoteProtocol {
+	result := make([]show.RemoteProtocol, 0, len(protocols))
+	for _, protocol := range []show.RemoteProtocol{show.RemoteProtocolOSC, show.RemoteProtocolERC} {
+		if _, ok := protocols[protocol]; ok {
+			result = append(result, protocol)
+		}
+	}
+	return result
+}
+
+func (d *Dispatcher) dispatchTarget(parent context.Context, target config.RemoteTarget, requested show.RemoteProtocol, play show.RemotePlay) (show.RemoteProtocol, bool, error) {
 	protocol, port, err := selectTransport(requested, target)
 	if err != nil {
-		return false, fmt.Errorf("%s: %w", targetLabel(target), err)
+		return protocol, false, fmt.Errorf("%s: %w", targetLabel(target), err)
 	}
 	payload, err := buildPayload(protocol, play)
 	if err != nil {
-		return false, fmt.Errorf("%s: %w", targetLabel(target), err)
+		return protocol, false, fmt.Errorf("%s: %w", targetLabel(target), err)
 	}
 	started := time.Now()
 	ctx, cancel := context.WithTimeout(parent, 750*time.Millisecond)
@@ -173,9 +204,9 @@ func (d *Dispatcher) dispatchTarget(parent context.Context, target config.Remote
 	}
 	d.recordHealth(target, err, acknowledged, time.Since(started))
 	if err != nil {
-		return false, fmt.Errorf("%s: %w", targetLabel(target), err)
+		return protocol, false, fmt.Errorf("%s: %w", targetLabel(target), err)
 	}
-	return acknowledged, nil
+	return protocol, acknowledged, nil
 }
 
 func sendAcknowledged(ctx context.Context, host string, port int, id string, payload []byte) error {

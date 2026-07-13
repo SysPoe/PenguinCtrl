@@ -53,6 +53,22 @@ func TestDispatchRunsRedundantTargetsConcurrentlyWithAnyPolicy(t *testing.T) {
 	}
 }
 
+func TestDispatchResultReportsConcreteAutoTransports(t *testing.T) {
+	settings := config.Defaults()
+	settings.RemoteTargets = []config.RemoteTarget{
+		{Name: "osc", Host: "127.0.0.1", OSCPort: 1},
+		{Name: "erc", Host: "127.0.0.1", ERCPort: 1},
+	}
+	dispatcher := &Dispatcher{settings: staticSettings{settings}, sender: &concurrentSender{}, health: map[string]TargetHealth{}}
+	result, err := dispatcher.DispatchWithResult(context.Background(), show.RemotePlay{Protocol: show.RemoteProtocolAuto, Action: show.RemoteActionGo, Playback: "1"}, show.Cue{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Protocols) != 2 || result.Protocols[0] != show.RemoteProtocolOSC || result.Protocols[1] != show.RemoteProtocolERC {
+		t.Fatalf("protocols = %#v", result.Protocols)
+	}
+}
+
 func TestAcknowledgedRelayReturnsMatchingCommandID(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
