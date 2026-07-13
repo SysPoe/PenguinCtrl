@@ -251,12 +251,13 @@ func healthPreflightChecks(snapshot health.Snapshot) []operatorlog.PreflightChec
 			continue
 		}
 		severity := operatorlog.Warning
-		if component.State == health.Failed {
+		affectedCues, hasAffectedCues := component.Details["affectedCues"].([]string)
+		if component.State == health.Failed && (component.Kind == "engine" || component.Kind == "timecode" || (hasAffectedCues && len(affectedCues) > 0)) {
 			severity = operatorlog.ShowStopping
 		}
 		message := component.State.String() + ": " + component.Summary
-		if cues, ok := component.Details["affectedCues"].([]string); ok && len(cues) > 0 {
-			message += "; affected cues " + strings.Join(cues, ", ")
+		if len(affectedCues) > 0 {
+			message += "; affected cues " + strings.Join(affectedCues, ", ")
 		}
 		if callback, ok := component.Details["lastSuccessfulCallback"].(time.Time); ok && !callback.IsZero() {
 			message += "; last callback " + callback.Format(time.RFC3339Nano)

@@ -13,8 +13,7 @@ type Cue struct {
 	GroupID     GroupID `json:"groupId,omitempty"`
 	GroupTitle  string  `json:"groupTitle,omitempty"`
 
-	Type     CueType `json:"type"`
-	Disabled bool    `json:"disabled,omitempty"`
+	Type CueType `json:"type"`
 
 	Timing CueTiming `json:"timing"`
 	Play   CuePlay   `json:"play"`

@@ -24,20 +24,6 @@ func validSound(number, file string) Cue {
 	return cue
 }
 
-func TestDisabledIsStateNotWarning(t *testing.T) {
-	cue := validSound("1", t.TempDir()+"/missing.wav")
-	cue.Disabled = true
-	problem, ok := problemWithCode(CueProblems(cue, []Cue{cue}), "cue.disabled")
-	if !ok || problem.Severity != ProblemState {
-		t.Fatalf("disabled problem = %#v", problem)
-	}
-	for _, warning := range CueWarnings(cue, []Cue{cue}) {
-		if warning == "Cue is disabled" {
-			t.Fatal("disabled state leaked into warnings")
-		}
-	}
-}
-
 func TestUnsupportedPositiveGainIsBlocked(t *testing.T) {
 	cue := validSound("1", "track.wav")
 	cue.Play.Sound.LevelDB = 12.1
@@ -66,6 +52,16 @@ func TestResolvedMediaAndRemoteBlockers(t *testing.T) {
 	}
 }
 
+func TestMissingSoundOutputUsesPlaybackRouteWording(t *testing.T) {
+	cue := validSound("1", "track.wav")
+	cue.Play.Sound.OutputID = ""
+	problems := CueProblemsWithContext(cue, []Cue{cue}, WarningContext{Settings: config.Settings{}})
+	problem, ok := problemWithCode(problems, "output.missing")
+	if !ok || !strings.Contains(strings.ToLower(problem.Message), "sound playback output") || !strings.Contains(strings.ToLower(problem.Consequence), "playback route") {
+		t.Fatalf("sound output problem = %#v", problem)
+	}
+}
+
 func TestLinkBoundaryCycleAndDownstreamProblems(t *testing.T) {
 	first := validSound("1", t.TempDir()+"/one.wav")
 	second := validSound("2", t.TempDir()+"/two.wav")
@@ -74,16 +70,10 @@ func TestLinkBoundaryCycleAndDownstreamProblems(t *testing.T) {
 	if _, ok := problemWithCode(CueProblems(first, []Cue{first, second}), "link.cycle.immediate"); !ok {
 		t.Fatal("two-cue zero-time cycle was not detected")
 	}
-	second.Disabled = true
-	second.Link.Mode = CueLinkManual
-	problems := CueProblems(first, []Cue{first, second})
-	if _, ok := problemWithCode(problems, "link.target.disabled"); !ok {
-		t.Fatal("disabled downstream target was not reported")
-	}
 	last := validSound("3", t.TempDir()+"/three.wav")
 	last.Link = CueLink{Mode: CueLinkStartPlay, Target: CueTarget{Kind: CueTargetNext}}
-	if problem, ok := problemWithCode(CueProblems(last, []Cue{last}), "link.boundary.next"); !ok || problem.Severity != ProblemCaution {
-		t.Fatalf("last-cue next link = %#v, want caution", problem)
+	if problem, ok := problemWithCode(CueProblems(last, []Cue{last}), "link.boundary.next"); ok {
+		t.Fatalf("last-cue next link unexpectedly warned: %#v", problem)
 	}
 }
 
@@ -95,10 +85,13 @@ func TestIntegrityDurationAndAcknowledgementFingerprint(t *testing.T) {
 	cue.Play.Sound.Timecode = []TimecodeMarker{{TimeMs: 950, Type: CueTypeRemote, Action: CuePlay{Remote: &RemotePlay{}}}, {TimeMs: 950, Type: CueTypeOutputControl, Action: CuePlay{OutputControl: &OutputControlPlay{}}}}
 	settings := config.Defaults()
 	problems := CueProblemsWithContext(cue, []Cue{cue}, WarningContext{Settings: settings, KnownDurationMs: 1000})
-	for _, code := range []string{"cue.payload.integrity", "media.fade.beyond-duration", "timecode.duplicate.950"} {
+	for _, code := range []string{"cue.payload.integrity", "media.fade.beyond-duration"} {
 		if _, ok := problemWithCode(problems, code); !ok {
 			t.Fatalf("missing %s in %#v", code, problems)
 		}
+	}
+	if problem, ok := problemWithCode(problems, "timecode.duplicate.950"); ok {
+		t.Fatalf("same-time timecode actions unexpectedly warned: %#v", problem)
 	}
 	problem, _ := problemWithCode(problems, "cue.payload.integrity")
 	before := ProblemFingerprint(cue, problem, settings)

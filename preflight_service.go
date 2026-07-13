@@ -95,7 +95,7 @@ func (s *preflightService) compute(key, showDigest [sha256.Size]byte, cues []sho
 	s.mu.Unlock()
 }
 
-func (s *preflightService) Gate(current show.Show) error {
+func (s *preflightService) Gate(current show.Show, selected show.Cue) error {
 	digest := showDigest(current)
 	s.mu.RLock()
 	snapshot, expected := s.latest, s.key
@@ -104,12 +104,61 @@ func (s *preflightService) Gate(current show.Show) error {
 	if snapshot.Key != expected || snapshot.ShowDigest != digest || !hmac.Equal(snapshot.Signature[:], expectedSignature[:]) {
 		return errors.New("signed preflight is stale or still computing")
 	}
+	reachable := reachableCueIDs(current.Cues, selected.ID)
 	for _, check := range snapshot.Checks {
-		if check.Severity == operatorlog.ShowStopping {
+		if check.Severity == operatorlog.ShowStopping && preflightCheckApplies(check, reachable) {
 			return fmt.Errorf("preflight blocked: %s: %s", check.Source, check.Message)
 		}
 	}
 	return nil
+}
+
+func preflightCheckApplies(check operatorlog.PreflightCheck, reachable map[show.CueID]struct{}) bool {
+	if check.CueID != (show.CueID{}) {
+		_, ok := reachable[check.CueID]
+		return ok
+	}
+	if len(check.AffectedCues) == 0 {
+		return true
+	}
+	for _, cueID := range check.AffectedCues {
+		if _, ok := reachable[cueID]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func reachableCueIDs(cues []show.Cue, start show.CueID) map[show.CueID]struct{} {
+	result := make(map[show.CueID]struct{})
+	indexByID := make(map[show.CueID]int, len(cues))
+	for index := range cues {
+		indexByID[cues[index].ID] = index
+	}
+	index, ok := indexByID[start]
+	for ok && index >= 0 && index < len(cues) {
+		cue := cues[index]
+		if _, seen := result[cue.ID]; seen {
+			break
+		}
+		result[cue.ID] = struct{}{}
+		switch cue.Link.Mode {
+		case show.CueLinkStartPlay, show.CueLinkFadeInPlay, show.CueLinkFadeOutPlay, show.CueLinkEndPlay:
+		default:
+			return result
+		}
+		switch cue.Link.Target.Kind {
+		case show.CueTargetNone, show.CueTargetNext:
+			index++
+		case show.CueTargetPrevious:
+			index--
+		case show.CueTargetCue:
+			index, ok = indexByID[cue.Link.Target.CueID]
+		default:
+			return result
+		}
+	}
+	return result
 }
 
 func (s *preflightService) sign(snapshot preflightSnapshot) [sha256.Size]byte {
@@ -126,15 +175,15 @@ func (s *preflightService) sign(snapshot preflightSnapshot) [sha256.Size]byte {
 func diskPreflight(cues []show.Cue, settings config.Settings) []operatorlog.PreflightCheck {
 	cacheRoot, err := os.UserCacheDir()
 	if err != nil {
-		return []operatorlog.PreflightCheck{{Severity: operatorlog.ShowStopping, Source: "Disk / cache", Message: err.Error()}}
+		return diskCaution(err.Error())
 	}
 	cacheRoot = filepath.Join(cacheRoot, "CuSus")
 	if err := os.MkdirAll(cacheRoot, 0o755); err != nil {
-		return []operatorlog.PreflightCheck{{Severity: operatorlog.ShowStopping, Source: "Disk / cache", Message: "Cache is not writable: " + err.Error()}}
+		return diskCaution("Cache is not writable: " + err.Error())
 	}
 	probe, err := os.CreateTemp(cacheRoot, ".preflight-write-*")
 	if err != nil {
-		return []operatorlog.PreflightCheck{{Severity: operatorlog.ShowStopping, Source: "Disk / cache", Message: "Cache is not writable: " + err.Error()}}
+		return diskCaution("Cache is not writable: " + err.Error())
 	}
 	probePath := probe.Name()
 	_ = probe.Close()
@@ -149,13 +198,17 @@ func diskPreflight(cues []show.Cue, settings config.Settings) []operatorlog.Pref
 	}
 	available, err := diskAvailableBytes(cacheRoot)
 	if err != nil {
-		return []operatorlog.PreflightCheck{{Severity: operatorlog.Warning, Source: "Disk / cache", Message: "Free space could not be measured: " + err.Error()}}
+		return diskCaution("Free space could not be measured: " + err.Error())
 	}
 	required := sourceBytes*2 + 2<<30
 	if available < required {
-		return []operatorlog.PreflightCheck{{Severity: operatorlog.ShowStopping, Source: "Disk / cache", Message: fmt.Sprintf("Only %.1f GiB free; packaging/cache forecast requires %.1f GiB", float64(available)/(1<<30), float64(required)/(1<<30))}}
+		return diskCaution(fmt.Sprintf("Only %.1f GiB free; packaging/cache forecast requires %.1f GiB", float64(available)/(1<<30), float64(required)/(1<<30)))
 	}
 	return nil
+}
+
+func diskCaution(message string) []operatorlog.PreflightCheck {
+	return []operatorlog.PreflightCheck{{Severity: operatorlog.Warning, Source: "Disk / cache", Message: message, Fingerprint: "disk:" + message}}
 }
 
 func cueMediaSources(cue show.Cue, settings config.Settings) []string {
@@ -182,8 +235,12 @@ func cueMediaSources(cue show.Cue, settings config.Settings) []string {
 
 func remoteHealthPreflight(cues []show.Cue, settings config.Settings, health []remote.TargetHealth) []operatorlog.PreflightCheck {
 	hasRemote := false
+	var affected []show.CueID
 	for _, cue := range cues {
 		hasRemote = hasRemote || cue.Type == show.CueTypeRemote
+		if cue.Type == show.CueTypeRemote {
+			affected = append(affected, cue.ID)
+		}
 	}
 	if !hasRemote {
 		return nil
@@ -203,9 +260,9 @@ func remoteHealthPreflight(cues []show.Cue, settings config.Settings, health []r
 		}
 		state, ok := byName[name]
 		if !ok || !state.Known {
-			checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.ShowStopping, Source: "Remote health", Message: name + " has not completed a health probe"})
+			checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.ShowStopping, Source: "Remote health", Message: name + " has not completed a health probe", AffectedCues: affected})
 		} else if !state.Reachable {
-			checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.ShowStopping, Source: "Remote health", Message: name + " is unreachable: " + state.LastError})
+			checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.ShowStopping, Source: "Remote health", Message: name + " is unreachable: " + state.LastError, AffectedCues: affected})
 		}
 	}
 	return checks

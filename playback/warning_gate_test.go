@@ -1,6 +1,7 @@
 package playback
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,8 +42,28 @@ func TestGOBarrierLatchesAttributedBlocker(t *testing.T) {
 		t.Fatalf("PlaySelected error = %v", err)
 	}
 	latest, ok := events.LatestUnacknowledged()
-	if !ok || latest.Severity != operatorlog.ShowStopping || latest.CueID != cue.ID || !strings.HasPrefix(latest.Source, "Operator GO") {
+	if !ok || latest.Severity != operatorlog.CueFailure || latest.CueID != cue.ID || !strings.HasPrefix(latest.Source, "Operator GO") {
 		t.Fatalf("operator event = %#v", latest)
+	}
+}
+
+func TestShiftGOOverridesSignedPreflightBarrier(t *testing.T) {
+	cue := show.NewWaitCue()
+	cue.CueNumber = "1"
+	cue.Link.Mode = show.CueLinkManual
+	engine, events := warningGateEngine(t, cue)
+	engine.SetPreflightGate(func(show.Cue) error { return errors.New("preflight is still computing") })
+
+	if err := engine.PlaySelected(); err == nil {
+		t.Fatal("ordinary GO bypassed preflight barrier")
+	}
+	if err := engine.PlaySelectedOverride(); err != nil {
+		t.Fatalf("Shift+GO did not override preflight: %v", err)
+	}
+	snapshot := events.Snapshot()
+	latest := snapshot[len(snapshot)-1]
+	if latest.Severity != operatorlog.Warning || !strings.Contains(latest.Source, "preflight override") {
+		t.Fatalf("preflight override event = %#v", latest)
 	}
 }
 

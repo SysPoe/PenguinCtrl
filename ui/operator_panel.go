@@ -51,7 +51,7 @@ func (p *OperatorPanel) DismissBlocker() {
 
 func (p *OperatorPanel) LayoutBar(th *material.Theme, gtx layout.Context, store *operatorlog.Store, checks []operatorlog.PreflightCheck) layout.Dimensions {
 	latest, active := store.LatestUnacknowledged()
-	if active && latest.Severity == operatorlog.ShowStopping && strings.HasPrefix(latest.Source, "Operator GO") && latest.ID != p.blockerID {
+	if active && latest.Severity == operatorlog.CueFailure && strings.HasPrefix(latest.Source, "Operator GO") && latest.ID != p.blockerID {
 		p.blockerID, p.showBlocker = latest.ID, true
 	}
 	if p.logButton.Clicked(gtx) {
@@ -438,12 +438,18 @@ func operatorEventSummary(event operatorlog.Event) string {
 
 func operatorSeverityColor(severity operatorlog.Severity) color.NRGBA {
 	switch severity {
+	case operatorlog.Info:
+		return palette.Primary
 	case operatorlog.Warning:
 		return palette.Warning
 	case operatorlog.Recoverable:
 		return color.NRGBA{R: 0xB7, G: 0x58, B: 0x35, A: 0xFF}
-	default:
+	case operatorlog.CueFailure:
+		return palette.Danger
+	case operatorlog.ShowStopping:
 		return color.NRGBA{R: 0xB5, G: 0x20, B: 0x2A, A: 0xFF}
+	default:
+		return palette.Primary
 	}
 }
 
@@ -461,7 +467,7 @@ func preflightCount(checks []operatorlog.PreflightCheck) string {
 }
 
 func preflightSummary(checks []operatorlog.PreflightCheck) string {
-	counts := [3]int{}
+	counts := [5]int{}
 	for _, check := range checks {
 		if check.Acknowledged {
 			continue
@@ -470,7 +476,7 @@ func preflightSummary(checks []operatorlog.PreflightCheck) string {
 			counts[check.Severity]++
 		}
 	}
-	return fmt.Sprintf("%d show-stopping · %d recoverable · %d warnings", counts[operatorlog.ShowStopping], counts[operatorlog.Recoverable], counts[operatorlog.Warning])
+	return fmt.Sprintf("%d show-stopping · %d cue failures · %d recoverable · %d warnings", counts[operatorlog.ShowStopping], counts[operatorlog.CueFailure], counts[operatorlog.Recoverable], counts[operatorlog.Warning])
 }
 
 func preflightColor(checks []operatorlog.PreflightCheck) color.NRGBA {

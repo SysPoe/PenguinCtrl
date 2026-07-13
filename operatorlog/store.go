@@ -18,17 +18,23 @@ import (
 type Severity int
 
 const (
-	Warning Severity = iota
+	Info Severity = iota
+	Warning
 	Recoverable
+	CueFailure
 	ShowStopping
 )
 
 func (s Severity) Label() string {
 	switch s {
+	case Info:
+		return "INFORMATION"
 	case Warning:
 		return "WARNING"
 	case Recoverable:
 		return "RECOVERABLE FAILURE"
+	case CueFailure:
+		return "CUE FAILURE"
 	case ShowStopping:
 		return "SHOW-STOPPING FAILURE"
 	default:
@@ -62,6 +68,7 @@ type PreflightCheck struct {
 	Field        string
 	CueID        show.CueID
 	CueNumber    string
+	AffectedCues []show.CueID
 	Fingerprint  string
 	Acknowledged bool
 }
@@ -166,7 +173,7 @@ func (s *Store) appendDiagnostic(source, message string, details map[string]any)
 	if s.showID != nil {
 		showID = s.showID()
 	}
-	event := Event{ID: uuid.NewString(), Sequence: s.sequence, Timestamp: time.Now(), SessionID: s.sessionID, BuildID: s.buildID, ShowID: showID, Severity: Warning, Source: source, Message: message, Details: details}
+	event := Event{ID: uuid.NewString(), Sequence: s.sequence, Timestamp: time.Now(), SessionID: s.sessionID, BuildID: s.buildID, ShowID: showID, Severity: Info, Source: source, Message: message, Details: details}
 	logPath := s.logPath
 	s.mu.Unlock()
 	if logPath != "" {
@@ -224,7 +231,7 @@ func (s *Store) LatestUnacknowledged() (Event, bool) {
 	found := false
 	for i := len(s.events) - 1; i >= 0; i-- {
 		event := s.events[i]
-		if event.Acknowledged() {
+		if event.Acknowledged() || event.Severity == Info {
 			continue
 		}
 		if !found || event.Severity > result.Severity {

@@ -72,7 +72,6 @@ func CueProblems(cue Cue, cues []Cue) []CueProblem {
 	problems = append(problems, cuePayloadProblems(cue)...)
 	problems = append(problems, cueLevelProblems(cue)...)
 	problems = append(problems, linkContextProblems(cue, cues)...)
-	problems = append(problems, timecodeIntegrityProblems(cue)...)
 	return uniqueProblems(problems)
 }
 
@@ -117,7 +116,6 @@ func CueProblemsWithContext(cue Cue, cues []Cue, context WarningContext) []CuePr
 }
 
 // CueWarnings is retained for callers that only need actionable strings.
-// Neutral state such as Disabled is intentionally excluded from warning counts.
 func CueWarnings(cue Cue, cues []Cue) []string {
 	problems := CueProblems(cue, cues)
 	warnings := make([]string, 0, len(problems))
@@ -131,9 +129,6 @@ func CueWarnings(cue Cue, cues []Cue) []string {
 
 func cueWarningMessages(cue Cue, cues []Cue) []string {
 	warnings := make([]string, 0)
-	if cue.Disabled {
-		warnings = append(warnings, "Cue is disabled")
-	}
 	if cue.ID == (CueID{}) {
 		warnings = append(warnings, "Missing cue ID")
 	} else if duplicateCueID(cue.ID, cues) {
@@ -206,9 +201,6 @@ func problemForMessage(message string) CueProblem {
 	}
 	lower := strings.ToLower(message)
 	switch {
-	case lower == "cue is disabled":
-		problem.Code, problem.Severity = "cue.disabled", ProblemState
-		problem.Consequence, problem.Fix, problem.Field = "This cue is intentionally excluded from playback.", "Enable cue", "general.disabled"
 	case strings.Contains(lower, "duplicate timecode") || strings.Contains(lower, "same time"):
 		problem.Severity = ProblemCaution
 	case strings.Contains(lower, "target cue group"):
@@ -300,9 +292,6 @@ func linkContextProblems(cue Cue, cues []Cue) []CueProblem {
 			break
 		}
 	}
-	if (cue.Link.Target.Kind == CueTargetNext || cue.Link.Target.Kind == CueTargetNone) && index == len(cues)-1 {
-		problems = append(problems, CueProblem{Code: "link.boundary.next", Severity: ProblemCaution, Message: "There is no next cue", Consequence: "The programmed link will do nothing at the end of the cue list.", Fix: "Choose a cue target or Manual if this was not intentional", Field: "link.target"})
-	}
 	if cue.Link.Target.Kind == CueTargetPrevious && index == 0 {
 		problems = append(problems, CueProblem{Code: "link.boundary.previous", Severity: ProblemBlocker, Message: "There is no previous cue", Consequence: "The programmed link will do nothing.", Fix: "Choose a cue target or Manual", Field: "link.target"})
 	}
@@ -310,9 +299,6 @@ func linkContextProblems(cue Cue, cues []Cue) []CueProblem {
 		problems = append(problems, CueProblem{Code: "link.moment.unsupported", Severity: ProblemBlocker, Message: "This cue type never reaches the selected link moment", Consequence: "The linked cue will never run.", Fix: "Use Start or End, or set Manual", Field: "link.mode"})
 	}
 	if target, ok := linkedCue(cue, cues); ok && strings.HasSuffix(linkModeName(cue.Link.Mode), "play") {
-		if target.Disabled {
-			problems = append(problems, CueProblem{Code: "link.target.disabled", Severity: ProblemCaution, Message: fmt.Sprintf("Linked cue %s is disabled", displayCueNumber(target)), Consequence: "The automatic chain will stop at that cue.", Fix: "Enable or choose the linked cue", Field: "link.target"})
-		}
 		for _, message := range cueWarningMessages(target, cues) {
 			problem := problemForMessage(message)
 			if problem.Severity == ProblemBlocker {
@@ -385,41 +371,6 @@ func displayCueNumber(cue Cue) string {
 		return "(unnumbered)"
 	}
 	return cue.CueNumber
-}
-
-func timecodeIntegrityProblems(cue Cue) []CueProblem {
-	var markers []TimecodeMarker
-	switch cue.Type {
-	case CueTypeSound:
-		if cue.Play.Sound != nil {
-			markers = cue.Play.Sound.Timecode
-		}
-	case CueTypeVideo:
-		if cue.Play.Video != nil {
-			markers = cue.Play.Video.Timecode
-		}
-	case CueTypeImage:
-		if cue.Play.Image != nil {
-			markers = cue.Play.Image.Timecode
-		}
-	}
-	seen := map[int64]CueType{}
-	var result []CueProblem
-	for _, marker := range markers {
-		if marker.Disabled {
-			continue
-		}
-		if prior, ok := seen[marker.TimeMs]; ok {
-			severity, message := ProblemAdvisory, fmt.Sprintf("Multiple timecode actions occur at %s", formatWarningTime(marker.TimeMs))
-			if prior != marker.Type {
-				severity = ProblemCaution
-				message = fmt.Sprintf("Different timecode actions share %s", formatWarningTime(marker.TimeMs))
-			}
-			result = append(result, CueProblem{Code: fmt.Sprintf("timecode.duplicate.%d", marker.TimeMs), Severity: severity, Message: message, Consequence: "Same-time actions execute in their listed order.", Fix: "Review or separate these markers", Field: "timecode"})
-		}
-		seen[marker.TimeMs] = marker.Type
-	}
-	return result
 }
 
 func resolvedMediaProblems(cue Cue, context WarningContext) []CueProblem {
@@ -584,7 +535,16 @@ func resolvedOutputProblems(cue Cue, settings config.Settings) []CueProblem {
 		return []CueProblem{{Code: "output.variable.unknown", Severity: ProblemBlocker, Message: "Unknown output variable: " + strings.Join(vars, ", "), Consequence: "No output window can be selected.", Fix: "Edit the output or Settings", Field: "media.output"}}
 	}
 	if resolved == "" {
-		return []CueProblem{{Code: "output.missing", Severity: ProblemBlocker, Message: "No media output is configured", Consequence: "The cue would not be visible or audible.", Fix: "Choose an output or set the default", Field: "media.output"}}
+		message, consequence, fix := "No media output is configured", "The cue has no playback route.", "Choose an output or set the default"
+		switch cue.Type {
+		case CueTypeSound:
+			message, consequence, fix = "No sound playback output is configured", "The sound cue has no logical playback route.", "Choose a playback output or set the default"
+		case CueTypeVideo, CueTypeImage:
+			message, consequence = "No visual output is configured", "The cue has no stage/display route."
+		case CueTypeOutputControl:
+			message, consequence = "No controlled output is configured", "The output-control cue has no target stage."
+		}
+		return []CueProblem{{Code: "output.missing", Severity: ProblemBlocker, Message: message, Consequence: consequence, Fix: fix, Field: "media.output"}}
 	}
 	return nil
 }

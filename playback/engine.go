@@ -85,7 +85,7 @@ type Engine struct {
 	dispatchSkipped     map[uint64]struct{}
 	dispatchNotify      chan struct{}
 	commandHistory      []CommandRecord
-	preflightGate       func() error
+	preflightGate       func(show.Cue) error
 	timeline            Timeline
 }
 
@@ -143,7 +143,7 @@ func (e *Engine) SetOperatorLog(store *operatorlog.Store) {
 	}
 }
 
-func (e *Engine) SetPreflightGate(gate func() error) {
+func (e *Engine) SetPreflightGate(gate func(show.Cue) error) {
 	e.mu.Lock()
 	e.preflightGate = gate
 	e.mu.Unlock()
@@ -358,7 +358,7 @@ func (e *Engine) PreloadCandidates(limit int) []Instance {
 	result := make([]Instance, 0, limit)
 	for index := selected; index < len(cues) && len(result) < limit; index++ {
 		cue := cues[index]
-		if cue.Disabled || e.CueActive(cue.ID) {
+		if e.CueActive(cue.ID) {
 			continue
 		}
 		instance := Instance{CueID: cue.ID, CueNumber: cue.CueNumber, CueIndex: index}
@@ -405,9 +405,8 @@ func (e *Engine) PlaySelected() error {
 	return e.playSelected(false)
 }
 
-// PlaySelectedOverride accepts the selected cue even when validation reports
-// blockers. Disabled cues remain disabled; the override only bypasses the
-// readiness barrier that normal GO enforces.
+// PlaySelectedOverride accepts the selected cue even when validation or the
+// signed readiness barrier reports blockers.
 func (e *Engine) PlaySelectedOverride() error {
 	return e.playSelected(true)
 }
@@ -469,7 +468,6 @@ func (e *Engine) TogglePreview(cue show.Cue) (bool, error) {
 	preview := show.CloneCue(cue)
 	preview.ID = show.NewCueID()
 	preview.GroupID, preview.GroupTitle = show.GroupID{}, ""
-	preview.Disabled = false
 	preview.Timing = show.CueTiming{}
 	preview.Link = show.CueLink{Mode: show.CueLinkManual}
 	preview.Play.Sound.Timecode = nil
@@ -512,18 +510,16 @@ func (e *Engine) enqueueCommand(cue show.Cue, index int, preview bool, origin st
 		gate := e.preflightGate
 		e.mu.RUnlock()
 		if gate != nil {
-			if err := gate(); err != nil {
-				e.recordCueError(cue, origin+" · preflight", err)
-				return err
+			if err := gate(cue); err != nil {
+				if !override {
+					e.recordCueError(cue, origin+" · preflight", err)
+					return err
+				}
+				if e.operatorLog != nil {
+					e.operatorLog.Add(operatorlog.Warning, origin+" · preflight override", "GO override accepted despite: "+err.Error(), cue.ID, cue.CueNumber)
+				}
 			}
 		}
-	}
-	if cue.Disabled {
-		err := errors.New("cue is disabled")
-		if !preview {
-			e.recordCueError(cue, origin, err)
-		}
-		return err
 	}
 	if !preview {
 		problems := e.CueProblems(cue)
@@ -582,7 +578,7 @@ func (e *Engine) LatchClockDiscontinuity(gap time.Duration) {
 	reason := fmt.Sprintf("system resume or scheduler gap detected (%s); outputs stopped", gap.Round(time.Millisecond))
 	e.safetyReason.Store(reason)
 	e.StopAll()
-	e.recordError("Playback safety", errors.New(reason))
+	e.recordOperatorError(operatorlog.ShowStopping, "Playback safety", errors.New(reason), show.CueID{}, "")
 }
 
 func (e *Engine) SafetyLatchReason() string {
@@ -704,10 +700,12 @@ func (e *Engine) execute(next command) {
 			err = e.remote.Dispatch(e.ctx, *next.cue.Play.Remote, next.cue)
 			if err == nil && e.operatorLog != nil {
 				message := "Command sent; UDP delivery is unconfirmed"
+				severity := operatorlog.Warning
 				if e.remote.LastDispatchAcknowledged() {
 					message = "Command acknowledged by the configured idempotent relay"
+					severity = operatorlog.Info
 				}
-				e.operatorLog.Add(operatorlog.Warning, next.origin+" · remote result", message, next.cue.ID, next.cue.CueNumber)
+				e.operatorLog.Add(severity, next.origin+" · remote result", message, next.cue.ID, next.cue.CueNumber)
 			}
 		}
 	case show.CueTypeWait:
@@ -1837,12 +1835,16 @@ func (e *Engine) LastError() string {
 }
 
 func (e *Engine) recordError(source string, err error) {
+	e.recordOperatorError(operatorlog.Recoverable, source, err, show.CueID{}, "")
+}
+
+func (e *Engine) recordOperatorError(severity operatorlog.Severity, source string, err error, cueID show.CueID, cueNumber string) {
 	if err == nil {
 		return
 	}
 	e.lastError.Store(err.Error())
 	if e.operatorLog != nil {
-		e.operatorLog.Add(operatorlog.Recoverable, source, err.Error(), show.CueID{}, "")
+		e.operatorLog.Add(severity, source, err.Error(), cueID, cueNumber)
 	}
 	for _, outputID := range e.OutputIDs() {
 		e.hub.publish(Event{Action: "error", OutputID: outputID, Error: err.Error()})
@@ -1851,17 +1853,7 @@ func (e *Engine) recordError(source string, err error) {
 }
 
 func (e *Engine) recordCueError(cue show.Cue, source string, err error) {
-	if err == nil {
-		return
-	}
-	e.lastError.Store(err.Error())
-	if e.operatorLog != nil {
-		e.operatorLog.Add(operatorlog.ShowStopping, source, err.Error(), cue.ID, cue.CueNumber)
-	}
-	for _, outputID := range e.OutputIDs() {
-		e.hub.publish(Event{Action: "error", OutputID: outputID, Error: err.Error()})
-	}
-	e.changed()
+	e.recordOperatorError(operatorlog.CueFailure, source, err, cue.ID, cue.CueNumber)
 }
 
 func cueFailureSource(cue show.Cue) string {

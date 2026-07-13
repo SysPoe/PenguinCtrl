@@ -15,8 +15,9 @@ import (
 func TestStoreAcknowledgementAndCueFailure(t *testing.T) {
 	store := NewStore()
 	cueID := show.NewCueID()
+	store.Add(Info, "Remote", "command acknowledged", cueID, "1")
 	warning := store.Add(Warning, "Preflight", "disabled cue", cueID, "1")
-	failure := store.Add(ShowStopping, "FFmpeg", "decoder exited", cueID, "1")
+	failure := store.Add(CueFailure, "FFmpeg", "decoder exited", cueID, "1")
 
 	latest, ok := store.LatestUnacknowledged()
 	if !ok || latest.ID != failure.ID {
@@ -36,8 +37,8 @@ func TestStoreAcknowledgementAndCueFailure(t *testing.T) {
 	if _, ok := store.LatestUnacknowledged(); ok {
 		t.Fatal("unexpected unacknowledged event")
 	}
-	if removed := store.ClearAcknowledged(); removed != 2 {
-		t.Fatalf("removed = %d, want 2", removed)
+	if removed := store.ClearAcknowledged(); removed != 3 {
+		t.Fatalf("removed = %d, want 3", removed)
 	}
 }
 

@@ -199,7 +199,7 @@ func newApp() (*App, error) {
 		path := filepath.Join(directory, "support-"+time.Now().Format("20060102-150405.000")+".zip")
 		err := operatorEvents.ExportSupportBundle(path, settings.Path(), filepath.Join(directory, "crashes"))
 		if err == nil {
-			operatorEvents.Add(operatorlog.Warning, "Operator action", "Created redacted support bundle", show.CueID{}, "")
+			operatorEvents.Add(operatorlog.Info, "Operator action", "Created redacted support bundle", show.CueID{}, "")
 		}
 		return path, err
 	})
@@ -589,7 +589,7 @@ func (a *App) run(window *app.Window) error {
 	defer power.Close()
 	preflightService := newPreflightService()
 	defer preflightService.Close()
-	playbackEngine.SetPreflightGate(func() error { return preflightService.Gate(manager.ShowSnapshot()) })
+	playbackEngine.SetPreflightGate(func(cue show.Cue) error { return preflightService.Gate(manager.ShowSnapshot(), cue) })
 	cacheMaintainer := project.StartCacheMaintainer(
 		func() bool {
 			return len(playbackEngine.ActiveInstances()) > 0 || len(playbackEngine.ActiveExecutions()) > 0
@@ -629,7 +629,7 @@ func (a *App) run(window *app.Window) error {
 		documentMu.RUnlock()
 		if !suppressed && dirty && a.Journal != nil {
 			if err := a.Journal.RecordDirty(snapshot, path); err != nil {
-				operatorEvents.Add(operatorlog.ShowStopping, "Edit recovery", err.Error(), show.CueID{}, "")
+				operatorEvents.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
 			}
 		}
 		window.Invalidate()
@@ -906,7 +906,7 @@ func (a *App) run(window *app.Window) error {
 			documentMu.RUnlock()
 			if dirty && a.Journal != nil {
 				if err := a.Journal.RecordDirty(snapshot, path); err != nil {
-					operatorEvents.Add(operatorlog.ShowStopping, "Edit recovery", err.Error(), show.CueID{}, "")
+					operatorEvents.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
 				}
 			}
 			if placement, ok := operatorWindowPlacement(operatorHandle); ok {
@@ -970,12 +970,20 @@ func (a *App) run(window *app.Window) error {
 			audioWarning := mediaManager.AudioDeviceWarning()
 			videoWarning := videoRoutingWarning(mediaManager)
 			if audioWarning != "" && audioWarning != lastAudioOperatorWarning {
-				operatorEvents.Add(operatorlog.ShowStopping, "Audio output", audioWarning, show.CueID{}, "")
+				severity := operatorlog.Warning
+				if len(audioWarningAffectedCues(manager.Snapshot(), audioWarning)) > 0 {
+					severity = operatorlog.CueFailure
+				}
+				operatorEvents.Add(severity, "Audio output", audioWarning, show.CueID{}, "")
 			} else if audioWarning == "" && lastAudioOperatorWarning != "" {
 				operatorEvents.Diagnostic("Audio output", "Audio endpoint health restored", nil)
 			}
 			if videoWarning != "" && videoWarning != lastVideoOperatorWarning {
-				operatorEvents.Add(operatorlog.ShowStopping, "Video output", videoWarning, show.CueID{}, "")
+				severity := operatorlog.Warning
+				if len(videoWarningAffectedCues(manager.Snapshot(), settingsStore.Snapshot(), videoWarning)) > 0 {
+					severity = operatorlog.CueFailure
+				}
+				operatorEvents.Add(severity, "Video output", videoWarning, show.CueID{}, "")
 			} else if videoWarning == "" && lastVideoOperatorWarning != "" {
 				operatorEvents.Diagnostic("Video output", "Video output health restored", nil)
 			}
@@ -1221,10 +1229,14 @@ func buildPreflightWithProblems(cues []show.Cue, settings config.Settings, audio
 	if len(cues) == 0 {
 		checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.Warning, Source: "Show", Message: "The show contains no cues"})
 	}
-	needsFFmpeg, hasRemote := false, false
+	var mediaCueIDs, remoteCueIDs []show.CueID
 	for _, cue := range cues {
-		needsFFmpeg = needsFFmpeg || cue.Type == show.CueTypeSound || cue.Type == show.CueTypeVideo
-		hasRemote = hasRemote || cue.Type == show.CueTypeRemote
+		if cue.Type == show.CueTypeSound || cue.Type == show.CueTypeVideo {
+			mediaCueIDs = append(mediaCueIDs, cue.ID)
+		}
+		if cue.Type == show.CueTypeRemote {
+			remoteCueIDs = append(remoteCueIDs, cue.ID)
+		}
 		for _, problem := range problemsForCue(cue) {
 			if problem.Severity == show.ProblemState {
 				if problem.Code != "media.check.pending" && problem.Code != "media.check.not-run" {
@@ -1244,25 +1256,83 @@ func buildPreflightWithProblems(cues []show.Cue, settings config.Settings, audio
 			})
 		}
 	}
-	if needsFFmpeg {
+	if len(mediaCueIDs) > 0 {
 		if _, err := findExecutable(settings.FFmpegPath); err != nil {
-			checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.ShowStopping, Source: "FFmpeg", Message: err.Error()})
+			checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.ShowStopping, Source: "FFmpeg", Message: err.Error(), AffectedCues: mediaCueIDs})
 		}
 		probe := ffprobeExecutable(settings.FFmpegPath)
 		if _, err := findExecutable(probe); err != nil {
-			checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.ShowStopping, Source: "FFprobe", Message: err.Error()})
+			checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.ShowStopping, Source: "FFprobe", Message: err.Error(), AffectedCues: mediaCueIDs})
 		}
 	}
-	if hasRemote && len(settings.RemoteTargets) == 0 {
-		checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.ShowStopping, Source: "Network / remote control", Message: "Remote cues exist but no remote targets are configured"})
+	if len(remoteCueIDs) > 0 && len(settings.RemoteTargets) == 0 {
+		checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.ShowStopping, Source: "Network / remote control", Message: "Remote cues exist but no remote targets are configured", AffectedCues: remoteCueIDs})
 	}
-	if audioWarning != "" {
-		checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.ShowStopping, Source: "Audio output", Message: audioWarning})
+	if affected := audioWarningAffectedCues(cues, audioWarning); len(affected) > 0 {
+		checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.ShowStopping, Source: "Audio output", Message: audioWarning, AffectedCues: affected})
 	}
-	if videoWarning != "" {
-		checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.ShowStopping, Source: "Video output", Message: videoWarning})
+	if affected := videoWarningAffectedCues(cues, settings, videoWarning); len(affected) > 0 {
+		checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.ShowStopping, Source: "Video output", Message: videoWarning, AffectedCues: affected})
 	}
 	return checks
+}
+
+func audioWarningAffectedCues(cues []show.Cue, warning string) []show.CueID {
+	lower := strings.ToLower(strings.TrimSpace(warning))
+	if lower == "" || (strings.Contains(lower, "preview audio") && !strings.Contains(lower, "playback")) {
+		return nil
+	}
+	result := make([]show.CueID, 0)
+	for _, cue := range cues {
+		if cue.Type == show.CueTypeSound || cue.Type == show.CueTypeVideo {
+			result = append(result, cue.ID)
+		}
+	}
+	return result
+}
+
+func videoWarningAffectedCues(cues []show.Cue, settings config.Settings, warning string) []show.CueID {
+	lower := strings.ToLower(strings.TrimSpace(warning))
+	if lower == "" {
+		return nil
+	}
+	affectedStages := make(map[string]struct{})
+	for _, output := range settings.VideoOutputs {
+		stage := strings.TrimSpace(output.Stage)
+		if stage != "" && strings.Contains(lower, strings.ToLower(stage)) {
+			affectedStages[stage] = struct{}{}
+		}
+	}
+	result := make([]show.CueID, 0)
+	for _, cue := range cues {
+		var output string
+		switch cue.Type {
+		case show.CueTypeVideo:
+			if cue.Play.Video != nil {
+				output = cue.Play.Video.OutputID
+			}
+		case show.CueTypeImage:
+			if cue.Play.Image != nil {
+				output = cue.Play.Image.OutputID
+			}
+		case show.CueTypeOutputControl:
+			if cue.Play.OutputControl != nil {
+				output = cue.Play.OutputControl.OutputID
+			}
+		default:
+			continue
+		}
+		output = strings.TrimSpace(config.Resolve(output, settings, cue.CueNumber))
+		if output == "" {
+			output = strings.TrimSpace(settings.DefaultMediaOutput)
+		}
+		if len(affectedStages) == 0 {
+			result = append(result, cue.ID)
+		} else if _, ok := affectedStages[output]; ok {
+			result = append(result, cue.ID)
+		}
+	}
+	return result
 }
 
 func preflightProblemSeverity(severity show.ProblemSeverity) operatorlog.Severity {

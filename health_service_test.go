@@ -10,6 +10,7 @@ import (
 	"github.com/syspoe/cusus/config"
 	"github.com/syspoe/cusus/health"
 	"github.com/syspoe/cusus/media"
+	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/playback"
 	"github.com/syspoe/cusus/show"
 	"github.com/syspoe/cusus/timecode"
@@ -20,6 +21,21 @@ type healthBackendStub struct {
 	mixers       []media.AudioMixerMetrics
 	displays     []media.VideoDisplay
 	displayErr   error
+}
+
+func TestFailedRouteHealthIsWarningUntilAnAffectedCueIsIdentified(t *testing.T) {
+	snapshot := health.NewSnapshot([]health.Component{
+		{ID: "unused", Kind: "output", Name: "Unused stage", State: health.Failed, Summary: "display disconnected", Details: map[string]any{}},
+		{ID: "active", Kind: "audio", Name: "Playback route", State: health.Failed, Summary: "endpoint disconnected", Details: map[string]any{"affectedCues": []string{"12"}}},
+	})
+	checks := healthPreflightChecks(snapshot)
+	severities := make(map[string]operatorlog.Severity, len(checks))
+	for _, check := range checks {
+		severities[check.Source] = check.Severity
+	}
+	if severities["Health · Unused stage"] != operatorlog.Warning || severities["Health · Playback route"] != operatorlog.ShowStopping {
+		t.Fatalf("route health checks = %#v", checks)
+	}
 }
 
 func (b *healthBackendStub) AudioDevices() ([]media.AudioDevice, error) { return nil, nil }
