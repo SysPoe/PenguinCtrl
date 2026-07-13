@@ -19,3 +19,28 @@ func TestPlayerLayerOrderBreaksSameTimestampTiesDeterministically(t *testing.T) 
 		t.Fatal("instance ID did not provide a stable legacy tie-break")
 	}
 }
+
+func TestSingleLayerKeepsPresentedVisualUnderIncomingPlayer(t *testing.T) {
+	old := &Player{instance: playback.Instance{ID: "old", LayerOrder: 1}, presented: true}
+	incoming := &Player{instance: playback.Instance{ID: "new", LayerOrder: 2}}
+
+	got := playersForLayers([]*Player{old, incoming}, 1)
+	if len(got) != 2 || got[0] != old || got[1] != incoming {
+		t.Fatalf("selected players = %#v, want old beneath incoming", got)
+	}
+}
+
+func TestSingleLayerKeepsOutgoingVisualForReplacementFade(t *testing.T) {
+	old := &Player{
+		instance:      playback.Instance{ID: "old", LayerOrder: 1},
+		presented:     true,
+		visualFadeAt:  time.Now(),
+		visualFadeFor: time.Second,
+	}
+	incoming := &Player{instance: playback.Instance{ID: "new", LayerOrder: 2}, presented: true}
+
+	got := playersForLayers([]*Player{old, incoming}, 1)
+	if len(got) != 2 || got[0] != old || got[1] != incoming {
+		t.Fatalf("selected players = %#v, want fading old beneath new", got)
+	}
+}

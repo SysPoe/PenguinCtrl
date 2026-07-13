@@ -595,9 +595,7 @@ func (o *outputWindow) layoutContent(gtx layout.Context, route config.VideoOutpu
 		}
 	}
 	sort.SliceStable(visible, func(i, j int) bool { return playerLayerLess(visible[i], visible[j]) })
-	if len(visible) > route.Layers {
-		visible = visible[len(visible)-route.Layers:]
-	}
+	visible = playersForLayers(visible, route.Layers)
 	o.setVisibleDecoders(visible)
 	if len(visible) > 0 {
 		children := make([]layout.StackChild, 0, len(visible))
@@ -623,6 +621,39 @@ func (o *outputWindow) layoutContent(gtx layout.Context, route config.VideoOutpu
 		return layout.Center.Layout(gtx, label.Layout)
 	}
 	return layout.Dimensions{Size: gtx.Constraints.Max}
+}
+
+func playersForLayers(players []*Player, layers int) []*Player {
+	layers = max(1, layers)
+	if len(players) <= layers {
+		return players
+	}
+	first := len(players) - layers
+	selected := append([]*Player(nil), players[first:]...)
+	included := make(map[*Player]struct{}, len(selected)+1)
+	for _, player := range selected {
+		included[player] = struct{}{}
+	}
+	// For a single-layer output, continue drawing the last successfully
+	// presented layer beneath an incoming player until its first frame arrives.
+	if layers == 1 && !selected[0].HasPresented() {
+		for i := first - 1; i >= 0; i-- {
+			if players[i].HasPresented() {
+				selected = append(selected, players[i])
+				included[players[i]] = struct{}{}
+				break
+			}
+		}
+	}
+	// A replaced layer is a temporary crossfade participant, not an additional
+	// persistent output layer.
+	for _, player := range players[:first] {
+		if _, exists := included[player]; !exists && player.VisualFadeOutActive() {
+			selected = append(selected, player)
+		}
+	}
+	sort.SliceStable(selected, func(i, j int) bool { return playerLayerLess(selected[i], selected[j]) })
+	return selected
 }
 
 func playerLayerLess(first, second *Player) bool {

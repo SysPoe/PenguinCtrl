@@ -57,6 +57,9 @@ type Player struct {
 	generation    int
 	started       time.Time
 	decodeVisible bool
+	presented     bool
+	visualFadeAt  time.Time
+	visualFadeFor time.Duration
 }
 
 func NewPlayer(instance playback.Instance, settings *config.Store, audio *AudioSystem, window *app.Window, report func(string), duration func(int64), failure func(error)) *Player {
@@ -328,13 +331,54 @@ func (p *Player) Control(event playback.Event) {
 	case "unmute":
 		p.setMuted(false)
 	case "fade-out":
+		p.startVisualFadeOut(time.Duration(event.FadeMs) * time.Millisecond)
 		p.setVolume(-80, time.Duration(event.FadeMs)*time.Millisecond, event.Curve)
 	case "stop":
 		if event.FadeMs > 0 {
+			p.startVisualFadeOut(time.Duration(event.FadeMs) * time.Millisecond)
 			p.setVolume(-80, time.Duration(event.FadeMs)*time.Millisecond, event.Curve)
 		} else {
 			p.Close(true)
 		}
+	}
+}
+
+func (p *Player) startVisualFadeOut(duration time.Duration) {
+	if p.instance.MediaType != "video" && p.instance.MediaType != "image" {
+		return
+	}
+	p.mu.Lock()
+	p.visualFadeAt, p.visualFadeFor = time.Now(), max(time.Duration(0), duration)
+	p.mu.Unlock()
+	if p.window != nil {
+		p.window.Invalidate()
+	}
+}
+
+func (p *Player) HasPresented() bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.presented
+}
+
+func (p *Player) VisualFadeOutActive() bool {
+	p.mu.RLock()
+	started, duration := p.visualFadeAt, p.visualFadeFor
+	p.mu.RUnlock()
+	return !started.IsZero() && duration > 0 && time.Since(started) < duration
+}
+
+func (p *Player) reportPresented() {
+	p.mu.Lock()
+	if p.presented || p.frame == nil {
+		p.mu.Unlock()
+		return
+	}
+	p.presented = true
+	report := p.report
+	p.mu.Unlock()
+	if report != nil {
+		report("presented")
 	}
 }
 
@@ -465,6 +509,7 @@ func (p *Player) Layout(gtx layout.Context) layout.Dimensions {
 		}
 		return layout.Dimensions{Size: gtx.Constraints.Max}
 	}
+	p.reportPresented()
 	opacity := float32(1)
 	if clock != nil {
 		elapsed := clock.Position() - time.Duration(max(0, p.instance.ClipStartMs))*time.Millisecond
@@ -483,11 +528,20 @@ func (p *Player) Layout(gtx layout.Context) layout.Dimensions {
 func (p *Player) visualOpacity(elapsed time.Duration) float32 {
 	p.mu.RLock()
 	fadeIn := p.instance.FadeInMs
+	fadeOutAt, fadeOutFor := p.visualFadeAt, p.visualFadeFor
 	p.mu.RUnlock()
-	if fadeIn <= 0 {
-		return 1
+	opacity := 1.0
+	if fadeIn > 0 {
+		opacity = min(1.0, max(0.0, float64(elapsed)/float64(time.Duration(fadeIn)*time.Millisecond)))
 	}
-	return float32(min(1.0, max(0.0, float64(elapsed)/float64(time.Duration(fadeIn)*time.Millisecond))))
+	if !fadeOutAt.IsZero() {
+		fadeOpacity := 0.0
+		if fadeOutFor > 0 {
+			fadeOpacity = 1 - min(1.0, max(0.0, float64(time.Since(fadeOutAt))/float64(fadeOutFor)))
+		}
+		opacity *= fadeOpacity
+	}
+	return float32(opacity)
 }
 
 func (p *Player) State() LoadState {

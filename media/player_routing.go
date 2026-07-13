@@ -36,6 +36,7 @@ func (p *Player) LayoutScaled(gtx layout.Context, scaling string) layout.Dimensi
 	if frame == nil {
 		return layout.Dimensions{Size: gtx.Constraints.Max}
 	}
+	p.reportPresented()
 	opacity := float32(1)
 	if !started.IsZero() {
 		opacity = p.visualOpacity(time.Since(started))

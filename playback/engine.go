@@ -1376,6 +1376,13 @@ func (e *Engine) HandleOutputReport(instanceID, report string) {
 		}
 		instance.FadeOutStarted = true
 	}
+	if report == "presented" {
+		if instance.Presented {
+			e.mu.Unlock()
+			return
+		}
+		instance.Presented = true
+	}
 	copy := *instance
 	if report == "ended" || report == "stopped" {
 		delete(e.instances, instanceID)
@@ -1388,6 +1395,8 @@ func (e *Engine) HandleOutputReport(instanceID, report string) {
 		}
 		e.scheduleInstanceLifecycle(copy.ID)
 		e.scheduleTimecode(copy.ID, copy.Cue, copy.CueIndex, copy.RunContext)
+	case "presented":
+		e.replaceSingleLayerVisual(copy)
 	case "fade-in-complete":
 		e.scheduleLink(copy.Link, copy.CueIndex, copy.PostWaitMs, linkFadeIn, copy.RunContext)
 	case "fade-out-start":
@@ -1398,6 +1407,75 @@ func (e *Engine) HandleOutputReport(instanceID, report string) {
 		e.finishCueRun(copy.CueID, copy.RunID, copy.Link.Mode == show.CueLinkManual)
 	}
 	e.signalState()
+}
+
+func visualInstance(instance *Instance) bool {
+	return instance != nil && (instance.MediaType == "video" || instance.MediaType == "image")
+}
+
+// replaceSingleLayerVisual performs a guarded handoff after the incoming
+// visual has produced its first frame. Outputs configured for more than one
+// layer retain their explicit compositing behavior.
+func (e *Engine) replaceSingleLayerVisual(presented Instance) {
+	if presented.Preview || !visualInstance(&presented) || config.VideoOutputFor(e.settings.Snapshot(), presented.OutputID).Layers != 1 {
+		return
+	}
+
+	e.mu.Lock()
+	var newest *Instance
+	for _, candidate := range e.instances {
+		if candidate.Preview || !candidate.Presented || candidate.OutputID != presented.OutputID || !visualInstance(candidate) {
+			continue
+		}
+		if newest == nil || candidate.LayerOrder > newest.LayerOrder ||
+			(candidate.LayerOrder == newest.LayerOrder && candidate.StartedAt.After(newest.StartedAt)) ||
+			(candidate.LayerOrder == newest.LayerOrder && candidate.StartedAt.Equal(newest.StartedAt) && candidate.ID > newest.ID) {
+			newest = candidate
+		}
+	}
+	if newest == nil {
+		e.mu.Unlock()
+		return
+	}
+
+	now := time.Now()
+	outgoing := make([]Instance, 0)
+	for _, candidate := range e.instances {
+		if candidate.ID == newest.ID || candidate.Preview || !candidate.Presented || candidate.OutputID != presented.OutputID ||
+			!visualInstance(candidate) || candidate.ReplacementScheduled {
+			continue
+		}
+		materializeInstance(candidate, now)
+		candidate.ReplacementScheduled = true
+		candidate.FadeOutStarted = true
+		candidate.EndScheduled = false
+		candidate.LifecycleGeneration++
+		startInstanceFade(candidate, -80, max(int64(0), candidate.FadeOutMs), now)
+		outgoing = append(outgoing, *candidate)
+	}
+	e.mu.Unlock()
+
+	for _, instance := range outgoing {
+		fadeMs := max(int64(0), instance.FadeOutMs)
+		e.hub.publish(Event{
+			Action: "control", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID},
+			Control: "fade-out", FadeMs: fadeMs,
+		})
+		e.scheduleLink(instance.Link, instance.CueIndex, instance.PostWaitMs, linkFadeOut, instance.RunContext)
+		if fadeMs == 0 {
+			e.HandleOutputReport(instance.ID, "ended")
+			continue
+		}
+		id := instance.ID
+		e.goOwned(func() {
+			if waitContext(e.ctx, time.Duration(fadeMs)*time.Millisecond) {
+				e.HandleOutputReport(id, "ended")
+			}
+		})
+	}
+	if len(outgoing) > 0 {
+		e.signalState()
+	}
 }
 
 func (e *Engine) HandleOutputError(instanceID string, err error) {

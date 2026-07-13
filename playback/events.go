@@ -44,6 +44,10 @@ type Instance struct {
 	RunContext     context.Context `json:"-"`
 	RequestedAt    time.Time       `json:"-"`
 	BackendStarted bool            `json:"-"`
+	Presented      bool            `json:"-"`
+	// ReplacementScheduled prevents rapid successive visual starts from
+	// restarting an outgoing layer's configured fade.
+	ReplacementScheduled bool `json:"-"`
 	// LifecycleGeneration invalidates stale fade/end timers after pause, seek,
 	// duration correction, or resume. Timers must never act on another
 	// generation of the same logical playback instance.
