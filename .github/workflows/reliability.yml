@@ -1,0 +1,44 @@
+name: Reliability
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-supported:
+    name: Windows reliability (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Capture deterministic reliability evidence
+        shell: pwsh
+        run: ./scripts/reliability-evidence.ps1 -OutputDirectory artifacts/reliability
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reliability-${{ matrix.os }}
+          path: artifacts/reliability
+          if-no-files-found: error
+
+  race:
+    name: Full race detector
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - run: go test -race ./...
