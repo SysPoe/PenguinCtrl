@@ -1675,12 +1675,13 @@ func (e *Engine) StopAll() {
 	e.cueRuns = map[show.CueID]cueRun{}
 	e.mu.Unlock()
 	instances := e.ActiveInstances()
-	byOutput := map[string][]string{}
-	for _, instance := range instances {
-		byOutput[instance.OutputID] = append(byOutput[instance.OutputID], instance.ID)
-	}
-	for outputID, ids := range byOutput {
-		e.hub.publish(Event{Action: "control", OutputID: outputID, InstanceIDs: ids, Control: "stop"})
+	// STOP ALL is an output-wide emergency command, not a request derived from
+	// the engine's instance registry. The registry is cleared optimistically
+	// below, and an output may also still own a late player that never reached
+	// authoritative state. Always addressing every output means repeated presses
+	// can still close those real players even when ActiveInstances is empty.
+	for _, outputID := range e.OutputIDs() {
+		e.hub.publish(Event{Action: "control", OutputID: outputID, Control: "stop-all"})
 	}
 	for _, instance := range instances {
 		e.HandleOutputReport(instance.ID, "stopped")

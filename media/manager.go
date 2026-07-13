@@ -756,6 +756,14 @@ func (o *outputWindow) applyEvent(event playback.Event) {
 			}
 		}
 	case "control":
+		if event.Control == "stop-all" {
+			o.heldFrame = nil
+			for id, player := range o.players {
+				player.Close(false)
+				delete(o.players, id)
+			}
+			return
+		}
 		for _, id := range event.InstanceIDs {
 			if player := o.players[id]; player != nil {
 				player.Control(event)
