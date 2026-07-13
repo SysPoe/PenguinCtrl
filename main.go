@@ -401,6 +401,34 @@ func layoutVideoOutputWarning(th *material.Theme, gtx layout.Context, warning st
 	})
 }
 
+func layoutSafetyWarning(th *material.Theme, gtx layout.Context, warning string, resume *widget.Clickable) layout.Dimensions {
+	return warningBar(gtx, unit.Dp(118), func(gtx layout.Context) layout.Dimensions {
+		return layout.Inset{Left: unit.Dp(24), Right: unit.Dp(24), Top: unit.Dp(14), Bottom: unit.Dp(14)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							label := material.H4(th, "** PLAYBACK STOPPED AFTER SYSTEM INTERRUPTION **")
+							label.Color = palette.White
+							return label.Layout(gtx)
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							label := material.Body1(th, warning)
+							label.Color = palette.White
+							return label.Layout(gtx)
+						}),
+					)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					button := material.Button(th, resume, "Acknowledge and re-arm GO")
+					button.Background = palette.SurfaceSunken
+					return button.Layout(gtx)
+				}),
+			)
+		})
+	})
+}
+
 func warningBar(gtx layout.Context, requestedHeight unit.Dp, content layout.Widget) layout.Dimensions {
 	size := gtx.Constraints.Max
 	height := min(gtx.Dp(requestedHeight), size.Y)
@@ -411,10 +439,15 @@ func warningBar(gtx layout.Context, requestedHeight unit.Dp, content layout.Widg
 	return content(gtx)
 }
 
-func layoutWarnings(th *material.Theme, gtx layout.Context, windowFocused bool, audioWarning, videoWarning string, settingsButton *widget.Clickable) layout.Dimensions {
+func layoutWarnings(th *material.Theme, gtx layout.Context, windowFocused bool, audioWarning, videoWarning, safetyWarning string, settingsButton, safetyResume *widget.Clickable) layout.Dimensions {
 	return layout.S.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.Y = 0
 		children := make([]layout.FlexChild, 0, 2)
+		if safetyWarning != "" {
+			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layoutSafetyWarning(th, gtx, safetyWarning, safetyResume)
+			}))
+		}
 		if !windowFocused {
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layoutFocusWarning(th, gtx)
@@ -465,6 +498,10 @@ func (a *App) run(window *app.Window) error {
 	var closeInterceptor windowCloseInterceptor
 	closeRequests := make(chan struct{}, 1)
 	var lastAudioOperatorWarning, lastVideoOperatorWarning string
+	var safetyResume widget.Clickable
+	lastFrameAt := time.Now()
+	power := startPowerKeeper()
+	defer power.Close()
 	tbCtx.LoadWaveform = func(source string, completed func([]float32, int, int64, error)) {
 		go func() {
 			wave, err := media.ExtractWaveform(settingsStore.Snapshot().FFmpegPath, source)
@@ -787,6 +824,11 @@ func (a *App) run(window *app.Window) error {
 			window.Invalidate()
 
 		case app.FrameEvent:
+			now := time.Now()
+			if gap := now.Sub(lastFrameAt); gap > 3*time.Second {
+				playbackEngine.LatchClockDiscontinuity(gap)
+			}
+			lastFrameAt = now
 			gtx := app.NewContext(&ops, e)
 			gtx.Execute(op.InvalidateCmd{At: time.Now().Add(time.Second)})
 			if warmer, ok := mediaManager.(interface{ Prewarm([]playback.Instance) }); ok {
@@ -795,6 +837,10 @@ func (a *App) run(window *app.Window) error {
 			if audioWarningSettings.Clicked(gtx) {
 				a.UI.ShowSettings = true
 				settingsPage.ShowAudioDevices()
+			}
+			if safetyResume.Clicked(gtx) {
+				playbackEngine.AcknowledgeSafetyLatch()
+				topBar.SetStatus("Playback re-armed after operator acknowledgement · press GO when ready")
 			}
 			audioWarning := mediaManager.AudioDeviceWarning()
 			videoWarning := videoRoutingWarning(mediaManager)
@@ -884,7 +930,7 @@ func (a *App) run(window *app.Window) error {
 					return topBar.LayoutFileMenu(th, gtx)
 				}),
 				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-					return layoutWarnings(th, gtx, windowFocused, audioWarning, videoWarning, audioWarningSettings)
+					return layoutWarnings(th, gtx, windowFocused, audioWarning, videoWarning, playbackEngine.SafetyLatchReason(), audioWarningSettings, &safetyResume)
 				}),
 				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 					return operatorPanel.LayoutOverlay(th, gtx, operatorEvents, preflight, func(cueID show.CueID, edit bool, field string) {

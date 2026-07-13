@@ -67,6 +67,8 @@ type Engine struct {
 	previewPaused       bool
 	cueRuns             map[show.CueID]cueRun
 	nextRunID           uint64
+	safetyLatched       atomic.Bool
+	safetyReason        atomic.Value
 	enqueueMu           sync.Mutex
 	nextCommandSequence uint64
 	dispatchMu          sync.Mutex
@@ -449,6 +451,13 @@ func (e *Engine) enqueue(cue show.Cue, index int, origin string) error {
 }
 
 func (e *Engine) enqueueCommand(cue show.Cue, index int, preview bool, origin string, override bool) error {
+	if e.safetyLatched.Load() {
+		err := errors.New("playback safety latch is active: " + e.SafetyLatchReason())
+		if !preview {
+			e.recordCueError(cue, origin, err)
+		}
+		return err
+	}
 	if cue.Disabled {
 		err := errors.New("cue is disabled")
 		if !preview {
@@ -504,6 +513,30 @@ func (e *Engine) enqueueCommand(cue show.Cue, index int, preview bool, origin st
 		}
 		return err
 	}
+}
+
+func (e *Engine) LatchClockDiscontinuity(gap time.Duration) {
+	if !e.safetyLatched.CompareAndSwap(false, true) {
+		return
+	}
+	reason := fmt.Sprintf("system resume or scheduler gap detected (%s); outputs stopped", gap.Round(time.Millisecond))
+	e.safetyReason.Store(reason)
+	e.StopAll()
+	e.recordError("Playback safety", errors.New(reason))
+}
+
+func (e *Engine) SafetyLatchReason() string {
+	value := e.safetyReason.Load()
+	if value == nil {
+		return ""
+	}
+	return value.(string)
+}
+
+func (e *Engine) AcknowledgeSafetyLatch() {
+	e.safetyLatched.Store(false)
+	e.safetyReason.Store("")
+	e.changed()
 }
 
 // beginCueRun atomically reserves this cue for the new command. Any existing
