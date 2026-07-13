@@ -59,6 +59,8 @@ func (e *Engine) startMedia(next command) error {
 		instance.DurationMs = instance.ClipEndMs - instance.ClipStartMs
 	}
 	instance.PositionMs = max(0, instance.ClipStartMs)
+	durationSource, durationStartMs, durationEndMs, configuredDurationMs, _ := durationDetails(cue, settings)
+	durationKey := fmt.Sprintf("%d|%s|%d|%d|%d", cue.Type, durationSource, durationStartMs, durationEndMs, configuredDurationMs)
 	e.mu.Lock()
 	if next.runID != 0 {
 		current, ok := e.cueRuns[cue.ID]
@@ -66,6 +68,12 @@ func (e *Engine) startMedia(next command) error {
 			e.mu.Unlock()
 			return context.Canceled
 		}
+	}
+	// Duration probing normally finishes while the show is idle. Reuse that
+	// cue-specific result so an automatic fade-out can be scheduled as soon as
+	// the backend starts instead of waiting for a second probe during playback.
+	if instance.DurationMs <= 0 && e.durationKeys[cue.ID] == durationKey {
+		instance.DurationMs = e.durations[cue.ID]
 	}
 	instance.FadeInComplete = instance.FadeInMs <= 0
 	e.instances[instance.ID] = instance
@@ -164,18 +172,19 @@ func (e *Engine) scheduleInstanceLifecycle(instanceID string) {
 	snapshot := *instance
 	e.mu.Unlock()
 
-	fadeOutAt := remainingMs - max(int64(0), snapshot.FadeOutMs)
-	if snapshot.FadeOutMs > 0 && fadeOutAt >= 0 {
+	fadeMs := min(max(int64(0), snapshot.FadeOutMs), remainingMs)
+	fadeOutAt := remainingMs - fadeMs
+	if fadeMs > 0 {
 		instance, wait := snapshot, time.Duration(fadeOutAt)*time.Millisecond
 		e.goOwned(func() {
 			if !waitContext(instance.RunContext, wait) || !e.lifecycleCurrent(instance.ID, generation) {
 				return
 			}
-			e.hub.publish(Event{Action: "control", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID}, Control: "fade-out", FadeMs: instance.FadeOutMs})
+			e.hub.publish(Event{Action: "control", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID}, Control: "fade-out", FadeMs: fadeMs})
 			e.mu.Lock()
 			if active := e.instances[instance.ID]; active != nil && active.LifecycleGeneration == generation && !active.Paused {
 				materializeInstance(active, time.Now())
-				startInstanceFade(active, -80, instance.FadeOutMs, time.Now())
+				startInstanceFade(active, -80, fadeMs, time.Now())
 			}
 			e.mu.Unlock()
 			e.HandleOutputReport(instance.ID, "fade-out-start")

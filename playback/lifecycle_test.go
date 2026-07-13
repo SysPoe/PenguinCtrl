@@ -1,6 +1,8 @@
 package playback
 
 import (
+	"context"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -66,5 +68,58 @@ func TestSeekBackwardReschedulesEndFromNewPosition(t *testing.T) {
 	time.Sleep(70 * time.Millisecond)
 	if engine.hasInstance("seek") {
 		t.Fatal("seeked instance did not end on its replacement timer")
+	}
+}
+
+func TestLateDurationDiscoveryStartsFadeForRemainingPlayback(t *testing.T) {
+	engine := newLifecycleTestEngine(t)
+	events := engine.hub.subscribe("main")
+	defer engine.hub.unsubscribe("main", events)
+
+	engine.mu.Lock()
+	engine.instances["late-duration"] = &Instance{
+		ID: "late-duration", CueID: show.NewCueID(), MediaType: "audio", OutputID: "main",
+		DurationMs: 1000, FadeOutMs: 500, BackendStarted: true,
+		PositionAt: time.Now().Add(-700 * time.Millisecond), RunContext: engine.runCtx,
+	}
+	engine.mu.Unlock()
+	engine.scheduleInstanceLifecycle("late-duration")
+
+	select {
+	case event := <-events:
+		if event.Control != "fade-out" {
+			t.Fatalf("control = %q, want fade-out", event.Control)
+		}
+		if event.FadeMs <= 0 || event.FadeMs > 350 {
+			t.Fatalf("late fade duration = %dms, want remaining playback time", event.FadeMs)
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Fatal("automatic fade-out was skipped after duration arrived inside the fade window")
+	}
+}
+
+func TestStartMediaUsesKnownDurationForCueFadeOut(t *testing.T) {
+	engine := newLifecycleTestEngine(t)
+	cue := show.NewSoundCue()
+	cue.Play.Sound.File = "known.wav"
+	cue.Play.Sound.FadeOutMs = 5000
+	settings := engine.settings.Snapshot()
+	source, start, end, configured, _ := durationDetails(cue, settings)
+	key := fmt.Sprintf("%d|%s|%d|%d|%d", cue.Type, source, start, end, configured)
+
+	engine.mu.Lock()
+	engine.durationKeys[cue.ID] = key
+	engine.durations[cue.ID] = 12000
+	engine.mu.Unlock()
+
+	if err := engine.startMedia(command{cue: cue, ctx: context.Background()}); err != nil {
+		t.Fatal(err)
+	}
+	instances := engine.ActiveInstances()
+	if len(instances) != 1 {
+		t.Fatalf("instances = %d, want 1", len(instances))
+	}
+	if instances[0].DurationMs != 12000 || instances[0].FadeOutMs != 5000 {
+		t.Fatalf("runtime timing = duration %dms fade-out %dms, want 12000ms and 5000ms", instances[0].DurationMs, instances[0].FadeOutMs)
 	}
 }
