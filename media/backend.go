@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/syspoe/cusus/config"
+	"github.com/syspoe/cusus/internal/processgroup"
 	"github.com/syspoe/cusus/playback"
 	"github.com/syspoe/cusus/show"
 )
@@ -338,14 +339,14 @@ func (s *ffmpegSession) preloadVideo() error {
 		args = append(args, "-vf", fmt.Sprintf("scale=%d:%d", width, height))
 	}
 	args = append(args, "-fps_mode", "passthrough", "-f", "rawvideo", "-pix_fmt", "rgba", "pipe:1")
-	cmd := exec.Command(settings.FFmpegPath, args...)
+	cmd := processgroup.CommandContext(s.ctx, settings.FFmpegPath, args...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return err
 	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
-	if err := cmd.Start(); err != nil {
+	if err := processgroup.Start(cmd); err != nil {
 		return err
 	}
 	s.mu.Lock()
@@ -413,14 +414,14 @@ func (s *ffmpegSession) decodeVideo(cmd *exec.Cmd, reader io.Reader, first chan<
 func (s *ffmpegSession) preloadAudio() error {
 	args := mediaInputArgs(s.request.Position, s.request.Instance.ClipEndMs)
 	args = append(args, "-i", s.path, "-map", "0:a:0", "-vn", "-f", "s16le", "-ar", strconv.Itoa(audioSampleRate), "-ac", strconv.Itoa(audioChannels), "pipe:1")
-	cmd := exec.CommandContext(s.ctx, s.backend.settings.Snapshot().FFmpegPath, args...)
+	cmd := processgroup.CommandContext(s.ctx, s.backend.settings.Snapshot().FFmpegPath, args...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return err
 	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
-	if err := cmd.Start(); err != nil {
+	if err := processgroup.Start(cmd); err != nil {
 		return err
 	}
 	reader := bufio.NewReaderSize(stdout, 64*1024)
@@ -480,7 +481,7 @@ func (s *ffmpegSession) recoverAudio(targetDeviceID string) error {
 
 	args := mediaInputArgs(position, s.request.Instance.ClipEndMs)
 	args = append(args, "-i", s.path, "-map", "0:a:0", "-vn", "-f", "s16le", "-ar", strconv.Itoa(audioSampleRate), "-ac", strconv.Itoa(audioChannels), "pipe:1")
-	cmd := exec.CommandContext(s.ctx, s.backend.settings.Snapshot().FFmpegPath, args...)
+	cmd := processgroup.CommandContext(s.ctx, s.backend.settings.Snapshot().FFmpegPath, args...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		s.component.Done()
@@ -488,7 +489,7 @@ func (s *ffmpegSession) recoverAudio(targetDeviceID string) error {
 	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
-	if err := cmd.Start(); err != nil {
+	if err := processgroup.Start(cmd); err != nil {
 		s.component.Done()
 		return err
 	}
@@ -703,8 +704,8 @@ func (i mediaInfo) frameInterval() time.Duration {
 func probeMediaInfo(ffmpegPath, source string) (mediaInfo, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), mediaProbeTimeout)
 	defer cancel()
-	command := exec.CommandContext(ctx, ffprobePath(ffmpegPath), "-v", "error", "-show_entries", "stream=codec_type,width,height,avg_frame_rate:stream_tags=rotate:stream_side_data=rotation", "-of", "json", source)
-	raw, err := command.CombinedOutput()
+	command := processgroup.CommandContext(ctx, ffprobePath(ffmpegPath), "-v", "error", "-show_entries", "stream=codec_type,width,height,avg_frame_rate:stream_tags=rotate:stream_side_data=rotation", "-of", "json", source)
+	raw, err := processgroup.CombinedOutput(command)
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return mediaInfo{}, fmt.Errorf("ffmpeg probe media streams timed out after %s", mediaProbeTimeout)

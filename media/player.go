@@ -12,7 +12,6 @@ import (
 	"math"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -26,6 +25,7 @@ import (
 	"gioui.org/op/paint"
 	"gioui.org/widget"
 	"github.com/syspoe/cusus/config"
+	"github.com/syspoe/cusus/internal/processgroup"
 	"github.com/syspoe/cusus/playback"
 	"github.com/syspoe/cusus/show"
 )
@@ -498,8 +498,8 @@ func sourcePath(source string) (string, error) {
 func probeMediaDuration(ffmpegPath, source string) (time.Duration, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), mediaProbeTimeout)
 	defer cancel()
-	command := exec.CommandContext(ctx, ffprobePath(ffmpegPath), "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", source)
-	output, err := command.Output()
+	command := processgroup.CommandContext(ctx, ffprobePath(ffmpegPath), "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", source)
+	output, err := processgroup.Output(command)
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return 0, fmt.Errorf("probe media duration timed out after %s", mediaProbeTimeout)

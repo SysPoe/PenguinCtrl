@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/syspoe/cusus/internal/processgroup"
 	"github.com/syspoe/cusus/show"
 )
 
@@ -442,7 +442,7 @@ func transcode(ffmpegPath, source, kind, sourceHash string) (string, error) {
 	var lastOutput []byte
 	for _, args := range attempts {
 		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
-		lastOutput, err = exec.CommandContext(ctx, ffmpegPath, append(common, args...)...).CombinedOutput()
+		lastOutput, err = processgroup.CombinedOutput(processgroup.CommandContext(ctx, ffmpegPath, append(common, args...)...))
 		timedOut := ctx.Err() == context.DeadlineExceeded
 		cancel()
 		if err == nil {
