@@ -26,7 +26,6 @@ func (p *Player) LayoutScaled(gtx layout.Context, scaling string) layout.Dimensi
 	_ = macro.Stop()
 	p.mu.RLock()
 	frame, started, session := p.frame, p.started, p.session
-	fadeIn, volume := p.instance.FadeInMs, p.volumeDB
 	p.mu.RUnlock()
 	if session != nil && playbackNeedsRefresh(session.State()) {
 		// Player.Layout's drawing and invalidation operations above are
@@ -38,14 +37,11 @@ func (p *Player) LayoutScaled(gtx layout.Context, scaling string) layout.Dimensi
 		return layout.Dimensions{Size: gtx.Constraints.Max}
 	}
 	opacity := float32(1)
-	if fadeIn > 0 && !started.IsZero() {
-		opacity = float32(min(1.0, float64(time.Since(started))/float64(time.Duration(fadeIn)*time.Millisecond)))
+	if !started.IsZero() {
+		opacity = p.visualOpacity(time.Since(started))
 		if opacity < 1 {
 			gtx.Execute(op.InvalidateCmd{At: time.Now().Add(time.Second / 60)})
 		}
-	}
-	if volume < 0 {
-		opacity *= float32(dbVolume(volume, false))
 	}
 	stack := paint.PushOpacity(gtx.Ops, opacity)
 	defer stack.Pop()

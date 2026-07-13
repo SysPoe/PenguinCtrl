@@ -450,7 +450,6 @@ func (p *Player) applyVolume(db float64) {
 func (p *Player) Layout(gtx layout.Context) layout.Dimensions {
 	p.mu.RLock()
 	frame, clock, session := p.frame, p.clock, p.session
-	fadeIn, volume := p.instance.FadeInMs, p.volumeDB
 	p.mu.RUnlock()
 	if session != nil && clock != nil {
 		if next := session.Frame(clock.Position()); next != nil {
@@ -467,19 +466,28 @@ func (p *Player) Layout(gtx layout.Context) layout.Dimensions {
 		return layout.Dimensions{Size: gtx.Constraints.Max}
 	}
 	opacity := float32(1)
-	if fadeIn > 0 && clock != nil {
+	if clock != nil {
 		elapsed := clock.Position() - time.Duration(max(0, p.instance.ClipStartMs))*time.Millisecond
-		opacity = float32(min(1.0, max(0.0, float64(elapsed)/float64(time.Duration(fadeIn)*time.Millisecond))))
+		opacity = p.visualOpacity(elapsed)
 		if opacity < 1 {
 			gtx.Execute(op.InvalidateCmd{At: time.Now().Add(time.Second / 60)})
 		}
 	}
-	if volume < 0 {
-		opacity *= float32(dbVolume(volume, false))
-	}
 	stack := paint.PushOpacity(gtx.Ops, opacity)
 	defer stack.Pop()
 	return widget.Image{Src: paint.NewImageOp(frame), Fit: widget.Contain, Position: layout.Center}.Layout(gtx)
+}
+
+// visualOpacity is controlled only by the picture fade. Audio level is sent
+// to PlaybackSession.SetVolume and must never make a video layer transparent.
+func (p *Player) visualOpacity(elapsed time.Duration) float32 {
+	p.mu.RLock()
+	fadeIn := p.instance.FadeInMs
+	p.mu.RUnlock()
+	if fadeIn <= 0 {
+		return 1
+	}
+	return float32(min(1.0, max(0.0, float64(elapsed)/float64(time.Duration(fadeIn)*time.Millisecond))))
 }
 
 func (p *Player) State() LoadState {
