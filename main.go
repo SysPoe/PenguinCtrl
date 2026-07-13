@@ -1089,7 +1089,7 @@ func (a *App) run(window *app.Window) error {
 			}
 			lastAudioOperatorWarning, lastVideoOperatorWarning = audioWarning, videoWarning
 			healthSnapshot := healthMonitor.Snapshot()
-			operatorPanel.SetHealth(healthSnapshot.Overall.String())
+			operatorPanel.SetHealth(operatorHealthState(healthSnapshot).String())
 			showState, settingsState := manager.ShowSnapshot(), settingsStore.Snapshot()
 			preflight := preflightService.Request(showState, settingsState, audioWarning, videoWarning, playbackEngine.RemoteHealth(), playbackEngine.CueProblems)
 			a.Redundancy.UpdateFingerprint(buildRedundancyFingerprint(showState, settingsState, projectLibrary.Files(""), redundancyPreflightReady(preflight)))

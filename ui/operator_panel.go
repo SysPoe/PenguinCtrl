@@ -305,6 +305,9 @@ func (p *OperatorPanel) layoutPreflight(th *material.Theme, gtx layout.Context, 
 	}
 	return material.List(th, &p.list).Layout(gtx, len(checks)+1, func(gtx layout.Context, index int) layout.Dimensions {
 		if index == 0 {
+			if !preflightRequiresAttention(checks) {
+				return operatorEventCard(th, gtx, palette.Success, "READY FOR PERFORMANCE", "No actionable preflight problems found", "Informational checks below do not require action before performance.", false)
+			}
 			return operatorEventCard(th, gtx, preflightColor(checks), "ATTENTION REQUIRED", preflightSummary(checks), "Plz resolve all of these before perf.", false)
 		}
 		check := checks[index-1]
@@ -464,14 +467,26 @@ func operatorSeverityColor(severity operatorlog.Severity) color.NRGBA {
 func preflightCount(checks []operatorlog.PreflightCheck) string {
 	active := 0
 	for _, check := range checks {
-		if !check.Acknowledged {
+		if !check.Acknowledged && check.Severity >= operatorlog.Warning {
 			active++
 		}
 	}
 	if active == 0 {
 		return "READY"
 	}
+	if active == 1 {
+		return "1 ITEM"
+	}
 	return fmt.Sprintf("%d ITEMS", active)
+}
+
+func preflightRequiresAttention(checks []operatorlog.PreflightCheck) bool {
+	for _, check := range checks {
+		if !check.Acknowledged && check.Severity >= operatorlog.Warning {
+			return true
+		}
+	}
+	return false
 }
 
 func preflightSummary(checks []operatorlog.PreflightCheck) string {

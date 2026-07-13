@@ -111,6 +111,9 @@ func TestUnconfirmedDisplayMappingIsInformational(t *testing.T) {
 	if len(checks) != 1 || checks[0].Severity != operatorlog.Info {
 		t.Fatalf("display confirmation checks = %+v", checks)
 	}
+	if got := operatorHealthState(health.NewSnapshot(components)); got != health.Normal {
+		t.Fatalf("operator health = %s, want NORMAL", got)
+	}
 }
 
 func TestDisplayEnumerationFailureRemainsWarning(t *testing.T) {
@@ -119,5 +122,8 @@ func TestDisplayEnumerationFailureRemainsWarning(t *testing.T) {
 	checks := healthPreflightChecks(health.NewSnapshot(components))
 	if len(checks) != 1 || checks[0].Severity != operatorlog.Warning {
 		t.Fatalf("display enumeration checks = %+v", checks)
+	}
+	if got := operatorHealthState(health.NewSnapshot(components)); got != health.Degraded {
+		t.Fatalf("operator health = %s, want DEGRADED", got)
 	}
 }

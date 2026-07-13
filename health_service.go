@@ -285,14 +285,8 @@ func healthPreflightChecks(snapshot health.Snapshot) []operatorlog.PreflightChec
 		if component.State == health.Normal {
 			continue
 		}
-		severity := operatorlog.Warning
-		if pending, _ := component.Details["operatorConfirmationPending"].(bool); pending {
-			severity = operatorlog.Info
-		}
-		affectedCues, hasAffectedCues := component.Details["affectedCues"].([]string)
-		if component.State == health.Failed && (component.Kind == "engine" || component.Kind == "timecode" || (hasAffectedCues && len(affectedCues) > 0)) {
-			severity = operatorlog.ShowStopping
-		}
+		severity := healthPreflightSeverity(component)
+		affectedCues, _ := component.Details["affectedCues"].([]string)
 		message := component.State.String() + ": " + component.Summary
 		if len(affectedCues) > 0 {
 			message += "; affected cues " + strings.Join(affectedCues, ", ")
@@ -308,4 +302,31 @@ func healthPreflightChecks(snapshot health.Snapshot) []operatorlog.PreflightChec
 		})
 	}
 	return result
+}
+
+func healthPreflightSeverity(component health.Component) operatorlog.Severity {
+	affectedCues, hasAffectedCues := component.Details["affectedCues"].([]string)
+	if component.State == health.Failed && (component.Kind == "engine" || component.Kind == "timecode" || (hasAffectedCues && len(affectedCues) > 0)) {
+		return operatorlog.ShowStopping
+	}
+	if pending, _ := component.Details["operatorConfirmationPending"].(bool); pending {
+		return operatorlog.Info
+	}
+	return operatorlog.Warning
+}
+
+// operatorHealthState excludes health observations that preflight classifies as
+// informational. They remain visible in preflight, but must not put the main
+// operator banner into a degraded state when no action is required.
+func operatorHealthState(snapshot health.Snapshot) health.State {
+	overall := health.Normal
+	for _, component := range snapshot.Components {
+		if component.State == health.Normal || healthPreflightSeverity(component) == operatorlog.Info {
+			continue
+		}
+		if component.State > overall {
+			overall = component.State
+		}
+	}
+	return overall
 }

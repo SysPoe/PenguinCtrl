@@ -45,3 +45,21 @@ func TestPreflightPresentationDoesNotCallChecksFailures(t *testing.T) {
 		t.Fatalf("preflight info label = %q", got)
 	}
 }
+
+func TestInformationalPreflightIsReadyWithoutAttention(t *testing.T) {
+	checks := []operatorlog.PreflightCheck{{Severity: operatorlog.Info}}
+	if got := preflightCount(checks); got != "READY" {
+		t.Fatalf("preflight count = %q, want READY", got)
+	}
+	if preflightRequiresAttention(checks) {
+		t.Fatal("informational preflight requires attention")
+	}
+
+	checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.Warning})
+	if got := preflightCount(checks); got != "1 ITEM" {
+		t.Fatalf("preflight count = %q, want 1 ITEM", got)
+	}
+	if !preflightRequiresAttention(checks) {
+		t.Fatal("warning preflight does not require attention")
+	}
+}
