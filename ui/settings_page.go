@@ -44,21 +44,26 @@ type VideoDisplay struct {
 }
 
 type videoOutputFields struct {
-	stage       *input.Text
-	display     *input.Dropdown
-	fullscreen  *input.Checkbox
-	x           *input.Integer
-	y           *input.Integer
-	width       *input.Integer
-	height      *input.Integer
-	resolutionW *input.Integer
-	resolutionH *input.Integer
-	scaling     *input.Dropdown
-	idle        *input.Dropdown
-	testGrid    *input.Checkbox
-	safeArea    *input.Integer
-	layers      *input.Integer
-	remove      widget.Clickable
+	stage            *input.Text
+	display          *input.Dropdown
+	fullscreen       *input.Checkbox
+	x                *input.Integer
+	y                *input.Integer
+	width            *input.Integer
+	height           *input.Integer
+	resolutionW      *input.Integer
+	resolutionH      *input.Integer
+	scaling          *input.Dropdown
+	idle             *input.Dropdown
+	testGrid         *input.Checkbox
+	safeArea         *input.Integer
+	layers           *input.Integer
+	expectedRefresh  *input.Integer
+	alwaysOnTop      *input.Checkbox
+	lockedFullscreen *input.Checkbox
+	hideCursor       *input.Checkbox
+	displayConfirmed *input.Checkbox
+	remove           widget.Clickable
 }
 
 type SettingsPage struct {
@@ -282,6 +287,8 @@ func (p *SettingsPage) saveSettings() {
 			ResolutionWidth: fields.resolutionW.Value, ResolutionHeight: fields.resolutionH.Value,
 			Scaling: selectedDropdownValue(fields.scaling), IdleBehavior: selectedDropdownValue(fields.idle),
 			TestGrid: fields.testGrid.Checked, SafeAreaPercent: fields.safeArea.Value, Layers: fields.layers.Value,
+			ExpectedRefresh: fields.expectedRefresh.Value, AlwaysOnTop: fields.alwaysOnTop.Checked, LockedFullscreen: fields.lockedFullscreen.Checked,
+			HideCursor: fields.hideCursor.Checked, DisplayConfirmed: fields.displayConfirmed.Checked,
 		})
 	}
 	settings.RemoteTargets = make([]config.RemoteTarget, 0, len(p.targets))
@@ -464,11 +471,16 @@ func newVideoOutputFields(output config.VideoOutput, displays []VideoDisplay) *v
 		x:          input.NewInteger("X", output.X), y: input.NewInteger("Y", output.Y),
 		width: input.NewInteger("Window width", output.Width), height: input.NewInteger("Window height", output.Height),
 		resolutionW: input.NewInteger("Output width", output.ResolutionWidth), resolutionH: input.NewInteger("Output height", output.ResolutionHeight),
-		scaling:  enumDropdown([]input.DropdownItem{{Label: "Contain (letterbox)", Value: "contain"}, {Label: "Cover (crop)", Value: "cover"}, {Label: "Stretch", Value: "stretch"}, {Label: "Native pixels", Value: "native"}}, output.Scaling),
-		idle:     enumDropdown([]input.DropdownItem{{Label: "Black", Value: "black"}, {Label: "Hold last frame", Value: "hold"}}, output.IdleBehavior),
-		testGrid: input.NewCheckbox("Overlay test grid", output.TestGrid),
-		safeArea: input.NewInteger("Safe area %", output.SafeAreaPercent),
-		layers:   input.NewInteger("Maximum layers", output.Layers),
+		scaling:          enumDropdown([]input.DropdownItem{{Label: "Contain (letterbox)", Value: "contain"}, {Label: "Cover (crop)", Value: "cover"}, {Label: "Stretch", Value: "stretch"}, {Label: "Native pixels", Value: "native"}}, output.Scaling),
+		idle:             enumDropdown([]input.DropdownItem{{Label: "Black", Value: "black"}, {Label: "Hold last frame", Value: "hold"}}, output.IdleBehavior),
+		testGrid:         input.NewCheckbox("Overlay test grid", output.TestGrid),
+		safeArea:         input.NewInteger("Safe area %", output.SafeAreaPercent),
+		layers:           input.NewInteger("Maximum layers", output.Layers),
+		expectedRefresh:  input.NewOptionalInteger("Expected refresh Hz", output.ExpectedRefresh),
+		alwaysOnTop:      input.NewCheckbox("Keep output always on top", output.AlwaysOnTop),
+		lockedFullscreen: input.NewCheckbox("Lock fullscreen mode", output.LockedFullscreen),
+		hideCursor:       input.NewCheckbox("Hide cursor over output", output.HideCursor),
+		displayConfirmed: input.NewCheckbox("Operator confirmed display mapping", output.DisplayConfirmed),
 	}
 }
 
@@ -559,6 +571,21 @@ func (p *SettingsPage) videoOutputsSection(th *material.Theme, gtx layout.Contex
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return settingsField(th, gtx, "Layers (1-8)", fields.layers.Layout)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return settingsField(th, gtx, "Expected refresh rate", fields.expectedRefresh.Layout)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return settingsField(th, gtx, "Kiosk window", fields.alwaysOnTop.Layout)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return settingsField(th, gtx, "Fullscreen safety", fields.lockedFullscreen.Layout)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return settingsField(th, gtx, "Cursor policy", fields.hideCursor.Layout)
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return settingsField(th, gtx, "Pre-show confirmation", fields.displayConfirmed.Layout)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layoutButton(th, gtx, &fields.remove, "Remove stage", th.ContrastBg)

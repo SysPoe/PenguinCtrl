@@ -15,7 +15,7 @@ const (
 	monitorInfoPrimary        = 1
 	eddGetDeviceInterfaceName = 1
 	swpNoActivate             = 0x0010
-	swpNoZOrder               = 0x0004
+	enumCurrentSettings       = ^uint32(0)
 )
 
 var (
@@ -25,6 +25,9 @@ var (
 	procEnumDisplayDevicesW = user32.NewProc("EnumDisplayDevicesW")
 	procSetWindowPos        = user32.NewProc("SetWindowPos")
 	procGetWindowRect       = user32.NewProc("GetWindowRect")
+	procEnumDisplaySettings = user32.NewProc("EnumDisplaySettingsW")
+	shcore                  = windows.NewLazySystemDLL("shcore.dll")
+	procGetDpiForMonitor    = shcore.NewProc("GetDpiForMonitor")
 )
 
 type winRect struct{ Left, Top, Right, Bottom int32 }
@@ -41,6 +44,18 @@ type displayDevice struct {
 	StateFlags   uint32
 	DeviceID     [128]uint16
 	DeviceKey    [128]uint16
+}
+type deviceMode struct {
+	DeviceName                                                                                     [32]uint16
+	SpecVersion, DriverVersion, Size, DriverExtra                                                  uint16
+	Fields                                                                                         uint32
+	PositionX, PositionY                                                                           int32
+	DisplayOrientation, DisplayFixedOutput                                                         uint32
+	Color, Duplex, YResolution, TTOption, Collate                                                  uint16
+	FormName                                                                                       [32]uint16
+	LogPixels                                                                                      uint16
+	BitsPerPel, PelsWidth, PelsHeight, DisplayFlags, DisplayFrequency                              uint32
+	ICMMethod, ICMIntent, MediaType, DitherType, Reserved1, Reserved2, PanningWidth, PanningHeight uint32
 }
 
 func enumerateVideoDisplays() ([]VideoDisplay, error) {
@@ -64,7 +79,11 @@ func enumerateVideoDisplays() ([]VideoDisplay, error) {
 				name = v + " (" + adapter + ")"
 			}
 		}
-		result = append(result, VideoDisplay{ID: id, Name: name, Primary: info.Flags&monitorInfoPrimary != 0, X: int(info.Monitor.Left), Y: int(info.Monitor.Top), Width: int(info.Monitor.Right - info.Monitor.Left), Height: int(info.Monitor.Bottom - info.Monitor.Top)})
+		mode := deviceMode{Size: uint16(unsafe.Sizeof(deviceMode{}))}
+		procEnumDisplaySettings.Call(uintptr(unsafe.Pointer(adapterPtr)), uintptr(enumCurrentSettings), uintptr(unsafe.Pointer(&mode)))
+		var dpiX, dpiY uint32 = 96, 96
+		procGetDpiForMonitor.Call(monitor, 0, uintptr(unsafe.Pointer(&dpiX)), uintptr(unsafe.Pointer(&dpiY)))
+		result = append(result, VideoDisplay{ID: id, Name: name, Primary: info.Flags&monitorInfoPrimary != 0, X: int(info.Monitor.Left), Y: int(info.Monitor.Top), Width: int(info.Monitor.Right - info.Monitor.Left), Height: int(info.Monitor.Bottom - info.Monitor.Top), RefreshRate: int(mode.DisplayFrequency), DPI: int(dpiX)})
 		return 1
 	})
 	ok, _, callErr := procEnumDisplayMonitors.Call(0, 0, callback, 0)
@@ -91,7 +110,11 @@ func platformPlaceWindow(hwnd uintptr, route config.VideoOutput, displays []Vide
 	if route.Fullscreen {
 		x, y, w, h = d.X, d.Y, d.Width, d.Height
 	}
-	procSetWindowPos.Call(hwnd, 0, uintptr(x), uintptr(y), uintptr(w), uintptr(h), swpNoActivate|swpNoZOrder)
+	insertAfter := ^uintptr(1) // HWND_NOTOPMOST (-2).
+	if route.AlwaysOnTop {
+		insertAfter = ^uintptr(0) // HWND_TOPMOST (-1).
+	}
+	procSetWindowPos.Call(hwnd, insertAfter, uintptr(x), uintptr(y), uintptr(w), uintptr(h), swpNoActivate)
 	return found
 }
 func platformWindowGeometry(hwnd uintptr, d VideoDisplay) (int, int, int, int, bool) {

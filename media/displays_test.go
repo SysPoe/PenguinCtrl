@@ -21,3 +21,15 @@ func TestResolveDisplayForGeometryFallsBackToPrimary(t *testing.T) {
 		t.Fatalf("got %+v, found=%v", display, found)
 	}
 }
+
+func TestVideoOutputWarningRequiresConfirmationAndRefreshMatch(t *testing.T) {
+	displays := []VideoDisplay{{ID: "stage", RefreshRate: 60}}
+	settings := config.Settings{VideoOutputs: []config.VideoOutput{{Stage: "main", DisplayID: "stage", ExpectedRefresh: 50}}}
+	if warning := videoOutputWarning(settings, displays); !strings.Contains(warning, "confirmation") {
+		t.Fatalf("unconfirmed warning = %q", warning)
+	}
+	settings.VideoOutputs[0].DisplayConfirmed = true
+	if warning := videoOutputWarning(settings, displays); !strings.Contains(warning, "50 Hz") || !strings.Contains(warning, "60 Hz") {
+		t.Fatalf("refresh warning = %q", warning)
+	}
+}

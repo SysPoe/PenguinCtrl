@@ -13,6 +13,7 @@ type VideoDisplay struct {
 	ID, Name            string
 	Primary             bool
 	X, Y, Width, Height int
+	RefreshRate, DPI    int
 }
 
 func (m *Manager) VideoDisplays() ([]VideoDisplay, error) {
@@ -45,19 +46,32 @@ func (m *Manager) RefreshVideoOutputStatus() {
 }
 
 func videoOutputWarning(settings config.Settings, displays []VideoDisplay) string {
-	available := make(map[string]struct{}, len(displays))
+	available := make(map[string]VideoDisplay, len(displays))
 	for _, d := range displays {
-		available[d.ID] = struct{}{}
+		available[d.ID] = d
 	}
 	var missing []string
+	var unconfirmed []string
+	var refreshMismatch []string
 	for _, output := range settings.VideoOutputs {
 		if output.DisplayID != "" {
 			if _, ok := available[output.DisplayID]; !ok {
 				missing = append(missing, output.Stage)
 			}
 		}
+		if output.DisplayID != "" && !output.DisplayConfirmed {
+			unconfirmed = append(unconfirmed, output.Stage)
+		} else if display, ok := available[output.DisplayID]; ok && output.ExpectedRefresh > 0 && display.RefreshRate != output.ExpectedRefresh {
+			refreshMismatch = append(refreshMismatch, fmt.Sprintf("%s expects %d Hz but found %d Hz", output.Stage, output.ExpectedRefresh, display.RefreshRate))
+		}
 	}
 	if len(missing) == 0 {
+		if len(unconfirmed) > 0 {
+			return fmt.Sprintf("Display mappings for stages %s require operator confirmation before show mode.", strings.Join(unconfirmed, ", "))
+		}
+		if len(refreshMismatch) > 0 {
+			return "Display refresh mismatch: " + strings.Join(refreshMismatch, "; ")
+		}
 		return ""
 	}
 	if len(missing) == 1 {
@@ -74,7 +88,7 @@ func (m *Manager) currentDisplays() []VideoDisplay {
 func displaySignature(ds []VideoDisplay) string {
 	var b strings.Builder
 	for _, d := range ds {
-		fmt.Fprintf(&b, "%s:%d:%d:%d:%d;", d.ID, d.X, d.Y, d.Width, d.Height)
+		fmt.Fprintf(&b, "%s:%d:%d:%d:%d:%d:%d;", d.ID, d.X, d.Y, d.Width, d.Height, d.RefreshRate, d.DPI)
 	}
 	return b.String()
 }

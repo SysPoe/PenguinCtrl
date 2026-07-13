@@ -25,6 +25,14 @@ func TestNormalizeVideoOutputs(t *testing.T) {
 	}
 }
 
+func TestLockedFullscreenAndRefreshNormalize(t *testing.T) {
+	settings := normalize(Settings{DefaultMediaOutput: "main", VideoOutputs: []VideoOutput{{Stage: "main", LockedFullscreen: true, ExpectedRefresh: 5000}}})
+	output := settings.VideoOutputs[0]
+	if !output.Fullscreen || output.ExpectedRefresh != 0 {
+		t.Fatalf("normalized kiosk output = %#v", output)
+	}
+}
+
 func TestNormalizeAddsDefaultVideoStage(t *testing.T) {
 	settings := normalize(Settings{DefaultMediaOutput: "projection"})
 	output := VideoOutputFor(settings, "projection")

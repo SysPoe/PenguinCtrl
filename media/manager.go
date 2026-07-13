@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"gioui.org/app"
+	"gioui.org/io/pointer"
 	"gioui.org/io/system"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -351,6 +352,9 @@ func (o *outputWindow) run() {
 			}
 		case app.FrameEvent:
 			gtx := app.NewContext(&ops, event)
+			if o.route().HideCursor {
+				pointer.CursorNone.Add(gtx.Ops)
+			}
 		pendingLoop:
 			for {
 				select {
@@ -365,7 +369,7 @@ func (o *outputWindow) run() {
 				if !ok {
 					break
 				}
-				if click.NumClicks == 2 {
+				if click.NumClicks == 2 && !o.route().LockedFullscreen {
 					o.routeMu.Lock()
 					o.fullscreen = !o.fullscreen
 					fullscreen := o.fullscreen

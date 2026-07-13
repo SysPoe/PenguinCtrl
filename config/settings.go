@@ -39,6 +39,11 @@ type VideoOutput struct {
 	TestGrid         bool   `json:"testGrid,omitempty"`
 	SafeAreaPercent  int    `json:"safeAreaPercent,omitempty"`
 	Layers           int    `json:"layers"`
+	ExpectedRefresh  int    `json:"expectedRefresh,omitempty"`
+	AlwaysOnTop      bool   `json:"alwaysOnTop,omitempty"`
+	LockedFullscreen bool   `json:"lockedFullscreen,omitempty"`
+	HideCursor       bool   `json:"hideCursor,omitempty"`
+	DisplayConfirmed bool   `json:"displayConfirmed,omitempty"`
 }
 
 type Settings struct {
@@ -244,6 +249,12 @@ func normalize(in Settings) Settings {
 		}
 		output.SafeAreaPercent = min(20, max(0, output.SafeAreaPercent))
 		output.Layers = min(8, max(1, output.Layers))
+		if output.ExpectedRefresh < 0 || output.ExpectedRefresh > 1000 {
+			output.ExpectedRefresh = 0
+		}
+		if output.LockedFullscreen {
+			output.Fullscreen = true
+		}
 		outputs = append(outputs, output)
 	}
 	if _, exists := seenStages[in.DefaultMediaOutput]; !exists {
