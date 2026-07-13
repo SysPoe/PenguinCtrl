@@ -150,7 +150,7 @@
         <tr><td>Cue engine</td><td><code>playback/engine.go</code></td><td>Every accepted command runs in a separate goroutine and publishes lossy in-memory events.</td></tr>
         <tr><td>Media outputs</td><td><code>media/manager.go</code></td><td>Each Gio output window owns its players. Closing the window also destroys its audio/video players.</td></tr>
         <tr><td>Decode and audio</td><td><code>media/player.go</code>, <code>media/audio.go</code></td><td>Separate FFmpeg processes feed video and audio; each player opens its own malgo device.</td></tr>
-        <tr><td>Persistence</td><td><code>main.go</code>, <code>project/archive.go</code>, <code>config/settings.go</code></td><td>Autosave repackages the full archive and media cache; there is no edit journal or crash-recovery document.</td></tr>
+        <tr><td>Persistence</td><td><code>main.go</code>, <code>project/archive.go</code>, <code>project/journal.go</code>, <code>config/settings.go</code></td><td>A durable edit journal and verified recovery document protect every show mutation independently of portable archive packaging.</td></tr>
         <tr><td>External control</td><td><code>remote/dispatcher.go</code></td><td>UDP write success is treated as delivery despite no acknowledgment or target health state.</td></tr>
       </tbody>
     </table>
@@ -207,12 +207,12 @@
       <p class="callout good"><strong>Completed 13 July 2026:</strong> the operator surface, cue-row failure state, bounded/rotating history, no-target result, direct/automatic GO policy, and sent/unconfirmed UDP semantics are implemented. Protocol-level remote acknowledgement remains tracked under R-15 rather than being misrepresented as part of UI success.</p>
     </article>
 
-    <article class="finding critical">
-      <h3><span class="badge critical">R-07 Critical</span>Show edits and application exit are not crash-safe</h3>
+    <article class="finding complete">
+      <h3><span class="badge complete">R-07 Complete</span>Show edits and application exit are crash-safe</h3>
       <p><strong>Impact:</strong> closing, crashing, starting a new show, or opening another show can lose recent work. A queued autosave is not flushed on shutdown. Save As can leave a partial user-selected file. Autosave replacement has a Windows/OneDrive-sensitive gap.</p>
       <p class="evidence"><strong>Evidence:</strong> <code>main.go:520-559</code> debounces autosave in an unmanaged goroutine; <code>main.go:574-577</code> closes playback and returns without draining it. New/Open paths do not require dirty confirmation. Save As writes directly through the explorer handle at <code>main.go:453-487</code>. Replacement at <code>main.go:733-748</code> temporarily moves the old file aside and ignores several cleanup/restore errors.</p>
       <p><strong>Recommendation:</strong> maintain a small write-ahead edit journal independent of the portable media archive. On every mutation, append and flush a versioned record; periodically checkpoint a compact show snapshot. On startup, offer verified recovery. Track dirty state and require Save/Discard/Cancel for New, Open, and Close. Save As to a sibling temporary file, fsync, validate by reopening, then replace. Retain timestamped recovery generations rather than one fixed backup.</p>
-      <p class="complete">Completed sub-action: every changed show generation is appended to a bounded, versioned JSONL journal and fsynced independently of media packaging; torn final writes are ignored; records are digest-validated; startup restores the latest dirty generation; successful save/load writes a clean generation; normal close flushes dirty state; and Save As now uses sibling-temp publication. Explicit Save/Discard/Cancel UI for New/Open remains open.</p>
+      <p class="complete">Completed: every changed show generation is appended to a bounded, versioned JSONL journal and fsynced independently of media packaging; torn final writes are ignored; records are digest-validated; startup restores the latest dirty generation; successful save/load writes a clean generation; normal close flushes dirty state; and Save As uses sibling-temp publication. Dirty New, Open, and native Windows Close actions now pause behind an explicit Save/Discard/Cancel modal, with failed or cancelled saves retaining the current show.</p>
     </article>
   </section>
 

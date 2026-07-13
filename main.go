@@ -433,6 +433,9 @@ func (a *App) run(window *app.Window) error {
 		topBar.SetStatus("Recovered unsaved show edits · save to confirm recovery")
 	}
 	var suppressAutosave bool
+	var documentGuard ui.DocumentGuard
+	var closeInterceptor windowCloseInterceptor
+	closeRequests := make(chan struct{}, 1)
 	var lastAudioOperatorWarning, lastVideoOperatorWarning string
 	tbCtx.LoadWaveform = func(source string, completed func([]float32, int, int64, error)) {
 		go func() {
@@ -580,10 +583,16 @@ func (a *App) run(window *app.Window) error {
 		}()
 	}
 
-	var saveAsShow func()
-	var saveShow func()
+	var saveAsShow func(func(bool))
+	var saveShow func(func(bool))
 
-	saveAsShow = func() {
+	saveAsShow = func(done func(bool)) {
+		complete := func(success bool) {
+			if done != nil {
+				uiActions <- func() { done(success) }
+				window.Invalidate()
+			}
+		}
 		go func() {
 			file, err := expl.CreateFile("show.cusus")
 			if err != nil {
@@ -592,15 +601,18 @@ func (a *App) run(window *app.Window) error {
 					uiActions <- func() { topBar.SetStatus("Save failed: " + err.Error()) }
 					window.Invalidate()
 				}
+				complete(false)
 				return
 			}
 			path := explorerPath(file)
 			if closeErr := file.Close(); closeErr != nil {
 				operatorEvents.Add(operatorlog.Recoverable, "Save show", closeErr.Error(), show.CueID{}, "")
+				complete(false)
 				return
 			}
 			if strings.TrimSpace(path) == "" {
 				operatorEvents.Add(operatorlog.Recoverable, "Save show", "file picker did not return a filesystem path", show.CueID{}, "")
+				complete(false)
 				return
 			}
 			uiActions <- func() { topBar.SetStatus("Saving and optimizing bundled media…") }
@@ -613,6 +625,7 @@ func (a *App) run(window *app.Window) error {
 				operatorEvents.Add(operatorlog.Recoverable, "FFmpeg / save show", err.Error(), show.CueID{}, "")
 				uiActions <- func() { topBar.SetStatus("Save failed: " + err.Error()) }
 				window.Invalidate()
+				complete(false)
 				return
 			}
 			documentMu.Lock()
@@ -628,15 +641,16 @@ func (a *App) run(window *app.Window) error {
 				topBar.SetStatus("Saved " + documentName(path) + " · autosave on · " + formatFileCount(len(manifest.Assets)))
 			}
 			window.Invalidate()
+			complete(true)
 		}()
 	}
 
-	saveShow = func() {
+	saveShow = func(done func(bool)) {
 		documentMu.RLock()
 		path := currentShowPath
 		documentMu.RUnlock()
 		if path == "" {
-			saveAsShow()
+			saveAsShow(done)
 			return
 		}
 		go func() {
@@ -650,6 +664,9 @@ func (a *App) run(window *app.Window) error {
 				operatorEvents.Add(operatorlog.Recoverable, "Save show", err.Error(), show.CueID{}, "")
 				uiActions <- func() { topBar.SetStatus("Save failed: " + err.Error()) }
 				window.Invalidate()
+				if done != nil {
+					uiActions <- func() { done(false) }
+				}
 				return
 			}
 			documentMu.Lock()
@@ -664,7 +681,38 @@ func (a *App) run(window *app.Window) error {
 				topBar.SetStatus("Saved " + documentName(path) + " · autosave on · " + formatFileCount(len(manifest.Assets)))
 			}
 			window.Invalidate()
+			if done != nil {
+				uiActions <- func() { done(true) }
+			}
 		}()
+	}
+
+	performNew := func() {
+		playbackEngine.StopAll()
+		projectLibrary.Replace(nil)
+		documentMu.Lock()
+		suppressAutosave = true
+		documentMu.Unlock()
+		manager.ReplaceShow(show.Show{})
+		documentMu.Lock()
+		currentShowPath = ""
+		lastSavedDigest = showDigest(show.Show{})
+		suppressAutosave = false
+		documentMu.Unlock()
+		if a.Journal != nil {
+			_ = a.Journal.MarkSaved(show.Show{}, "")
+		}
+		topBar.SetStatus("New untitled show · choose Save to start autosave")
+	}
+	performDocumentAction := func(action ui.DocumentAction) {
+		switch action {
+		case ui.DocumentActionNew:
+			performNew()
+		case ui.DocumentActionOpen:
+			loadShow()
+		case ui.DocumentActionClose:
+			closeInterceptor.AllowAndClose()
+		}
 	}
 
 	go func() {
@@ -716,6 +764,15 @@ func (a *App) run(window *app.Window) error {
 
 	for {
 		e := window.Event()
+		if err := closeInterceptor.HandleEvent(e, func() {
+			select {
+			case closeRequests <- struct{}{}:
+			default:
+			}
+			window.Invalidate()
+		}); err != nil {
+			operatorEvents.Add(operatorlog.Recoverable, "Close protection", err.Error(), show.CueID{}, "")
+		}
 		expl.ListenEvents(e)
 		for {
 			select {
@@ -726,6 +783,17 @@ func (a *App) run(window *app.Window) error {
 			}
 		}
 	actionsDone:
+		select {
+		case <-closeRequests:
+			snapshot := manager.ShowSnapshot()
+			documentMu.RLock()
+			dirty := showDigest(snapshot) != lastSavedDigest
+			documentMu.RUnlock()
+			if documentGuard.Request(ui.DocumentActionClose, dirty) {
+				closeInterceptor.AllowAndClose()
+			}
+		default:
+		}
 
 		switch e := e.(type) {
 		case app.DestroyEvent:
@@ -767,31 +835,22 @@ func (a *App) run(window *app.Window) error {
 				preflight[i].Acknowledged = manager.ProblemAcknowledged(preflight[i].Fingerprint)
 			}
 			a.handleCueListShortcuts(gtx)
-			if topBar.TakeNewRequest() {
-				playbackEngine.StopAll()
-				projectLibrary.Replace(nil)
-				documentMu.Lock()
-				suppressAutosave = true
-				documentMu.Unlock()
-				manager.ReplaceShow(show.Show{})
-				documentMu.Lock()
-				currentShowPath = ""
-				lastSavedDigest = showDigest(show.Show{})
-				suppressAutosave = false
-				documentMu.Unlock()
-				if a.Journal != nil {
-					_ = a.Journal.MarkSaved(show.Show{}, "")
+			documentMu.RLock()
+			dirty := showDigest(manager.ShowSnapshot()) != lastSavedDigest
+			documentMu.RUnlock()
+			if !documentGuard.Visible() {
+				if topBar.TakeNewRequest() && documentGuard.Request(ui.DocumentActionNew, dirty) {
+					performNew()
 				}
-				topBar.SetStatus("New untitled show · choose Save to start autosave")
-			}
-			if topBar.TakeLoadRequest() {
-				loadShow()
-			}
-			if topBar.TakeSaveRequest() {
-				saveShow()
-			}
-			if topBar.TakeSaveAsRequest() {
-				saveAsShow()
+				if topBar.TakeLoadRequest() && documentGuard.Request(ui.DocumentActionOpen, dirty) {
+					loadShow()
+				}
+				if topBar.TakeSaveRequest() {
+					saveShow(nil)
+				}
+				if topBar.TakeSaveAsRequest() {
+					saveAsShow(nil)
+				}
 			}
 			paint.Fill(gtx.Ops, th.Bg)
 
@@ -824,7 +883,7 @@ func (a *App) run(window *app.Window) error {
 								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 									return ui.Main(
 										th, gtx, manager, playbackEngine, operatorEvents,
-										operatorPanel.OverlayVisible(),
+										operatorPanel.OverlayVisible() || documentGuard.Visible(),
 										func() { tbCtx.EditSelectedCue(manager) },
 										func(field string) { tbCtx.EditSelectedCueAt(manager, field) },
 										tbCtx.MoveCueActive(),
@@ -869,7 +928,27 @@ func (a *App) run(window *app.Window) error {
 						a.UI.ShowSettings = true
 					}, func() { manager.MoveSelection(1) })
 				}),
+				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
+					return documentGuard.Layout(th, gtx)
+				}),
 			)
+			switch documentGuard.TakeChoice() {
+			case ui.DocumentChoiceSave:
+				if documentGuard.BeginSave() {
+					saveShow(func(success bool) {
+						if action, ok := documentGuard.ResolveSave(success); ok {
+							performDocumentAction(action)
+						}
+					})
+				}
+			case ui.DocumentChoiceDiscard:
+				if action, ok := documentGuard.Discard(); ok {
+					performDocumentAction(action)
+				}
+			case ui.DocumentChoiceCancel:
+				documentGuard.Cancel()
+				closeInterceptor.ResetRequest()
+			}
 			if topBar.TakePageRequest() {
 				a.UI.ShowSettings = !a.UI.ShowSettings
 				window.Invalidate()
