@@ -1,9 +1,12 @@
 package show
 
+import "encoding/json"
+
 type Show struct {
-	Cues                 []Cue           `json:"cues"`
-	Title                string          `json:"title"`
-	AcknowledgedProblems map[string]bool `json:"acknowledgedProblems,omitempty"`
+	Cues                 []Cue                      `json:"cues"`
+	Title                string                     `json:"title"`
+	AcknowledgedProblems map[string]bool            `json:"acknowledgedProblems,omitempty"`
+	Extensions           map[string]json.RawMessage `json:"extensions,omitempty"`
 }
 
 func (s *Show) InsertCue(index int, cue Cue) {

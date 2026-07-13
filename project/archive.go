@@ -17,8 +17,9 @@ import (
 )
 
 const (
-	Format  = "cusus-show"
-	Version = 1
+	Format                 = "cusus-show"
+	Version                = 2
+	oldestSupportedVersion = 1
 
 	maxArchiveEntries = 16384
 	maxManifestBytes  = 16 << 20
@@ -39,10 +40,12 @@ type Asset struct {
 }
 
 type Manifest struct {
-	Format  string    `json:"format"`
-	Version int       `json:"version"`
-	Show    show.Show `json:"show"`
-	Assets  []Asset   `json:"assets"`
+	Format          string                     `json:"format"`
+	Version         int                        `json:"version"`
+	Show            show.Show                  `json:"show"`
+	Assets          []Asset                    `json:"assets"`
+	Extensions      map[string]json.RawMessage `json:"extensions,omitempty"`
+	OriginalVersion int                        `json:"-"`
 }
 
 // Save writes a portable .cusus ZIP archive. Audio is normalized to Opus,
@@ -50,6 +53,10 @@ type Manifest struct {
 // source content of the same media kind is transcoded and stored only once.
 func Save(dst io.Writer, current show.Show, ffmpegPath string) (Manifest, error) {
 	manifest := Manifest{Format: Format, Version: Version, Show: current}
+	normalizeShowSchema(&manifest.Show, Version)
+	if err := validateManifestSchema(manifest); err != nil {
+		return Manifest{}, err
+	}
 	type pendingAsset struct {
 		asset  Asset
 		source string
@@ -199,13 +206,16 @@ func Load(path string) (Manifest, []File, error) {
 	if err != nil {
 		return Manifest{}, nil, err
 	}
-	err = json.NewDecoder(io.LimitReader(reader, maxManifestBytes+1)).Decode(&manifest)
+	err = decodeManifest(io.LimitReader(reader, maxManifestBytes+1), &manifest)
 	reader.Close()
 	if err != nil {
 		return Manifest{}, nil, fmt.Errorf("decode show manifest: %w", err)
 	}
-	if manifest.Format != Format || manifest.Version != Version {
-		return Manifest{}, nil, fmt.Errorf("unsupported .cusus format %q version %d", manifest.Format, manifest.Version)
+	if err := migrateManifest(&manifest); err != nil {
+		return Manifest{}, nil, err
+	}
+	if err := validateManifestSchema(manifest); err != nil {
+		return Manifest{}, nil, err
 	}
 	cacheRoot, err := os.UserCacheDir()
 	if err != nil {
@@ -232,7 +242,7 @@ func Load(path string) (Manifest, []File, error) {
 	assetIDs := make(map[string]struct{}, len(manifest.Assets))
 	for _, asset := range manifest.Assets {
 		name := filepath.ToSlash(asset.Path)
-		if err := validateAsset(asset, name); err != nil {
+		if err := validateAsset(asset, name, manifest.OriginalVersion == 1); err != nil {
 			return Manifest{}, nil, err
 		}
 		if _, duplicate := assetByPath[name]; duplicate {
@@ -301,7 +311,7 @@ func Load(path string) (Manifest, []File, error) {
 	return manifest, files, nil
 }
 
-func validateAsset(asset Asset, name string) error {
+func validateAsset(asset Asset, name string, allowMissingContentHash bool) error {
 	if asset.ID == "" || strings.TrimSpace(asset.Name) == "" {
 		return fmt.Errorf("manifest contains an asset with no ID or name")
 	}
@@ -316,7 +326,7 @@ func validateAsset(asset Asset, name string) error {
 		return fmt.Errorf("asset %q has unsupported kind/format %q/%q", name, asset.Kind, asset.Format)
 	}
 	for label, value := range map[string]string{"source": asset.SourceSHA256, "content": asset.ContentSHA256} {
-		if value == "" && label == "content" { // Version 1 archives created before content hashes remain readable.
+		if value == "" && label == "content" && allowMissingContentHash {
 			continue
 		}
 		if len(value) != sha256.Size*2 {

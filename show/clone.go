@@ -1,5 +1,7 @@
 package show
 
+import "encoding/json"
+
 // CloneCue returns a deep copy suitable for editing, copying, or duplicating.
 func CloneCue(cue Cue) Cue {
 	clone := cue
@@ -58,6 +60,17 @@ func cloneTimecode(markers []TimecodeMarker) []TimecodeMarker {
 	for index, marker := range markers {
 		clone[index] = marker
 		clone[index].Action = cloneCuePlay(marker.Action)
+	}
+	return clone
+}
+
+func cloneExtensions(extensions map[string]json.RawMessage) map[string]json.RawMessage {
+	if extensions == nil {
+		return nil
+	}
+	clone := make(map[string]json.RawMessage, len(extensions))
+	for key, value := range extensions {
+		clone[key] = append(json.RawMessage(nil), value...)
 	}
 	return clone
 }

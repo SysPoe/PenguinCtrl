@@ -112,7 +112,7 @@ $manifest = [ordered]@{
     commit = $commit
     buildTime = $buildTime
     configSchema = 1
-    showSchema = 1
+    showSchema = 2
     signed = [bool]$CertificatePath
     supportedOS = @("Windows 10 22H2", "Windows 11 23H2 or newer")
 }

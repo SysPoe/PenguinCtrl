@@ -1,15 +1,15 @@
 package show
 
 type RemotePlay struct {
-	Protocol RemoteProtocol
-	Action   RemoteAction
+	Protocol RemoteProtocol `json:"protocol"`
+	Action   RemoteAction   `json:"action"`
 
-	Playback  string
-	CueNumber string
+	Playback  string `json:"playback,omitempty"`
+	CueNumber string `json:"cueNumber,omitempty"`
 
-	Level  string
-	Custom string
-	Values []RemoteValue
+	Level  string        `json:"level,omitempty"`
+	Custom string        `json:"custom,omitempty"`
+	Values []RemoteValue `json:"values,omitempty"`
 }
 
 type RemoteProtocol int
@@ -35,8 +35,8 @@ const (
 )
 
 type RemoteValue struct {
-	Type  RemoteValueType
-	Value string
+	Type  RemoteValueType `json:"type"`
+	Value string          `json:"value"`
 }
 
 type RemoteValueType int

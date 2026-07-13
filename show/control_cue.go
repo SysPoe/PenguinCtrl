@@ -1,19 +1,19 @@
 package show
 
 type MediaControlPlay struct {
-	Action MediaControlAction
-	Target MediaTarget
+	Action MediaControlAction `json:"action"`
+	Target MediaTarget        `json:"target"`
 
 	// Used by fade_to, set_volume, duck, etc.
-	LevelDB *float64
+	LevelDB *float64 `json:"levelDb,omitempty"`
 
 	// Used by seek.
-	SeekToMs *int64
+	SeekToMs *int64 `json:"seekToMs,omitempty"`
 
 	// Optional fade duration for stop and fade/volume changes.
-	FadeMs int64
+	FadeMs int64 `json:"fadeMs,omitempty"`
 
-	Curve FadeCurve
+	Curve FadeCurve `json:"curve"`
 }
 
 type MediaControlAction int
@@ -38,14 +38,14 @@ const (
 )
 
 type OutputControlPlay struct {
-	Action OutputControlAction
+	Action OutputControlAction `json:"action"`
 
-	OutputID string
+	OutputID string `json:"outputId,omitempty"`
 
-	FadeOutMs int64
-	FadeInMs  int64
+	FadeOutMs int64 `json:"fadeOutMs,omitempty"`
+	FadeInMs  int64 `json:"fadeInMs,omitempty"`
 
-	Message string
+	Message string `json:"message,omitempty"`
 }
 
 type OutputControlAction int
@@ -61,16 +61,16 @@ const (
 )
 
 type MediaTarget struct {
-	Kind MediaTargetKind
+	Kind MediaTargetKind `json:"kind"`
 
-	CueID      CueID
-	GroupID    GroupID
-	InstanceID string
-	OutputID   string
+	CueID      CueID   `json:"cueId,omitempty"`
+	GroupID    GroupID `json:"groupId,omitempty"`
+	InstanceID string  `json:"instanceId,omitempty"`
+	OutputID   string  `json:"outputId,omitempty"`
 
 	// Display/cache fields.
-	Number string
-	Title  string
+	Number string `json:"number,omitempty"`
+	Title  string `json:"title,omitempty"`
 }
 
 type MediaTargetKind int

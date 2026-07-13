@@ -1,0 +1,21 @@
+{
+  "format": "cusus-show",
+  "version": 1,
+  "show": {
+    "title": "Legacy fixture",
+    "cues": [
+      {
+        "ID": [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        "CueNumber": "1",
+        "Description": "Legacy wait",
+        "Type": 4,
+        "Timing": {"PreWaitMs": 0, "PostWaitMs": 0},
+        "Play": {"Wait": {"Kind": 0, "DurationMs": 1000}},
+        "Link": {"Mode": 0, "Target": {"Kind": 0}},
+        "futureCueField": "ignored by version-1 policy"
+      }
+    ]
+  },
+  "assets": [],
+  "futureManifestField": {"safeToIgnore": true}
+}

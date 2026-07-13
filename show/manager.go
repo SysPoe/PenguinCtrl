@@ -309,13 +309,13 @@ func (sm *ShowManager) Snapshot() []Cue {
 func (sm *ShowManager) ShowSnapshot() Show {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
-	return Show{Title: sm.show.Title, Cues: cloneCues(sm.show.Cues), AcknowledgedProblems: cloneAcknowledgements(sm.show.AcknowledgedProblems)}
+	return Show{Title: sm.show.Title, Cues: cloneCues(sm.show.Cues), AcknowledgedProblems: cloneAcknowledgements(sm.show.AcknowledgedProblems), Extensions: cloneExtensions(sm.show.Extensions)}
 }
 
 // ReplaceShow atomically replaces the current show after loading a project.
 func (sm *ShowManager) ReplaceShow(loaded Show) {
 	sm.mu.Lock()
-	sm.show = Show{Title: loaded.Title, Cues: cloneCues(loaded.Cues), AcknowledgedProblems: cloneAcknowledgements(loaded.AcknowledgedProblems)}
+	sm.show = Show{Title: loaded.Title, Cues: cloneCues(loaded.Cues), AcknowledgedProblems: cloneAcknowledgements(loaded.AcknowledgedProblems), Extensions: cloneExtensions(loaded.Extensions)}
 	if len(sm.show.Cues) == 0 {
 		sm.SelectedCueIndex = -1
 	} else {

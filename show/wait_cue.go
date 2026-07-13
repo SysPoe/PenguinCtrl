@@ -1,12 +1,12 @@
 package show
 
 type WaitPlay struct {
-	Kind WaitKind
+	Kind WaitKind `json:"kind"`
 
-	DurationMs int64
+	DurationMs int64 `json:"durationMs,omitempty"`
 
-	Target CueTarget
-	Media  MediaTarget
+	Target CueTarget   `json:"target"`
+	Media  MediaTarget `json:"media"`
 }
 
 type WaitKind int

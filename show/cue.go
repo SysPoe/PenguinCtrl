@@ -7,22 +7,22 @@ import (
 )
 
 type Cue struct {
-	ID          CueID
-	CueNumber   string
-	Description string
-	GroupID     GroupID
-	GroupTitle  string
+	ID          CueID   `json:"id"`
+	CueNumber   string  `json:"cueNumber"`
+	Description string  `json:"description,omitempty"`
+	GroupID     GroupID `json:"groupId,omitempty"`
+	GroupTitle  string  `json:"groupTitle,omitempty"`
 
-	Type     CueType
-	Disabled bool
+	Type     CueType `json:"type"`
+	Disabled bool    `json:"disabled,omitempty"`
 
-	Timing CueTiming
-	Play   CuePlay
-	Link   CueLink
+	Timing CueTiming `json:"timing"`
+	Play   CuePlay   `json:"play"`
+	Link   CueLink   `json:"link"`
 
-	Color color.NRGBA
-	Tags  []string
-	Notes string
+	Color color.NRGBA `json:"color,omitempty"`
+	Tags  []string    `json:"tags,omitempty"`
+	Notes string      `json:"notes,omitempty"`
 }
 
 type CueID uuid.UUID
@@ -56,23 +56,23 @@ const (
 
 // Exactly one of these should be non-empty
 type CuePlay struct {
-	Sound         *SoundPlay
-	Video         *VideoPlay
-	Image         *ImagePlay
-	Remote        *RemotePlay
-	Wait          *WaitPlay
-	MediaControl  *MediaControlPlay
-	OutputControl *OutputControlPlay
+	Sound         *SoundPlay         `json:"sound,omitempty"`
+	Video         *VideoPlay         `json:"video,omitempty"`
+	Image         *ImagePlay         `json:"image,omitempty"`
+	Remote        *RemotePlay        `json:"remote,omitempty"`
+	Wait          *WaitPlay          `json:"wait,omitempty"`
+	MediaControl  *MediaControlPlay  `json:"mediaControl,omitempty"`
+	OutputControl *OutputControlPlay `json:"outputControl,omitempty"`
 }
 
 type CueTiming struct {
-	PreWaitMs  int64
-	PostWaitMs int64
+	PreWaitMs  int64 `json:"preWaitMs,omitempty"`
+	PostWaitMs int64 `json:"postWaitMs,omitempty"`
 }
 
 type CueLink struct {
-	Mode   CueLinkMode
-	Target CueTarget
+	Mode   CueLinkMode `json:"mode"`
+	Target CueTarget   `json:"target"`
 }
 
 type CueLinkMode int
@@ -107,6 +107,6 @@ const (
 )
 
 type CueTarget struct {
-	Kind  CueTargetKind
-	CueID CueID
+	Kind  CueTargetKind `json:"kind"`
+	CueID CueID         `json:"cueId,omitempty"`
 }

@@ -12,7 +12,7 @@ var (
 
 const (
 	ConfigSchemaVersion = 1
-	ShowSchemaVersion   = 1
+	ShowSchemaVersion   = 2
 )
 
 func Identity() string {

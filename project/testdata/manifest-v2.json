@@ -1,0 +1,21 @@
+{
+  "format": "cusus-show",
+  "version": 2,
+  "show": {
+    "cues": [
+      {
+        "id": [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+        "cueNumber": "1",
+        "description": "Current wait",
+        "type": 4,
+        "timing": {},
+        "play": {"wait": {"kind": 0, "durationMs": 1000, "target": {"kind": 0}, "media": {"kind": 0}}},
+        "link": {"mode": 0, "target": {"kind": 0}}
+      }
+    ],
+    "title": "Current fixture"
+  },
+  "assets": [],
+  "extensions": {"fixture.example": {"enabled": true}},
+  "futureManifestField": "ignored within a supported schema version"
+}
