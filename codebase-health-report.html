@@ -1,0 +1,894 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>PenguinCtrl Codebase Health &amp; Maintainability Review</title>
+  <style>
+    :root {
+      --bg: #071019;
+      --panel: #0d1824;
+      --panel-2: #111f2e;
+      --line: #26384a;
+      --text: #ecf4fa;
+      --muted: #9eb0bf;
+      --accent: #68d4ff;
+      --green: #59df9a;
+      --amber: #ffc45e;
+      --red: #ff7085;
+      --purple: #b79cff;
+      --shadow: 0 18px 50px rgba(0, 0, 0, .24);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 82% -10%, rgba(104, 212, 255, .13), transparent 34rem),
+        radial-gradient(circle at 8% 12%, rgba(183, 156, 255, .10), transparent 28rem),
+        var(--bg);
+      font: 15px/1.62 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    a { color: var(--accent); }
+
+    code, .mono {
+      font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+      font-size: .92em;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 250px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    aside {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 28px 20px;
+      border-right: 1px solid var(--line);
+      background: rgba(7, 16, 25, .9);
+      backdrop-filter: blur(14px);
+      overflow-y: auto;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      margin-bottom: 30px;
+      font-weight: 800;
+      letter-spacing: .02em;
+    }
+
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 11px;
+      display: grid;
+      place-items: center;
+      background: linear-gradient(145deg, var(--accent), var(--purple));
+      color: #06121b;
+      box-shadow: 0 9px 25px rgba(104, 212, 255, .25);
+    }
+
+    nav a {
+      display: block;
+      padding: 8px 10px;
+      margin: 2px 0;
+      border-radius: 9px;
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 13px;
+    }
+
+    nav a:hover { background: var(--panel); color: var(--text); }
+
+    .aside-note {
+      margin-top: 26px;
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    main { min-width: 0; }
+
+    .hero {
+      padding: 72px clamp(28px, 6vw, 86px) 52px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      padding: 6px 10px;
+      border: 1px solid rgba(104, 212, 255, .35);
+      border-radius: 999px;
+      color: var(--accent);
+      background: rgba(104, 212, 255, .07);
+      text-transform: uppercase;
+      letter-spacing: .12em;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    h1 {
+      max-width: 920px;
+      margin: 22px 0 18px;
+      font-size: clamp(42px, 6.7vw, 82px);
+      line-height: .98;
+      letter-spacing: -.055em;
+    }
+
+    .hero-copy {
+      max-width: 850px;
+      margin: 0;
+      color: #c0ced9;
+      font-size: clamp(17px, 2vw, 22px);
+      line-height: 1.52;
+    }
+
+    .verdict {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 17px;
+      align-items: start;
+      max-width: 920px;
+      margin-top: 30px;
+      padding: 20px;
+      border: 1px solid rgba(255, 196, 94, .34);
+      border-radius: var(--radius);
+      background: rgba(255, 196, 94, .07);
+    }
+
+    .grade {
+      min-width: 74px;
+      min-height: 74px;
+      display: grid;
+      place-items: center;
+      border-radius: 17px;
+      color: #09131c;
+      background: var(--amber);
+      font-size: 27px;
+      font-weight: 900;
+    }
+
+    .verdict strong { display: block; margin-bottom: 4px; font-size: 18px; }
+    .verdict p { margin: 0; color: #d4dce3; }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(120px, 1fr));
+      gap: 12px;
+      margin-top: 36px;
+    }
+
+    .metric {
+      padding: 18px;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      background: rgba(13, 24, 36, .72);
+      box-shadow: var(--shadow);
+    }
+
+    .metric .value { display: block; font-size: 28px; line-height: 1; font-weight: 850; }
+    .metric .label { display: block; margin-top: 9px; color: var(--muted); font-size: 12px; }
+
+    section {
+      padding: 58px clamp(28px, 6vw, 86px);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(240px, 420px);
+      gap: 38px;
+      align-items: end;
+      margin-bottom: 30px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: clamp(30px, 4vw, 48px);
+      line-height: 1.05;
+      letter-spacing: -.035em;
+    }
+
+    h3 { margin: 0 0 11px; font-size: 20px; }
+    h4 { margin: 0 0 6px; font-size: 15px; }
+    p { margin: 0 0 15px; }
+    .section-head p, .muted { color: var(--muted); }
+
+    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+
+    .card {
+      padding: 23px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(145deg, rgba(17, 31, 46, .93), rgba(13, 24, 36, .9));
+      box-shadow: var(--shadow);
+    }
+
+    .card p:last-child { margin-bottom: 0; }
+
+    .callout {
+      margin: 24px 0;
+      padding: 20px 22px;
+      border-left: 4px solid var(--accent);
+      border-radius: 0 13px 13px 0;
+      background: rgba(104, 212, 255, .07);
+    }
+
+    .callout.amber { border-color: var(--amber); background: rgba(255, 196, 94, .07); }
+    .callout.red { border-color: var(--red); background: rgba(255, 112, 133, .07); }
+    .callout.green { border-color: var(--green); background: rgba(89, 223, 154, .07); }
+
+    .tag {
+      display: inline-block;
+      margin: 0 5px 5px 0;
+      padding: 4px 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .tag.red { color: var(--red); border-color: rgba(255, 112, 133, .4); }
+    .tag.amber { color: var(--amber); border-color: rgba(255, 196, 94, .4); }
+    .tag.green { color: var(--green); border-color: rgba(89, 223, 154, .4); }
+
+    .bar-stack {
+      height: 38px;
+      display: flex;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: #09131d;
+    }
+
+    .bar-stack span {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 55px;
+      color: #06121b;
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .bar-prod { width: 83.63%; background: var(--accent); }
+    .bar-test { width: 16.37%; background: var(--purple); }
+
+    .legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; color: var(--muted); font-size: 12px; }
+    .dot { display: inline-block; width: 9px; height: 9px; margin-right: 6px; border-radius: 50%; }
+
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+
+    table { width: 100%; border-collapse: collapse; min-width: 760px; background: rgba(13, 24, 36, .65); }
+    th, td { padding: 13px 15px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { color: #aebdca; background: #0d1925; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+    tr:last-child td { border-bottom: 0; }
+    tbody tr:hover { background: rgba(104, 212, 255, .035); }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    .file { color: #d5edfa; font-family: "Cascadia Code", Consolas, monospace; font-size: 12px; }
+    .risk { width: 8px; padding: 0; }
+    .risk.critical { background: var(--red); }
+    .risk.high { background: var(--amber); }
+
+    .mini-bar { min-width: 150px; }
+    .mini-track { height: 7px; border-radius: 999px; overflow: hidden; background: #071019; }
+    .mini-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--purple)); }
+
+    .score-row {
+      display: grid;
+      grid-template-columns: 150px 1fr 44px;
+      gap: 12px;
+      align-items: center;
+      margin: 13px 0;
+    }
+
+    .score-track { height: 9px; background: #071019; border-radius: 999px; overflow: hidden; }
+    .score-fill { height: 100%; border-radius: inherit; }
+    .score { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+    .flow {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .flow-step {
+      position: relative;
+      min-height: 180px;
+      padding: 21px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--panel);
+    }
+
+    .flow-step .no { color: var(--accent); font-size: 11px; font-weight: 850; letter-spacing: .1em; }
+    .flow-step ul { margin: 12px 0 0; padding-left: 18px; color: var(--muted); }
+
+    .roadmap-item {
+      display: grid;
+      grid-template-columns: 105px minmax(0, 1fr) 155px;
+      gap: 20px;
+      padding: 20px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .roadmap-item:last-child { border-bottom: 0; }
+    .priority { font-weight: 900; color: var(--accent); }
+    .impact { color: var(--muted); font-size: 12px; }
+
+    ul.clean { margin: 12px 0 0; padding-left: 20px; }
+    ul.clean li { margin-bottom: 8px; }
+
+    .footer { padding: 38px clamp(28px, 6vw, 86px) 60px; color: var(--muted); font-size: 12px; }
+
+    @media (max-width: 1120px) {
+      .metrics { grid-template-columns: repeat(3, 1fr); }
+      .flow { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 820px) {
+      .layout { display: block; }
+      aside { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+      nav { display: flex; gap: 4px; overflow-x: auto; }
+      nav a { white-space: nowrap; }
+      .aside-note { display: none; }
+      .section-head, .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      .metrics { grid-template-columns: repeat(2, 1fr); }
+      .roadmap-item { grid-template-columns: 1fr; gap: 6px; }
+    }
+
+    @media (max-width: 520px) {
+      .hero { padding-top: 45px; }
+      .metrics, .flow { grid-template-columns: 1fr; }
+      .verdict { grid-template-columns: 1fr; }
+      .grade { width: 74px; }
+    }
+
+    @media print {
+      :root { --bg: #fff; --panel: #fff; --panel-2: #f5f7f9; --line: #d7dde2; --text: #15202a; --muted: #53616d; }
+      body { background: #fff; color: #15202a; font-size: 10pt; }
+      .layout { display: block; }
+      aside { display: none; }
+      .hero, section { padding: 28px 34px; }
+      .card, .metric, .flow-step, .table-wrap { box-shadow: none; break-inside: avoid; }
+      .hero { border-bottom: 2px solid #222; }
+      h1 { font-size: 42pt; }
+      h2 { font-size: 24pt; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside>
+      <div class="brand"><span class="brand-mark">P</span> PenguinCtrl audit</div>
+      <nav aria-label="Report sections">
+        <a href="#verdict">Executive verdict</a>
+        <a href="#loc">The 24k LOC question</a>
+        <a href="#hell">Hell files</a>
+        <a href="#decompose">Decomposition plan</a>
+        <a href="#concise">Concision potential</a>
+        <a href="#tiny">Tiny files</a>
+        <a href="#quality">Code quality</a>
+        <a href="#maintenance">Maintenance health</a>
+        <a href="#roadmap">Prioritized roadmap</a>
+        <a href="#method">Method &amp; evidence</a>
+      </nav>
+      <div class="aside-note">
+        Snapshot: <span class="mono">reborn-again</span><br>
+        Commit: <span class="mono">12d69d4</span><br>
+        Audited: 13 July 2026<br>
+        Boundary: tracked repository files
+      </div>
+    </aside>
+
+    <main>
+      <header class="hero" id="verdict">
+        <span class="eyebrow">Codebase health review · full report</span>
+        <h1>Capable code.<br>Too much of it lives together.</h1>
+        <p class="hero-copy">
+          PenguinCtrl is not a 24,000-line toy that has somehow become bloated. It is a compact but feature-dense native show-control system. The raw size is defensible; the concentration is not. Two files are unequivocal size “hell files”, 13 more are in the oversized red zone, and 15 files contain 61.2% of all production code.
+        </p>
+
+        <div class="verdict">
+          <div class="grade">6.3</div>
+          <div>
+            <strong>Overall: promising engineering, prototype-level maintainability</strong>
+            <p>The package boundaries, operational safeguards, tests, and CI are better than the file layout suggests. The biggest risks are enormous orchestration functions, low UI/media coverage, rapid single-maintainer churn, and missing project documentation. This needs a controlled decomposition, not a rewrite.</p>
+          </div>
+        </div>
+
+        <div class="metrics" aria-label="Headline metrics">
+          <div class="metric"><span class="value">24,455</span><span class="label">token-bearing Go lines</span></div>
+          <div class="metric"><span class="value">20,451</span><span class="label">production code lines</span></div>
+          <div class="metric"><span class="value">4,004</span><span class="label">test code lines</span></div>
+          <div class="metric"><span class="value">2 + 13</span><span class="label">hell + oversized files</span></div>
+          <div class="metric"><span class="value">30.5%</span><span class="label">bounded-suite coverage</span></div>
+          <div class="metric"><span class="value">9</span><span class="label">production files under 10 LOC</span></div>
+        </div>
+      </header>
+
+      <section id="loc">
+        <div class="section-head">
+          <div>
+            <span class="eyebrow">01 · Size</span>
+            <h2>Is 24k LOC too high?</h2>
+          </div>
+          <p>Not automatically. The more useful question is how much of that code represents necessary product capability, how much is test protection, and how concentrated the remaining code is.</p>
+        </div>
+
+        <div class="bar-stack" aria-label="Production and test code proportion">
+          <span class="bar-prod">83.6% production</span>
+          <span class="bar-test">16.4% tests</span>
+        </div>
+        <div class="legend">
+          <span><i class="dot" style="background:var(--accent)"></i>20,451 production code lines</span>
+          <span><i class="dot" style="background:var(--purple)"></i>4,004 test code lines</span>
+          <span>26,986 physical Go lines including 327 comment-only and 2,204 blank lines</span>
+        </div>
+
+        <div class="grid-3" style="margin-top:24px">
+          <article class="card">
+            <h3>The total is plausible</h3>
+            <p>Gio requires explicit layout and interaction code. PenguinCtrl also owns FFmpeg process control, native audio mixing, video output windows, archive integrity, remote protocols, timecode, redundancy, health monitoring, crash recovery, and release packaging. Those are real responsibilities.</p>
+          </article>
+          <article class="card">
+            <h3>The distribution is unhealthy</h3>
+            <p>The top 10 files hold 48.4% of production code. The top 21 hold 72.9%. A change to everyday playback or UI behaviour therefore repeatedly enters the same few high-churn files.</p>
+          </article>
+          <article class="card">
+            <h3>Do not optimize the wrong number</h3>
+            <p>Deleting tests would make <span class="mono">cloc</span> look better and the product worse. Track production LOC, test LOC, file concentration, long-function count, and coverage as separate indicators.</p>
+          </article>
+        </div>
+
+        <div class="callout green">
+          <strong>Recommended size target:</strong> reduce production code to roughly <strong>17,500–18,500 lines</strong> through consolidation and declarative UI/rule definitions. That is a credible 10–15% reduction. Keep or grow the 4,004 lines of tests; total repository LOC may remain near 24k even while maintainability improves sharply.
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Production file band</th><th class="num">Files</th><th class="num">Code lines</th><th class="num">Share</th><th>Interpretation</th></tr></thead>
+            <tbody>
+              <tr><td>&gt; 1,000</td><td class="num">2</td><td class="num">3,286</td><td class="num">16.1%</td><td>Unequivocal hell-file territory</td></tr>
+              <tr><td>501–1,000</td><td class="num">13</td><td class="num">9,238</td><td class="num">45.2%</td><td>Oversized; most mix several responsibilities</td></tr>
+              <tr><td>301–500</td><td class="num">6</td><td class="num">2,377</td><td class="num">11.6%</td><td>Review, but not automatically a problem</td></tr>
+              <tr><td>101–300</td><td class="num">24</td><td class="num">3,771</td><td class="num">18.4%</td><td>Healthy working range</td></tr>
+              <tr><td>26–100</td><td class="num">30</td><td class="num">1,615</td><td class="num">7.9%</td><td>Focused helpers, models, tests, and adapters</td></tr>
+              <tr><td>10–25</td><td class="num">7</td><td class="num">114</td><td class="num">0.6%</td><td>Mostly platform or domain seams</td></tr>
+              <tr><td>&lt; 10</td><td class="num">9</td><td class="num">50</td><td class="num">0.2%</td><td>Negligible LOC impact</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="hell">
+        <div class="section-head">
+          <div>
+            <span class="eyebrow">02 · Concentration</span>
+            <h2>How many hell files?</h2>
+          </div>
+          <p><strong>Strict answer: 2.</strong> <span class="mono">playback/engine.go</span> and <span class="mono">main.go</span> exceed 1,000 code lines. <strong>Practical answer: 15 oversized files</strong> need planned decomposition, with <span class="mono">ui/main_page.go</span> joining the immediate top tier because one function is 409 lines.</p>
+        </div>
+
+        <div class="callout red">
+          <strong>The most dangerous unit is a function, not a file:</strong> <span class="mono">App.run</span> spans 664 lines with a branch-complexity proxy of 115. <span class="mono">ui.Main</span> spans 409 lines at 93. These functions combine state transitions, event handling, service coordination, and rendering, making safe local reasoning extremely difficult.
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th></th><th>File</th><th class="num">Code</th><th class="num">Funcs</th><th class="num">Complexity</th><th>Mixed responsibilities / recommended seam</th></tr></thead>
+            <tbody>
+              <tr><td class="risk critical"></td><td class="file">playback/engine.go</td><td class="num">1,885</td><td class="num">105</td><td class="num">552</td><td>Queue, gates, execution, links, timecode, media/output control, lifecycle, diagnostics. Split into scheduler, executor, controllers, state, and safety.</td></tr>
+              <tr><td class="risk critical"></td><td class="file">main.go</td><td class="num">1,401</td><td class="num">29</td><td class="num">281</td><td>Bootstrap, document lifecycle, preflight, warnings, shortcuts, save/load, and the window loop. Extract an application controller and document service.</td></tr>
+              <tr><td class="risk critical"></td><td class="file">ui/main_page.go</td><td class="num">838</td><td class="num">26</td><td class="num">201</td><td>A 409-line <span class="mono">Main</span> function. Separate row model, interactions, runtime projection, and rendering.</td></tr>
+              <tr><td class="risk high"></td><td class="file">ui/timecode_timeline.go</td><td class="num">978</td><td class="num">44</td><td class="num">247</td><td>State/history, keyboard, pointer hit-testing, form rows, waveform, and painting. Six clear components exist already.</td></tr>
+              <tr><td class="risk high"></td><td class="file">media/manager.go</td><td class="num">941</td><td class="num">42</td><td class="num">248</td><td>Hardware inventory and output-window UI share a file. Move the output window and transition renderer behind an output controller.</td></tr>
+              <tr><td class="risk high"></td><td class="file">media/backend.go</td><td class="num">904</td><td class="num">38</td><td class="num">210</td><td>Backend pooling, session state, FFmpeg commands, frame buffers, recovery, and probing. Split by lifecycle and subprocess concern.</td></tr>
+              <tr><td class="risk high"></td><td class="file">ui/settings_page.go</td><td class="num">842</td><td class="num">35</td><td class="num">121</td><td>Form state, persistence mapping, and every settings section. Introduce declarative section schemas and per-domain panels.</td></tr>
+              <tr><td class="risk high"></td><td class="file">show/warnings.go</td><td class="num">840</td><td class="num">41</td><td class="num">337</td><td>All cue validation domains plus fingerprints. Use typed validators and a shared problem factory; split by cue family.</td></tr>
+              <tr><td class="risk high"></td><td class="file">ui/cue_edit_pages.go</td><td class="num">631</td><td class="num">31</td><td class="num">142</td><td>Cue-specific form assembly. Convert repeated rows to field descriptors while retaining custom editors where needed.</td></tr>
+              <tr><td class="risk high"></td><td class="file">media/player.go</td><td class="num">630</td><td class="num">38</td><td class="num">166</td><td>Player state, load/start/close, routing, fading, reporting. Make lifecycle states explicit and isolate route/fade policy.</td></tr>
+              <tr><td class="risk high"></td><td class="file">show/manager.go</td><td class="num">553</td><td class="num">41</td><td class="num">133</td><td>Selection, mutation, copy/paste, grouping, and ordering. Keep one manager, but organize mutation helpers and remove legacy pointer-shaped APIs.</td></tr>
+              <tr><td class="risk high"></td><td class="file">media/audio.go</td><td class="num">533</td><td class="num">39</td><td class="num">124</td><td>Device context, mixer, failover, player, ring buffer. Split transport, endpoint mixer, and ring buffer with focused tests.</td></tr>
+              <tr><td class="risk high"></td><td class="file">project/archive.go</td><td class="num">529</td><td class="num">12</td><td class="num">154</td><td>Save, transcode, load, validation, publication. Separate archive writer, reader, validator, and asset preparation.</td></tr>
+              <tr><td class="risk high"></td><td class="file">ui/operator_panel.go</td><td class="num">512</td><td class="num">23</td><td class="num">128</td><td>Overlay state plus three views and card primitives. Split log, blocker, and preflight panels.</td></tr>
+              <tr><td class="risk high"></td><td class="file">ui/tb_context.go</td><td class="num">507</td><td class="num">29</td><td class="num">104</td><td>Toolbar actions, cue-edit orchestration, move/group/delete dialogs. Extract action controller and each dialog.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout amber">
+          <strong>Out-of-scope/generated bloat: none found.</strong> No tracked Go file carries a generated-code marker and there is no vendored source tree. Tests account for 4,004 code lines and should not be treated as bloat. Ignored executables and show/save artifacts total about 222 MB on disk, but they do not affect <span class="mono">cloc</span> or source maintainability.
+        </div>
+      </section>
+
+      <section id="decompose">
+        <div class="section-head">
+          <div>
+            <span class="eyebrow">03 · Structure</span>
+            <h2>How far can it be broken down?</h2>
+          </div>
+          <p>Substantially—but mostly within existing packages. The goal is 150–400 code lines per cohesive file and functions under 50 lines, not a new package for every noun.</p>
+        </div>
+
+        <div class="flow">
+          <article class="flow-step">
+            <span class="no">01 · ROOT</span>
+            <h3>App shell</h3>
+            <ul>
+              <li><span class="mono">bootstrap.go</span></li>
+              <li><span class="mono">window_loop.go</span></li>
+              <li><span class="mono">document_controller.go</span></li>
+              <li><span class="mono">preflight_controller.go</span></li>
+              <li><span class="mono">shortcuts.go</span></li>
+            </ul>
+          </article>
+          <article class="flow-step">
+            <span class="no">02 · PLAYBACK</span>
+            <h3>Runtime kernel</h3>
+            <ul>
+              <li>command scheduler</li>
+              <li>cue executor</li>
+              <li>link/timecode scheduler</li>
+              <li>media/output controller</li>
+              <li>instance state + safety gates</li>
+            </ul>
+          </article>
+          <article class="flow-step">
+            <span class="no">03 · MEDIA</span>
+            <h3>Device runtime</h3>
+            <ul>
+              <li>decoder pool</li>
+              <li>FFmpeg session</li>
+              <li>probe service</li>
+              <li>audio endpoint mixer</li>
+              <li>output-window controller</li>
+            </ul>
+          </article>
+          <article class="flow-step">
+            <span class="no">04 · UI / SHOW</span>
+            <h3>Operator surfaces</h3>
+            <ul>
+              <li>row projection + renderer</li>
+              <li>timeline state/input/paint</li>
+              <li>settings field schemas</li>
+              <li>typed warning rules</li>
+              <li>focused dialogs/panels</li>
+            </ul>
+          </article>
+        </div>
+
+        <div class="grid-2" style="margin-top:22px">
+          <article class="card">
+            <h3>Expected structural result</h3>
+            <p>The 15 oversized files can become roughly <strong>40–50 cohesive files</strong>, mostly inside the same packages. The total tracked Go file count would rise from 162 to about 185–200, but the new files should average 200–350 code lines—not five lines.</p>
+          </article>
+          <article class="card">
+            <h3>Package boundary adjustment</h3>
+            <p>The root package currently imports nearly every internal subsystem, which is normal for a composition root; the problem is that one <span class="mono">App.run</span> method also coordinates them. Add an application-controller layer, preserve dependency direction, and keep <span class="mono">playback</span> independent of concrete <span class="mono">media</span> implementations.</p>
+          </article>
+        </div>
+
+        <div class="callout">
+          <strong>Important distinction:</strong> splitting a file improves navigation and ownership but does not make code more concise. Pair mechanical splits with explicit state machines, declarative UI schemas, shared validation constructors, and deletion of legacy APIs; otherwise the project simply has more files containing the same complexity.
+        </div>
+      </section>
+
+      <section id="concise">
+        <div class="section-head">
+          <div>
+            <span class="eyebrow">04 · Simplification</span>
+            <h2>How much more concise can it get?</h2>
+          </div>
+          <p>A safe first programme can remove approximately 2,000–3,000 production lines. Pushing much further would likely trade visible lines for hidden framework complexity or regressions in show-critical behaviour.</p>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Opportunity</th><th class="num">Credible saving</th><th>Mechanism</th><th>Risk</th></tr></thead>
+            <tbody>
+              <tr><td>Declarative Gio forms and repeated sections</td><td class="num">700–1,100</td><td>Field descriptors, shared labelled rows, reusable dynamic-list editors, typed binding/validation</td><td><span class="tag amber">Medium</span></td></tr>
+              <tr><td>Application/document lifecycle</td><td class="num">350–600</td><td>One document controller for open/save/dirty/recovery/progress; one service lifecycle registry</td><td><span class="tag amber">Medium</span></td></tr>
+              <tr><td>Warning/problem rules</td><td class="num">200–350</td><td>Typed rule registry and shared problem constructors instead of string-to-code/field mapping</td><td><span class="tag green">Low</span></td></tr>
+              <tr><td>Playback/media state transitions</td><td class="num">250–450</td><td>Explicit state/event transitions shared by command, instance, player, and output lifecycles</td><td><span class="tag red">High</span></td></tr>
+              <tr><td>Cue editor variant plumbing</td><td class="num">250–400</td><td>Common cue-field schemas plus custom sub-editors only for genuinely unique behaviour</td><td><span class="tag amber">Medium</span></td></tr>
+              <tr><td>Legacy/trivial APIs and wrappers</td><td class="num">50–120</td><td>Remove unused <span class="mono">GetCue</span>/<span class="mono">Cues</span> shapes, alias-only files, and the ternary helper where call sites are clearer inline</td><td><span class="tag green">Low</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="grid-3" style="margin-top:22px">
+          <article class="card">
+            <h3>Best first deletion</h3>
+            <p>The old pointer-shaped manager APIs now return deep copies, so the earlier race risk is fixed. Their signatures remain misleading and appear unused by production call sites. Replace them with value-returning methods, migrate tests, then delete the compatibility alias.</p>
+          </article>
+          <article class="card">
+            <h3>Best leverage</h3>
+            <p>The UI package alone is 5,946 production code lines, plus 732 in <span class="mono">ui/input</span>. Repeated form/layout scaffolding is the largest safe concision opportunity and has less runtime risk than compressing playback code.</p>
+          </article>
+          <article class="card">
+            <h3>Do not over-compress</h3>
+            <p>FFmpeg session management, audio failover, output routing, and archive integrity are complex because the problem is complex. Prefer explicit state and strong tests over clever abstractions that save a few lines.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="tiny">
+        <div class="section-head">
+          <div>
+            <span class="eyebrow">05 · Small files</span>
+            <h2>Where are all the five-line files?</h2>
+          </div>
+          <p>They are not a systemic problem. Only 9 production files contain fewer than 10 code lines, totalling just 50 lines. Most are correct build-tag seams that cannot be merged across operating systems.</p>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>File</th><th class="num">Code</th><th>Why it is small</th><th>Recommendation</th></tr></thead>
+            <tbody>
+              <tr><td class="file">internal/processgroup/start_other.go</td><td class="num">3</td><td><span class="tag green">Build tag</span> non-Windows process start</td><td>Keep separate</td></tr>
+              <tr><td class="file">power_request_other.go</td><td class="num">4</td><td><span class="tag green">Build tag</span> no-op power keeper</td><td>Keep separate</td></tr>
+              <tr><td class="file">ui/operator_panel_overlay.go</td><td class="num">4</td><td>One exported query method</td><td>Merge into <span class="mono">operator_panel.go</span></td></tr>
+              <tr><td class="file">window_close_other.go</td><td class="num">5</td><td><span class="tag green">Build tag</span> non-Windows close shim</td><td>Keep separate</td></tr>
+              <tr><td class="file">show/app_manager.go</td><td class="num">2</td><td>Compatibility type alias</td><td>Delete after migration</td></tr>
+              <tr><td class="file">operator_window_other.go</td><td class="num">7</td><td><span class="tag green">Build tag</span> placement shim</td><td>Keep separate</td></tr>
+              <tr><td class="file">utils/ternary.go</td><td class="num">7</td><td>Generic ternary helper</td><td>Inline and remove if it does not improve call sites</td></tr>
+              <tr><td class="file">disk_space_other.go</td><td class="num">9</td><td><span class="tag green">Build tag</span> POSIX disk query</td><td>Keep separate</td></tr>
+              <tr><td class="file">project/cache_space_other.go</td><td class="num">9</td><td><span class="tag green">Build tag</span> POSIX cache-space query</td><td>Keep; consider a shared internal disk-space package</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout green">
+          <strong>Conclusion:</strong> tiny files are visual clutter in a few places, not LOC bloat. Consolidating the three questionable files would remove at most 13–20 lines and barely change the project. Do not merge platform pairs simply to reduce file count; their build constraints are the clean boundary.
+        </div>
+      </section>
+
+      <section id="quality">
+        <div class="section-head">
+          <div>
+            <span class="eyebrow">06 · Quality</span>
+            <h2>How good is the code?</h2>
+          </div>
+          <p>Moderate overall, with a stronger operational core than the giant UI/orchestration files imply. The project shows thoughtful reliability work, but it has not yet stabilized into a consistently maintainable shape.</p>
+        </div>
+
+        <div class="grid-2">
+          <article class="card">
+            <h3>Quality scorecard</h3>
+            <div class="score-row"><span>Package design</span><div class="score-track"><div class="score-fill" style="width:70%;background:var(--green)"></div></div><span class="score">7.0</span></div>
+            <div class="score-row"><span>Runtime safety</span><div class="score-track"><div class="score-fill" style="width:75%;background:var(--green)"></div></div><span class="score">7.5</span></div>
+            <div class="score-row"><span>Test discipline</span><div class="score-track"><div class="score-fill" style="width:64%;background:var(--amber)"></div></div><span class="score">6.4</span></div>
+            <div class="score-row"><span>Readability</span><div class="score-track"><div class="score-fill" style="width:52%;background:var(--amber)"></div></div><span class="score">5.2</span></div>
+            <div class="score-row"><span>Change isolation</span><div class="score-track"><div class="score-fill" style="width:45%;background:var(--red)"></div></div><span class="score">4.5</span></div>
+            <div class="score-row"><span>Documentation</span><div class="score-track"><div class="score-fill" style="width:20%;background:var(--red)"></div></div><span class="score">2.0</span></div>
+            <div class="score-row"><span>CI / release</span><div class="score-track"><div class="score-fill" style="width:78%;background:var(--green)"></div></div><span class="score">7.8</span></div>
+          </article>
+          <article class="card">
+            <h3>Evidence behind the score</h3>
+            <ul class="clean">
+              <li><strong>Positive:</strong> coherent packages for show, playback, media, project, remote, timecode, redundancy, health, and operator logging.</li>
+              <li><strong>Positive:</strong> defensive cloning now protects <span class="mono">ShowManager</span> reads; atomic writes, journals, recovery, interlocks, and operator preflight are deliberate safety features.</li>
+              <li><strong>Positive:</strong> Windows 2022/2025 CI, Linux race detector, vulnerability scanning, pinned Actions, signed release packaging, and reliability evidence.</li>
+              <li><strong>Negative:</strong> 15 functions exceed 100 lines; 50 exceed 50 lines. The largest functions combine multiple state machines.</li>
+              <li><strong>Negative:</strong> comment-only lines are just 1.3% of token-bearing code, and there is no README or architecture guide to replace missing local context.</li>
+              <li><strong>Negative:</strong> the domain-facing <span class="mono">show</span> package also owns configuration-aware warning resolution and palette defaults, blurring core model and presentation/infrastructure concerns.</li>
+            </ul>
+          </article>
+        </div>
+
+        <h3 style="margin-top:30px">Coverage by important package</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Package</th><th class="num">Production LOC</th><th class="num">Test LOC / prod</th><th>Statement coverage</th><th>Assessment</th></tr></thead>
+            <tbody>
+              <tr><td class="file">ui</td><td class="num">5,946</td><td class="num">5.4%</td><td><div class="mini-bar"><div class="mini-track"><div class="mini-fill" style="width:4%"></div></div>4.0%</div></td><td><span class="tag red">Critical gap</span> largest package, almost untested rendering/interaction logic</td></tr>
+              <tr><td class="file">media</td><td class="num">3,480</td><td class="num">24.2%</td><td><div class="mini-bar"><div class="mini-track"><div class="mini-fill" style="width:20.8%"></div></div>20.8%</div></td><td><span class="tag red">High risk</span> environmental integration paths remain hard to bound</td></tr>
+              <tr><td class="file">root</td><td class="num">2,314</td><td class="num">16.1%</td><td><div class="mini-bar"><div class="mini-track"><div class="mini-fill" style="width:26.1%"></div></div>26.1%</div></td><td><span class="tag amber">Weak</span> application lifecycle concentrated in <span class="mono">run</span></td></tr>
+              <tr><td class="file">playback</td><td class="num">2,038</td><td class="num">42.4%</td><td><div class="mini-bar"><div class="mini-track"><div class="mini-fill" style="width:59.8%"></div></div>59.8%</div></td><td><span class="tag green">Good base</span> improve branch/state-machine coverage during split</td></tr>
+              <tr><td class="file">show</td><td class="num">1,871</td><td class="num">13.1%</td><td><div class="mini-bar"><div class="mini-track"><div class="mini-fill" style="width:49.8%"></div></div>49.8%</div></td><td><span class="tag amber">Fair</span> warning rules deserve table-driven expansion</td></tr>
+              <tr><td class="file">project</td><td class="num">1,029</td><td class="num">47.6%</td><td><div class="mini-bar"><div class="mini-track"><div class="mini-fill" style="width:62.4%"></div></div>62.4%</div></td><td><span class="tag green">Strong</span> good protection for archive/persistence work</td></tr>
+              <tr><td class="file">redundancy</td><td class="num">667</td><td class="num">32.1%</td><td><div class="mini-bar"><div class="mini-track"><div class="mini-fill" style="width:73.3%"></div></div>73.3%</div></td><td><span class="tag green">Strong</span></td></tr>
+              <tr><td class="file">config</td><td class="num">481</td><td class="num">41.2%</td><td><div class="mini-bar"><div class="mini-track"><div class="mini-fill" style="width:58.4%"></div></div>58.4%</div></td><td><span class="tag green">Good</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout amber">
+          <strong>Test-boundary problem:</strong> the normal media suite discovers and launches an installed FFmpeg binary. In this audit, the bounded non-real suite passed, but the real-media run did not complete inside the audit attempt. One rotated-video path calls <span class="mono">Preload(context.Background())</span>, so a hung subprocess is not locally bounded. Put real hardware/FFmpeg tests behind an explicit integration flag and give every subprocess/preload path a context deadline.
+        </div>
+      </section>
+
+      <section id="maintenance">
+        <div class="section-head">
+          <div>
+            <span class="eyebrow">07 · Maintenance</span>
+            <h2>Maintenance health: volatile</h2>
+          </div>
+          <p>The repository is only 16 days old at this snapshot. High churn is understandable, but the current pace and ownership pattern mean structural debt is compounding faster than documentation and review controls can catch it.</p>
+        </div>
+
+        <div class="grid-3">
+          <article class="card">
+            <span class="tag amber">Velocity</span>
+            <h3>92 commits on HEAD</h3>
+            <p>78 landed in the last seven days and 61 in the last 24 hours. The project is still in rapid formation, so APIs and file boundaries should not yet be treated as stable.</p>
+          </article>
+          <article class="card">
+            <span class="tag red">Bus factor</span>
+            <h3>One contributor on HEAD</h3>
+            <p>Knowledge of event-loop invariants, media lifecycles, archive safety, and operator behaviour is concentrated in one person and mostly in code rather than documents.</p>
+          </article>
+          <article class="card">
+            <span class="tag green">Automation</span>
+            <h3>CI is a real strength</h3>
+            <p>Two Windows versions, race testing, vulnerability scanning, evidence capture, signing, packaging, install/upgrade/rollback, and SBOM output are already present.</p>
+          </article>
+        </div>
+
+        <div class="grid-2" style="margin-top:22px">
+          <article class="card">
+            <h3>Highest-churn hotspots</h3>
+            <p><span class="mono">playback/engine.go</span> has 2,572 changed lines in the 90-day history; <span class="mono">main.go</span> 2,344; <span class="mono">ui/main_page.go</span> 1,933. They are simultaneously the biggest, most complex, and most frequently edited files—the classic risk multiplier.</p>
+            <p class="muted">Other high-churn files: media player/manager/backend, settings, timecode, warnings, and audio.</p>
+          </article>
+          <article class="card">
+            <h3>Documentation and release defects</h3>
+            <ul class="clean">
+              <li>No tracked README, license, architecture guide, contributing guide, changelog, or security policy.</li>
+              <li>The release workflow publishes with <span class="mono">--notes-file docs/release-notes.md</span>, but that file and the entire <span class="mono">docs/</span> tree are absent at this snapshot.</li>
+              <li>Naming spans PenguinCtrl, CuSus, the <span class="mono">cusus</span> module, and <span class="mono">cusus.exe</span>. If intentional, document product/repository/module naming; if not, complete the rename.</li>
+            </ul>
+          </article>
+        </div>
+
+        <div class="callout red">
+          <strong>Maintenance verdict:</strong> day-to-day change is currently viable because the author holds the whole system in working memory. That does not scale. Without file/function limits, architecture notes, bounded integration tests, and review gates, future features will continue to accrete in the same 15 files.
+        </div>
+      </section>
+
+      <section id="roadmap">
+        <div class="section-head">
+          <div>
+            <span class="eyebrow">08 · Action plan</span>
+            <h2>Prioritized improvement roadmap</h2>
+          </div>
+          <p>Sequence matters. Freeze behavioural contracts with tests first, then move code behind seams, then simplify. Do not combine a playback rewrite with a UI rewrite.</p>
+        </div>
+
+        <div class="card">
+          <div class="roadmap-item">
+            <div class="priority">P0 · Now</div>
+            <div><h4>Bound the default test suite</h4><p>Move real FFmpeg/device tests behind an integration build tag or explicit environment switch. Add context deadlines to every probe, preload, decoder, and test subprocess. Make <span class="mono">go test ./...</span> deterministic.</p></div>
+            <div class="impact">1–2 days<br><span class="tag red">Release safety</span></div>
+          </div>
+          <div class="roadmap-item">
+            <div class="priority">P0 · Now</div>
+            <div><h4>Fix and document the release contract</h4><p>Add the missing release notes input or change the workflow; create README, architecture overview, supported-platform statement, runbook, license, and contribution/testing notes.</p></div>
+            <div class="impact">1–2 days<br><span class="tag red">Bus factor</span></div>
+          </div>
+          <div class="roadmap-item">
+            <div class="priority">P1 · First</div>
+            <div><h4>Extract <span class="mono">App.run</span> without behaviour change</h4><p>Introduce application, document, preflight, and service-lifecycle controllers. Target no function over 80 lines and keep the event loop as a thin dispatcher.</p></div>
+            <div class="impact">3–5 days<br><span class="tag amber">High leverage</span></div>
+          </div>
+          <div class="roadmap-item">
+            <div class="priority">P1 · Next</div>
+            <div><h4>Decompose the playback engine behind characterization tests</h4><p>Freeze command ordering, link timing, safety latches, emergency behaviour, output events, and instance lifecycle. Move one concern at a time inside the existing package.</p></div>
+            <div class="impact">1–2 weeks<br><span class="tag red">Highest risk</span></div>
+          </div>
+          <div class="roadmap-item">
+            <div class="priority">P1 · Parallel</div>
+            <div><h4>Split media runtime and output UI</h4><p>Separate decoder backend/session/probe and manager/output-window responsibilities. Raise non-hardware media coverage above 50% before altering lifecycle semantics.</p></div>
+            <div class="impact">1–2 weeks<br><span class="tag amber">Reliability</span></div>
+          </div>
+          <div class="roadmap-item">
+            <div class="priority">P2</div>
+            <div><h4>Turn large Gio screens into model + interaction + render</h4><p>Start with cue list and timeline. Test pure row projection, runtime labels, hit-testing, selection, and geometry separately from painting. Add screenshot/golden tests only for stable visual contracts.</p></div>
+            <div class="impact">2 weeks<br><span class="tag amber">Maintainability</span></div>
+          </div>
+          <div class="roadmap-item">
+            <div class="priority">P2</div>
+            <div><h4>Introduce declarative settings and cue-edit fields</h4><p>Use typed field specifications for repeated label/control/parse/validate/save patterns. Keep custom widgets for timeline, colour, routing, and other truly special controls.</p></div>
+            <div class="impact">1–2 weeks<br><span class="tag green">LOC reduction</span></div>
+          </div>
+          <div class="roadmap-item">
+            <div class="priority">P3</div>
+            <div><h4>Enforce maintainability guardrails</h4><p>Add static analysis and a lightweight metrics check. Review files at 400 LOC, block new production files above 600, review functions above 50 lines or complexity 15, and require targeted coverage not to fall.</p></div>
+            <div class="impact">1–2 days<br><span class="tag green">Prevention</span></div>
+          </div>
+        </div>
+
+        <div class="grid-2" style="margin-top:22px">
+          <article class="card">
+            <h3>Definition of done for the refactor</h3>
+            <ul class="clean">
+              <li>No production file over 700 code lines; only justified domain tables over 500.</li>
+              <li>No function over 100 lines; UI layout/event methods target 50–80 maximum.</li>
+              <li>Top 15 files hold less than 45% of production LOC, down from 61.2%.</li>
+              <li>Overall statement coverage exceeds 45%; UI pure logic exceeds 60%; media non-hardware logic exceeds 55%.</li>
+              <li>Default tests finish under a documented timeout without external hardware.</li>
+              <li>All public maintenance and release workflows are documented from a fresh checkout.</li>
+            </ul>
+          </article>
+          <article class="card">
+            <h3>What not to do</h3>
+            <ul class="clean">
+              <li>Do not rewrite the whole application or swap Gio merely to reduce LOC.</li>
+              <li>Do not merge valid platform-tag files to make the file count prettier.</li>
+              <li>Do not delete or compress tests to chase <span class="mono">cloc</span>.</li>
+              <li>Do not extract dozens of tiny packages; start with files and internal controllers.</li>
+              <li>Do not change playback semantics while moving code unless a characterization test proves the contract.</li>
+            </ul>
+          </article>
+        </div>
+      </section>
+
+      <section id="method">
+        <div class="section-head">
+          <div>
+            <span class="eyebrow">09 · Evidence</span>
+            <h2>Audit method and limitations</h2>
+          </div>
+          <p>This is a current-tree engineering audit, not a style opinion based on filenames. Measurements are reproducible from the tracked snapshot, and uncertain runtime evidence is labelled rather than upgraded into a pass.</p>
+        </div>
+
+        <div class="grid-2">
+          <article class="card">
+            <h3>Snapshot and scope</h3>
+            <ul class="clean">
+              <li>Branch <span class="mono">reborn-again</span>, commit <span class="mono">12d69d469c0e29a257afa91111808b9ba9c4ef1f</span>.</li>
+              <li>162 tracked Go files: 91 production and 71 test files.</li>
+              <li>Tracked file footprint at the final measurement: approximately 0.86 MB; no vendored/generated Go code.</li>
+              <li>An unrelated staged <span class="mono">.gitignore</span> change was present and excluded from the code metrics and report commit.</li>
+            </ul>
+          </article>
+          <article class="card">
+            <h3>Measurement</h3>
+            <ul class="clean">
+              <li>Go token scanning separated code-bearing, comment-only, and blank lines.</li>
+              <li>AST inspection counted functions, function spans, and a cyclomatic proxy based on branches, cases, loops, and boolean decisions.</li>
+              <li>Git history supplied current-branch age, commit volume, authorship, and 90-day file churn.</li>
+              <li>Package production/test LOC was compared with fresh package statement coverage.</li>
+            </ul>
+          </article>
+        </div>
+
+        <div class="callout">
+          <strong>Validation snapshot:</strong> the bounded suite <span class="mono">go test -count=1 -coverprofile .tmp-cover.out ./... -skip '^TestReal'</span> passed and reported 30.5% overall statement coverage. Core package checks passed, including playback, project, config, remote, show, timecode, redundancy, operator logging, health, and internal utilities. Non-real media tests passed at 20.8%; <span class="mono">go vet ./...</span> and <span class="mono">go build ./...</span> also passed. The real-media suite was attempted separately and did not complete within the bounded audit attempt, so no full real-device pass is claimed.
+        </div>
+
+        <div class="callout amber">
+          <strong>Interpretation warning:</strong> line count, function length, and cyclomatic complexity are triage signals, not proof of bad behaviour. Findings were ranked higher only where size coincided with mixed responsibilities, low coverage, high churn, environmental coupling, or a very long function.
+        </div>
+      </section>
+
+      <footer class="footer">
+        PenguinCtrl codebase health &amp; maintainability review · Generated from the local tracked repository on 13 July 2026 · The report itself introduces no runtime code changes.
+      </footer>
+    </main>
+  </div>
+</body>
+</html>
