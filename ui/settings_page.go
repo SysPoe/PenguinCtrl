@@ -73,6 +73,8 @@ type SettingsPage struct {
 	ffmpegPath                *input.Text
 	defaultPlayback           *input.Text
 	defaultMediaOutput        *input.Text
+	cacheQuotaGB              *input.Integer
+	cacheReserveGB            *input.Integer
 	remoteSuccessPolicy       *input.Dropdown
 	playbackAudioDevice       *input.Dropdown
 	playbackAudioRecovery     *input.Dropdown
@@ -133,6 +135,8 @@ func (p *SettingsPage) load() {
 	p.ffmpegPath = input.NewText("FFmpeg executable", settings.FFmpegPath)
 	p.defaultPlayback = input.NewText("Default playback", settings.DefaultPlayback)
 	p.defaultMediaOutput = input.NewText("Default media output", settings.DefaultMediaOutput)
+	p.cacheQuotaGB = input.NewInteger("Cache quota GB", settings.CacheQuotaGB)
+	p.cacheReserveGB = input.NewInteger("Reserved free GB", settings.CacheReserveGB)
 	p.remoteSuccessPolicy = enumDropdown([]input.DropdownItem{{Label: "Require every target", Value: config.RemoteSuccessAll}, {Label: "Any redundant target", Value: config.RemoteSuccessAny}}, settings.RemoteSuccessPolicy)
 	p.playbackAudioDevice = newAudioDeviceDropdown(p.audioDevices, settings.PlaybackAudioDevice)
 	p.playbackAudioRecovery = newAudioRecoveryDropdown(settings.PlaybackAudioRecovery)
@@ -254,6 +258,7 @@ func (p *SettingsPage) saveSettings() {
 	settings.FFmpegPath = strings.TrimSpace(p.ffmpegPath.Value)
 	settings.DefaultPlayback = strings.TrimSpace(p.defaultPlayback.Value)
 	settings.DefaultMediaOutput = strings.TrimSpace(p.defaultMediaOutput.Value)
+	settings.CacheQuotaGB, settings.CacheReserveGB = p.cacheQuotaGB.Value, p.cacheReserveGB.Value
 	settings.PlaybackAudioDevice = selectedDropdownValue(p.playbackAudioDevice)
 	settings.PlaybackAudioRecovery = selectedDropdownValue(p.playbackAudioRecovery)
 	settings.PlaybackBackupAudioDevice = selectedDropdownValue(p.playbackBackupAudioDevice)
@@ -372,6 +377,9 @@ func (p *SettingsPage) defaultsSection(th *material.Theme, gtx layout.Context) l
 		},
 		func(gtx layout.Context) layout.Dimensions {
 			return settingsField(th, gtx, "FFmpeg executable", p.ffmpegPath.Layout)
+		},
+		func(gtx layout.Context) layout.Dimensions {
+			return pairedSettingsFields(th, gtx, "Cache quota / free reserve (GB)", p.cacheQuotaGB.Layout, p.cacheReserveGB.Layout)
 		},
 	})
 }

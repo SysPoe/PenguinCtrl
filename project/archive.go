@@ -296,6 +296,7 @@ func Load(path string) (Manifest, []File, error) {
 	if err := publishExtractedShow(temporary, root); err != nil {
 		return Manifest{}, nil, err
 	}
+	touchCachePath(root)
 	resolveLoadedPaths(&manifest.Show, root)
 	return manifest, files, nil
 }
@@ -414,6 +415,7 @@ func transcode(ffmpegPath, source, kind, sourceHash string) (string, error) {
 	}
 	output := filepath.Join(cacheDir, sourceHash+"-"+kind+ext)
 	if info, err := os.Stat(output); err == nil && info.Size() > 0 {
+		touchCachePath(output)
 		return output, nil
 	}
 	tmp, err := os.CreateTemp(cacheDir, "cusus-media-*"+ext)
@@ -450,6 +452,7 @@ func transcode(ffmpegPath, source, kind, sourceHash string) (string, error) {
 				_ = os.Remove(temporary)
 				return "", err
 			}
+			touchCachePath(output)
 			return output, nil
 		}
 		_ = os.Remove(temporary)

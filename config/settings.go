@@ -60,6 +60,8 @@ type Settings struct {
 	Variables                 map[string]string `json:"variables"`
 	RemoteTargets             []RemoteTarget    `json:"remoteTargets"`
 	RemoteSuccessPolicy       string            `json:"remoteSuccessPolicy,omitempty"`
+	CacheQuotaGB              int               `json:"cacheQuotaGb,omitempty"`
+	CacheReserveGB            int               `json:"cacheReserveGb,omitempty"`
 }
 
 const (
@@ -81,6 +83,8 @@ func Defaults() Settings {
 		Variables:             map[string]string{},
 		RemoteTargets:         []RemoteTarget{{Name: "Local console", Host: "127.0.0.1", OSCPort: 8000, ERCPort: 6553}},
 		RemoteSuccessPolicy:   RemoteSuccessAll,
+		CacheQuotaGB:          20,
+		CacheReserveGB:        5,
 	}
 }
 
@@ -287,6 +291,8 @@ func normalize(in Settings) Settings {
 	if in.RemoteSuccessPolicy != RemoteSuccessAny {
 		in.RemoteSuccessPolicy = RemoteSuccessAll
 	}
+	in.CacheQuotaGB = min(500, max(1, in.CacheQuotaGB))
+	in.CacheReserveGB = min(100, max(1, in.CacheReserveGB))
 	return in
 }
 

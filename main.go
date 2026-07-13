@@ -505,6 +505,24 @@ func (a *App) run(window *app.Window) error {
 	preflightService := newPreflightService()
 	defer preflightService.Close()
 	playbackEngine.SetPreflightGate(func() error { return preflightService.Gate(manager.ShowSnapshot()) })
+	cacheMaintainer := project.StartCacheMaintainer(
+		func() bool {
+			return len(playbackEngine.ActiveInstances()) > 0 || len(playbackEngine.ActiveExecutions()) > 0
+		},
+		func() []string {
+			current, settings := manager.ShowSnapshot(), settingsStore.Snapshot()
+			var paths []string
+			for _, cue := range current.Cues {
+				paths = append(paths, cueMediaSources(cue, settings)...)
+			}
+			return paths
+		},
+		func() (uint64, uint64) {
+			settings := settingsStore.Snapshot()
+			return uint64(settings.CacheQuotaGB) << 30, uint64(settings.CacheReserveGB) << 30
+		},
+	)
+	defer cacheMaintainer.Close()
 	tbCtx.LoadWaveform = func(source string, completed func([]float32, int, int64, error)) {
 		go func() {
 			wave, err := media.ExtractWaveform(settingsStore.Snapshot().FFmpegPath, source)
