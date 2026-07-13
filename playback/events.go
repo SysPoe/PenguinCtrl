@@ -33,6 +33,7 @@ type Instance struct {
 	CueIndex       int             `json:"-"`
 	Link           show.CueLink    `json:"-"`
 	PostWaitMs     int64           `json:"-"`
+	RunID          uint64          `json:"-"`
 	StartedAt      time.Time       `json:"-"`
 	PositionAt     time.Time       `json:"-"`
 	FadeStartedAt  time.Time       `json:"-"`

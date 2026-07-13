@@ -47,6 +47,7 @@ func (s *PlaybackSidebar) Layout(th *material.Theme, gtx layout.Context, manager
 
 	selected, _, hasSelection := manager.SelectedCueCopy()
 	instance, hasInstance := selectedInstance(engine, selected.ID, hasSelection)
+	selectedActive := hasSelection && engine.CueActive(selected.ID)
 	if hasInstance && instance.ID != s.instanceID {
 		s.instanceID = instance.ID
 		s.positionSlider.Value = normalizedPosition(instance)
@@ -135,7 +136,7 @@ func (s *PlaybackSidebar) Layout(th *material.Theme, gtx layout.Context, manager
 					}),
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							return sidebarActionButton(th, gtx, &s.goButton, "GO", hasSelection, palette.SurfaceSunken, palette.Text)
+							return sidebarActionButton(th, gtx, &s.goButton, goButtonLabel(selectedActive), hasSelection, palette.SurfaceSunken, palette.Text)
 						})
 					}),
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
@@ -152,6 +153,13 @@ func (s *PlaybackSidebar) Layout(th *material.Theme, gtx layout.Context, manager
 			})
 		},
 	)
+}
+
+func goButtonLabel(active bool) string {
+	if active {
+		return "RESTART"
+	}
+	return "GO"
 }
 
 func (s *PlaybackSidebar) layoutPosition(th *material.Theme, gtx layout.Context, engine *playback.Engine, instance playback.Instance, enabled bool) layout.Dimensions {

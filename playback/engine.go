@@ -21,8 +21,14 @@ type command struct {
 	cue     show.Cue
 	index   int
 	ctx     context.Context
+	runID   uint64
 	preview bool
 	origin  string
+}
+
+type cueRun struct {
+	id     uint64
+	cancel context.CancelFunc
 }
 
 type Engine struct {
@@ -56,6 +62,8 @@ type Engine struct {
 	onChange        func()
 	previewCueID    show.CueID
 	previewPaused   bool
+	cueRuns         map[show.CueID]cueRun
+	nextRunID       uint64
 }
 
 func NewEngine(manager *show.ShowManager, settings *config.Store) *Engine {
@@ -64,7 +72,7 @@ func NewEngine(manager *show.ShowManager, settings *config.Store) *Engine {
 	return &Engine{
 		manager: manager, settings: settings, remote: remote.NewDispatcher(settings),
 		commands: make(chan command, 64), ctx: ctx, cancel: cancel, runCtx: runCtx, runCancel: runCancel, done: make(chan struct{}),
-		hub: newEventHub(), instances: map[string]*Instance{}, executions: map[string]*CueExecution{}, outputVisuals: map[string]Event{}, outputWindows: map[string]Event{}, durations: map[show.CueID]int64{},
+		hub: newEventHub(), instances: map[string]*Instance{}, executions: map[string]*CueExecution{}, outputVisuals: map[string]Event{}, outputWindows: map[string]Event{}, durations: map[show.CueID]int64{}, cueRuns: map[show.CueID]cueRun{},
 		durationKeys: map[show.CueID]string{}, durationPending: map[show.CueID]string{}, durationErrors: map[show.CueID]string{},
 		mediaValidated: map[show.CueID]string{}, mediaPending: map[show.CueID]string{}, mediaErrors: map[show.CueID]string{}, stateEvent: make(chan struct{}, 1),
 	}
@@ -383,19 +391,26 @@ func (e *Engine) enqueueCommand(cue show.Cue, index int, preview bool, origin st
 			e.operatorLog.Add(operatorlog.Warning, origin+" · caution", strings.Join(cautions, "; "), cue.ID, cue.CueNumber)
 		}
 	}
-	e.mu.RLock()
-	runCtx := e.runCtx
-	e.mu.RUnlock()
+	runCtx, runID, stopped := e.beginCueRun(cue.ID)
+	for _, instance := range stopped {
+		e.hub.publish(Event{Action: "control", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID}, Control: "stop"})
+		e.hub.publish(Event{Action: "remove", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID}})
+	}
+	if len(stopped) > 0 {
+		e.signalState()
+	}
 	select {
-	case e.commands <- command{cue: cue, index: index, ctx: runCtx, preview: preview, origin: origin}:
+	case e.commands <- command{cue: cue, index: index, ctx: runCtx, runID: runID, preview: preview, origin: origin}:
 		return nil
 	case <-e.ctx.Done():
+		e.finishCueRun(cue.ID, runID, true)
 		err := errors.New("playback engine is stopped")
 		if !preview {
 			e.recordCueError(cue, origin, err)
 		}
 		return err
 	default:
+		e.finishCueRun(cue.ID, runID, true)
 		err := errors.New("playback command queue is full")
 		if !preview {
 			e.recordCueError(cue, origin, err)
@@ -404,13 +419,78 @@ func (e *Engine) enqueueCommand(cue show.Cue, index int, preview bool, origin st
 	}
 }
 
+// beginCueRun atomically reserves this cue for the new command. Any existing
+// run of the same cue is cancelled and its live media is removed without
+// firing the old run's end links.
+func (e *Engine) beginCueRun(cueID show.CueID) (context.Context, uint64, []Instance) {
+	e.mu.Lock()
+	if current, ok := e.cueRuns[cueID]; ok {
+		current.cancel()
+	}
+	e.nextRunID++
+	runID := e.nextRunID
+	runCtx, cancel := context.WithCancel(e.runCtx)
+	e.cueRuns[cueID] = cueRun{id: runID, cancel: cancel}
+	stopped := make([]Instance, 0)
+	for id, instance := range e.instances {
+		if instance.CueID != cueID {
+			continue
+		}
+		stopped = append(stopped, *instance)
+		delete(e.instances, id)
+	}
+	e.mu.Unlock()
+	return runCtx, runID, stopped
+}
+
+func (e *Engine) finishCueRun(cueID show.CueID, runID uint64, cancel bool) {
+	e.mu.Lock()
+	if current, ok := e.cueRuns[cueID]; ok && current.id == runID {
+		if cancel {
+			current.cancel()
+		}
+		delete(e.cueRuns, cueID)
+	}
+	e.mu.Unlock()
+	e.changed()
+}
+
+func (e *Engine) cueRunCurrent(cueID show.CueID, runID uint64) bool {
+	if runID == 0 {
+		return true
+	}
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	current, ok := e.cueRuns[cueID]
+	return ok && current.id == runID
+}
+
+// CueActive reports whether a cue is in pre-wait, executing a wait/control
+// action, loading media, playing, or paused.
+func (e *Engine) CueActive(cueID show.CueID) bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	_, ok := e.cueRuns[cueID]
+	return ok
+}
+
 func (e *Engine) execute(next command) {
 	if next.ctx == nil || next.ctx.Err() != nil {
 		return
 	}
+	keepRun := false
+	defer func() {
+		if !keepRun {
+			cancel := next.ctx.Err() != nil || next.cue.Link.Mode == show.CueLinkManual
+			e.finishCueRun(next.cue.ID, next.runID, cancel)
+		}
+	}()
 	executionID := e.startExecution(next, "pre-wait", cueExecutionDuration(next.cue))
 	defer e.finishExecution(executionID)
 	if !waitContext(next.ctx, time.Duration(max(0, next.cue.Timing.PreWaitMs))*time.Millisecond) {
+		return
+	}
+	if !e.cueRunCurrent(next.cue.ID, next.runID) {
 		return
 	}
 	e.updateExecution(executionID, "action", 0)
@@ -422,6 +502,7 @@ func (e *Engine) execute(next command) {
 	switch next.cue.Type {
 	case show.CueTypeSound, show.CueTypeVideo, show.CueTypeImage:
 		err = e.startMedia(next)
+		keepRun = err == nil
 	case show.CueTypeRemote:
 		if next.cue.Play.Remote == nil {
 			err = errors.New("remote cue has no remote action")
@@ -580,7 +661,7 @@ func (e *Engine) startMedia(next command) error {
 	now := time.Now()
 	instance := &Instance{
 		ID: uuid.NewString(), CueID: cue.ID, GroupID: cue.GroupID, CueNumber: cue.CueNumber, CueIndex: cueIndex, Link: cue.Link, PostWaitMs: cue.Timing.PostWaitMs,
-		Preview:   next.preview,
+		Preview: next.preview, RunID: next.runID,
 		StartedAt: now, RequestedAt: now, PositionAt: now, RunContext: next.ctx, LoadState: "loading", Cue: show.CloneCue(cue),
 	}
 	switch cue.Type {
@@ -619,6 +700,13 @@ func (e *Engine) startMedia(next command) error {
 	}
 	instance.PositionMs = max(0, instance.ClipStartMs)
 	e.mu.Lock()
+	if next.runID != 0 {
+		current, ok := e.cueRuns[cue.ID]
+		if !ok || current.id != next.runID || next.ctx.Err() != nil {
+			e.mu.Unlock()
+			return context.Canceled
+		}
+	}
 	instance.FadeInComplete = instance.FadeInMs <= 0
 	e.instances[instance.ID] = instance
 	if instance.DurationMs > 0 {
@@ -998,6 +1086,7 @@ func (e *Engine) HandleOutputReport(instanceID, report string) {
 	case "ended", "stopped":
 		e.hub.publish(Event{Action: "remove", OutputID: copy.OutputID, InstanceIDs: []string{copy.ID}})
 		e.scheduleLink(copy.Link, copy.CueIndex, copy.PostWaitMs, linkEnd, copy.RunContext)
+		e.finishCueRun(copy.CueID, copy.RunID, copy.Link.Mode == show.CueLinkManual)
 	}
 	e.signalState()
 }
@@ -1193,6 +1282,7 @@ func (e *Engine) StopAll() {
 	e.mu.Lock()
 	e.runCancel()
 	e.runCtx, e.runCancel = context.WithCancel(e.ctx)
+	e.cueRuns = map[show.CueID]cueRun{}
 	e.mu.Unlock()
 	instances := e.ActiveInstances()
 	byOutput := map[string][]string{}
