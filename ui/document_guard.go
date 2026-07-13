@@ -115,10 +115,10 @@ func (g *DocumentGuard) Layout(th *material.Theme, gtx layout.Context) layout.Di
 		gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(unit.Dp(620)))
 		return layout.Background{}.Layout(gtx,
 			func(gtx layout.Context) layout.Dimensions {
+				paint.FillShape(gtx.Ops, palette.SurfaceRaised, clip.UniformRRect(image.Rectangle{Max: gtx.Constraints.Min}, gtx.Dp(unit.Dp(10))).Op(gtx.Ops))
 				return layout.Dimensions{Size: gtx.Constraints.Min}
 			},
 			func(gtx layout.Context) layout.Dimensions {
-				paint.FillShape(gtx.Ops, palette.SurfaceRaised, clip.UniformRRect(image.Rectangle{Max: gtx.Constraints.Min}, gtx.Dp(unit.Dp(10))).Op(gtx.Ops))
 				return layout.UniformInset(unit.Dp(24)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 						layout.Rigid(material.H6(th, "Unsaved show changes").Layout),
