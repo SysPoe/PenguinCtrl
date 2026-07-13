@@ -395,6 +395,7 @@ type devicePlayer struct {
 	closed         bool
 	started        bool
 	recovery       func(string) error
+	renderedFrames atomic.Uint64
 }
 
 func (p *devicePlayer) SetRecoveryHandler(handler func(string) error) {
@@ -446,9 +447,15 @@ func (p *devicePlayer) readSamples(output, _ []byte, _ uint32) {
 func (p *devicePlayer) mixInto(output []byte) {
 	volume := float64FromBits(p.volume.Load())
 	n := p.ring.mix(output, volume)
+	p.renderedFrames.Add(uint64(len(output) / (audioChannels * 2)))
 	if n < len(output) && !p.eof.Load() {
 		p.underruns.Add(1)
 	}
+}
+
+func (p *devicePlayer) RenderedPosition() time.Duration {
+	frames := p.renderedFrames.Load()
+	return time.Duration(frames) * time.Second / audioSampleRate
 }
 
 func (p *devicePlayer) fillRing() {

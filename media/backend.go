@@ -57,6 +57,7 @@ type PlaybackMetrics struct {
 	BufferingCount uint64
 	BufferedFrames int
 	AudioUnderruns uint64
+	AVDrift        time.Duration
 	Error          string
 }
 
@@ -517,6 +518,7 @@ func (s *ffmpegSession) recoverAudio(targetDeviceID string) error {
 		s.component.Done()
 		return err
 	}
+	s.clock.SetMaster(replacement.RenderedPosition)
 	s.mu.Lock()
 	if s.closed || s.audioGeneration != generation {
 		s.mu.Unlock()
@@ -549,6 +551,7 @@ func (s *ffmpegSession) Start(clock *PlaybackClock) error {
 		if err := audio.Start(); err != nil {
 			return s.fail(err)
 		}
+		clock.SetMaster(audio.RenderedPosition)
 		go s.watchAudioDevice(audio)
 	}
 	s.mu.Lock()
@@ -599,6 +602,13 @@ func (s *ffmpegSession) Frame(position time.Duration) image.Image {
 	if s.current == nil {
 		return nil
 	}
+	drift := position - s.current.pts
+	if drift < 0 {
+		drift = -drift
+	}
+	s.mu.Lock()
+	s.metrics.AVDrift = drift
+	s.mu.Unlock()
 	return s.current.image
 }
 
