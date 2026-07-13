@@ -191,9 +191,16 @@ func (s *ffmpegSession) Preload(ctx context.Context) error {
 }
 
 func (s *ffmpegSession) preloadVideo() error {
+	settings := s.backend.settings.Snapshot()
+	width, height := decodeSize(s.info.width, s.info.height, config.VideoOutputFor(settings, s.request.Instance.OutputID))
+	s.info.width, s.info.height = width, height
 	args := mediaInputArgs(s.request.Position, s.request.Instance.ClipEndMs)
-	args = append(args, "-i", s.path, "-map", "0:v:0", "-an", "-fps_mode", "passthrough", "-f", "rawvideo", "-pix_fmt", "rgba", "pipe:1")
-	cmd := exec.Command(s.backend.settings.Snapshot().FFmpegPath, args...)
+	args = append(args, "-i", s.path, "-map", "0:v:0", "-an")
+	if width > 0 && height > 0 {
+		args = append(args, "-vf", fmt.Sprintf("scale=%d:%d", width, height))
+	}
+	args = append(args, "-fps_mode", "passthrough", "-f", "rawvideo", "-pix_fmt", "rgba", "pipe:1")
+	cmd := exec.Command(settings.FFmpegPath, args...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return err
@@ -210,6 +217,20 @@ func (s *ffmpegSession) preloadVideo() error {
 	s.component.Add(1)
 	go s.decodeVideo(cmd, stdout, first, &stderr)
 	return <-first
+}
+
+// decodeSize caps software decoding and CPU-to-GPU frame uploads to the stage
+// resolution. Upscaling stays in Gio, where it is much cheaper than producing
+// and transferring oversized RGBA frames for every frame of a 4K/8K source.
+func decodeSize(sourceWidth, sourceHeight int, output config.VideoOutput) (int, int) {
+	if sourceWidth <= 0 || sourceHeight <= 0 || output.ResolutionWidth <= 0 || output.ResolutionHeight <= 0 {
+		return sourceWidth, sourceHeight
+	}
+	if sourceWidth <= output.ResolutionWidth && sourceHeight <= output.ResolutionHeight {
+		return sourceWidth, sourceHeight
+	}
+	scale := min(float64(output.ResolutionWidth)/float64(sourceWidth), float64(output.ResolutionHeight)/float64(sourceHeight))
+	return max(1, int(math.Round(float64(sourceWidth)*scale))), max(1, int(math.Round(float64(sourceHeight)*scale)))
 }
 
 func (s *ffmpegSession) decodeVideo(cmd *exec.Cmd, reader io.Reader, first chan<- error, stderr *bytes.Buffer) {

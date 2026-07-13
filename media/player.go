@@ -77,7 +77,6 @@ func (p *Player) Start() error {
 	p.position = time.Duration(startMs) * time.Millisecond
 	p.muted = p.instance.Muted
 	p.mu.Unlock()
-	p.discoverDuration()
 	if p.instance.MediaType == "image" {
 		if err := p.loadImage(); err != nil {
 			return err
@@ -96,6 +95,10 @@ func (p *Player) Start() error {
 	if p.instance.Paused {
 		p.pause()
 	}
+	// Duration metadata is useful to the cue list, but a separate FFprobe must
+	// not sit in front of decoder startup. The playback backend has completed
+	// its required stream probe by this point.
+	go p.discoverDuration()
 	p.scheduleFadeInReport()
 	return nil
 }
@@ -119,21 +122,32 @@ func (p *Player) scheduleFadeInReport() {
 }
 
 func (p *Player) discoverDuration() {
-	if p.instance.DurationMs > 0 || (p.instance.MediaType != "audio" && p.instance.MediaType != "video") {
+	p.mu.RLock()
+	instance := p.instance
+	closed := p.closed
+	p.mu.RUnlock()
+	if closed || instance.DurationMs > 0 || (instance.MediaType != "audio" && instance.MediaType != "video") {
 		return
 	}
-	mediaDurationMs, err := ProbeDurationMs(p.settings.Snapshot().FFmpegPath, p.instance.Source)
+	mediaDurationMs, err := ProbeDurationMs(p.settings.Snapshot().FFmpegPath, instance.Source)
 	if err != nil {
 		return
 	}
-	durationMs := mediaDurationMs - max(0, p.instance.ClipStartMs)
-	if p.instance.ClipEndMs > p.instance.ClipStartMs {
-		durationMs = p.instance.ClipEndMs - p.instance.ClipStartMs
+	durationMs := mediaDurationMs - max(0, instance.ClipStartMs)
+	if instance.ClipEndMs > instance.ClipStartMs {
+		durationMs = instance.ClipEndMs - instance.ClipStartMs
 	}
 	if durationMs > 0 {
+		p.mu.Lock()
+		if p.closed || p.instance.Source != instance.Source {
+			p.mu.Unlock()
+			return
+		}
 		p.instance.DurationMs = durationMs
-		if p.duration != nil {
-			p.duration(durationMs)
+		completed := p.duration
+		p.mu.Unlock()
+		if completed != nil {
+			completed(durationMs)
 		}
 	}
 }

@@ -56,6 +56,7 @@ type Engine struct {
 	mediaValidated  map[show.CueID]string
 	mediaPending    map[show.CueID]string
 	mediaErrors     map[show.CueID]string
+	mediaProbeSlots chan struct{}
 	stateEvent      chan struct{}
 	lastError       atomic.Value
 	operatorLog     *operatorlog.Store
@@ -75,6 +76,7 @@ func NewEngine(manager *show.ShowManager, settings *config.Store) *Engine {
 		hub: newEventHub(), instances: map[string]*Instance{}, executions: map[string]*CueExecution{}, outputVisuals: map[string]Event{}, outputWindows: map[string]Event{}, durations: map[show.CueID]int64{}, cueRuns: map[show.CueID]cueRun{},
 		durationKeys: map[show.CueID]string{}, durationPending: map[show.CueID]string{}, durationErrors: map[show.CueID]string{},
 		mediaValidated: map[show.CueID]string{}, mediaPending: map[show.CueID]string{}, mediaErrors: map[show.CueID]string{}, stateEvent: make(chan struct{}, 1),
+		mediaProbeSlots: make(chan struct{}, 1),
 	}
 }
 
@@ -180,7 +182,11 @@ func (e *Engine) RefreshDurations() {
 	for _, next := range tasks {
 		next := next
 		go func() {
+			if !e.acquireMediaProbe() {
+				return
+			}
 			fullDurationMs, err := probe(next.source)
+			e.releaseMediaProbe()
 			durationMs := fullDurationMs - max(int64(0), next.clipStartMs)
 			e.mu.Lock()
 			if e.durationPending[next.cueID] == next.key {
@@ -203,7 +209,11 @@ func (e *Engine) RefreshDurations() {
 	for _, next := range validationTasks {
 		next := next
 		go func() {
+			if !e.acquireMediaProbe() {
+				return
+			}
 			err := validator(next.source, next.cueType)
+			e.releaseMediaProbe()
 			e.mu.Lock()
 			current := e.mediaPending[next.cueID] == next.key
 			if current {
@@ -222,6 +232,20 @@ func (e *Engine) RefreshDurations() {
 		}()
 	}
 }
+
+// FFprobe can briefly consume every available CPU and disk resource. Duration
+// and integrity checks are useful background work, but they must never run in
+// parallel and starve the Gio event loop merely because media cues exist.
+func (e *Engine) acquireMediaProbe() bool {
+	select {
+	case e.mediaProbeSlots <- struct{}{}:
+		return true
+	case <-e.ctx.Done():
+		return false
+	}
+}
+
+func (e *Engine) releaseMediaProbe() { <-e.mediaProbeSlots }
 
 func isMediaCueType(cueType show.CueType) bool {
 	return cueType == show.CueTypeSound || cueType == show.CueTypeVideo || cueType == show.CueTypeImage
