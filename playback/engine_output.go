@@ -1,0 +1,331 @@
+package playback
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/syspoe/cusus/config"
+	"github.com/syspoe/cusus/operatorlog"
+	"github.com/syspoe/cusus/show"
+)
+
+func (e *Engine) HandleOutputReport(instanceID, report string) {
+	e.mu.Lock()
+	instance := e.instances[instanceID]
+	if instance == nil {
+		e.mu.Unlock()
+		return
+	}
+	if report == "started" {
+		if instance.BackendStarted {
+			e.mu.Unlock()
+			return
+		}
+		now := time.Now()
+		instance.BackendStarted = true
+		instance.LoadState = "playing"
+		instance.StartLatencyMs = max(int64(0), now.Sub(instance.RequestedAt).Milliseconds())
+		instance.StartedAt, instance.PositionAt = now, now
+	}
+	if report == "fade-in-complete" {
+		if instance.FadeInComplete {
+			e.mu.Unlock()
+			return
+		}
+		instance.FadeInComplete = true
+	}
+	if report == "fade-out-start" {
+		if instance.FadeOutStarted {
+			e.mu.Unlock()
+			return
+		}
+		instance.FadeOutStarted = true
+	}
+	if report == "presented" {
+		if instance.Presented {
+			e.mu.Unlock()
+			return
+		}
+		instance.Presented = true
+	}
+	copy := *instance
+	if report == "ended" || report == "stopped" {
+		delete(e.instances, instanceID)
+	}
+	e.mu.Unlock()
+	switch report {
+	case "started":
+		if copy.FadeInMs == 0 {
+			e.scheduleLink(copy.Cue, copy.CueIndex, copy.PostWaitMs, linkFadeIn, copy.RunContext)
+		}
+		e.scheduleInstanceLifecycle(copy.ID)
+		e.scheduleTimecode(copy.ID, copy.Cue, copy.CueIndex, copy.RunContext)
+	case "presented":
+		e.replaceSingleLayerVisual(copy)
+	case "fade-in-complete":
+		e.scheduleLink(copy.Cue, copy.CueIndex, copy.PostWaitMs, linkFadeIn, copy.RunContext)
+	case "fade-out-start":
+		e.scheduleLink(copy.Cue, copy.CueIndex, copy.PostWaitMs, linkFadeOut, copy.RunContext)
+	case "ended", "stopped":
+		e.hub.publish(Event{Action: "remove", OutputID: copy.OutputID, InstanceIDs: []string{copy.ID}})
+		e.scheduleLink(copy.Cue, copy.CueIndex, copy.PostWaitMs, linkEnd, copy.RunContext)
+		e.finishCueRun(copy.CueID, copy.RunID, copy.Link.Mode == show.CueLinkManual)
+	}
+	e.signalState()
+}
+
+func visualInstance(instance *Instance) bool {
+	return instance != nil && (instance.MediaType == "video" || instance.MediaType == "image")
+}
+
+// replaceSingleLayerVisual performs a guarded handoff after the incoming
+// visual has produced its first frame. Outputs configured for more than one
+// layer retain their explicit compositing behavior.
+func (e *Engine) replaceSingleLayerVisual(presented Instance) {
+	if presented.Preview || !visualInstance(&presented) || config.VideoOutputFor(e.settings.Snapshot(), presented.OutputID).Layers != 1 {
+		return
+	}
+
+	e.mu.Lock()
+	var newest *Instance
+	for _, candidate := range e.instances {
+		if candidate.Preview || !candidate.Presented || candidate.OutputID != presented.OutputID || !visualInstance(candidate) {
+			continue
+		}
+		if newest == nil || candidate.LayerOrder > newest.LayerOrder ||
+			(candidate.LayerOrder == newest.LayerOrder && candidate.StartedAt.After(newest.StartedAt)) ||
+			(candidate.LayerOrder == newest.LayerOrder && candidate.StartedAt.Equal(newest.StartedAt) && candidate.ID > newest.ID) {
+			newest = candidate
+		}
+	}
+	if newest == nil {
+		e.mu.Unlock()
+		return
+	}
+
+	now := time.Now()
+	outgoing := make([]Instance, 0)
+	for _, candidate := range e.instances {
+		if candidate.ID == newest.ID || candidate.Preview || !candidate.Presented || candidate.OutputID != presented.OutputID ||
+			!visualInstance(candidate) || candidate.ReplacementScheduled {
+			continue
+		}
+		materializeInstance(candidate, now)
+		candidate.ReplacementScheduled = true
+		candidate.FadeOutStarted = true
+		candidate.EndScheduled = false
+		candidate.LifecycleGeneration++
+		startInstanceFade(candidate, -80, max(int64(0), candidate.FadeOutMs), now)
+		outgoing = append(outgoing, *candidate)
+	}
+	e.mu.Unlock()
+
+	for _, instance := range outgoing {
+		fadeMs := max(int64(0), instance.FadeOutMs)
+		e.hub.publish(Event{
+			Action: "control", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID},
+			Control: "fade-out", FadeMs: fadeMs,
+		})
+		e.scheduleLink(instance.Cue, instance.CueIndex, instance.PostWaitMs, linkFadeOut, instance.RunContext)
+		if fadeMs == 0 {
+			e.HandleOutputReport(instance.ID, "ended")
+			continue
+		}
+		id := instance.ID
+		e.goOwned(func() {
+			if waitContext(e.ctx, time.Duration(fadeMs)*time.Millisecond) {
+				e.HandleOutputReport(id, "ended")
+			}
+		})
+	}
+	if len(outgoing) > 0 {
+		e.signalState()
+	}
+}
+
+func (e *Engine) HandleOutputError(instanceID string, err error) {
+	if err == nil {
+		return
+	}
+	e.mu.RLock()
+	instance := e.instances[instanceID]
+	if instance == nil {
+		e.mu.RUnlock()
+		e.recordError("Media output", err)
+		return
+	}
+	copy := *instance
+	e.mu.RUnlock()
+	e.recordCueError(show.Cue{ID: copy.CueID, CueNumber: copy.CueNumber}, "FFmpeg / media output", err)
+	e.HandleOutputReport(instanceID, "stopped")
+}
+
+func (e *Engine) HandleOutputWarning(instanceID string, err error) {
+	if err == nil || e.operatorLog == nil {
+		return
+	}
+	e.mu.RLock()
+	instance := e.instances[instanceID]
+	if instance == nil {
+		e.mu.RUnlock()
+		e.operatorLog.Add(operatorlog.Recoverable, "FFmpeg / media output", err.Error(), show.CueID{}, "")
+		return
+	}
+	copy := *instance
+	e.mu.RUnlock()
+	e.operatorLog.Add(operatorlog.Recoverable, "FFmpeg / media output", err.Error(), copy.CueID, copy.CueNumber)
+	e.changed()
+}
+
+// HandleOutputDuration fills in durations discovered from the actual media
+// file after playback starts. This keeps the cue table useful when Clip End is
+// left at zero to mean "play the whole file".
+func (e *Engine) HandleOutputDuration(instanceID string, durationMs int64) {
+	if durationMs <= 0 {
+		return
+	}
+	e.mu.Lock()
+	instance := e.instances[instanceID]
+	if instance == nil {
+		e.mu.Unlock()
+		return
+	}
+	instance.DurationMs = durationMs
+	e.durations[instance.CueID] = durationMs
+	started := instance.BackendStarted
+	if started {
+		instance.EndScheduled = false
+		instance.LifecycleGeneration++
+	}
+	e.mu.Unlock()
+	if started {
+		e.scheduleInstanceLifecycle(instanceID)
+	}
+	e.signalState()
+}
+
+func (e *Engine) Subscribe(outputID string) (<-chan Event, func()) {
+	ch, release := e.hub.subscribePaused(outputID)
+	events, _ := e.OutputSnapshot(outputID)
+	for _, event := range events {
+		ch <- event
+	}
+	release()
+	return ch, func() { e.hub.unsubscribe(outputID, ch) }
+}
+
+// OutputSnapshot returns a complete desired state for an output plus the event
+// sequence that preceded the snapshot. An output recovering from queue
+// overload or window recreation applies this state, then ignores older queued
+// sequences and continues incrementally.
+func (e *Engine) OutputSnapshot(outputID string) ([]Event, uint64) {
+	sequence := e.hub.currentSequence()
+	e.mu.RLock()
+	now := time.Now()
+	instances := make([]Instance, 0)
+	for _, instance := range e.instances {
+		if instance.OutputID != outputID {
+			continue
+		}
+		copy := *instance
+		materializeInstance(&copy, now)
+		instances = append(instances, copy)
+	}
+	visual, hasVisual := e.outputVisuals[outputID]
+	window, hasWindow := e.outputWindows[outputID]
+	e.mu.RUnlock()
+	events := []Event{{Action: "sync", OutputID: outputID, Instances: instances, Sequence: sequence}}
+	if hasVisual {
+		visual.Sequence = sequence
+		events = append(events, visual)
+	}
+	if hasWindow {
+		window.Sequence = sequence
+		events = append(events, window)
+	}
+	return events, sequence
+}
+
+func (e *Engine) OutputResyncCount() uint64 { return e.hub.resyncCount() }
+
+func (e *Engine) ActiveInstances() []Instance {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	result := make([]Instance, 0, len(e.instances))
+	now := time.Now()
+	for _, instance := range e.instances {
+		copy := *instance
+		materializeInstance(&copy, now)
+		result = append(result, copy)
+	}
+	return result
+}
+
+func (e *Engine) ActiveExecutions() []CueExecution {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	now := time.Now()
+	result := make([]CueExecution, 0, len(e.executions))
+	for _, execution := range e.executions {
+		copy := *execution
+		copy.ElapsedMs = max(int64(0), now.Sub(copy.PhaseAt).Milliseconds())
+		if copy.DurationMs > 0 {
+			copy.ElapsedMs = min(copy.ElapsedMs, copy.DurationMs)
+			copy.RemainingMs = max(int64(0), copy.DurationMs-copy.ElapsedMs)
+		}
+		result = append(result, copy)
+	}
+	return result
+}
+
+func (e *Engine) KnownDurations() map[show.CueID]int64 {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	result := make(map[show.CueID]int64, len(e.durations))
+	for cueID, duration := range e.durations {
+		result[cueID] = duration
+	}
+	return result
+}
+
+// CueProblems evaluates a cue against the exact settings, duration cache, and
+// cue-list snapshot used by the engine. UI, preflight, and GO call this same
+// method so severity cannot drift between surfaces.
+func (e *Engine) CueProblems(cue show.Cue) []show.CueProblem {
+	settings := e.settings.Snapshot()
+	source, start, end, configured, _ := durationDetails(cue, settings)
+	key := fmt.Sprintf("%d|%s|%d|%d|%d", cue.Type, source, start, end, configured)
+	e.mu.RLock()
+	duration, probeError := int64(0), ""
+	if e.durationKeys[cue.ID] == key {
+		duration = e.durations[cue.ID]
+		probeError = e.durationErrors[cue.ID]
+	}
+	if e.mediaValidated[cue.ID] == key && e.mediaErrors[cue.ID] != "" {
+		probeError = e.mediaErrors[cue.ID]
+	}
+	mediaPending := e.mediaPending[cue.ID] == key
+	mediaChecked := e.mediaValidated[cue.ID] == key
+	trackMediaCheck := e.mediaValidator != nil
+	e.mu.RUnlock()
+	context := show.WarningContext{Settings: settings, KnownDurationMs: duration, MediaProbeError: probeError, TrackMediaCheck: trackMediaCheck, MediaCheckPending: mediaPending, MediaChecked: mediaChecked}
+	if cue.Type == show.CueTypeMediaControl && cue.Play.MediaControl != nil {
+		context.HasRuntimeState = true
+		context.ActiveMediaMatches = len(e.matchingInstances(cue.Play.MediaControl.Target))
+	}
+	if cue.Type == show.CueTypeWait && cue.Play.Wait != nil && cue.Play.Wait.Kind != show.WaitDuration {
+		context.HasRuntimeState = true
+		context.ActiveMediaMatches = len(e.matchingInstances(cue.Play.Wait.Media))
+	}
+	return show.CueProblemsWithContext(cue, e.manager.Snapshot(), context)
+}
+
+func problemMessages(problems []show.CueProblem, severity show.ProblemSeverity) []string {
+	result := make([]string, 0)
+	for _, problem := range problems {
+		if problem.Severity == severity {
+			result = append(result, problem.Message)
+		}
+	}
+	return result
+}
