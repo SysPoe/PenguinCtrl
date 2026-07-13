@@ -17,7 +17,9 @@ type VideoDisplay struct {
 }
 
 func (m *Manager) VideoDisplays() ([]VideoDisplay, error) {
-	displays, err := enumerateVideoDisplays()
+	m.displaysMu.RLock()
+	displays, err := append([]VideoDisplay(nil), m.displays...), m.displaysErr
+	m.displaysMu.RUnlock()
 	sort.SliceStable(displays, func(i, j int) bool {
 		if displays[i].Primary != displays[j].Primary {
 			return displays[i].Primary
@@ -42,7 +44,10 @@ func (m *Manager) RefreshVideoOutputStatus() {
 	m.displayStatusMu.Lock()
 	m.lastDisplayCheck = time.Time{}
 	m.displayStatusMu.Unlock()
-	m.refreshDisplays(true)
+	select {
+	case m.displayRefresh <- struct{}{}:
+	default:
+	}
 }
 
 func videoOutputWarning(settings config.Settings, displays []VideoDisplay) string {
@@ -95,12 +100,15 @@ func displaySignature(ds []VideoDisplay) string {
 func (m *Manager) refreshDisplays(force bool) {
 	displays, err := enumerateVideoDisplays()
 	if err != nil {
+		m.displaysMu.Lock()
+		m.displaysErr = err
+		m.displaysMu.Unlock()
 		return
 	}
 	signature := displaySignature(displays)
 	m.displaysMu.Lock()
 	changed := force || signature != m.displaySignature
-	m.displays, m.displaySignature = displays, signature
+	m.displays, m.displaySignature, m.displaysErr = displays, signature, nil
 	m.displaysMu.Unlock()
 	if !changed {
 		return
@@ -121,7 +129,13 @@ func (m *Manager) refreshDisplays(force bool) {
 func (m *Manager) monitorDisplays() {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
-	for range ticker.C {
+	for {
 		m.refreshDisplays(false)
+		select {
+		case <-m.ctx.Done():
+			return
+		case <-m.displayRefresh:
+		case <-ticker.C:
+		}
 	}
 }

@@ -1,6 +1,7 @@
 package media
 
 import (
+	"context"
 	"fmt"
 	"image"
 	"image/color"
@@ -31,13 +32,21 @@ type Manager struct {
 	windows           map[string]*outputWindow
 	desired           map[string]struct{}
 	closed            bool
+	ctx               context.Context
+	cancel            context.CancelFunc
+	workers           sync.WaitGroup
 	audio             *AudioSystem
 	decoder           *FFmpegBackend
 	audioStatusMu     sync.Mutex
 	lastAudioCheck    time.Time
 	audioDeviceStatus string
+	audioDevices      []AudioDevice
+	audioDevicesErr   error
+	audioRefresh      chan struct{}
 	displaysMu        sync.RWMutex
 	displays          []VideoDisplay
+	displaysErr       error
+	displayRefresh    chan struct{}
 	displaySignature  string
 	displayStatusMu   sync.Mutex
 	lastDisplayCheck  time.Time
@@ -45,14 +54,17 @@ type Manager struct {
 }
 
 func NewManager(engine *playback.Engine, settings *config.Store) *Manager {
-	context, err := NewAudioSystem(settings)
+	audioSystem, err := NewAudioSystem(settings)
 	if err != nil {
 		log.Printf("initialize audio output: %v", err)
 	}
-	manager := &Manager{engine: engine, settings: settings, windows: map[string]*outputWindow{}, desired: map[string]struct{}{}, audio: context}
-	manager.decoder = NewFFmpegBackend(settings, context)
+	ctx, cancel := context.WithCancel(context.Background())
+	manager := &Manager{engine: engine, settings: settings, windows: map[string]*outputWindow{}, desired: map[string]struct{}{}, audio: audioSystem, ctx: ctx, cancel: cancel, audioRefresh: make(chan struct{}, 1), displayRefresh: make(chan struct{}, 1), audioDeviceStatus: "Checking audio output devices…"}
+	manager.decoder = NewFFmpegBackend(settings, audioSystem)
 	manager.refreshDisplays(true)
-	go manager.monitorDisplays()
+	manager.workers.Add(2)
+	go func() { defer manager.workers.Done(); manager.monitorDisplays() }()
+	go func() { defer manager.workers.Done(); manager.monitorAudioDevices() }()
 	return manager
 }
 
@@ -68,10 +80,9 @@ func (m *Manager) Prewarm(instances []playback.Instance) {
 }
 
 func (m *Manager) AudioDevices() ([]AudioDevice, error) {
-	if m.audio == nil {
-		return nil, fmt.Errorf("audio output is unavailable")
-	}
-	return m.audio.Devices()
+	m.audioStatusMu.Lock()
+	defer m.audioStatusMu.Unlock()
+	return append([]AudioDevice(nil), m.audioDevices...), m.audioDevicesErr
 }
 
 func (m *Manager) AudioMixerMetrics() []AudioMixerMetrics {
@@ -87,30 +98,53 @@ func (m *Manager) AudioMixerMetrics() []AudioMixerMetrics {
 func (m *Manager) AudioDeviceWarning() string {
 	m.audioStatusMu.Lock()
 	defer m.audioStatusMu.Unlock()
-	if !m.lastAudioCheck.IsZero() && time.Since(m.lastAudioCheck) < time.Second {
-		return m.audioDeviceStatus
-	}
-	m.lastAudioCheck = time.Now()
-	devices, err := m.AudioDevices()
-	m.audioDeviceStatus = audioDeviceWarning(m.settings.Snapshot(), devices, err)
-	if m.audioDeviceStatus == "" {
-		for _, metrics := range m.AudioMixerMetrics() {
-			if metrics.Failed {
-				m.audioDeviceStatus = "An audio endpoint could not be recovered. Active cues on that route are offline."
-				break
-			}
-			if metrics.Recovering {
-				m.audioDeviceStatus = "An audio endpoint stopped unexpectedly. CuSus is reconnecting with bounded retry."
-				break
-			}
-		}
-	}
 	return m.audioDeviceStatus
 }
 
 func (m *Manager) RefreshAudioDeviceStatus() {
+	select {
+	case m.audioRefresh <- struct{}{}:
+	default:
+	}
+}
+
+func (m *Manager) monitorAudioDevices() {
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+	for {
+		m.refreshAudioDevices()
+		select {
+		case <-m.ctx.Done():
+			return
+		case <-m.audioRefresh:
+		case <-ticker.C:
+		}
+	}
+}
+
+func (m *Manager) refreshAudioDevices() {
+	var devices []AudioDevice
+	var err error
+	if m.audio == nil {
+		err = fmt.Errorf("audio output is unavailable")
+	} else {
+		devices, err = m.audio.Devices()
+	}
+	status := audioDeviceWarning(m.settings.Snapshot(), devices, err)
+	if status == "" {
+		for _, metrics := range m.AudioMixerMetrics() {
+			if metrics.Failed {
+				status = "An audio endpoint could not be recovered. Active cues on that route are offline."
+				break
+			}
+			if metrics.Recovering {
+				status = "An audio endpoint stopped unexpectedly. CuSus is reconnecting with bounded retry."
+				break
+			}
+		}
+	}
 	m.audioStatusMu.Lock()
-	m.lastAudioCheck = time.Time{}
+	m.audioDevices, m.audioDevicesErr, m.audioDeviceStatus, m.lastAudioCheck = devices, err, status, time.Now()
 	m.audioStatusMu.Unlock()
 }
 
@@ -226,12 +260,14 @@ func (m *Manager) Close() {
 		return
 	}
 	m.closed = true
+	m.cancel()
 	m.desired = map[string]struct{}{}
 	windows := make([]*outputWindow, 0, len(m.windows))
 	for _, output := range m.windows {
 		windows = append(windows, output)
 	}
 	m.mu.Unlock()
+	m.workers.Wait()
 	for _, output := range windows {
 		if output.window != nil {
 			output.window.Perform(system.ActionClose)
