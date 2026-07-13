@@ -75,6 +75,10 @@ type SettingsPage struct {
 	defaultMediaOutput        *input.Text
 	cacheQuotaGB              *input.Integer
 	cacheReserveGB            *input.Integer
+	timecodeSource            *input.Dropdown
+	timecodePolicy            *input.Dropdown
+	timecodeListenAddress     *input.Text
+	timecodeFrameRate         *input.Float
 	remoteSuccessPolicy       *input.Dropdown
 	playbackAudioDevice       *input.Dropdown
 	playbackAudioRecovery     *input.Dropdown
@@ -143,6 +147,10 @@ func (p *SettingsPage) load() {
 	p.defaultMediaOutput = input.NewText("Default media output", settings.DefaultMediaOutput)
 	p.cacheQuotaGB = input.NewInteger("Cache quota GB", settings.CacheQuotaGB)
 	p.cacheReserveGB = input.NewInteger("Reserved free GB", settings.CacheReserveGB)
+	p.timecodeSource = enumDropdown([]input.DropdownItem{{Label: "Internal / manual", Value: config.TimecodeInternal}, {Label: "LTC adapter", Value: config.TimecodeLTC}, {Label: "MTC quarter-frame", Value: config.TimecodeMTC}, {Label: "OSC input", Value: config.TimecodeOSC}}, settings.TimecodeSource)
+	p.timecodePolicy = enumDropdown([]input.DropdownItem{{Label: "Hold for operator", Value: config.TimecodeHold}, {Label: "Chase external source", Value: config.TimecodeChase}, {Label: "Immediate resync", Value: config.TimecodeResync}}, settings.TimecodePolicy)
+	p.timecodeListenAddress = input.NewText("OSC listen address", settings.TimecodeListenAddress)
+	p.timecodeFrameRate = input.NewFloat("Frame rate", settings.TimecodeFrameRate)
 	p.remoteSuccessPolicy = enumDropdown([]input.DropdownItem{{Label: "Require every target", Value: config.RemoteSuccessAll}, {Label: "Any redundant target", Value: config.RemoteSuccessAny}}, settings.RemoteSuccessPolicy)
 	p.playbackAudioDevice = newAudioDeviceDropdown(p.audioDevices, settings.PlaybackAudioDevice)
 	p.playbackAudioRecovery = newAudioRecoveryDropdown(settings.PlaybackAudioRecovery)
@@ -194,6 +202,7 @@ func (p *SettingsPage) Layout(th *material.Theme, gtx layout.Context) layout.Dim
 		func(gtx layout.Context) layout.Dimensions { return p.defaultsSection(th, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.audioSection(th, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.videoOutputsSection(th, gtx) },
+		func(gtx layout.Context) layout.Dimensions { return p.timecodeSection(th, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.targetsSection(th, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.variablesSection(th, gtx) },
 	}
@@ -273,6 +282,10 @@ func (p *SettingsPage) saveSettings() {
 	settings.DefaultPlayback = strings.TrimSpace(p.defaultPlayback.Value)
 	settings.DefaultMediaOutput = strings.TrimSpace(p.defaultMediaOutput.Value)
 	settings.CacheQuotaGB, settings.CacheReserveGB = p.cacheQuotaGB.Value, p.cacheReserveGB.Value
+	settings.TimecodeSource = selectedDropdownValue(p.timecodeSource)
+	settings.TimecodePolicy = selectedDropdownValue(p.timecodePolicy)
+	settings.TimecodeListenAddress = strings.TrimSpace(p.timecodeListenAddress.Value)
+	settings.TimecodeFrameRate = p.timecodeFrameRate.Value
 	settings.PlaybackAudioDevice = selectedDropdownValue(p.playbackAudioDevice)
 	settings.PlaybackAudioRecovery = selectedDropdownValue(p.playbackAudioRecovery)
 	settings.PlaybackBackupAudioDevice = selectedDropdownValue(p.playbackBackupAudioDevice)
@@ -421,6 +434,17 @@ func (p *SettingsPage) audioSection(th *material.Theme, gtx layout.Context) layo
 		},
 		func(gtx layout.Context) layout.Dimensions {
 			return layoutButton(th, gtx, &p.refreshAudioDevices, "Refresh audio devices", th.ContrastBg)
+		},
+	})
+}
+
+func (p *SettingsPage) timecodeSection(th *material.Theme, gtx layout.Context) layout.Dimensions {
+	return settingsSection(th, gtx, "External timecode", []layout.Widget{
+		func(gtx layout.Context) layout.Dimensions {
+			return pairedSettingsFields(th, gtx, "Source / discontinuity policy", p.timecodeSource.Layout, p.timecodePolicy.Layout)
+		},
+		func(gtx layout.Context) layout.Dimensions {
+			return pairedSettingsFields(th, gtx, "OSC address / frame rate", p.timecodeListenAddress.Layout, p.timecodeFrameRate.Layout)
 		},
 	})
 }

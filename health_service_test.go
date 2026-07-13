@@ -12,6 +12,7 @@ import (
 	"github.com/syspoe/cusus/media"
 	"github.com/syspoe/cusus/playback"
 	"github.com/syspoe/cusus/show"
+	"github.com/syspoe/cusus/timecode"
 )
 
 type healthBackendStub struct {
@@ -54,7 +55,9 @@ func TestHealthComponentsExposeIdentityRecoveryAndAction(t *testing.T) {
 		displays: []media.VideoDisplay{{ID: "other"}},
 	}
 
-	components := collectHealthComponents(engine, backend, settings, "show.cusus", false)
+	timeline := timecode.NewService(timecode.Config{Source: timecode.SourceInternal}, "")
+	defer timeline.Close()
+	components := collectHealthComponents(engine, backend, timeline, settings, "show.cusus", false)
 	snapshot := health.NewSnapshot(components)
 	if snapshot.Overall != health.Failed {
 		t.Fatalf("overall health = %s", snapshot.Overall)

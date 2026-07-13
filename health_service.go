@@ -14,6 +14,7 @@ import (
 	"github.com/syspoe/cusus/media"
 	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/playback"
+	"github.com/syspoe/cusus/timecode"
 )
 
 type healthService struct {
@@ -60,14 +61,35 @@ func (s *healthService) Snapshot() health.Snapshot {
 
 func (s *healthService) Close() { s.cancel(); s.wg.Wait() }
 
-func collectHealthComponents(engine *playback.Engine, backend media.Backend, settings config.Settings, documentPath string, dirty bool) []health.Component {
-	components := []health.Component{engineHealth(engine), archiveHealth(documentPath, dirty)}
+func collectHealthComponents(engine *playback.Engine, backend media.Backend, timeline *timecode.Service, settings config.Settings, documentPath string, dirty bool) []health.Component {
+	components := []health.Component{engineHealth(engine), archiveHealth(documentPath, dirty), timecodeHealth(timeline)}
 	components = append(components, audioHealth(engine, backend, settings)...)
 	components = append(components, outputHealth(backend, settings)...)
 	components = append(components, decoderHealth(engine)...)
 	components = append(components, remoteTargetHealth(engine)...)
 	components = append(components, diskHealth(settings))
 	return components
+}
+
+func timecodeHealth(service *timecode.Service) health.Component {
+	status := service.Coordinator().Status()
+	component := health.Component{ID: "timecode", Kind: "timecode", Name: "Master timeline", State: health.Normal, Summary: "Manual cue stacks use the internal monotonic timeline", Action: "Open Settings > External timecode and verify source, rate, and discontinuity policy"}
+	if err := service.LastError(); err != nil {
+		component.State, component.Summary = health.Failed, "External timecode input failed: "+err.Error()
+	} else if status.Source != timecode.SourceInternal {
+		switch status.State {
+		case timecode.StateDiscontinuity:
+			component.State, component.Summary, component.Action = health.Failed, "External timecode jumped; timeline is held", "Verify the master position, then acknowledge and resync from the interruption banner"
+		case timecode.StateChasing:
+			component.State, component.Summary = health.Recovering, "Timeline is chasing an external discontinuity"
+		case timecode.StateStopped:
+			component.State, component.Summary = health.Recovering, "Waiting for external timecode"
+		default:
+			component.Summary = "External timecode is running"
+		}
+	}
+	component.Details = map[string]any{"source": status.Source, "policy": status.Policy, "position": status.Position, "generation": status.Generation, "lastUpdate": status.LastUpdate, "jump": status.Discontinuity}
+	return component
 }
 
 func engineHealth(engine *playback.Engine) health.Component {

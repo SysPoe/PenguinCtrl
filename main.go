@@ -40,6 +40,7 @@ import (
 	"github.com/syspoe/cusus/playback"
 	"github.com/syspoe/cusus/project"
 	"github.com/syspoe/cusus/show"
+	"github.com/syspoe/cusus/timecode"
 	"github.com/syspoe/cusus/ui"
 )
 
@@ -50,6 +51,7 @@ type App struct {
 	Settings      *config.Store
 	OperatorLog   *operatorlog.Store
 	Journal       *project.EditJournal
+	Timecode      *timecode.Service
 	Recovered     bool
 	RecoveredPath string
 	UI            UIState
@@ -139,6 +141,13 @@ func newApp() (*App, error) {
 	})
 	log.SetOutput(operatorEvents.Writer("Runtime"))
 	engine := playback.NewEngine(showManager, settings)
+	timecodeInput := timecode.NewService(timecodeConfig(settings.Snapshot()), settings.Snapshot().TimecodeListenAddress)
+	engine.SetTimeline(timecodeInput.Coordinator())
+	timecodeInput.Coordinator().SetOnDiscontinuity(func(gap time.Duration) {
+		if timecodeInput.Coordinator().Status().Policy == timecode.PolicyHold {
+			engine.LatchClockDiscontinuity(gap)
+		}
+	})
 	engine.SetOperatorLog(operatorEvents)
 	engine.SetDurationProbe(func(source string) (int64, error) {
 		return media.ProbeDurationMs(settings.Snapshot().FFmpegPath, source)
@@ -157,6 +166,7 @@ func newApp() (*App, error) {
 		Settings:      settings,
 		OperatorLog:   operatorEvents,
 		Journal:       journal,
+		Timecode:      timecodeInput,
 		Recovered:     hasRecovery,
 		RecoveredPath: recovered.DocumentPath,
 		UI: UIState{
@@ -174,6 +184,8 @@ func newApp() (*App, error) {
 	})
 	configureVideoRoutingSettings(settingsPage, application.Media)
 	settingsPage.SetOnSaved(func() {
+		current := settings.Snapshot()
+		timecodeInput.Configure(timecodeConfig(current), current.TimecodeListenAddress)
 		application.Playback.RefreshDurations()
 		application.Media.SyncOutputs(application.Playback.OutputIDs())
 		application.Media.RefreshAudioDeviceStatus()
@@ -201,6 +213,13 @@ func newApp() (*App, error) {
 }
 
 func applicationBuildID() string { return buildinfo.Identity() }
+
+func timecodeConfig(settings config.Settings) timecode.Config {
+	return timecode.Config{
+		Source: timecode.Source(settings.TimecodeSource), Policy: timecode.Policy(settings.TimecodePolicy),
+		FrameRate: settings.TimecodeFrameRate, JumpTolerance: 500 * time.Millisecond,
+	}
+}
 
 func newTheme() *material.Theme {
 	th := material.NewTheme()
@@ -562,9 +581,10 @@ func (a *App) run(window *app.Window) error {
 		documentMu.RLock()
 		path, dirty := currentShowPath, showDigest(manager.ShowSnapshot()) != lastSavedDigest
 		documentMu.RUnlock()
-		return collectHealthComponents(playbackEngine, mediaManager, settingsStore.Snapshot(), path, dirty)
+		return collectHealthComponents(playbackEngine, mediaManager, a.Timecode, settingsStore.Snapshot(), path, dirty)
 	})
 	defer healthMonitor.Close()
+	defer a.Timecode.Close()
 	power := startPowerKeeper()
 	defer power.Close()
 	preflightService := newPreflightService()
@@ -900,6 +920,7 @@ func (a *App) run(window *app.Window) error {
 				operatorEvents.Diagnostic("Shutdown", err.Error(), nil)
 			}
 			healthMonitor.Close()
+			a.Timecode.Close()
 			playbackEngine.Close()
 			mediaManager.Close()
 			return e.Err
@@ -934,6 +955,7 @@ func (a *App) run(window *app.Window) error {
 				settingsPage.ShowAudioDevices()
 			}
 			if safetyResume.Clicked(gtx) {
+				a.Timecode.Coordinator().Acknowledge(true)
 				playbackEngine.AcknowledgeSafetyLatch()
 				topBar.SetStatus("Playback re-armed after operator acknowledgement · press GO when ready")
 			}

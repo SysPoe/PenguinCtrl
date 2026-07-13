@@ -70,6 +70,10 @@ type Settings struct {
 	CacheQuotaGB              int               `json:"cacheQuotaGb,omitempty"`
 	CacheReserveGB            int               `json:"cacheReserveGb,omitempty"`
 	OperatorWindow            WindowPlacement   `json:"operatorWindow"`
+	TimecodeSource            string            `json:"timecodeSource,omitempty"`
+	TimecodePolicy            string            `json:"timecodePolicy,omitempty"`
+	TimecodeListenAddress     string            `json:"timecodeListenAddress,omitempty"`
+	TimecodeFrameRate         float64           `json:"timecodeFrameRate,omitempty"`
 }
 
 const (
@@ -78,6 +82,13 @@ const (
 	AudioRecoveryNamedBackup   = "named-backup"
 	RemoteSuccessAll           = "all"
 	RemoteSuccessAny           = "any"
+	TimecodeInternal           = "internal"
+	TimecodeLTC                = "ltc"
+	TimecodeMTC                = "mtc"
+	TimecodeOSC                = "osc"
+	TimecodeHold               = "hold"
+	TimecodeChase              = "chase"
+	TimecodeResync             = "resync"
 )
 
 func Defaults() Settings {
@@ -94,6 +105,10 @@ func Defaults() Settings {
 		CacheQuotaGB:          20,
 		CacheReserveGB:        5,
 		OperatorWindow:        WindowPlacement{X: 80, Y: 80, Width: 1300, Height: 720},
+		TimecodeSource:        TimecodeInternal,
+		TimecodePolicy:        TimecodeHold,
+		TimecodeListenAddress: "127.0.0.1:9001",
+		TimecodeFrameRate:     30,
 	}
 }
 
@@ -307,6 +322,22 @@ func normalize(in Settings) Settings {
 	}
 	in.OperatorWindow.Width = min(7680, max(480, in.OperatorWindow.Width))
 	in.OperatorWindow.Height = min(4320, max(320, in.OperatorWindow.Height))
+	switch in.TimecodeSource {
+	case TimecodeLTC, TimecodeMTC, TimecodeOSC:
+	default:
+		in.TimecodeSource = TimecodeInternal
+	}
+	switch in.TimecodePolicy {
+	case TimecodeChase, TimecodeResync:
+	default:
+		in.TimecodePolicy = TimecodeHold
+	}
+	if strings.TrimSpace(in.TimecodeListenAddress) == "" {
+		in.TimecodeListenAddress = "127.0.0.1:9001"
+	}
+	if in.TimecodeFrameRate != 24 && in.TimecodeFrameRate != 25 && in.TimecodeFrameRate != 29.97 && in.TimecodeFrameRate != 30 {
+		in.TimecodeFrameRate = 30
+	}
 	return in
 }
 

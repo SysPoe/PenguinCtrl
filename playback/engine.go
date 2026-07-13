@@ -33,6 +33,12 @@ type cueRun struct {
 	cancel context.CancelFunc
 }
 
+type Timeline interface {
+	Enabled() bool
+	Position() time.Duration
+	WaitUntil(context.Context, time.Duration) bool
+}
+
 type Engine struct {
 	manager             *show.ShowManager
 	settings            *config.Store
@@ -80,6 +86,7 @@ type Engine struct {
 	dispatchNotify      chan struct{}
 	commandHistory      []CommandRecord
 	preflightGate       func() error
+	timeline            Timeline
 }
 
 func NewEngine(manager *show.ShowManager, settings *config.Store) *Engine {
@@ -139,6 +146,12 @@ func (e *Engine) SetOperatorLog(store *operatorlog.Store) {
 func (e *Engine) SetPreflightGate(gate func() error) {
 	e.mu.Lock()
 	e.preflightGate = gate
+	e.mu.Unlock()
+}
+
+func (e *Engine) SetTimeline(timeline Timeline) {
+	e.mu.Lock()
+	e.timeline = timeline
 	e.mu.Unlock()
 }
 
@@ -1001,13 +1014,27 @@ func (e *Engine) startMedia(next command) error {
 func (e *Engine) scheduleTimecode(instanceID string, cue show.Cue, cueIndex int, runCtx context.Context) {
 	markers := mediaTimecode(cue)
 	sort.SliceStable(markers, func(i, j int) bool { return markers[i].TimeMs < markers[j].TimeMs })
+	e.mu.RLock()
+	timeline := e.timeline
+	e.mu.RUnlock()
+	external := timeline != nil && timeline.Enabled()
+	base := time.Duration(0)
+	if external {
+		base = timeline.Position()
+	}
 	for _, marker := range markers {
 		marker := marker
 		if marker.Disabled || marker.TimeMs < 0 {
 			continue
 		}
 		e.goOwned(func() {
-			if !waitContext(runCtx, time.Duration(marker.TimeMs)*time.Millisecond) || !e.hasInstance(instanceID) {
+			var reached bool
+			if external {
+				reached = timeline.WaitUntil(runCtx, base+time.Duration(marker.TimeMs)*time.Millisecond)
+			} else {
+				reached = waitContext(runCtx, time.Duration(marker.TimeMs)*time.Millisecond)
+			}
+			if !reached || !e.hasInstance(instanceID) {
 				return
 			}
 			action := marker.Action
