@@ -30,6 +30,7 @@ import (
 	"gioui.org/x/explorer"
 
 	"github.com/syspoe/cusus/config"
+	"github.com/syspoe/cusus/internal/buildinfo"
 	"github.com/syspoe/cusus/internal/crashreport"
 	"github.com/syspoe/cusus/internal/taskgroup"
 	"github.com/syspoe/cusus/media"
@@ -90,7 +91,7 @@ func runMain() (exitCode int) {
 		placement := application.Settings.Snapshot().OperatorWindow
 		window := new(app.Window)
 		window.Option(
-			app.Title("CuSus"),
+			app.Title("CuSus "+buildinfo.Identity()),
 			app.Size(unit.Dp(placement.Width), unit.Dp(placement.Height)),
 			app.MinSize(unit.Dp(480), unit.Dp(320)),
 		)
@@ -198,29 +199,7 @@ func newApp() (*App, error) {
 	return application, nil
 }
 
-func applicationBuildID() string {
-	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return "unknown"
-	}
-	version, revision := strings.TrimSpace(info.Main.Version), ""
-	for _, setting := range info.Settings {
-		if setting.Key == "vcs.revision" {
-			revision = setting.Value
-			break
-		}
-	}
-	if revision != "" {
-		if len(revision) > 12 {
-			revision = revision[:12]
-		}
-		return version + "+" + revision
-	}
-	if version == "" {
-		return "unknown"
-	}
-	return version
-}
+func applicationBuildID() string { return buildinfo.Identity() }
 
 func newTheme() *material.Theme {
 	th := material.NewTheme()

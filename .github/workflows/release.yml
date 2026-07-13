@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version such as v1.2.3-rc.1
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install pinned Windows resource compiler
+        shell: pwsh
+        run: choco install mingw --version=13.2.0 --no-progress -y
+      - name: Capture deterministic evidence
+        shell: pwsh
+        run: ./scripts/reliability-evidence.ps1 -OutputDirectory artifacts/reliability
+      - name: Materialise signing certificate
+        shell: pwsh
+        env:
+          CUSUS_CERTIFICATE_BASE64: ${{ secrets.CUSUS_CERTIFICATE_BASE64 }}
+        run: |
+          if (-not $env:CUSUS_CERTIFICATE_BASE64) { throw "CUSUS_CERTIFICATE_BASE64 is required for release artifacts." }
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\cusus-signing.pfx", [Convert]::FromBase64String($env:CUSUS_CERTIFICATE_BASE64))
+      - name: Build, sign, and package
+        shell: pwsh
+        env:
+          CUSUS_SIGNING_PASSWORD: ${{ secrets.CUSUS_SIGNING_PASSWORD }}
+        run: |
+          $version = "${{ inputs.version }}"
+          if (-not $version) { $version = $env:GITHUB_REF_NAME }
+          ./scripts/package-release.ps1 -Version $version -ReliabilityEvidence artifacts/reliability/evidence.json -CertificatePath "$env:RUNNER_TEMP\cusus-signing.pfx" -RequireSigning
+      - name: Exercise install, upgrade, and rollback
+        shell: pwsh
+        run: |
+          $package = Get-ChildItem artifacts/release/CuSus-v*-windows-amd64 -Directory | Select-Object -First 1
+          $install = Join-Path $env:RUNNER_TEMP "CuSus-install-test"
+          & (Join-Path $package.FullName "install.ps1") -InstallDirectory $install
+          & (Join-Path $package.FullName "install.ps1") -InstallDirectory $install
+          & (Join-Path $package.FullName "install.ps1") -InstallDirectory $install -Rollback
+          if (-not (Test-Path (Join-Path $install "cusus.exe"))) { throw "Rollback did not restore CuSus." }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: signed-windows-release
+          path: |
+            artifacts/release/*.zip
+            artifacts/release/SHA256SUMS.txt
+            artifacts/release/CuSus-*/SBOM.spdx.json
+            artifacts/release/CuSus-*/release-manifest.json
+            artifacts/reliability/**
+          if-no-files-found: error
+      - name: Publish tagged release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create $env:GITHUB_REF_NAME artifacts/release/*.zip artifacts/release/SHA256SUMS.txt artifacts/release/CuSus-*/SBOM.spdx.json artifacts/release/CuSus-*/release-manifest.json --verify-tag --notes-file docs/release-notes.md
