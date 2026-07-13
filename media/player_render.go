@@ -62,18 +62,32 @@ func (p *Player) visualOpacity(elapsed time.Duration) float32 {
 	fadeIn := p.instance.FadeInMs
 	fadeOutAt, fadeOutFor := p.visualFadeAt, p.visualFadeFor
 	p.mu.RUnlock()
-	opacity := 1.0
+	linearBrightness := 1.0
 	if fadeIn > 0 {
-		opacity = min(1.0, max(0.0, float64(elapsed)/float64(time.Duration(fadeIn)*time.Millisecond)))
+		linearBrightness = min(1.0, max(0.0, float64(elapsed)/float64(time.Duration(fadeIn)*time.Millisecond)))
 	}
 	if !fadeOutAt.IsZero() {
-		fadeOpacity := 0.0
+		fadeBrightness := 0.0
 		if fadeOutFor > 0 {
-			fadeOpacity = 1 - min(1.0, max(0.0, float64(time.Since(fadeOutAt))/float64(fadeOutFor)))
+			fadeBrightness = 1 - min(1.0, max(0.0, float64(time.Since(fadeOutAt))/float64(fadeOutFor)))
 		}
-		opacity *= fadeOpacity
+		linearBrightness *= fadeBrightness
 	}
-	return float32(opacity)
+	return float32(srgbOpacity(linearBrightness))
+}
+
+// Gio blends opacity against sRGB image values. Convert the linear fade
+// brightness to sRGB so visual fades progress evenly instead of appearing to
+// ease in and then change abruptly near the end.
+func srgbOpacity(linearBrightness float64) float64 {
+	linearBrightness = min(1.0, max(0.0, linearBrightness))
+	if linearBrightness == 0 || linearBrightness == 1 {
+		return linearBrightness
+	}
+	if linearBrightness <= 0.0031308 {
+		return linearBrightness * 12.92
+	}
+	return 1.055*math.Pow(linearBrightness, 1.0/2.4) - 0.055
 }
 
 func (p *Player) State() LoadState {

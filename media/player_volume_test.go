@@ -27,18 +27,29 @@ func TestVisualOpacityFadesOutIndependentlyOfAudioVolume(t *testing.T) {
 		visualFadeFor: time.Second,
 	}
 
-	if got := player.visualOpacity(time.Second); math.Abs(float64(got)-0.5) > 0.1 {
-		t.Fatalf("visual opacity = %v, want approximately 0.5 halfway through replacement fade", got)
+	want := srgbOpacity(0.5)
+	if got := player.visualOpacity(time.Second); math.Abs(float64(got)-want) > 0.1 {
+		t.Fatalf("visual opacity = %v, want approximately %v halfway through replacement fade", got, want)
 	}
 }
 
-func TestVisualOpacityStillFollowsPictureFade(t *testing.T) {
+func TestImageOpacityUsesLinearLightFade(t *testing.T) {
 	player := &Player{
-		instance: playback.Instance{MediaType: "video", FadeInMs: 2000},
+		instance: playback.Instance{MediaType: "image", FadeInMs: 2000},
 		volumeDB: -40,
 	}
 
-	if got := player.visualOpacity(time.Second); got != 0.5 {
-		t.Fatalf("visual opacity = %v, want 0.5 halfway through fade", got)
+	want := srgbOpacity(0.5)
+	if got := player.visualOpacity(time.Second); math.Abs(float64(got)-want) > 0.0001 {
+		t.Fatalf("visual opacity = %v, want %v halfway through linear-light fade", got, want)
+	}
+}
+
+func TestSRGBOpacityPreservesFadeEndpoints(t *testing.T) {
+	if got := srgbOpacity(0); got != 0 {
+		t.Fatalf("opacity at fade start = %v, want 0", got)
+	}
+	if got := srgbOpacity(1); got != 1 {
+		t.Fatalf("opacity at fade end = %v, want 1", got)
 	}
 }
