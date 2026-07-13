@@ -65,3 +65,25 @@ func TestSaveBundlesSupportedVideoWithoutTranscoding(t *testing.T) {
 	}
 	t.Fatalf("archive has no %q entry", asset.Path)
 }
+
+func TestSaveWithProgressDoesNotMutateShowSnapshot(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "clip.mp4")
+	if err := os.WriteFile(source, []byte("representative video bytes"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	current := show.Show{Cues: []show.Cue{{
+		CueNumber: "1",
+		Type:      show.CueTypeVideo,
+		Play:      show.CuePlay{Video: &show.VideoPlay{File: source}},
+	}}}
+	var archive bytes.Buffer
+	if _, err := SaveWithProgress(&archive, current, filepath.Join(t.TempDir(), "missing-ffmpeg"), nil); err != nil {
+		t.Fatalf("SaveWithProgress() error = %v", err)
+	}
+	if got := current.Cues[0].Play.Video.File; got != source {
+		t.Fatalf("caller media path = %q, want %q", got, source)
+	}
+	if got := current.Cues[0].ID; got != (show.CueID{}) {
+		t.Fatalf("caller cue ID = %v, want zero value", got)
+	}
+}

@@ -2,6 +2,22 @@ package show
 
 import "encoding/json"
 
+// CloneShow returns a deep copy suitable for archive preparation or editing.
+func CloneShow(current Show) Show {
+	clone := Show{
+		Title:      current.Title,
+		Cues:       cloneCues(current.Cues),
+		Extensions: cloneExtensions(current.Extensions),
+	}
+	if current.AcknowledgedProblems != nil {
+		clone.AcknowledgedProblems = make(map[string]bool, len(current.AcknowledgedProblems))
+		for fingerprint, acknowledged := range current.AcknowledgedProblems {
+			clone.AcknowledgedProblems[fingerprint] = acknowledged
+		}
+	}
+	return clone
+}
+
 // CloneCue returns a deep copy suitable for editing, copying, or duplicating.
 func CloneCue(cue Cue) Cue {
 	clone := cue

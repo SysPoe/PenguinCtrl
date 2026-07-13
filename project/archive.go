@@ -65,7 +65,7 @@ func Save(dst io.Writer, current show.Show, ffmpegPath string) (Manifest, error)
 // bundled unchanged so saving a show does not require a lengthy offline encode.
 // Audio and images retain the normalized Opus/WebP archive representation.
 func SaveWithProgress(dst io.Writer, current show.Show, ffmpegPath string, progress func(SaveProgress)) (Manifest, error) {
-	manifest := Manifest{Format: Format, Version: Version, Show: current}
+	manifest := Manifest{Format: Format, Version: Version, Show: show.CloneShow(current)}
 	normalizeShowSchema(&manifest.Show, Version)
 	if err := validateManifestSchema(manifest); err != nil {
 		return Manifest{}, err
