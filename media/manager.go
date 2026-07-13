@@ -2,6 +2,7 @@ package media
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -29,6 +30,8 @@ type Manager struct {
 	engine            *playback.Engine
 	settings          *config.Store
 	mu                sync.Mutex
+	backendMu         sync.RWMutex
+	resetMu           sync.Mutex
 	windows           map[string]*outputWindow
 	desired           map[string]struct{}
 	closed            bool
@@ -76,7 +79,11 @@ func (m *Manager) Prewarm(instances []playback.Instance) {
 			Position: time.Duration(max(int64(0), instance.ClipStartMs)) * time.Millisecond,
 		})
 	}
-	m.decoder.Prewarm(requests)
+	m.backendMu.RLock()
+	defer m.backendMu.RUnlock()
+	if m.decoder != nil {
+		m.decoder.Prewarm(requests)
+	}
 }
 
 func (m *Manager) AudioDevices() ([]AudioDevice, error) {
@@ -86,6 +93,8 @@ func (m *Manager) AudioDevices() ([]AudioDevice, error) {
 }
 
 func (m *Manager) AudioMixerMetrics() []AudioMixerMetrics {
+	m.backendMu.RLock()
+	defer m.backendMu.RUnlock()
 	if m.audio == nil {
 		return nil
 	}
@@ -124,20 +133,24 @@ func (m *Manager) monitorAudioDevices() {
 
 func (m *Manager) refreshAudioDevices() {
 	var devices []AudioDevice
+	var metrics []AudioMixerMetrics
 	var err error
+	m.backendMu.RLock()
 	if m.audio == nil {
 		err = fmt.Errorf("audio output is unavailable")
 	} else {
 		devices, err = m.audio.Devices()
+		metrics = m.audio.Metrics()
 	}
+	m.backendMu.RUnlock()
 	status := audioDeviceWarning(m.settings.Snapshot(), devices, err)
 	if status == "" {
-		for _, metrics := range m.AudioMixerMetrics() {
-			if metrics.Failed {
+		for _, mixer := range metrics {
+			if mixer.Failed {
 				status = "An audio endpoint could not be recovered. Active cues on that route are offline."
 				break
 			}
-			if metrics.Recovering {
+			if mixer.Recovering {
 				status = "An audio endpoint stopped unexpectedly. CuSus is reconnecting with bounded retry."
 				break
 			}
@@ -254,6 +267,8 @@ func (m *Manager) shouldRecoverOutput(outputID string) bool {
 }
 
 func (m *Manager) Close() {
+	m.resetMu.Lock()
+	defer m.resetMu.Unlock()
 	m.mu.Lock()
 	if m.closed {
 		m.mu.Unlock()
@@ -273,12 +288,67 @@ func (m *Manager) Close() {
 			output.window.Perform(system.ActionClose)
 		}
 	}
+	m.backendMu.Lock()
+	defer m.backendMu.Unlock()
 	if m.decoder != nil {
 		m.decoder.Close()
 	}
 	if m.audio != nil {
 		m.audio.Close()
 	}
+}
+
+// EmergencyReset force-closes every decoder and hardware-audio source, creates
+// fresh backend resources, and restarts output windows. It is intentionally
+// stronger than STOP ALL and can recover output-local players that have fallen
+// out of sync with the engine registry.
+func (m *Manager) EmergencyReset(ctx context.Context) error {
+	m.resetMu.Lock()
+	defer m.resetMu.Unlock()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return errors.New("media manager is closed")
+	}
+	windows := make([]*outputWindow, 0, len(m.windows))
+	for _, output := range m.windows {
+		windows = append(windows, output)
+	}
+	m.mu.Unlock()
+
+	m.backendMu.Lock()
+	if m.decoder != nil {
+		m.decoder.Close()
+	}
+	if m.audio != nil {
+		m.audio.Close()
+	}
+	audioSystem, audioErr := NewAudioSystem(m.settings)
+	m.audio = audioSystem
+	m.decoder = NewFFmpegBackend(m.settings, audioSystem)
+	m.backendMu.Unlock()
+
+	for _, output := range windows {
+		if output.window != nil {
+			output.window.Perform(system.ActionClose)
+		}
+	}
+	m.RefreshAudioDeviceStatus()
+	if audioErr != nil {
+		return fmt.Errorf("reinitialize audio output: %w", audioErr)
+	}
+	return nil
+}
+
+func (m *Manager) playbackBackend() PlaybackBackend {
+	m.backendMu.RLock()
+	defer m.backendMu.RUnlock()
+	return m.decoder
 }
 
 type outputWindow struct {
@@ -799,10 +869,15 @@ func (o *outputWindow) start(instance *playback.Instance) {
 	if instance == nil || o.players[instance.ID] != nil {
 		return
 	}
+	backend := o.manager.playbackBackend()
+	if backend == nil {
+		o.manager.engine.HandleOutputError(instance.ID, errors.New("media backend is unavailable"))
+		return
+	}
 	player := NewPlayerWithBackend(
 		*instance,
 		o.manager.settings,
-		o.manager.decoder,
+		backend,
 		o.window,
 		func(report string) { o.manager.engine.HandleOutputReport(instance.ID, report) },
 		func(durationMs int64) { o.manager.engine.HandleOutputDuration(instance.ID, durationMs) },

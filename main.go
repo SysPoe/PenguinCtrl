@@ -618,6 +618,7 @@ func (a *App) run(window *app.Window) error {
 	var closeInterceptor windowCloseInterceptor
 	closeRequests := make(chan struct{}, 1)
 	var lastAudioOperatorWarning, lastVideoOperatorWarning string
+	var emergencyResetting bool
 	lastMixerUnderruns := map[string]uint64{}
 	var safetyResume widget.Clickable
 	lastFrameAt := time.Now()
@@ -1003,9 +1004,44 @@ func (a *App) run(window *app.Window) error {
 				settingsPage.ShowAudioDevices()
 			}
 			if safetyResume.Clicked(gtx) {
-				a.Timecode.Coordinator().Acknowledge(true)
-				playbackEngine.AcknowledgeSafetyLatch()
-				topBar.SetStatus("Playback re-armed after operator acknowledgement · press GO when ready")
+				if emergencyResetting {
+					topBar.SetStatus("E-STOP reset is still running; playback remains latched")
+				} else {
+					a.Timecode.Coordinator().Acknowledge(true)
+					playbackEngine.AcknowledgeSafetyLatch()
+					topBar.SetStatus("Playback re-armed after operator acknowledgement · press GO when ready")
+				}
+			}
+			if topBar.TakeEmergencyStopRequest() {
+				emergencyResetting = true
+				topBar.SetEmergencyResetting(true)
+				playbackEngine.BeginEmergencyReset()
+				topBar.SetStatus("E-STOP asserted · force-stopping and reinitializing media outputs")
+				operatorEvents.Add(operatorlog.ShowStopping, "E-STOP", "Force-stopping and reinitializing media outputs", show.CueID{}, "")
+				resetter, ok := mediaManager.(media.EmergencyResetter)
+				if !ok {
+					err := errors.New("media backend does not support emergency reset")
+					playbackEngine.CompleteEmergencyReset(err)
+					emergencyResetting = false
+					topBar.SetEmergencyResetting(false)
+					topBar.SetStatus("E-STOP reset failed · " + err.Error())
+				} else {
+					tasks.Go("emergency-media-reset", func(ctx context.Context) {
+						err := resetter.EmergencyReset(ctx)
+						postUI(ctx, func() {
+							playbackEngine.CompleteEmergencyReset(err)
+							emergencyResetting = false
+							topBar.SetEmergencyResetting(false)
+							if err != nil {
+								topBar.SetStatus("E-STOP reset failed · playback remains latched")
+								return
+							}
+							mediaManager.SyncOutputs(playbackEngine.OutputIDs())
+							topBar.SetStatus("E-STOP reset complete · media outputs ready")
+							operatorEvents.Add(operatorlog.Info, "E-STOP", "Media outputs reinitialized and playback re-armed", show.CueID{}, "")
+						})
+					})
+				}
 			}
 			if topBar.TakeStopAllRequest() {
 				playbackEngine.StopAll()

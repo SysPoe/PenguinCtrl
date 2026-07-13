@@ -34,6 +34,7 @@ type TopBar struct {
 	btnLoad     widget.Clickable
 	btnSave     widget.Clickable
 	btnSaveAs   widget.Clickable
+	btnEStop    widget.Clickable
 	btnStopAll  widget.Clickable
 	btnBlackout widget.Clickable
 
@@ -42,8 +43,10 @@ type TopBar struct {
 	loadRequested   bool
 	saveRequested   bool
 	saveAsRequest   bool
+	eStopRequest    bool
 	stopAllRequest  bool
 	blackoutRequest bool
+	eStopResetting  bool
 	status          string
 	healthStatus    string
 }
@@ -78,6 +81,7 @@ func (tb *TopBar) HasKeyboardFocus(gtx layout.Context) bool {
 		gtx.Focused(&tb.btnFile) ||
 		gtx.Focused(&tb.btnSave) ||
 		gtx.Focused(&tb.btnPage) ||
+		gtx.Focused(&tb.btnEStop) ||
 		gtx.Focused(&tb.btnStopAll) ||
 		gtx.Focused(&tb.btnBlackout)
 }
@@ -120,6 +124,9 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, set
 		wasOpen := tb.showFile
 		tb.setAllFalse()
 		tb.showFile = !wasOpen
+	}
+	if !tb.eStopResetting && tb.btnEStop.Clicked(gtx) {
+		tb.eStopRequest = true
 	}
 	if tb.btnStopAll.Clicked(gtx) {
 		tb.stopAllRequest = true
@@ -170,6 +177,17 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, set
 		Axis:      layout.Horizontal,
 		Alignment: layout.Middle,
 	}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if tb.eStopResetting {
+				gtx = gtx.Disabled()
+			}
+			label := "E-STOP"
+			if tb.eStopResetting {
+				label = "RESETTING"
+			}
+			dims := layoutButton(th, gtx, &tb.btnEStop, label, palette.Danger)
+			return dims
+		}),
 		makeMeasuredBtnWithColor(th, &tb.btnStopAll, "STOP ALL", &stopSize, palette.Danger),
 		makeMeasuredBtnWithColor(th, &tb.btnBlackout, "BLACKOUT", &blackoutSize, palette.SurfaceSunken),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
@@ -211,6 +229,25 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, set
 		makeMeasuredBtn(th, &tb.btnFile, "File", &fileSize),
 		makeMeasuredBtn(th, &tb.btnPage, utils.Ter(settingsPage, "Cue List", "Settings"), &pageSize),
 	)
+}
+
+func (tb *TopBar) RequestEmergencyStop() {
+	if !tb.eStopResetting {
+		tb.eStopRequest = true
+	}
+}
+
+func (tb *TopBar) TakeEmergencyStopRequest() bool {
+	requested := tb.eStopRequest
+	tb.eStopRequest = false
+	return requested
+}
+
+func (tb *TopBar) SetEmergencyResetting(resetting bool) {
+	tb.eStopResetting = resetting
+	if resetting {
+		tb.eStopRequest = false
+	}
 }
 
 func (tb *TopBar) LayoutFileMenu(th *material.Theme, gtx layout.Context) layout.Dimensions {

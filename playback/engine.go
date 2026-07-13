@@ -78,6 +78,8 @@ type Engine struct {
 	nextRunID           uint64
 	safetyLatched       atomic.Bool
 	safetyReason        atomic.Value
+	resetActive         bool
+	resetPrior          string
 	enqueueMu           sync.Mutex
 	nextCommandSequence uint64
 	dispatchMu          sync.Mutex
@@ -616,6 +618,50 @@ func (e *Engine) LatchClockDiscontinuity(gap time.Duration) {
 	e.safetyReason.Store(reason)
 	e.StopAll()
 	e.recordOperatorError(operatorlog.ShowStopping, "Playback safety", errors.New(reason), show.CueID{}, "")
+}
+
+const emergencyResetSafetyReason = "E-STOP active; media outputs are reinitializing"
+
+// BeginEmergencyReset prevents new playback from starting while the media
+// manager force-closes and recreates its decoder and audio resources.
+func (e *Engine) BeginEmergencyReset() {
+	e.mu.Lock()
+	if !e.resetActive {
+		e.resetPrior = e.SafetyLatchReason()
+		e.resetActive = true
+	}
+	e.mu.Unlock()
+	e.safetyLatched.Store(true)
+	e.safetyReason.Store(emergencyResetSafetyReason)
+	e.StopAll()
+	e.changed()
+}
+
+// CompleteEmergencyReset rearms playback only when the E-STOP reset succeeded.
+// A failed reset remains latched so GO cannot target a broken backend.
+func (e *Engine) CompleteEmergencyReset(err error) {
+	if err != nil {
+		reason := "E-STOP reset failed: " + err.Error()
+		e.safetyReason.Store(reason)
+		e.recordOperatorError(operatorlog.ShowStopping, "E-STOP", errors.New(reason), show.CueID{}, "")
+		return
+	}
+	e.mu.Lock()
+	prior := e.resetPrior
+	e.resetPrior = ""
+	e.resetActive = false
+	e.mu.Unlock()
+	if e.SafetyLatchReason() == emergencyResetSafetyReason {
+		if prior != "" {
+			e.safetyLatched.Store(true)
+			e.safetyReason.Store(prior)
+			e.changed()
+			return
+		}
+		e.safetyLatched.Store(false)
+		e.safetyReason.Store("")
+		e.changed()
+	}
 }
 
 func (e *Engine) SafetyLatchReason() string {
