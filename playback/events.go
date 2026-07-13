@@ -108,6 +108,7 @@ type eventHub struct {
 	subscribers map[string]map[chan Event]struct{}
 	sequence    atomic.Uint64
 	resyncs     atomic.Uint64
+	onResync    func(outputID string, sequence uint64, queueCapacity int)
 }
 
 func newEventHub() *eventHub {
@@ -164,6 +165,9 @@ func (h *eventHub) publish(event Event) {
 				}
 			}
 			h.resyncs.Add(1)
+			if h.onResync != nil {
+				h.onResync(event.OutputID, event.Sequence, cap(ch))
+			}
 			select {
 			case ch <- Event{Action: "resync", OutputID: event.OutputID, Sequence: event.Sequence}:
 			default:

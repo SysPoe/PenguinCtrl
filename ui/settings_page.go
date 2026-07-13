@@ -94,6 +94,7 @@ type SettingsPage struct {
 	save                      widget.Clickable
 	reload                    widget.Clickable
 	reopenOutputs             widget.Clickable
+	supportBundle             widget.Clickable
 	refreshAudioDevices       widget.Clickable
 	refreshDisplays           widget.Clickable
 	addVideoOutput            widget.Clickable
@@ -101,11 +102,16 @@ type SettingsPage struct {
 	statusError               bool
 	onSaved                   func()
 	onReopenOutputs           func()
+	onSupportBundle           func() (string, error)
 }
 
 func (p *SettingsPage) SetOnSaved(callback func()) { p.onSaved = callback }
 
 func (p *SettingsPage) SetOnReopenOutputs(callback func()) { p.onReopenOutputs = callback }
+
+func (p *SettingsPage) SetOnSupportBundle(callback func() (string, error)) {
+	p.onSupportBundle = callback
+}
 
 func (p *SettingsPage) SetAudioDeviceProvider(provider func() ([]AudioDevice, error)) {
 	p.audioDeviceProvider = provider
@@ -212,6 +218,14 @@ func (p *SettingsPage) handleClicks(gtx layout.Context) {
 	if p.reopenOutputs.Clicked(gtx) && p.onReopenOutputs != nil {
 		p.onReopenOutputs()
 		p.status, p.statusError = "Output windows reopened", false
+	}
+	if p.supportBundle.Clicked(gtx) && p.onSupportBundle != nil {
+		path, err := p.onSupportBundle()
+		if err != nil {
+			p.status, p.statusError = "Support bundle failed: "+err.Error(), true
+		} else {
+			p.status, p.statusError = "Support bundle saved: "+path, false
+		}
 	}
 	if p.refreshAudioDevices.Clicked(gtx) {
 		p.refreshAudioDeviceList()
@@ -354,6 +368,7 @@ func (p *SettingsPage) header(th *material.Theme, gtx layout.Context) layout.Dim
 			)
 		}),
 		makeBtn(th, &p.reopenOutputs, "Reopen output windows"),
+		makeBtn(th, &p.supportBundle, "Create support bundle"),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layoutButton(th, gtx, &p.reload, "Reload", th.ContrastBg)

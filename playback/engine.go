@@ -105,7 +105,14 @@ func (e *Engine) RemoteHealth() []remote.TargetHealth { return e.remote.Health()
 
 func (e *Engine) SetOnChange(callback func()) { e.onChange = callback }
 
-func (e *Engine) SetOperatorLog(store *operatorlog.Store) { e.operatorLog = store }
+func (e *Engine) SetOperatorLog(store *operatorlog.Store) {
+	e.operatorLog = store
+	e.hub.onResync = func(outputID string, sequence uint64, queueCapacity int) {
+		store.Diagnostic("Output queue", "Output event queue saturated; authoritative resync requested", map[string]any{
+			"outputId": outputID, "eventSequence": sequence, "queueCapacity": queueCapacity,
+		})
+	}
+}
 
 func (e *Engine) SetPreflightGate(gate func() error) {
 	e.mu.Lock()

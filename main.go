@@ -128,6 +128,11 @@ func newApp() (*App, error) {
 	}
 	operatorEvents := operatorlog.NewStore()
 	operatorEvents.SetLogPath(filepath.Join(filepath.Dir(settings.Path()), "operator-events.jsonl"))
+	operatorEvents.SetContext(applicationBuildID(), func() string {
+		digest := showDigest(showManager.ShowSnapshot())
+		return fmt.Sprintf("%x", digest[:8])
+	})
+	log.SetOutput(operatorEvents.Writer("Runtime"))
 	engine := playback.NewEngine(showManager, settings)
 	engine.SetOperatorLog(operatorEvents)
 	engine.SetDurationProbe(func(source string) (int64, error) {
@@ -172,6 +177,15 @@ func newApp() (*App, error) {
 	settingsPage.SetOnReopenOutputs(func() {
 		application.Media.EnsureOutputs(application.Playback.OutputIDs())
 	})
+	settingsPage.SetOnSupportBundle(func() (string, error) {
+		directory := filepath.Dir(settings.Path())
+		path := filepath.Join(directory, "support-"+time.Now().Format("20060102-150405.000")+".zip")
+		err := operatorEvents.ExportSupportBundle(path, settings.Path(), filepath.Join(directory, "crashes"))
+		if err == nil {
+			operatorEvents.Add(operatorlog.Warning, "Operator action", "Created redacted support bundle", show.CueID{}, "")
+		}
+		return path, err
+	})
 	application.UI.TBContext = ui.TBContext{
 		TopBar:         &application.UI.TopBar,
 		TogglePreview:  application.Playback.TogglePreview,
@@ -179,6 +193,30 @@ func newApp() (*App, error) {
 		ProblemsForCue: application.Playback.CueProblems,
 	}
 	return application, nil
+}
+
+func applicationBuildID() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "unknown"
+	}
+	version, revision := strings.TrimSpace(info.Main.Version), ""
+	for _, setting := range info.Settings {
+		if setting.Key == "vcs.revision" {
+			revision = setting.Value
+			break
+		}
+	}
+	if revision != "" {
+		if len(revision) > 12 {
+			revision = revision[:12]
+		}
+		return version + "+" + revision
+	}
+	if version == "" {
+		return "unknown"
+	}
+	return version
 }
 
 func newTheme() *material.Theme {
@@ -492,12 +530,14 @@ func (a *App) run(window *app.Window) error {
 	if a.Recovered {
 		lastSavedDigest = [sha256.Size]byte{}
 		topBar.SetStatus("Recovered unsaved show edits · save to confirm recovery")
+		operatorEvents.Diagnostic("Edit recovery", "Recovered unsaved show edits", map[string]any{"documentPath": currentShowPath})
 	}
 	var suppressJournal bool
 	var documentGuard ui.DocumentGuard
 	var closeInterceptor windowCloseInterceptor
 	closeRequests := make(chan struct{}, 1)
 	var lastAudioOperatorWarning, lastVideoOperatorWarning string
+	lastMixerUnderruns := map[string]uint64{}
 	var safetyResume widget.Clickable
 	lastFrameAt := time.Now()
 	power := startPowerKeeper()
@@ -655,6 +695,7 @@ func (a *App) run(window *app.Window) error {
 					}
 				}
 				topBar.SetStatus("Loaded " + documentName(loadedPath) + " · recovery journal on")
+				operatorEvents.Diagnostic("Open show", "Show loaded and verified", map[string]any{"documentPath": loadedPath, "assets": len(files)})
 			}
 			window.Invalidate()
 		}()
@@ -716,6 +757,7 @@ func (a *App) run(window *app.Window) error {
 			}
 			uiActions <- func() {
 				topBar.SetStatus("Saved " + documentName(path) + " · recovery journal on · " + formatFileCount(len(manifest.Assets)))
+				operatorEvents.Diagnostic("Save show", "Show archive published", map[string]any{"documentPath": path, "assets": len(manifest.Assets)})
 			}
 			window.Invalidate()
 			complete(true)
@@ -756,6 +798,7 @@ func (a *App) run(window *app.Window) error {
 			}
 			uiActions <- func() {
 				topBar.SetStatus("Saved " + documentName(path) + " · recovery journal on · " + formatFileCount(len(manifest.Assets)))
+				operatorEvents.Diagnostic("Save show", "Show archive published", map[string]any{"documentPath": path, "assets": len(manifest.Assets)})
 			}
 			window.Invalidate()
 			if done != nil {
@@ -867,9 +910,22 @@ func (a *App) run(window *app.Window) error {
 			videoWarning := videoRoutingWarning(mediaManager)
 			if audioWarning != "" && audioWarning != lastAudioOperatorWarning {
 				operatorEvents.Add(operatorlog.ShowStopping, "Audio output", audioWarning, show.CueID{}, "")
+			} else if audioWarning == "" && lastAudioOperatorWarning != "" {
+				operatorEvents.Diagnostic("Audio output", "Audio endpoint health restored", nil)
 			}
 			if videoWarning != "" && videoWarning != lastVideoOperatorWarning {
 				operatorEvents.Add(operatorlog.ShowStopping, "Video output", videoWarning, show.CueID{}, "")
+			} else if videoWarning == "" && lastVideoOperatorWarning != "" {
+				operatorEvents.Diagnostic("Video output", "Video output health restored", nil)
+			}
+			for _, metrics := range mediaManager.AudioMixerMetrics() {
+				if previous := lastMixerUnderruns[metrics.EndpointID]; metrics.TotalUnderruns > previous {
+					operatorEvents.Diagnostic("Audio mixer", "Audio underrun count increased", map[string]any{
+						"endpointId": metrics.EndpointID, "underruns": metrics.TotalUnderruns,
+						"activeSources": metrics.ActiveSources, "lastCallback": metrics.LastCallback,
+					})
+				}
+				lastMixerUnderruns[metrics.EndpointID] = metrics.TotalUnderruns
 			}
 			lastAudioOperatorWarning, lastVideoOperatorWarning = audioWarning, videoWarning
 			preflight := preflightService.Request(manager.ShowSnapshot(), settingsStore.Snapshot(), audioWarning, videoWarning, playbackEngine.RemoteHealth(), playbackEngine.CueProblems)
