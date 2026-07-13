@@ -147,7 +147,7 @@
       <thead><tr><th>Layer</th><th>Current owner</th><th>Important coupling</th></tr></thead>
       <tbody>
         <tr><td>Operator UI</td><td><code>main.go</code>, <code>ui/*</code></td><td>Per-frame warning checks can perform filesystem/device work; app exit terminates the whole runtime.</td></tr>
-        <tr><td>Cue engine</td><td><code>playback/engine.go</code></td><td>Every accepted command runs in a separate goroutine and publishes lossy in-memory events.</td></tr>
+        <tr><td>Cue engine</td><td><code>playback/engine.go</code></td><td>Accepted commands receive a monotonic sequence and cross a deterministic action-dispatch gate; declared media decoding remains concurrent.</td></tr>
         <tr><td>Media outputs</td><td><code>media/manager.go</code></td><td>Each Gio output window owns its players. Closing the window also destroys its audio/video players.</td></tr>
         <tr><td>Decode and audio</td><td><code>media/player.go</code>, <code>media/audio.go</code></td><td>Separate FFmpeg processes feed video and audio; each player opens its own malgo device.</td></tr>
         <tr><td>Persistence</td><td><code>main.go</code>, <code>project/archive.go</code>, <code>project/journal.go</code>, <code>config/settings.go</code></td><td>A durable edit journal and verified recovery document protect every show mutation independently of portable archive packaging.</td></tr>
@@ -219,7 +219,7 @@
   <section id="high" class="break">
     <h2>High-priority findings</h2>
 
-    <article class="finding high"><h3><span class="badge high">R-08 High</span>Cue execution order is scheduler-dependent</h3><p>Each dequeued command is immediately launched as an independent goroutine (<code>playback/engine.go:185-193</code>). Rapid GO actions and linked/embedded cues can interleave nondeterministically, including selection changes and remote sends. Use a deterministic command sequencer with explicit concurrency only for declared parallel media work. Record command sequence, accepted time, dispatch time, and completion.</p></article>
+    <article class="finding complete"><h3><span class="badge complete">R-08 Complete</span>Cue actions cross a deterministic command sequencer</h3><p>Every accepted command receives a monotonic sequence while enqueueing. Independent pre-waits may run concurrently, but cue actions cross the sequence gate in acceptance order; cancelled generations explicitly release their sequence so they cannot stall later work. Wait actions release the gate when the wait begins, while media decoding remains the declared parallel boundary. A bounded command audit records sequence, cue, origin, accepted time, dispatch time, and completion time.</p></article>
 
     <article class="finding high"><h3><span class="badge high">R-09 High</span>No pre-roll; readiness warning action complete</h3><p>GO may resolve files, probe video, start one or two FFmpeg processes, enumerate/open a device, and begin decoding. Latency therefore depends on disk cache, Defender, OneDrive, codec startup, and device state. Add a show-mode preflight and pre-roll cache: validate every source, probe streams, warm decoders or buffers for imminent cues, pre-open mixers, and display a per-cue READY/NOT READY state. GO should never discover basic configuration for the first time.</p><p class="complete">Completed sub-action: asynchronous media readiness checks, per-cue state, show-wide preflight, and blocker enforcement. Decoder warming/pre-roll remains open.</p></article>
 

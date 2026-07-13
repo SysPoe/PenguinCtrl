@@ -70,6 +70,20 @@ type CueExecution struct {
 	RemainingMs int64
 }
 
+// CommandRecord is the durable-in-memory audit trail for accepted playback
+// work. Sequence order is the order in which commands are allowed to begin
+// their cue action, regardless of goroutine scheduling.
+type CommandRecord struct {
+	Sequence     uint64
+	CueID        show.CueID
+	CueNumber    string
+	Origin       string
+	Preview      bool
+	AcceptedAt   time.Time
+	DispatchedAt time.Time
+	CompletedAt  time.Time
+}
+
 type Event struct {
 	Sequence    uint64         `json:"sequence,omitempty"`
 	Action      string         `json:"action"`

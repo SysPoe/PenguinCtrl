@@ -18,12 +18,14 @@ import (
 )
 
 type command struct {
-	cue     show.Cue
-	index   int
-	ctx     context.Context
-	runID   uint64
-	preview bool
-	origin  string
+	cue        show.Cue
+	index      int
+	ctx        context.Context
+	runID      uint64
+	preview    bool
+	origin     string
+	sequence   uint64
+	acceptedAt time.Time
 }
 
 type cueRun struct {
@@ -32,39 +34,46 @@ type cueRun struct {
 }
 
 type Engine struct {
-	manager         *show.ShowManager
-	settings        *config.Store
-	remote          *remote.Dispatcher
-	commands        chan command
-	ctx             context.Context
-	cancel          context.CancelFunc
-	runCtx          context.Context
-	runCancel       context.CancelFunc
-	done            chan struct{}
-	hub             *eventHub
-	mu              sync.RWMutex
-	instances       map[string]*Instance
-	executions      map[string]*CueExecution
-	outputVisuals   map[string]Event
-	outputWindows   map[string]Event
-	durations       map[show.CueID]int64
-	durationKeys    map[show.CueID]string
-	durationPending map[show.CueID]string
-	durationErrors  map[show.CueID]string
-	durationProbe   func(string) (int64, error)
-	mediaValidator  func(string, show.CueType) error
-	mediaValidated  map[show.CueID]string
-	mediaPending    map[show.CueID]string
-	mediaErrors     map[show.CueID]string
-	mediaProbeSlots chan struct{}
-	stateEvent      chan struct{}
-	lastError       atomic.Value
-	operatorLog     *operatorlog.Store
-	onChange        func()
-	previewCueID    show.CueID
-	previewPaused   bool
-	cueRuns         map[show.CueID]cueRun
-	nextRunID       uint64
+	manager             *show.ShowManager
+	settings            *config.Store
+	remote              *remote.Dispatcher
+	commands            chan command
+	ctx                 context.Context
+	cancel              context.CancelFunc
+	runCtx              context.Context
+	runCancel           context.CancelFunc
+	done                chan struct{}
+	hub                 *eventHub
+	mu                  sync.RWMutex
+	instances           map[string]*Instance
+	executions          map[string]*CueExecution
+	outputVisuals       map[string]Event
+	outputWindows       map[string]Event
+	durations           map[show.CueID]int64
+	durationKeys        map[show.CueID]string
+	durationPending     map[show.CueID]string
+	durationErrors      map[show.CueID]string
+	durationProbe       func(string) (int64, error)
+	mediaValidator      func(string, show.CueType) error
+	mediaValidated      map[show.CueID]string
+	mediaPending        map[show.CueID]string
+	mediaErrors         map[show.CueID]string
+	mediaProbeSlots     chan struct{}
+	stateEvent          chan struct{}
+	lastError           atomic.Value
+	operatorLog         *operatorlog.Store
+	onChange            func()
+	previewCueID        show.CueID
+	previewPaused       bool
+	cueRuns             map[show.CueID]cueRun
+	nextRunID           uint64
+	enqueueMu           sync.Mutex
+	nextCommandSequence uint64
+	dispatchMu          sync.Mutex
+	dispatchNext        uint64
+	dispatchSkipped     map[uint64]struct{}
+	dispatchNotify      chan struct{}
+	commandHistory      []CommandRecord
 }
 
 func NewEngine(manager *show.ShowManager, settings *config.Store) *Engine {
@@ -77,6 +86,7 @@ func NewEngine(manager *show.ShowManager, settings *config.Store) *Engine {
 		durationKeys: map[show.CueID]string{}, durationPending: map[show.CueID]string{}, durationErrors: map[show.CueID]string{},
 		mediaValidated: map[show.CueID]string{}, mediaPending: map[show.CueID]string{}, mediaErrors: map[show.CueID]string{}, stateEvent: make(chan struct{}, 1),
 		mediaProbeSlots: make(chan struct{}, 1),
+		dispatchNext:    1, dispatchSkipped: map[uint64]struct{}{}, dispatchNotify: make(chan struct{}, 1),
 	}
 }
 
@@ -423,10 +433,16 @@ func (e *Engine) enqueueCommand(cue show.Cue, index int, preview bool, origin st
 	if len(stopped) > 0 {
 		e.signalState()
 	}
+	e.enqueueMu.Lock()
+	sequence := e.nextCommandSequence + 1
+	acceptedAt := time.Now()
 	select {
-	case e.commands <- command{cue: cue, index: index, ctx: runCtx, runID: runID, preview: preview, origin: origin}:
+	case e.commands <- command{cue: cue, index: index, ctx: runCtx, runID: runID, preview: preview, origin: origin, sequence: sequence, acceptedAt: acceptedAt}:
+		e.nextCommandSequence = sequence
+		e.enqueueMu.Unlock()
 		return nil
 	case <-e.ctx.Done():
+		e.enqueueMu.Unlock()
 		e.finishCueRun(cue.ID, runID, true)
 		err := errors.New("playback engine is stopped")
 		if !preview {
@@ -434,6 +450,7 @@ func (e *Engine) enqueueCommand(cue show.Cue, index int, preview bool, origin st
 		}
 		return err
 	default:
+		e.enqueueMu.Unlock()
 		e.finishCueRun(cue.ID, runID, true)
 		err := errors.New("playback command queue is full")
 		if !preview {
@@ -502,8 +519,13 @@ func (e *Engine) execute(next command) {
 	if next.ctx == nil || next.ctx.Err() != nil {
 		return
 	}
-	keepRun := false
+	keepRun, dispatchAdvanced := false, false
+	e.recordCommand(next, time.Time{}, time.Time{})
 	defer func() {
+		if !dispatchAdvanced {
+			e.skipDispatch(next.sequence)
+		}
+		e.recordCommand(next, time.Time{}, time.Now())
 		if !keepRun {
 			cancel := next.ctx.Err() != nil || next.cue.Link.Mode == show.CueLinkManual
 			e.finishCueRun(next.cue.ID, next.runID, cancel)
@@ -517,12 +539,21 @@ func (e *Engine) execute(next command) {
 	if !e.cueRunCurrent(next.cue.ID, next.runID) {
 		return
 	}
+	if !e.awaitDispatch(next.ctx, next.sequence) {
+		return
+	}
+	dispatchedAt := time.Now()
+	e.recordCommand(next, dispatchedAt, time.Time{})
 	e.updateExecution(executionID, "action", 0)
 	// A Start link is tied to GO reaching the cue, not to completion of the
 	// cue's action. Scheduling it here also keeps links working when the cue's
 	// own action reports an error.
 	e.scheduleLink(next.cue.Link, next.index, next.cue.Timing.PostWaitMs, linkStart, next.ctx)
 	var err error
+	if next.cue.Type == show.CueTypeWait {
+		e.advanceDispatch(next.sequence)
+		dispatchAdvanced = true
+	}
 	switch next.cue.Type {
 	case show.CueTypeSound, show.CueTypeVideo, show.CueTypeImage:
 		err = e.startMedia(next)
@@ -545,6 +576,10 @@ func (e *Engine) execute(next command) {
 	default:
 		err = fmt.Errorf("unsupported cue type %d", next.cue.Type)
 	}
+	if !dispatchAdvanced {
+		e.advanceDispatch(next.sequence)
+		dispatchAdvanced = true
+	}
 	if err != nil {
 		if errors.Is(err, context.Canceled) && next.ctx.Err() != nil {
 			return
@@ -559,6 +594,95 @@ func (e *Engine) execute(next command) {
 	if next.cue.Type != show.CueTypeSound && next.cue.Type != show.CueTypeVideo && next.cue.Type != show.CueTypeImage {
 		e.scheduleLink(next.cue.Link, next.index, next.cue.Timing.PostWaitMs, linkEnd, next.ctx)
 	}
+}
+
+func (e *Engine) awaitDispatch(ctx context.Context, sequence uint64) bool {
+	for {
+		e.dispatchMu.Lock()
+		ready := sequence <= e.dispatchNext
+		e.dispatchMu.Unlock()
+		if ready {
+			return ctx.Err() == nil
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-e.dispatchNotify:
+		}
+	}
+}
+
+func (e *Engine) advanceDispatch(sequence uint64) {
+	e.dispatchMu.Lock()
+	if sequence == e.dispatchNext {
+		e.dispatchNext++
+		for {
+			if _, skipped := e.dispatchSkipped[e.dispatchNext]; !skipped {
+				break
+			}
+			delete(e.dispatchSkipped, e.dispatchNext)
+			e.dispatchNext++
+		}
+	}
+	e.dispatchMu.Unlock()
+	e.notifyDispatch()
+}
+
+func (e *Engine) skipDispatch(sequence uint64) {
+	e.dispatchMu.Lock()
+	if sequence >= e.dispatchNext {
+		e.dispatchSkipped[sequence] = struct{}{}
+	}
+	if sequence == e.dispatchNext {
+		for {
+			delete(e.dispatchSkipped, e.dispatchNext)
+			e.dispatchNext++
+			if _, skipped := e.dispatchSkipped[e.dispatchNext]; !skipped {
+				break
+			}
+		}
+	}
+	e.dispatchMu.Unlock()
+	e.notifyDispatch()
+}
+
+func (e *Engine) notifyDispatch() {
+	select {
+	case e.dispatchNotify <- struct{}{}:
+	default:
+	}
+}
+
+func (e *Engine) recordCommand(next command, dispatchedAt, completedAt time.Time) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for index := range e.commandHistory {
+		if e.commandHistory[index].Sequence != next.sequence {
+			continue
+		}
+		if !dispatchedAt.IsZero() {
+			e.commandHistory[index].DispatchedAt = dispatchedAt
+		}
+		if !completedAt.IsZero() {
+			e.commandHistory[index].CompletedAt = completedAt
+		}
+		return
+	}
+	e.commandHistory = append(e.commandHistory, CommandRecord{
+		Sequence: next.sequence, CueID: next.cue.ID, CueNumber: next.cue.CueNumber,
+		Origin: next.origin, Preview: next.preview, AcceptedAt: next.acceptedAt,
+		DispatchedAt: dispatchedAt, CompletedAt: completedAt,
+	})
+	if len(e.commandHistory) > 512 {
+		copy(e.commandHistory, e.commandHistory[len(e.commandHistory)-512:])
+		e.commandHistory = e.commandHistory[:512]
+	}
+}
+
+func (e *Engine) CommandHistory() []CommandRecord {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return append([]CommandRecord(nil), e.commandHistory...)
 }
 
 func cueActionDuration(cue show.Cue) int64 {
