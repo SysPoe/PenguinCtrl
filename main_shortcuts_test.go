@@ -14,6 +14,7 @@ func TestDocumentShortcutsRequestFileActions(t *testing.T) {
 		take  func(*ui.TopBar) bool
 	}{
 		{"new", key.Event{Name: "N", Modifiers: key.ModShortcut, State: key.Press}, (*ui.TopBar).TakeNewRequest},
+		{"load", key.Event{Name: "O", Modifiers: key.ModShortcut, State: key.Press}, (*ui.TopBar).TakeLoadRequest},
 		{"save", key.Event{Name: "S", Modifiers: key.ModShortcut, State: key.Press}, (*ui.TopBar).TakeSaveRequest},
 		{"save as", key.Event{Name: "S", Modifiers: key.ModShortcut | key.ModShift, State: key.Press}, (*ui.TopBar).TakeSaveAsRequest},
 	}

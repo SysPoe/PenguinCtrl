@@ -395,6 +395,11 @@ func (tb *TopBar) TakeLoadRequest() bool {
 	return requested
 }
 
+func (tb *TopBar) RequestLoad() {
+	tb.setAllFalse()
+	tb.loadRequested = true
+}
+
 func (tb *TopBar) TakeSaveRequest() bool {
 	requested := tb.saveRequested
 	tb.saveRequested = false

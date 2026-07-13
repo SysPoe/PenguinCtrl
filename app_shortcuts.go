@@ -78,6 +78,7 @@ func (a *App) handleCueListShortcuts(gtx layout.Context) {
 	for {
 		event, ok := gtx.Event(
 			key.Filter{Name: "N", Required: key.ModShortcut},
+			key.Filter{Name: "O", Required: key.ModShortcut},
 			key.Filter{Name: "S", Required: key.ModShortcut},
 			key.Filter{Name: "S", Required: key.ModShortcut | key.ModShift},
 		)
@@ -176,6 +177,8 @@ func dispatchDocumentShortcut(bar *ui.TopBar, event key.Event) bool {
 	switch event.Name {
 	case "N":
 		bar.RequestNew()
+	case "O":
+		bar.RequestLoad()
 	case "S":
 		if event.Modifiers.Contain(key.ModShift) {
 			bar.RequestSaveAs()
