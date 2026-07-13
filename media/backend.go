@@ -663,6 +663,28 @@ func (s *ffmpegSession) Start(clock *PlaybackClock) error {
 	return nil
 }
 
+func (s *ffmpegSession) watchAudioDevice(audio *devicePlayer) {
+	select {
+	case <-audio.Stopped():
+		if !audio.UnexpectedStop() {
+			return
+		}
+		s.mu.RLock()
+		current := s.audio == audio
+		cmd := s.audioCmd
+		s.mu.RUnlock()
+		if !current {
+			return
+		}
+		s.setRuntimeError(errors.New("audio device stopped unexpectedly after recovery was exhausted"))
+		if cmd != nil && cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+		s.doneOnce.Do(func() { close(s.done) })
+	case <-s.done:
+	}
+}
+
 func (s *ffmpegSession) Frame(position time.Duration) image.Image {
 	s.frameMu.Lock()
 	defer s.frameMu.Unlock()

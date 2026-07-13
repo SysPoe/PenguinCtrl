@@ -17,26 +17,6 @@ func TestParseFrameRate(t *testing.T) {
 	}
 }
 
-func TestDecodeSizeCapsFramesToStageResolution(t *testing.T) {
-	output := config.VideoOutput{ResolutionWidth: 1920, ResolutionHeight: 1080}
-	for _, test := range []struct {
-		name          string
-		width, height int
-		wantW, wantH  int
-	}{
-		{name: "4k landscape", width: 3840, height: 2160, wantW: 1920, wantH: 1080},
-		{name: "4k portrait", width: 2160, height: 3840, wantW: 608, wantH: 1080},
-		{name: "already smaller", width: 1280, height: 720, wantW: 1280, wantH: 720},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			width, height := decodeSize(test.width, test.height, output)
-			if width != test.wantW || height != test.wantH {
-				t.Fatalf("decode size = %dx%d, want %dx%d", width, height, test.wantW, test.wantH)
-			}
-		})
-	}
-}
-
 func TestFrameSelectionDropsStaleFramesAndKeepsNewestDue(t *testing.T) {
 	session := &ffmpegSession{
 		state:  LoadPlaying,
@@ -121,5 +101,25 @@ func TestPlaybackNeedsRefreshOnlyForActiveDecoderStates(t *testing.T) {
 		if playbackNeedsRefresh(state) {
 			t.Errorf("state %q should not refresh", state)
 		}
+	}
+}
+
+func TestDecodeSizeCapsFramesToStageResolution(t *testing.T) {
+	output := config.VideoOutput{ResolutionWidth: 1920, ResolutionHeight: 1080}
+	for _, test := range []struct {
+		name          string
+		width, height int
+		wantW, wantH  int
+	}{
+		{name: "4k landscape", width: 3840, height: 2160, wantW: 1920, wantH: 1080},
+		{name: "4k portrait", width: 2160, height: 3840, wantW: 608, wantH: 1080},
+		{name: "already smaller", width: 1280, height: 720, wantW: 1280, wantH: 720},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			width, height := decodeSize(test.width, test.height, output)
+			if width != test.wantW || height != test.wantH {
+				t.Fatalf("decode size = %dx%d, want %dx%d", width, height, test.wantW, test.wantH)
+			}
+		})
 	}
 }

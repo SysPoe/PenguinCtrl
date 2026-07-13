@@ -66,7 +66,7 @@ func (p *OperatorPanel) LayoutBar(th *material.Theme, gtx layout.Context, store 
 	}
 
 	background := palette.Success
-	title, detail := "OPERATOR STATUS · CLEAR", "No unacknowledged events"
+	title, detail := "CLEAR", ""
 	if active {
 		background = operatorSeverityColor(latest.Severity)
 		title, detail = latest.Severity.Label(), operatorEventSummary(latest)
@@ -244,7 +244,7 @@ func (p *OperatorPanel) layoutBlocker(th *material.Theme, gtx layout.Context, ev
 func (p *OperatorPanel) layoutHeader(th *material.Theme, gtx layout.Context, checks []operatorlog.PreflightCheck) layout.Dimensions {
 	title := "PREFLIGHT SUMMARY"
 	if p.showLog {
-		title = "OPERATOR EVENT / ERROR LOG"
+		title = "Log"
 	}
 	return layout.Inset{Bottom: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		children := []layout.FlexChild{layout.Flexed(1, func(gtx layout.Context) layout.Dimensions { return material.H5(th, title).Layout(gtx) })}
@@ -297,7 +297,7 @@ func (p *OperatorPanel) layoutPreflight(th *material.Theme, gtx layout.Context, 
 	}
 	return material.List(th, &p.list).Layout(gtx, len(checks)+1, func(gtx layout.Context, index int) layout.Dimensions {
 		if index == 0 {
-			return operatorEventCard(th, gtx, preflightColor(checks), "PREFLIGHT REQUIRES ATTENTION", preflightSummary(checks), "Resolve show-stopping items before performance; review warnings and recoverable items with the operator.", false)
+			return operatorEventCard(th, gtx, preflightColor(checks), "ATTENTION REQUIRED", preflightSummary(checks), "Plz resolve all of these before perf.", false)
 		}
 		check := checks[index-1]
 		clickable := &p.preflightClicks[index-1]

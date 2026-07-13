@@ -226,7 +226,7 @@ func (ctx *CueEditUI) drawProblemBar(th *material.Theme, gtx layout.Context, man
 		for _, problem := range actionable {
 			line := problem.Severity.Label() + " · " + problem.Message
 			if problem.Fix != "" {
-				line += " — " + problem.Fix
+				line += " - " + problem.Fix
 			}
 			lines = append(lines, line)
 		}

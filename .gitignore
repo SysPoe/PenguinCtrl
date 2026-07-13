@@ -3,3 +3,5 @@ AGENTS.md
 *.wav
 .audio-normalized-tmp/
 .audio-normalized-limited-tmp/
+cusus.exe
+*.cusus*
