@@ -2,6 +2,7 @@ package media
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -29,9 +30,23 @@ type AudioDevice struct {
 	IsDefault bool
 }
 
+type AudioMixerMetrics struct {
+	EndpointID     string
+	ActiveSources  int
+	Recovering     bool
+	Failed         bool
+	RecoveryCount  uint64
+	LastCallback   time.Time
+	MaxCallback    time.Duration
+	TotalUnderruns uint64
+}
+
 type AudioSystem struct {
 	settings *config.Store
 	context  *malgo.AllocatedContext
+	mu       sync.Mutex
+	mixers   map[string]*endpointMixer
+	closed   bool
 }
 
 func NewAudioSystem(settings *config.Store) (*AudioSystem, error) {
@@ -39,7 +54,7 @@ func NewAudioSystem(settings *config.Store) (*AudioSystem, error) {
 	if err != nil {
 		return nil, fmt.Errorf("initialize audio system: %w", err)
 	}
-	return &AudioSystem{settings: settings, context: context}, nil
+	return &AudioSystem{settings: settings, context: context, mixers: map[string]*endpointMixer{}}, nil
 }
 
 func (a *AudioSystem) Devices() ([]AudioDevice, error) {
@@ -85,46 +100,256 @@ func (a *AudioSystem) NewPreparedPlayer(reader io.Reader, preview bool) (*device
 		deviceID = settings.PreviewAudioDevice
 	}
 
-	deviceConfig := malgo.DefaultDeviceConfig(malgo.Playback)
-	deviceConfig.Playback.Format = malgo.FormatS16
-	deviceConfig.Playback.Channels = audioChannels
-	deviceConfig.SampleRate = audioSampleRate
-	if deviceID != "" {
-		devices, err := a.context.Devices(malgo.Playback)
-		if err != nil {
-			return nil, fmt.Errorf("list audio devices: %w", err)
-		}
-		found := false
-		for i := range devices {
-			if devices[i].ID.String() == deviceID {
-				deviceConfig.Playback.DeviceID = devices[i].ID.Pointer()
-				found = true
-				break
-			}
-		}
-		if !found {
-			return nil, fmt.Errorf("selected audio device is unavailable")
-		}
+	mixer, err := a.mixer(deviceID)
+	if err != nil {
+		return nil, err
 	}
 
 	player := &devicePlayer{
 		reader: reader, ring: newPCMRing(audioRingBytes), done: make(chan struct{}),
-		ready: make(chan struct{}), stopped: make(chan struct{}),
+		ready: make(chan struct{}), stopped: make(chan struct{}), mixer: mixer,
 	}
 	player.volume.Store(1)
-	callbacks := malgo.DeviceCallbacks{Data: player.readSamples, Stop: player.deviceStopped}
-	device, err := malgo.InitDevice(a.context.Context, deviceConfig, callbacks)
-	if err != nil {
-		return nil, fmt.Errorf("open audio device: %w", err)
-	}
-	player.device = device
 	go player.fillRing()
 	return player, nil
 }
 
+func (a *AudioSystem) mixer(deviceID string) (*endpointMixer, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.closed || a.context == nil {
+		return nil, errors.New("audio system is closed")
+	}
+	if mixer := a.mixers[deviceID]; mixer != nil {
+		return mixer, nil
+	}
+	mixer := &endpointMixer{system: a, deviceID: deviceID}
+	mixer.sources.Store([]*devicePlayer{})
+	if err := mixer.openDeviceLocked(); err != nil {
+		return nil, err
+	}
+	a.mixers[deviceID] = mixer
+	return mixer, nil
+}
+
+func (a *AudioSystem) deviceConfig(deviceID string) (malgo.DeviceConfig, error) {
+	deviceConfig := malgo.DefaultDeviceConfig(malgo.Playback)
+	deviceConfig.Playback.Format = malgo.FormatS16
+	deviceConfig.Playback.Channels = audioChannels
+	deviceConfig.SampleRate = audioSampleRate
+	if deviceID == "" {
+		return deviceConfig, nil
+	}
+	devices, err := a.context.Devices(malgo.Playback)
+	if err != nil {
+		return deviceConfig, fmt.Errorf("list audio devices: %w", err)
+	}
+	for i := range devices {
+		if devices[i].ID.String() == deviceID {
+			deviceConfig.Playback.DeviceID = devices[i].ID.Pointer()
+			return deviceConfig, nil
+		}
+	}
+	return deviceConfig, errors.New("selected audio device is unavailable")
+}
+
+func (a *AudioSystem) Close() {
+	a.mu.Lock()
+	if a.closed {
+		a.mu.Unlock()
+		return
+	}
+	a.closed = true
+	mixers := make([]*endpointMixer, 0, len(a.mixers))
+	for _, mixer := range a.mixers {
+		mixers = append(mixers, mixer)
+	}
+	a.mixers = nil
+	a.mu.Unlock()
+	for _, mixer := range mixers {
+		mixer.close()
+	}
+	if a.context != nil {
+		_ = a.context.Uninit()
+		a.context.Free()
+		a.context = nil
+	}
+}
+
+func (a *AudioSystem) Metrics() []AudioMixerMetrics {
+	a.mu.Lock()
+	mixers := make([]*endpointMixer, 0, len(a.mixers))
+	for _, mixer := range a.mixers {
+		mixers = append(mixers, mixer)
+	}
+	a.mu.Unlock()
+	result := make([]AudioMixerMetrics, 0, len(mixers))
+	for _, mixer := range mixers {
+		sources := mixer.sources.Load().([]*devicePlayer)
+		metrics := AudioMixerMetrics{
+			EndpointID: mixer.deviceID, ActiveSources: len(sources), Recovering: mixer.recovering.Load(),
+			Failed: mixer.failed.Load(), RecoveryCount: mixer.recoveries.Load(),
+			MaxCallback: time.Duration(mixer.callbackMax.Load()),
+		}
+		if at := mixer.callbackAt.Load(); at > 0 {
+			metrics.LastCallback = time.Unix(0, at)
+		}
+		for _, source := range sources {
+			metrics.TotalUnderruns += source.Underruns()
+		}
+		result = append(result, metrics)
+	}
+	return result
+}
+
+type endpointMixer struct {
+	system      *AudioSystem
+	deviceID    string
+	mu          sync.Mutex
+	device      *malgo.Device
+	sources     atomic.Value // immutable []*devicePlayer, read without locks by callback
+	started     bool
+	closed      bool
+	recovering  atomic.Bool
+	failed      atomic.Bool
+	recoveries  atomic.Uint64
+	callbackAt  atomic.Int64
+	callbackMax atomic.Int64
+}
+
+func (m *endpointMixer) openDeviceLocked() error {
+	config, err := m.system.deviceConfig(m.deviceID)
+	if err != nil {
+		return err
+	}
+	callbacks := malgo.DeviceCallbacks{Data: m.mix, Stop: m.deviceStopped}
+	device, err := malgo.InitDevice(m.system.context.Context, config, callbacks)
+	if err != nil {
+		return fmt.Errorf("open audio device: %w", err)
+	}
+	m.device = device
+	return nil
+}
+
+func (m *endpointMixer) add(player *devicePlayer) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closed || m.device == nil {
+		return errors.New("audio mixer is unavailable")
+	}
+	current := m.sources.Load().([]*devicePlayer)
+	for _, source := range current {
+		if source == player {
+			return nil
+		}
+	}
+	next := append(append([]*devicePlayer(nil), current...), player)
+	m.sources.Store(next)
+	if !m.started {
+		if err := m.device.Start(); err != nil {
+			m.sources.Store(current)
+			return fmt.Errorf("start audio device: %w", err)
+		}
+		m.started = true
+	}
+	return nil
+}
+
+func (m *endpointMixer) remove(player *devicePlayer) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	current := m.sources.Load().([]*devicePlayer)
+	next := make([]*devicePlayer, 0, len(current))
+	for _, source := range current {
+		if source != player {
+			next = append(next, source)
+		}
+	}
+	m.sources.Store(next)
+}
+
+func (m *endpointMixer) mix(output, _ []byte, _ uint32) {
+	started := time.Now()
+	clear(output)
+	for _, source := range m.sources.Load().([]*devicePlayer) {
+		source.mixInto(output)
+	}
+	now := time.Now()
+	m.callbackAt.Store(now.UnixNano())
+	duration := now.Sub(started).Nanoseconds()
+	for previous := m.callbackMax.Load(); duration > previous && !m.callbackMax.CompareAndSwap(previous, duration); previous = m.callbackMax.Load() {
+	}
+}
+
+func (m *endpointMixer) deviceStopped() {
+	m.mu.Lock()
+	intentional := m.closed
+	m.started = false
+	m.mu.Unlock()
+	if intentional || !m.recovering.CompareAndSwap(false, true) {
+		return
+	}
+	go m.recover()
+}
+
+func (m *endpointMixer) recover() {
+	defer m.recovering.Store(false)
+	backoff := 250 * time.Millisecond
+	for attempt := 0; attempt < 6; attempt++ {
+		time.Sleep(backoff)
+		m.mu.Lock()
+		if m.closed {
+			m.mu.Unlock()
+			return
+		}
+		old := m.device
+		m.device = nil
+		m.mu.Unlock()
+		if old != nil {
+			old.Uninit()
+		}
+		m.mu.Lock()
+		if m.closed {
+			m.mu.Unlock()
+			return
+		}
+		err := m.openDeviceLocked()
+		if err == nil && len(m.sources.Load().([]*devicePlayer)) > 0 {
+			err = m.device.Start()
+			m.started = err == nil
+		}
+		m.mu.Unlock()
+		if err == nil {
+			m.failed.Store(false)
+			m.recoveries.Add(1)
+			return
+		}
+		backoff = min(4*time.Second, backoff*2)
+	}
+	for _, source := range m.sources.Load().([]*devicePlayer) {
+		source.stoppedOnce.Do(func() { close(source.stopped) })
+	}
+	m.failed.Store(true)
+}
+
+func (m *endpointMixer) close() {
+	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return
+	}
+	m.closed = true
+	device := m.device
+	m.device = nil
+	m.mu.Unlock()
+	if device != nil {
+		device.Uninit()
+	}
+}
+
 type devicePlayer struct {
 	reader      io.Reader
-	device      *malgo.Device
+	mixer       *endpointMixer
 	volume      atomic.Uint64
 	ring        *pcmRing
 	done        chan struct{}
@@ -154,29 +379,26 @@ func (p *devicePlayer) Start() error {
 	if p.started {
 		return nil
 	}
-	if err := p.device.Start(); err != nil {
-		return fmt.Errorf("start audio device: %w", err)
+	if p.mixer == nil {
+		return errors.New("audio mixer is unavailable")
+	}
+	if err := p.mixer.add(p); err != nil {
+		return err
 	}
 	p.started = true
 	return nil
 }
 
 func (p *devicePlayer) readSamples(output, _ []byte, _ uint32) {
-	n := p.ring.read(output)
-	clear(output[n:])
+	clear(output)
+	p.mixInto(output)
+}
+
+func (p *devicePlayer) mixInto(output []byte) {
+	volume := float64FromBits(p.volume.Load())
+	n := p.ring.mix(output, volume)
 	if n < len(output) && !p.eof.Load() {
 		p.underruns.Add(1)
-	}
-	volume := float64FromBits(p.volume.Load())
-	if math.Abs(volume-1) < 0.0001 {
-		return
-	}
-	for i := 0; i+1 < len(output); i += 2 {
-		sample := int16(binary.LittleEndian.Uint16(output[i:]))
-		scaledValue := float64(sample) * volume
-		scaledValue = max(-32768.0, min(32767.0, scaledValue))
-		scaled := int16(scaledValue)
-		binary.LittleEndian.PutUint16(output[i:], uint16(scaled))
 	}
 }
 
@@ -212,7 +434,6 @@ func (p *devicePlayer) fillRing() {
 	}
 }
 
-func (p *devicePlayer) deviceStopped()           { p.stoppedOnce.Do(func() { close(p.stopped) }) }
 func (p *devicePlayer) Stopped() <-chan struct{} { return p.stopped }
 func (p *devicePlayer) UnexpectedStop() bool     { return !p.intentional.Load() }
 func (p *devicePlayer) Underruns() uint64        { return p.underruns.Load() }
@@ -230,9 +451,9 @@ func (p *devicePlayer) Close() error {
 	p.closed = true
 	p.intentional.Store(true)
 	close(p.done)
-	if p.device != nil {
-		p.device.Uninit()
-		p.device = nil
+	if p.mixer != nil {
+		p.mixer.remove(p)
+		p.mixer = nil
 	}
 	return nil
 }
@@ -284,6 +505,26 @@ func (r *pcmRing) read(dst []byte) int {
 	first := min(n, len(r.data)-start)
 	copy(dst[:first], r.data[start:start+first])
 	copy(dst[first:n], r.data[:n-first])
+	r.readPos.Store(read + uint64(n))
+	return n
+}
+
+// mix consumes ready S16 samples and adds them to an existing output buffer.
+// It performs no allocation and takes no lock, keeping endpoint callbacks
+// independent from decoders, filesystems, and UI work.
+func (r *pcmRing) mix(output []byte, gain float64) int {
+	read := r.readPos.Load()
+	n := min(len(output), r.available())
+	n -= n % 2
+	for i := 0; i < n; i += 2 {
+		first := r.data[int((read+uint64(i))%uint64(len(r.data)))]
+		second := r.data[int((read+uint64(i+1))%uint64(len(r.data)))]
+		incoming := int16(uint16(first) | uint16(second)<<8)
+		existing := int16(binary.LittleEndian.Uint16(output[i:]))
+		mixed := float64(existing) + float64(incoming)*gain
+		mixed = max(-32768.0, min(32767.0, mixed))
+		binary.LittleEndian.PutUint16(output[i:], uint16(int16(mixed)))
+	}
 	r.readPos.Store(read + uint64(n))
 	return n
 }

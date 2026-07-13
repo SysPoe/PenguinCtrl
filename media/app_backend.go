@@ -4,6 +4,7 @@ package media
 type Backend interface {
 	AudioDevices() ([]AudioDevice, error)
 	AudioDeviceWarning() string
+	AudioMixerMetrics() []AudioMixerMetrics
 	RefreshAudioDeviceStatus()
 	VideoDisplays() ([]VideoDisplay, error)
 	VideoOutputWarning() string

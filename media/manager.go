@@ -60,6 +60,13 @@ func (m *Manager) AudioDevices() ([]AudioDevice, error) {
 	return m.audio.Devices()
 }
 
+func (m *Manager) AudioMixerMetrics() []AudioMixerMetrics {
+	if m.audio == nil {
+		return nil
+	}
+	return m.audio.Metrics()
+}
+
 // AudioDeviceWarning returns a cached warning for selected devices that are no
 // longer present. Empty device IDs intentionally follow Windows' default route
 // and therefore do not depend on one particular endpoint remaining connected.
@@ -72,6 +79,18 @@ func (m *Manager) AudioDeviceWarning() string {
 	m.lastAudioCheck = time.Now()
 	devices, err := m.AudioDevices()
 	m.audioDeviceStatus = audioDeviceWarning(m.settings.Snapshot(), devices, err)
+	if m.audioDeviceStatus == "" {
+		for _, metrics := range m.AudioMixerMetrics() {
+			if metrics.Failed {
+				m.audioDeviceStatus = "An audio endpoint could not be recovered. Active cues on that route are offline."
+				break
+			}
+			if metrics.Recovering {
+				m.audioDeviceStatus = "An audio endpoint stopped unexpectedly. CuSus is reconnecting with bounded retry."
+				break
+			}
+		}
+	}
 	return m.audioDeviceStatus
 }
 
@@ -203,6 +222,9 @@ func (m *Manager) Close() {
 		if output.window != nil {
 			output.window.Perform(system.ActionClose)
 		}
+	}
+	if m.audio != nil {
+		m.audio.Close()
 	}
 }
 

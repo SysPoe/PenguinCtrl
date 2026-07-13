@@ -175,11 +175,12 @@
       <p class="callout good"><strong>Completed:</strong> lifecycle work is generation-based; pause invalidates pending completion, and resume or seek materialises the position and schedules from the new remaining duration. Deterministic tests cover stale pause and backward-seek timers.</p>
     </article>
 
-    <article class="finding critical">
-      <h3><span class="badge critical">R-03 Critical</span>Audio performs blocking I/O in the real-time callback and opens a device per player</h3>
+    <article class="finding complete">
+      <h3><span class="badge complete">R-03 Complete</span>Audio uses long-lived endpoint mixers and non-blocking callbacks</h3>
       <p><strong>Impact:</strong> FFmpeg scheduling, pipe stalls, garbage collection, or a slow disk can block the hardware callback and cause clicks, dropouts, or device hangs. Concurrent cues can exhaust or contend for Windows audio endpoints. Audio also disappears when its owning output window closes.</p>
       <p class="evidence"><strong>Evidence:</strong> <code>media/audio.go:116-127</code> calls <code>io.ReadFull</code> directly inside the malgo data callback. <code>media/audio.go:61-105</code> initialises and starts a new device for every player. Players are stored and closed by <code>outputWindow</code> in <code>media/manager.go:148-209</code>.</p>
       <p><strong>Recommendation:</strong> build one long-lived mixer per physical device. Decode into bounded lock-free or carefully synchronised ring buffers on worker goroutines; the real-time callback must only copy ready samples, apply precomputed gain, and zero-fill on underrun. Keep audio independent of visual windows. Expose underrun counts, callback timing, buffer occupancy, sample clock, and endpoint state.</p>
+      <p class="callout good"><strong>Completed:</strong> playback and preview routes reuse one long-lived mixer per selected physical endpoint. Decoder workers fill bounded SPSC rings; the endpoint callback reads immutable source snapshots without locks, I/O, or allocation, sums with saturating gain, and zero-fills missing samples. Mixer metrics expose active source count, per-source underruns, last/max callback timing, endpoint recovery state, and recovery count. Mixer lifetime is application-owned rather than output-window-owned.</p>
     </article>
 
     <article class="finding critical">
@@ -187,7 +188,7 @@
       <p><strong>Impact:</strong> unplugging a selected endpoint makes new cues fail; an already-open device has no reconnection path. Video can continue silently because its audio-start error is intentionally ignored. Replugging does not rebind active streams.</p>
       <p class="evidence"><strong>Evidence:</strong> <code>media/manager.go:50-98</code> creates a warning by polling enumeration. <code>media/audio.go:75-90</code> rejects a missing selected ID. <code>media/player.go:163-167</code> returns audio startup errors only for audio-only media, discarding them for video. There is no device notification, mixer restart, fallback, or recovery state.</p>
       <p><strong>Recommendation:</strong> use Windows endpoint notifications where available, with a short polling fallback. Define explicit per-route policy: fail closed, switch to named backup, or follow system default. On loss, immediately show a latched red alarm and audible/operator alert, freeze unsafe GO actions if configured, reopen the mixer with bounded exponential retry, and either resume from the shared media clock or require a confirmed operator action. Never hide video-audio failure.</p>
-      <p class="complete">Completed sub-action: endpoint loss and video-audio startup failures now produce a latched, persistent operator alarm and preflight blocker. Continuity/rebind policy remains open.</p>
+      <p class="complete">Completed sub-action: endpoint loss and video-audio startup failures produce a latched persistent operator alarm and preflight blocker. A stopped mixer now retains active source rings and attempts six bounded exponential endpoint reopens; success resumes the shared route and is counted, while exhausted recovery marks the route failed and terminates affected sessions as unexpected. Configurable fail-closed versus named-backup/default-route policy remains open.</p>
     </article>
 
     <article class="finding complete">

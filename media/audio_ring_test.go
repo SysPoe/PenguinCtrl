@@ -60,3 +60,30 @@ func TestAudioCallbackNeverWaitsForDecoder(t *testing.T) {
 		t.Fatalf("underruns = %d, want 1", player.Underruns())
 	}
 }
+
+func TestEndpointMixerCombinesSourcesWithoutAllocation(t *testing.T) {
+	first := &devicePlayer{ring: newPCMRing(16)}
+	second := &devicePlayer{ring: newPCMRing(16)}
+	first.volume.Store(float64Bits(1))
+	second.volume.Store(float64Bits(1))
+	for player, sample := range map[*devicePlayer]int16{first: 1000, second: 2000} {
+		raw := make([]byte, 4)
+		binary.LittleEndian.PutUint16(raw[0:], uint16(sample))
+		binary.LittleEndian.PutUint16(raw[2:], uint16(sample))
+		player.ring.write(raw)
+		player.eof.Store(true)
+	}
+	mixer := &endpointMixer{}
+	mixer.sources.Store([]*devicePlayer{first, second})
+	output := make([]byte, 4)
+	mixer.mix(output, nil, 1)
+	if left, right := int16(binary.LittleEndian.Uint16(output)), int16(binary.LittleEndian.Uint16(output[2:])); left != 3000 || right != 3000 {
+		t.Fatalf("mixed samples = %d/%d, want 3000/3000", left, right)
+	}
+
+	first.ring.write(make([]byte, 4))
+	second.ring.write(make([]byte, 4))
+	if allocations := testing.AllocsPerRun(100, func() { mixer.mix(output, nil, 1) }); allocations != 0 {
+		t.Fatalf("mixer callback allocated %v times", allocations)
+	}
+}
