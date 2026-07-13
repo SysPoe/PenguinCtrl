@@ -52,6 +52,8 @@ func migrateManifest(manifest *Manifest) error {
 		case 1:
 			normalizeShowSchema(&manifest.Show, 2)
 			manifest.Version = 2
+		case 2:
+			manifest.Version = 3
 		default:
 			return fmt.Errorf("no migration is registered from .cusus version %d", manifest.Version)
 		}

@@ -111,7 +111,7 @@ func TestSaveEmitsCurrentGoldenSchema(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !bytes.Contains(encoded, []byte(`"version": 2`)) || !bytes.Contains(encoded, []byte(`"cueNumber": "1"`)) {
+		if !bytes.Contains(encoded, []byte(`"version": 3`)) || !bytes.Contains(encoded, []byte(`"cueNumber": "1"`)) {
 			t.Fatalf("saved manifest is not current schema: %s", encoded)
 		}
 		return

@@ -18,7 +18,7 @@ import (
 
 const (
 	Format                 = "cusus-show"
-	Version                = 2
+	Version                = 3
 	oldestSupportedVersion = 1
 
 	maxArchiveEntries = 16384
@@ -48,10 +48,23 @@ type Manifest struct {
 	OriginalVersion int                        `json:"-"`
 }
 
-// Save writes a portable .cusus ZIP archive. Audio is normalized to Opus,
-// video to AV1/Opus WebM (with VP9 fallback), and images to WebP. Identical
-// source content of the same media kind is transcoded and stored only once.
+type SaveProgress struct {
+	Current int
+	Total   int
+	Kind    string
+	Name    string
+}
+
+// Save writes a portable .cusus ZIP archive.
 func Save(dst io.Writer, current show.Show, ffmpegPath string) (Manifest, error) {
+	return SaveWithProgress(dst, current, ffmpegPath, nil)
+}
+
+// SaveWithProgress writes a portable .cusus ZIP archive and reports each asset
+// before it is prepared. Video containers supported by the playback engine are
+// bundled unchanged so saving a show does not require a lengthy offline encode.
+// Audio and images retain the normalized Opus/WebP archive representation.
+func SaveWithProgress(dst io.Writer, current show.Show, ffmpegPath string, progress func(SaveProgress)) (Manifest, error) {
 	manifest := Manifest{Format: Format, Version: Version, Show: current}
 	normalizeShowSchema(&manifest.Show, Version)
 	if err := validateManifestSchema(manifest); err != nil {
@@ -98,11 +111,11 @@ func Save(dst io.Writer, current show.Show, ffmpegPath string) (Manifest, error)
 		key := kind + ":" + hash
 		pending, ok := assets[key]
 		if !ok {
-			ext := map[string]string{"audio": ".opus", "video": ".webm", "image": ".webp"}[kind]
+			ext, format := archiveAssetFormat(kind, path)
 			id := hash[:24] + "-" + kind
 			pending = pendingAsset{asset: Asset{
 				ID: id, Name: filepath.Base(path), Kind: kind,
-				Path: "media/" + id + ext, SourceSHA256: hash, Format: strings.TrimPrefix(ext, "."),
+				Path: "media/" + id + ext, SourceSHA256: hash, Format: format,
 			}, source: path}
 			assets[key] = pending
 		}
@@ -117,9 +130,12 @@ func Save(dst io.Writer, current show.Show, ffmpegPath string) (Manifest, error)
 	}
 	// Stable ordering keeps archives reproducible for the same inputs.
 	sortStrings(keys)
-	for _, key := range keys {
+	for index, key := range keys {
 		pending := assets[key]
-		converted, err := transcode(ffmpegPath, pending.source, pending.asset.Kind, pending.asset.SourceSHA256)
+		if progress != nil {
+			progress(SaveProgress{Current: index + 1, Total: len(keys), Kind: pending.asset.Kind, Name: pending.asset.Name})
+		}
+		converted, err := prepareAsset(ffmpegPath, pending.source, pending.asset.Kind, pending.asset.Format, pending.asset.SourceSHA256)
 		if err != nil {
 			return Manifest{}, fmt.Errorf("prepare %s %q: %w", pending.asset.Kind, pending.asset.Name, err)
 		}
@@ -162,6 +178,35 @@ func Save(dst io.Writer, current show.Show, ffmpegPath string) (Manifest, error)
 		return Manifest{}, fmt.Errorf("finish show archive: %w", err)
 	}
 	return manifest, nil
+}
+
+func archiveAssetFormat(kind, source string) (extension, format string) {
+	switch kind {
+	case "audio":
+		return ".opus", "opus"
+	case "image":
+		return ".webp", "webp"
+	case "video":
+		extension = strings.ToLower(filepath.Ext(source))
+		switch extension {
+		case ".mp4", ".mov", ".mkv", ".webm", ".avi":
+			return extension, strings.TrimPrefix(extension, ".")
+		default:
+			return ".webm", "webm"
+		}
+	default:
+		return "", ""
+	}
+}
+
+func prepareAsset(ffmpegPath, source, kind, format, sourceHash string) (string, error) {
+	extension := strings.ToLower(filepath.Ext(source))
+	if (kind == "video" && format == strings.TrimPrefix(extension, ".")) ||
+		(kind == "audio" && extension == ".opus") ||
+		(kind == "image" && extension == ".webp") {
+		return source, nil
+	}
+	return transcode(ffmpegPath, source, kind, sourceHash)
 }
 
 // Load reads and extracts a .cusus file. Returned cue paths point at a stable
@@ -321,8 +366,19 @@ func validateAsset(asset Asset, name string, allowMissingContentHash bool) error
 	if asset.Size <= 0 || asset.Size > maxAssetBytes {
 		return fmt.Errorf("asset %q has invalid size %d", name, asset.Size)
 	}
-	wantFormat := map[string]string{"audio": "opus", "video": "webm", "image": "webp"}[asset.Kind]
-	if wantFormat == "" || asset.Format != wantFormat {
+	validFormat := false
+	switch asset.Kind {
+	case "audio":
+		validFormat = asset.Format == "opus"
+	case "image":
+		validFormat = asset.Format == "webp"
+	case "video":
+		switch asset.Format {
+		case "mp4", "mov", "mkv", "webm", "avi":
+			validFormat = true
+		}
+	}
+	if !validFormat {
 		return fmt.Errorf("asset %q has unsupported kind/format %q/%q", name, asset.Kind, asset.Format)
 	}
 	for label, value := range map[string]string{"source": asset.SourceSHA256, "content": asset.ContentSHA256} {

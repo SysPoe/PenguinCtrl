@@ -820,7 +820,10 @@ func (a *App) run(window *app.Window) error {
 			postUI(ctx, func() { operatorPanel.SetStatus("Saving and optimizing bundled media…") })
 			snapshot := manager.ShowSnapshot()
 			saveMu.Lock()
-			manifest, err := saveShowAtPath(path, snapshot, settingsStore.Snapshot().FFmpegPath)
+			manifest, err := saveShowAtPath(path, snapshot, settingsStore.Snapshot().FFmpegPath, func(progress project.SaveProgress) {
+				status := formatSaveProgress(path, progress)
+				postUI(ctx, func() { operatorPanel.SetStatus(status) })
+			})
 			saveMu.Unlock()
 			if err != nil {
 				operatorEvents.Add(operatorlog.Recoverable, "FFmpeg / save show", err.Error(), show.CueID{}, "")
@@ -857,7 +860,10 @@ func (a *App) run(window *app.Window) error {
 			snapshot := manager.ShowSnapshot()
 			postUI(ctx, func() { operatorPanel.SetStatus("Saving " + documentName(path) + "…") })
 			saveMu.Lock()
-			manifest, err := saveShowAtPath(path, snapshot, settingsStore.Snapshot().FFmpegPath)
+			manifest, err := saveShowAtPath(path, snapshot, settingsStore.Snapshot().FFmpegPath, func(progress project.SaveProgress) {
+				status := formatSaveProgress(path, progress)
+				postUI(ctx, func() { operatorPanel.SetStatus(status) })
+			})
 			saveMu.Unlock()
 			if err != nil {
 				operatorEvents.Add(operatorlog.Recoverable, "Save show", err.Error(), show.CueID{}, "")
@@ -1235,6 +1241,10 @@ func formatFileCount(count int) string {
 	return fmt.Sprintf("%d media files", count)
 }
 
+func formatSaveProgress(path string, progress project.SaveProgress) string {
+	return fmt.Sprintf("Saving %s · bundling %s %d/%d · %s", documentName(path), progress.Kind, progress.Current, progress.Total, progress.Name)
+}
+
 func explorerPath(file any) string {
 	var source string
 	switch file := file.(type) {
@@ -1262,7 +1272,7 @@ func showDigest(current show.Show) [sha256.Size]byte {
 	return sha256.Sum256(raw)
 }
 
-func saveShowAtPath(path string, current show.Show, ffmpegPath string) (project.Manifest, error) {
+func saveShowAtPath(path string, current show.Show, ffmpegPath string, progress func(project.SaveProgress)) (project.Manifest, error) {
 	if strings.TrimSpace(path) == "" {
 		return project.Manifest{}, errors.New("show has no file path; use Save As")
 	}
@@ -1275,7 +1285,7 @@ func saveShowAtPath(path string, current show.Show, ffmpegPath string) (project.
 	}
 	tmpPath := tmp.Name()
 	defer os.Remove(tmpPath)
-	manifest, err := project.Save(tmp, current, ffmpegPath)
+	manifest, err := project.SaveWithProgress(tmp, current, ffmpegPath, progress)
 	if err == nil {
 		err = tmp.Sync()
 	}
