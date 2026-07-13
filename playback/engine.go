@@ -76,6 +76,7 @@ type Engine struct {
 	dispatchSkipped     map[uint64]struct{}
 	dispatchNotify      chan struct{}
 	commandHistory      []CommandRecord
+	preflightGate       func() error
 }
 
 func NewEngine(manager *show.ShowManager, settings *config.Store) *Engine {
@@ -105,6 +106,12 @@ func (e *Engine) RemoteHealth() []remote.TargetHealth { return e.remote.Health()
 func (e *Engine) SetOnChange(callback func()) { e.onChange = callback }
 
 func (e *Engine) SetOperatorLog(store *operatorlog.Store) { e.operatorLog = store }
+
+func (e *Engine) SetPreflightGate(gate func() error) {
+	e.mu.Lock()
+	e.preflightGate = gate
+	e.mu.Unlock()
+}
 
 func (e *Engine) SetDurationProbe(probe func(string) (int64, error)) {
 	e.mu.Lock()
@@ -457,6 +464,17 @@ func (e *Engine) enqueueCommand(cue show.Cue, index int, preview bool, origin st
 			e.recordCueError(cue, origin, err)
 		}
 		return err
+	}
+	if !preview {
+		e.mu.RLock()
+		gate := e.preflightGate
+		e.mu.RUnlock()
+		if gate != nil {
+			if err := gate(); err != nil {
+				e.recordCueError(cue, origin+" · preflight", err)
+				return err
+			}
+		}
 	}
 	if cue.Disabled {
 		err := errors.New("cue is disabled")

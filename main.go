@@ -502,6 +502,9 @@ func (a *App) run(window *app.Window) error {
 	lastFrameAt := time.Now()
 	power := startPowerKeeper()
 	defer power.Close()
+	preflightService := newPreflightService()
+	defer preflightService.Close()
+	playbackEngine.SetPreflightGate(func() error { return preflightService.Gate(manager.ShowSnapshot()) })
 	tbCtx.LoadWaveform = func(source string, completed func([]float32, int, int64, error)) {
 		go func() {
 			wave, err := media.ExtractWaveform(settingsStore.Snapshot().FFmpegPath, source)
@@ -851,7 +854,7 @@ func (a *App) run(window *app.Window) error {
 				operatorEvents.Add(operatorlog.ShowStopping, "Video output", videoWarning, show.CueID{}, "")
 			}
 			lastAudioOperatorWarning, lastVideoOperatorWarning = audioWarning, videoWarning
-			preflight := buildPreflightWithProblems(manager.Snapshot(), settingsStore.Snapshot(), audioWarning, videoWarning, playbackEngine.CueProblems)
+			preflight := preflightService.Request(manager.ShowSnapshot(), settingsStore.Snapshot(), audioWarning, videoWarning, playbackEngine.RemoteHealth(), playbackEngine.CueProblems)
 			for i := range preflight {
 				preflight[i].Acknowledged = manager.ProblemAcknowledged(preflight[i].Fingerprint)
 			}
@@ -1072,6 +1075,14 @@ func buildPreflightWithProblems(cues []show.Cue, settings config.Settings, audio
 		hasRemote = hasRemote || cue.Type == show.CueTypeRemote
 		for _, problem := range problemsForCue(cue) {
 			if problem.Severity == show.ProblemState {
+				if problem.Code != "media.check.pending" && problem.Code != "media.check.not-run" {
+					continue
+				}
+				checks = append(checks, operatorlog.PreflightCheck{
+					Severity: operatorlog.ShowStopping, Code: problem.Code, Source: "Media readiness",
+					Message: problem.Message, Consequence: problem.Consequence, Fix: problem.Fix, Field: problem.Field,
+					CueID: cue.ID, CueNumber: cue.CueNumber, Fingerprint: show.ProblemFingerprint(cue, problem, settings),
+				})
 				continue
 			}
 			checks = append(checks, operatorlog.PreflightCheck{
