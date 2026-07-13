@@ -47,8 +47,6 @@ type TopBar struct {
 	stopAllRequest  bool
 	blackoutRequest bool
 	eStopResetting  bool
-	status          string
-	healthStatus    string
 }
 
 func (tb *TopBar) setAllFalse() {
@@ -96,7 +94,7 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, set
 	// Make bg
 	paint.FillShape(
 		gtx.Ops,
-		palette.Surface,
+		palette.Danger,
 		clip.Rect{Max: image.Point{
 			X: gtx.Constraints.Max.X,
 			Y: barHeight,
@@ -193,14 +191,8 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, set
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			setButtonPositions(gtx.Constraints.Max.X, windowWidth)
 
-			text := "CuSus ඞා"
-			if tb.healthStatus != "" {
-				text += "  ·  HEALTH " + tb.healthStatus
-			}
-			if tb.status != "" {
-				text += "  ·  " + tb.status
-			}
-			title := stableBody1(th, text)
+			title := stableBody1(th, "CuSus ඞා")
+			title.Color = palette.White
 			title.TextSize = unit.Sp(float32(topBarHeight) * 0.6)
 			return layoutStableText(gtx, title.Layout)
 		}),
@@ -317,10 +309,6 @@ func (tb *TopBar) RequestSaveAs() {
 	tb.setAllFalse()
 	tb.saveAsRequest = true
 }
-
-func (tb *TopBar) SetStatus(status string) { tb.status = status }
-
-func (tb *TopBar) SetHealth(status string) { tb.healthStatus = status }
 
 func (tb *TopBar) TakePageRequest() bool {
 	requested := tb.pageRequested

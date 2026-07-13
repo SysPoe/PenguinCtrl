@@ -41,12 +41,20 @@ type OperatorPanel struct {
 	settingsBlocker  widget.Clickable
 	skipBlocker      widget.Clickable
 	cancelBlocker    widget.Clickable
+	status           string
+	healthStatus     string
 }
 
 // DismissBlocker closes a latched GO barrier after an explicit operator
 // override succeeds.
 func (p *OperatorPanel) DismissBlocker() {
 	p.showBlocker = false
+}
+
+func (p *OperatorPanel) SetStatus(status string) { p.status = strings.TrimSpace(status) }
+
+func (p *OperatorPanel) SetHealth(status string) {
+	p.healthStatus = strings.ToUpper(strings.TrimSpace(status))
 }
 
 func (p *OperatorPanel) LayoutBar(th *material.Theme, gtx layout.Context, store *operatorlog.Store, checks []operatorlog.PreflightCheck) layout.Dimensions {
@@ -65,14 +73,10 @@ func (p *OperatorPanel) LayoutBar(th *material.Theme, gtx layout.Context, store 
 		latest, active = store.LatestUnacknowledged()
 	}
 
-	background := palette.Success
-	title, detail := "CLEAR", ""
+	background, title, detail := operatorStatusPresentation(p.status, p.healthStatus)
 	if active {
 		background = operatorSeverityColor(latest.Severity)
 		title, detail = latest.Severity.Label(), operatorEventSummary(latest)
-	} else if severity, ok := activePreflightSeverity(checks); ok {
-		background = operatorSeverityColor(severity)
-		title, detail = severity.Label(), "Preflight · "+preflightSummary(checks)
 	}
 	gtx.Constraints.Min.Y = gtx.Dp(unit.Dp(54))
 	gtx.Constraints.Max.Y = gtx.Constraints.Min.Y
@@ -105,19 +109,23 @@ func (p *OperatorPanel) LayoutBar(th *material.Theme, gtx layout.Context, store 
 	})
 }
 
-func activePreflightSeverity(checks []operatorlog.PreflightCheck) (operatorlog.Severity, bool) {
-	highest := operatorlog.Warning
-	active := false
-	for _, check := range checks {
-		if check.Acknowledged {
-			continue
+func operatorStatusPresentation(status, healthStatus string) (color.NRGBA, string, string) {
+	status = strings.TrimSpace(status)
+	healthStatus = strings.ToUpper(strings.TrimSpace(healthStatus))
+	if healthStatus != "" && healthStatus != "NORMAL" {
+		background := palette.Warning
+		switch healthStatus {
+		case "FAILED":
+			background = operatorSeverityColor(operatorlog.ShowStopping)
+		case "RECOVERING":
+			background = palette.Primary
 		}
-		active = true
-		if check.Severity > highest {
-			highest = check.Severity
-		}
+		return background, "HEALTH " + healthStatus, status
 	}
-	return highest, active
+	if status != "" {
+		return palette.Primary, "STATUS", status
+	}
+	return palette.Success, "CLEAR", ""
 }
 
 func (p *OperatorPanel) LayoutOverlay(th *material.Theme, gtx layout.Context, store *operatorlog.Store, checks []operatorlog.PreflightCheck, navigate func(cueID show.CueID, edit bool, field string), acknowledge func(fingerprint string), openSettings func(), skip func()) layout.Dimensions {
@@ -321,9 +329,9 @@ func (p *OperatorPanel) layoutPreflight(th *material.Theme, gtx layout.Context, 
 			message += "\nFix: " + check.Fix
 		}
 		if check.CueID == (show.CueID{}) {
-			return operatorEventCard(th, gtx, operatorSeverityColor(check.Severity), check.Severity.Label(), source, message, false)
+			return operatorEventCard(th, gtx, operatorSeverityColor(check.Severity), preflightSeverityLabel(check.Severity), source, message, false)
 		}
-		heading := check.Severity.Label() + " · CLICK TO FIX"
+		heading := preflightSeverityLabel(check.Severity) + " · CLICK TO FIX"
 		if check.Acknowledged {
 			heading += " · ACKNOWLEDGED"
 		}
@@ -476,7 +484,32 @@ func preflightSummary(checks []operatorlog.PreflightCheck) string {
 			counts[check.Severity]++
 		}
 	}
-	return fmt.Sprintf("%d show-stopping · %d cue failures · %d recoverable · %d warnings", counts[operatorlog.ShowStopping], counts[operatorlog.CueFailure], counts[operatorlog.Recoverable], counts[operatorlog.Warning])
+	return strings.Join([]string{
+		preflightQuantity(counts[operatorlog.ShowStopping]+counts[operatorlog.CueFailure], "blocker"),
+		preflightQuantity(counts[operatorlog.Recoverable], "issue"),
+		preflightQuantity(counts[operatorlog.Warning], "warning"),
+	}, " · ")
+}
+
+func preflightQuantity(count int, singular string) string {
+	noun := singular
+	if count != 1 {
+		noun += "s"
+	}
+	return fmt.Sprintf("%d %s", count, noun)
+}
+
+func preflightSeverityLabel(severity operatorlog.Severity) string {
+	switch severity {
+	case operatorlog.ShowStopping, operatorlog.CueFailure:
+		return "BLOCKER"
+	case operatorlog.Recoverable:
+		return "ISSUE"
+	case operatorlog.Warning:
+		return "WARNING"
+	default:
+		return "CHECK"
+	}
 }
 
 func preflightColor(checks []operatorlog.PreflightCheck) color.NRGBA {

@@ -610,7 +610,7 @@ func (a *App) run(window *app.Window) error {
 	lastSavedDigest := showDigest(manager.ShowSnapshot())
 	if a.Recovered {
 		lastSavedDigest = [sha256.Size]byte{}
-		topBar.SetStatus("Recovered unsaved show edits · save to confirm recovery")
+		operatorPanel.SetStatus("Recovered unsaved show edits · save to confirm recovery")
 		operatorEvents.Diagnostic("Edit recovery", "Recovered unsaved show edits", map[string]any{"documentPath": currentShowPath})
 	}
 	var suppressJournal bool
@@ -718,16 +718,16 @@ func (a *App) run(window *app.Window) error {
 			entry, duplicate, err := projectLibrary.Add(path, kind)
 			if err != nil {
 				operatorEvents.Add(operatorlog.Recoverable, "Media library", err.Error(), show.CueID{}, "")
-				postUI(ctx, func() { topBar.SetStatus("Could not add file: " + err.Error()) })
+				postUI(ctx, func() { operatorPanel.SetStatus("Could not add file: " + err.Error()) })
 				return
 			}
 
 			postUI(ctx, func() {
 				selected(entry.Source)
 				if duplicate {
-					topBar.SetStatus("Duplicate detected · using existing " + entry.Name)
+					operatorPanel.SetStatus("Duplicate detected · using existing " + entry.Name)
 				} else {
-					topBar.SetStatus("Added " + entry.Name)
+					operatorPanel.SetStatus("Added " + entry.Name)
 				}
 			})
 		})
@@ -739,7 +739,7 @@ func (a *App) run(window *app.Window) error {
 			if err != nil {
 				if !errors.Is(err, explorer.ErrUserDecline) {
 					operatorEvents.Add(operatorlog.Recoverable, "Open show", err.Error(), show.CueID{}, "")
-					postUI(ctx, func() { topBar.SetStatus("Open failed: " + err.Error()) })
+					postUI(ctx, func() { operatorPanel.SetStatus("Open failed: " + err.Error()) })
 				}
 				return
 			}
@@ -755,13 +755,13 @@ func (a *App) run(window *app.Window) error {
 			}
 			if err != nil {
 				operatorEvents.Add(operatorlog.Recoverable, "Open show", err.Error(), show.CueID{}, "")
-				postUI(ctx, func() { topBar.SetStatus("Open failed: " + err.Error()) })
+				postUI(ctx, func() { operatorPanel.SetStatus("Open failed: " + err.Error()) })
 				return
 			}
 			manifest, files, err := project.Load(tmp.Name())
 			if err != nil {
 				operatorEvents.Add(operatorlog.Recoverable, "Open show", err.Error(), show.CueID{}, "")
-				postUI(ctx, func() { topBar.SetStatus("Open failed: " + err.Error()) })
+				postUI(ctx, func() { operatorPanel.SetStatus("Open failed: " + err.Error()) })
 				return
 			}
 			postUI(ctx, func() {
@@ -781,7 +781,7 @@ func (a *App) run(window *app.Window) error {
 						operatorEvents.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
 					}
 				}
-				topBar.SetStatus("Loaded " + documentName(loadedPath) + " · recovery journal on")
+				operatorPanel.SetStatus("Loaded " + documentName(loadedPath) + " · recovery journal on")
 				operatorEvents.Diagnostic("Open show", "Show loaded and verified", map[string]any{"documentPath": loadedPath, "assets": len(files)})
 			})
 		})
@@ -801,7 +801,7 @@ func (a *App) run(window *app.Window) error {
 			if err != nil {
 				if !errors.Is(err, explorer.ErrUserDecline) {
 					operatorEvents.Add(operatorlog.Recoverable, "Save show", err.Error(), show.CueID{}, "")
-					postUI(ctx, func() { topBar.SetStatus("Save failed: " + err.Error()) })
+					postUI(ctx, func() { operatorPanel.SetStatus("Save failed: " + err.Error()) })
 				}
 				complete(ctx, false)
 				return
@@ -817,14 +817,14 @@ func (a *App) run(window *app.Window) error {
 				complete(ctx, false)
 				return
 			}
-			postUI(ctx, func() { topBar.SetStatus("Saving and optimizing bundled media…") })
+			postUI(ctx, func() { operatorPanel.SetStatus("Saving and optimizing bundled media…") })
 			snapshot := manager.ShowSnapshot()
 			saveMu.Lock()
 			manifest, err := saveShowAtPath(path, snapshot, settingsStore.Snapshot().FFmpegPath)
 			saveMu.Unlock()
 			if err != nil {
 				operatorEvents.Add(operatorlog.Recoverable, "FFmpeg / save show", err.Error(), show.CueID{}, "")
-				postUI(ctx, func() { topBar.SetStatus("Save failed: " + err.Error()) })
+				postUI(ctx, func() { operatorPanel.SetStatus("Save failed: " + err.Error()) })
 				complete(ctx, false)
 				return
 			}
@@ -838,7 +838,7 @@ func (a *App) run(window *app.Window) error {
 				}
 			}
 			postUI(ctx, func() {
-				topBar.SetStatus("Saved " + documentName(path) + " · recovery journal on · " + formatFileCount(len(manifest.Assets)))
+				operatorPanel.SetStatus("Saved " + documentName(path) + " · recovery journal on · " + formatFileCount(len(manifest.Assets)))
 				operatorEvents.Diagnostic("Save show", "Show archive published", map[string]any{"documentPath": path, "assets": len(manifest.Assets)})
 			})
 			complete(ctx, true)
@@ -855,13 +855,13 @@ func (a *App) run(window *app.Window) error {
 		}
 		tasks.Go("save-show", func(ctx context.Context) {
 			snapshot := manager.ShowSnapshot()
-			postUI(ctx, func() { topBar.SetStatus("Saving " + documentName(path) + "…") })
+			postUI(ctx, func() { operatorPanel.SetStatus("Saving " + documentName(path) + "…") })
 			saveMu.Lock()
 			manifest, err := saveShowAtPath(path, snapshot, settingsStore.Snapshot().FFmpegPath)
 			saveMu.Unlock()
 			if err != nil {
 				operatorEvents.Add(operatorlog.Recoverable, "Save show", err.Error(), show.CueID{}, "")
-				postUI(ctx, func() { topBar.SetStatus("Save failed: " + err.Error()) })
+				postUI(ctx, func() { operatorPanel.SetStatus("Save failed: " + err.Error()) })
 				if done != nil {
 					postUI(ctx, func() { done(false) })
 				}
@@ -876,7 +876,7 @@ func (a *App) run(window *app.Window) error {
 				}
 			}
 			postUI(ctx, func() {
-				topBar.SetStatus("Saved " + documentName(path) + " · recovery journal on · " + formatFileCount(len(manifest.Assets)))
+				operatorPanel.SetStatus("Saved " + documentName(path) + " · recovery journal on · " + formatFileCount(len(manifest.Assets)))
 				operatorEvents.Diagnostic("Save show", "Show archive published", map[string]any{"documentPath": path, "assets": len(manifest.Assets)})
 			})
 			if done != nil {
@@ -900,7 +900,7 @@ func (a *App) run(window *app.Window) error {
 		if a.Journal != nil {
 			_ = a.Journal.MarkSaved(show.Show{}, "")
 		}
-		topBar.SetStatus("New untitled show · recovery journal on")
+		operatorPanel.SetStatus("New untitled show · recovery journal on")
 	}
 	performDocumentAction := func(action ui.DocumentAction) {
 		switch action {
@@ -1005,18 +1005,18 @@ func (a *App) run(window *app.Window) error {
 			}
 			if safetyResume.Clicked(gtx) {
 				if emergencyResetting {
-					topBar.SetStatus("E-STOP reset is still running; playback remains latched")
+					operatorPanel.SetStatus("E-STOP reset is still running; playback remains latched")
 				} else {
 					a.Timecode.Coordinator().Acknowledge(true)
 					playbackEngine.AcknowledgeSafetyLatch()
-					topBar.SetStatus("Playback re-armed after operator acknowledgement · press GO when ready")
+					operatorPanel.SetStatus("Playback re-armed after operator acknowledgement · press GO when ready")
 				}
 			}
 			if topBar.TakeEmergencyStopRequest() {
 				emergencyResetting = true
 				topBar.SetEmergencyResetting(true)
 				playbackEngine.BeginEmergencyReset()
-				topBar.SetStatus("E-STOP asserted · force-stopping and reinitializing media outputs")
+				operatorPanel.SetStatus("E-STOP asserted · force-stopping and reinitializing media outputs")
 				operatorEvents.Add(operatorlog.ShowStopping, "E-STOP", "Force-stopping and reinitializing media outputs", show.CueID{}, "")
 				resetter, ok := mediaManager.(media.EmergencyResetter)
 				if !ok {
@@ -1024,7 +1024,7 @@ func (a *App) run(window *app.Window) error {
 					playbackEngine.CompleteEmergencyReset(err)
 					emergencyResetting = false
 					topBar.SetEmergencyResetting(false)
-					topBar.SetStatus("E-STOP reset failed · " + err.Error())
+					operatorPanel.SetStatus("E-STOP reset failed · " + err.Error())
 				} else {
 					tasks.Go("emergency-media-reset", func(ctx context.Context) {
 						err := resetter.EmergencyReset(ctx)
@@ -1033,11 +1033,11 @@ func (a *App) run(window *app.Window) error {
 							emergencyResetting = false
 							topBar.SetEmergencyResetting(false)
 							if err != nil {
-								topBar.SetStatus("E-STOP reset failed · playback remains latched")
+								operatorPanel.SetStatus("E-STOP reset failed · playback remains latched")
 								return
 							}
 							mediaManager.SyncOutputs(playbackEngine.OutputIDs())
-							topBar.SetStatus("E-STOP reset complete · media outputs ready")
+							operatorPanel.SetStatus("E-STOP reset complete · media outputs ready")
 							operatorEvents.Add(operatorlog.Info, "E-STOP", "Media outputs reinitialized and playback re-armed", show.CueID{}, "")
 						})
 					})
@@ -1045,11 +1045,11 @@ func (a *App) run(window *app.Window) error {
 			}
 			if topBar.TakeStopAllRequest() {
 				playbackEngine.StopAll()
-				topBar.SetStatus("STOP ALL dispatched · F12")
+				operatorPanel.SetStatus("STOP ALL dispatched · F12")
 			}
 			if topBar.TakeBlackoutRequest() {
 				playbackEngine.BlackoutAll()
-				topBar.SetStatus("BLACKOUT asserted · Ctrl+Shift+B")
+				operatorPanel.SetStatus("BLACKOUT asserted · Ctrl+Shift+B")
 			}
 			audioWarning := mediaManager.AudioDeviceWarning()
 			videoWarning := videoRoutingWarning(mediaManager)
@@ -1082,7 +1082,7 @@ func (a *App) run(window *app.Window) error {
 			}
 			lastAudioOperatorWarning, lastVideoOperatorWarning = audioWarning, videoWarning
 			healthSnapshot := healthMonitor.Snapshot()
-			topBar.SetHealth(healthSnapshot.Overall.String())
+			operatorPanel.SetHealth(healthSnapshot.Overall.String())
 			showState, settingsState := manager.ShowSnapshot(), settingsStore.Snapshot()
 			preflight := preflightService.Request(showState, settingsState, audioWarning, videoWarning, playbackEngine.RemoteHealth(), playbackEngine.CueProblems)
 			a.Redundancy.UpdateFingerprint(buildRedundancyFingerprint(showState, settingsState, projectLibrary.Files(""), redundancyPreflightReady(preflight)))
