@@ -43,6 +43,9 @@ type Engine struct {
 	runCtx              context.Context
 	runCancel           context.CancelFunc
 	done                chan struct{}
+	workerMu            sync.Mutex
+	workers             sync.WaitGroup
+	closing             bool
 	hub                 *eventHub
 	mu                  sync.RWMutex
 	instances           map[string]*Instance
@@ -98,7 +101,26 @@ func (e *Engine) Start() { go e.run() }
 func (e *Engine) Close() {
 	e.cancel()
 	<-e.done
+	e.workerMu.Lock()
+	e.closing = true
+	e.workerMu.Unlock()
+	e.workers.Wait()
 	e.remote.Close()
+}
+
+func (e *Engine) goOwned(work func()) bool {
+	e.workerMu.Lock()
+	if e.closing {
+		e.workerMu.Unlock()
+		return false
+	}
+	e.workers.Add(1)
+	e.workerMu.Unlock()
+	go func() {
+		defer e.workers.Done()
+		work()
+	}()
+	return true
 }
 
 func (e *Engine) RemoteHealth() []remote.TargetHealth { return e.remote.Health() }
@@ -210,7 +232,7 @@ func (e *Engine) RefreshDurations() {
 	}
 	for _, next := range tasks {
 		next := next
-		go func() {
+		e.goOwned(func() {
 			if !e.acquireMediaProbe() {
 				return
 			}
@@ -233,11 +255,11 @@ func (e *Engine) RefreshDurations() {
 			if valid || (current && err != nil) {
 				e.changed()
 			}
-		}()
+		})
 	}
 	for _, next := range validationTasks {
 		next := next
-		go func() {
+		e.goOwned(func() {
 			if !e.acquireMediaProbe() {
 				return
 			}
@@ -258,7 +280,7 @@ func (e *Engine) RefreshDurations() {
 			if current {
 				e.changed()
 			}
-		}()
+		})
 	}
 }
 
@@ -361,7 +383,7 @@ func (e *Engine) run() {
 		case <-e.ctx.Done():
 			return
 		case next := <-e.commands:
-			go e.execute(next)
+			e.goOwned(func() { e.execute(next) })
 		}
 	}
 }
@@ -853,7 +875,7 @@ func (e *Engine) scheduleLink(link show.CueLink, sourceIndex int, delayMs int64,
 	if !linkMatches(link.Mode, moment) {
 		return
 	}
-	go func() {
+	e.goOwned(func() {
 		if !waitContext(runCtx, time.Duration(max(0, delayMs))*time.Millisecond) {
 			return
 		}
@@ -875,7 +897,7 @@ func (e *Engine) scheduleLink(link show.CueLink, sourceIndex int, delayMs int64,
 		e.manager.SelectCue(targetIndex)
 		e.changed()
 		_ = e.enqueue(target, targetIndex, fmt.Sprintf("Cue link from %s", cueDisplayNumberAt(e.manager.Snapshot(), sourceIndex)))
-	}()
+	})
 }
 
 func linkMatches(mode show.CueLinkMode, moment linkMoment) bool {
@@ -984,7 +1006,7 @@ func (e *Engine) scheduleTimecode(instanceID string, cue show.Cue, cueIndex int,
 		if marker.Disabled || marker.TimeMs < 0 {
 			continue
 		}
-		go func() {
+		e.goOwned(func() {
 			if !waitContext(runCtx, time.Duration(marker.TimeMs)*time.Millisecond) || !e.hasInstance(instanceID) {
 				return
 			}
@@ -999,7 +1021,7 @@ func (e *Engine) scheduleTimecode(instanceID string, cue show.Cue, cueIndex int,
 				Type: marker.Type, Play: action, Link: show.CueLink{Mode: show.CueLinkManual},
 			}
 			e.execute(command{cue: embedded, index: cueIndex, ctx: runCtx, origin: "Timecode at " + formatPlaybackTime(marker.TimeMs)})
-		}()
+		})
 	}
 }
 
@@ -1049,7 +1071,8 @@ func (e *Engine) scheduleInstanceLifecycle(instanceID string) {
 
 	fadeOutAt := remainingMs - max(int64(0), snapshot.FadeOutMs)
 	if snapshot.FadeOutMs > 0 && fadeOutAt >= 0 {
-		go func(instance Instance, wait time.Duration) {
+		instance, wait := snapshot, time.Duration(fadeOutAt)*time.Millisecond
+		e.goOwned(func() {
 			if !waitContext(instance.RunContext, wait) || !e.lifecycleCurrent(instance.ID, generation) {
 				return
 			}
@@ -1061,13 +1084,14 @@ func (e *Engine) scheduleInstanceLifecycle(instanceID string) {
 			}
 			e.mu.Unlock()
 			e.HandleOutputReport(instance.ID, "fade-out-start")
-		}(snapshot, time.Duration(fadeOutAt)*time.Millisecond)
+		})
 	}
-	go func(id string, wait time.Duration) {
+	id, wait := snapshot.ID, time.Duration(remainingMs)*time.Millisecond
+	e.goOwned(func() {
 		if waitContext(snapshot.RunContext, wait) && e.lifecycleCurrent(id, generation) {
 			e.HandleOutputReport(id, "ended")
 		}
-	}(snapshot.ID, time.Duration(remainingMs)*time.Millisecond)
+	})
 }
 
 func resolveOutput(value string, settings config.Settings, cueNumber string) string {
@@ -1167,11 +1191,12 @@ func (e *Engine) executeMediaControl(cue show.Cue, runCtx context.Context) error
 	if play.Action == show.MediaControlStop || play.Action == show.MediaControlFadeOut {
 		delay := time.Duration(max(0, play.FadeMs)) * time.Millisecond
 		for _, instance := range instances {
-			go func(id string) {
+			id := instance.ID
+			e.goOwned(func() {
 				if waitContext(runCtx, delay) {
 					e.HandleOutputReport(id, "ended")
 				}
-			}(instance.ID)
+			})
 		}
 	}
 	e.signalState()
@@ -1202,23 +1227,23 @@ func (e *Engine) executeOutputControl(cue show.Cue, runCtx context.Context) erro
 	e.mu.Unlock()
 	e.hub.publish(event)
 	if play.Action == show.OutputControlBlackout {
-		go func() {
+		e.goOwned(func() {
 			if !waitContext(runCtx, time.Duration(max(int64(0), play.FadeOutMs))*time.Millisecond) {
 				return
 			}
 			e.freezeImagesForOutput(outputID)
-		}()
+		})
 	}
 	if play.Action == show.OutputControlClear {
 		instances := e.instancesForOutput(outputID)
-		go func() {
+		e.goOwned(func() {
 			if !waitContext(runCtx, time.Duration(max(int64(0), play.FadeOutMs))*time.Millisecond) {
 				return
 			}
 			for _, instance := range instances {
 				e.HandleOutputReport(instance.ID, "ended")
 			}
-		}()
+		})
 	}
 	return nil
 }

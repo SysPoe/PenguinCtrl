@@ -38,6 +38,11 @@ type Player struct {
 	duration func(int64)
 	failure  func(error)
 	backend  PlaybackBackend
+	ctx      context.Context
+	cancel   context.CancelFunc
+	workerMu sync.Mutex
+	workers  sync.WaitGroup
+	closing  bool
 
 	mu            sync.RWMutex
 	frame         image.Image
@@ -59,10 +64,26 @@ func NewPlayer(instance playback.Instance, settings *config.Store, audio *AudioS
 }
 
 func NewPlayerWithBackend(instance playback.Instance, settings *config.Store, backend PlaybackBackend, window *app.Window, report func(string), duration func(int64), failure func(error)) *Player {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Player{
 		instance: instance, settings: settings, window: window, report: report, duration: duration, failure: failure,
-		backend: backend, volumeDB: instance.LevelDB, decodeVisible: true,
+		backend: backend, volumeDB: instance.LevelDB, decodeVisible: true, ctx: ctx, cancel: cancel,
 	}
+}
+
+func (p *Player) goOwned(work func(context.Context)) bool {
+	p.workerMu.Lock()
+	if p.closing {
+		p.workerMu.Unlock()
+		return false
+	}
+	p.workers.Add(1)
+	p.workerMu.Unlock()
+	go func() {
+		defer p.workers.Done()
+		work(p.ctx)
+	}()
+	return true
 }
 
 func (p *Player) MediaType() string { return p.instance.MediaType }
@@ -88,7 +109,7 @@ func (p *Player) SetDecodeVisible(visible bool) {
 	position, paused := p.position, p.paused
 	p.mu.Unlock()
 	if !paused {
-		go func() { _ = p.restart(position) }()
+		p.goOwned(func(context.Context) { _ = p.restart(position) })
 	}
 }
 
@@ -128,7 +149,7 @@ func (p *Player) Start() error {
 	// Duration metadata is useful to the cue list, but a separate FFprobe must
 	// not sit in front of decoder startup. The playback backend has completed
 	// its required stream probe by this point.
-	go p.discoverDuration()
+	p.goOwned(func(ctx context.Context) { p.discoverDuration(ctx) })
 	p.scheduleFadeInReport()
 	return nil
 }
@@ -138,20 +159,24 @@ func (p *Player) scheduleFadeInReport() {
 		return
 	}
 	generation := p.generation
-	go func() {
+	p.goOwned(func(ctx context.Context) {
 		timer := time.NewTimer(time.Duration(p.instance.FadeInMs) * time.Millisecond)
 		defer timer.Stop()
-		<-timer.C
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			return
+		}
 		p.mu.RLock()
 		active := !p.closed && !p.paused && p.generation == generation
 		p.mu.RUnlock()
 		if active {
 			p.report("fade-in-complete")
 		}
-	}()
+	})
 }
 
-func (p *Player) discoverDuration() {
+func (p *Player) discoverDuration(ctx context.Context) {
 	p.mu.RLock()
 	instance := p.instance
 	closed := p.closed
@@ -159,7 +184,7 @@ func (p *Player) discoverDuration() {
 	if closed || instance.DurationMs > 0 || (instance.MediaType != "audio" && instance.MediaType != "video") {
 		return
 	}
-	mediaDurationMs, err := ProbeDurationMs(p.settings.Snapshot().FFmpegPath, instance.Source)
+	mediaDurationMs, err := ProbeDurationMsContext(ctx, p.settings.Snapshot().FFmpegPath, instance.Source)
 	if err != nil {
 		return
 	}
@@ -229,7 +254,7 @@ func (p *Player) restart(position time.Duration) error {
 	session.SetVolume(volume)
 	session.SetMuted(muted)
 	if session.State() != LoadReady {
-		if err := session.Preload(context.Background()); err != nil {
+		if err := session.Preload(p.ctx); err != nil {
 			session.Close()
 			return err
 		}
@@ -251,8 +276,12 @@ func (p *Player) restart(position time.Duration) error {
 	p.mu.Unlock()
 	p.report("started")
 	p.window.Invalidate()
-	go func() {
-		<-session.Done()
+	p.goOwned(func(ctx context.Context) {
+		select {
+		case <-session.Done():
+		case <-ctx.Done():
+			return
+		}
 		p.mu.RLock()
 		active := !p.closed && !p.paused && p.generation == generation
 		p.mu.RUnlock()
@@ -265,7 +294,7 @@ func (p *Player) restart(position time.Duration) error {
 		} else if metrics.State == LoadEnded {
 			p.report("ended")
 		}
-	}()
+	})
 	return nil
 }
 
@@ -352,17 +381,22 @@ func (p *Player) setVolume(target float64, duration time.Duration, curve show.Fa
 		p.applyVolume(target)
 		return
 	}
-	go func() {
+	p.goOwned(func(ctx context.Context) {
 		started := time.Now()
 		ticker := time.NewTicker(20 * time.Millisecond)
 		defer ticker.Stop()
-		for now := range ticker.C {
-			progress := min(1.0, float64(now.Sub(started))/float64(duration))
-			if !p.applyFadeVolume(fadeVolumeDB(start, target, progress, curve), fadeID) || progress >= 1 {
+		for {
+			select {
+			case now := <-ticker.C:
+				progress := min(1.0, float64(now.Sub(started))/float64(duration))
+				if !p.applyFadeVolume(fadeVolumeDB(start, target, progress, curve), fadeID) || progress >= 1 {
+					return
+				}
+			case <-ctx.Done():
 				return
 			}
 		}
-	}()
+	})
 }
 
 func fadeVolumeDB(startDB, targetDB, progress float64, curve show.FadeCurve) float64 {
@@ -489,6 +523,13 @@ func (p *Player) Close(report bool) {
 	p.generation++
 	p.stopSessionLocked()
 	p.mu.Unlock()
+	p.workerMu.Lock()
+	if !p.closing {
+		p.closing = true
+		p.cancel()
+	}
+	p.workerMu.Unlock()
+	p.workers.Wait()
 	if report {
 		p.report("stopped")
 	}
@@ -524,7 +565,11 @@ func sourcePath(source string) (string, error) {
 }
 
 func probeMediaDuration(ffmpegPath, source string) (time.Duration, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), mediaProbeTimeout)
+	return probeMediaDurationContext(context.Background(), ffmpegPath, source)
+}
+
+func probeMediaDurationContext(parent context.Context, ffmpegPath, source string) (time.Duration, error) {
+	ctx, cancel := context.WithTimeout(parent, mediaProbeTimeout)
 	defer cancel()
 	command := processgroup.CommandContext(ctx, ffprobePath(ffmpegPath), "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", source)
 	output, err := processgroup.Output(command)
@@ -542,11 +587,15 @@ func probeMediaDuration(ffmpegPath, source string) (time.Duration, error) {
 }
 
 func ProbeDurationMs(ffmpegPath, source string) (int64, error) {
+	return ProbeDurationMsContext(context.Background(), ffmpegPath, source)
+}
+
+func ProbeDurationMsContext(ctx context.Context, ffmpegPath, source string) (int64, error) {
 	path, err := sourcePath(source)
 	if err != nil {
 		return 0, err
 	}
-	duration, err := probeMediaDuration(ffmpegPath, path)
+	duration, err := probeMediaDurationContext(ctx, ffmpegPath, path)
 	if err != nil {
 		return 0, err
 	}

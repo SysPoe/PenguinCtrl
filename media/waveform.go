@@ -23,6 +23,10 @@ type Waveform struct {
 // rate is sufficient for a visual overview while keeping long show files
 // responsive in the native editor.
 func ExtractWaveform(ffmpegPath, source string) (Waveform, error) {
+	return ExtractWaveformContext(context.Background(), ffmpegPath, source)
+}
+
+func ExtractWaveformContext(parent context.Context, ffmpegPath, source string) (Waveform, error) {
 	path, err := sourcePath(source)
 	if err != nil {
 		return Waveform{}, err
@@ -32,7 +36,7 @@ func ExtractWaveform(ffmpegPath, source string) (Waveform, error) {
 		return Waveform{}, err
 	}
 	const sampleRate = 400
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(parent, 2*time.Minute)
 	defer cancel()
 	cmd := processgroup.CommandContext(ctx, ffmpegPath, "-v", "error", "-i", path, "-map", "0:a:0", "-ac", "1", "-ar", fmt.Sprint(sampleRate), "-f", "s16le", "pipe:1")
 	raw, err := processgroup.Output(cmd)

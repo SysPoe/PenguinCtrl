@@ -770,12 +770,12 @@ func (o *outputWindow) start(instance *playback.Instance) {
 		func(err error) { o.manager.engine.HandleOutputError(instance.ID, err) },
 	)
 	o.players[instance.ID] = player
-	go func() {
+	player.goOwned(func(context.Context) {
 		if err := player.Start(); err != nil {
 			log.Printf("play %s: %v", instance.Source, err)
 			o.manager.engine.HandleOutputError(instance.ID, err)
 		}
-	}()
+	})
 }
 
 func (o *outputWindow) handleOutputControl(event playback.Event) {

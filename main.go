@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/syspoe/cusus/config"
 	"github.com/syspoe/cusus/internal/crashreport"
+	"github.com/syspoe/cusus/internal/taskgroup"
 	"github.com/syspoe/cusus/media"
 	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/palette"
@@ -523,6 +525,21 @@ func (a *App) run(window *app.Window) error {
 	th := newTheme()
 	expl := explorer.NewExplorer(window)
 	uiActions := make(chan func(), 16)
+	tasks := taskgroup.New(context.Background(), 4)
+	defer func() {
+		if err := tasks.Close(3 * time.Second); err != nil {
+			operatorEvents.Diagnostic("Shutdown", err.Error(), nil)
+		}
+	}()
+	postUI := func(ctx context.Context, action func()) bool {
+		select {
+		case uiActions <- action:
+			window.Invalidate()
+			return true
+		case <-ctx.Done():
+			return false
+		}
+	}
 	var documentMu sync.RWMutex
 	var saveMu sync.Mutex
 	currentShowPath := a.RecoveredPath
@@ -564,14 +581,13 @@ func (a *App) run(window *app.Window) error {
 	)
 	defer cacheMaintainer.Close()
 	tbCtx.LoadWaveform = func(source string, completed func([]float32, int, int64, error)) {
-		go func() {
-			wave, err := media.ExtractWaveform(settingsStore.Snapshot().FFmpegPath, source)
+		tasks.Go("waveform", func(ctx context.Context) {
+			wave, err := media.ExtractWaveformContext(ctx, settingsStore.Snapshot().FFmpegPath, source)
 			if err != nil {
 				operatorEvents.Add(operatorlog.Recoverable, "FFmpeg waveform", err.Error(), show.CueID{}, "")
 			}
-			uiActions <- func() { completed(wave.Samples, wave.SampleRate, wave.DurationMs, err) }
-			window.Invalidate()
-		}()
+			postUI(ctx, func() { completed(wave.Samples, wave.SampleRate, wave.DurationMs, err) })
+		})
 	}
 	playbackEngine.SetOnChange(func() {
 		window.Invalidate()
@@ -602,7 +618,7 @@ func (a *App) run(window *app.Window) error {
 		return result
 	}
 	tbCtx.PickFile = func(kind string, extensions []string, selected func(path string)) {
-		go func() {
+		tasks.Go("pick-media", func(ctx context.Context) {
 			file, err := expl.ChooseFile(extensions...)
 			if err != nil {
 				if !errors.Is(err, explorer.ErrUserDecline) {
@@ -626,31 +642,28 @@ func (a *App) run(window *app.Window) error {
 			entry, duplicate, err := projectLibrary.Add(path, kind)
 			if err != nil {
 				operatorEvents.Add(operatorlog.Recoverable, "Media library", err.Error(), show.CueID{}, "")
-				uiActions <- func() { topBar.SetStatus("Could not add file: " + err.Error()) }
-				window.Invalidate()
+				postUI(ctx, func() { topBar.SetStatus("Could not add file: " + err.Error()) })
 				return
 			}
 
-			uiActions <- func() {
+			postUI(ctx, func() {
 				selected(entry.Source)
 				if duplicate {
 					topBar.SetStatus("Duplicate detected · using existing " + entry.Name)
 				} else {
 					topBar.SetStatus("Added " + entry.Name)
 				}
-			}
-			window.Invalidate()
-		}()
+			})
+		})
 	}
 
 	loadShow := func() {
-		go func() {
+		tasks.Go("open-show", func(ctx context.Context) {
 			file, err := expl.ChooseFile(".cusus")
 			if err != nil {
 				if !errors.Is(err, explorer.ErrUserDecline) {
 					operatorEvents.Add(operatorlog.Recoverable, "Open show", err.Error(), show.CueID{}, "")
-					uiActions <- func() { topBar.SetStatus("Open failed: " + err.Error()) }
-					window.Invalidate()
+					postUI(ctx, func() { topBar.SetStatus("Open failed: " + err.Error()) })
 				}
 				return
 			}
@@ -666,18 +679,16 @@ func (a *App) run(window *app.Window) error {
 			}
 			if err != nil {
 				operatorEvents.Add(operatorlog.Recoverable, "Open show", err.Error(), show.CueID{}, "")
-				uiActions <- func() { topBar.SetStatus("Open failed: " + err.Error()) }
-				window.Invalidate()
+				postUI(ctx, func() { topBar.SetStatus("Open failed: " + err.Error()) })
 				return
 			}
 			manifest, files, err := project.Load(tmp.Name())
 			if err != nil {
 				operatorEvents.Add(operatorlog.Recoverable, "Open show", err.Error(), show.CueID{}, "")
-				uiActions <- func() { topBar.SetStatus("Open failed: " + err.Error()) }
-				window.Invalidate()
+				postUI(ctx, func() { topBar.SetStatus("Open failed: " + err.Error()) })
 				return
 			}
-			uiActions <- func() {
+			postUI(ctx, func() {
 				playbackEngine.StopAll()
 				projectLibrary.Replace(files)
 				documentMu.Lock()
@@ -696,54 +707,49 @@ func (a *App) run(window *app.Window) error {
 				}
 				topBar.SetStatus("Loaded " + documentName(loadedPath) + " · recovery journal on")
 				operatorEvents.Diagnostic("Open show", "Show loaded and verified", map[string]any{"documentPath": loadedPath, "assets": len(files)})
-			}
-			window.Invalidate()
-		}()
+			})
+		})
 	}
 
 	var saveAsShow func(func(bool))
 	var saveShow func(func(bool))
 
 	saveAsShow = func(done func(bool)) {
-		complete := func(success bool) {
+		complete := func(ctx context.Context, success bool) {
 			if done != nil {
-				uiActions <- func() { done(success) }
-				window.Invalidate()
+				postUI(ctx, func() { done(success) })
 			}
 		}
-		go func() {
+		tasks.Go("save-show-as", func(ctx context.Context) {
 			file, err := expl.CreateFile("show.cusus")
 			if err != nil {
 				if !errors.Is(err, explorer.ErrUserDecline) {
 					operatorEvents.Add(operatorlog.Recoverable, "Save show", err.Error(), show.CueID{}, "")
-					uiActions <- func() { topBar.SetStatus("Save failed: " + err.Error()) }
-					window.Invalidate()
+					postUI(ctx, func() { topBar.SetStatus("Save failed: " + err.Error()) })
 				}
-				complete(false)
+				complete(ctx, false)
 				return
 			}
 			path := explorerPath(file)
 			if closeErr := file.Close(); closeErr != nil {
 				operatorEvents.Add(operatorlog.Recoverable, "Save show", closeErr.Error(), show.CueID{}, "")
-				complete(false)
+				complete(ctx, false)
 				return
 			}
 			if strings.TrimSpace(path) == "" {
 				operatorEvents.Add(operatorlog.Recoverable, "Save show", "file picker did not return a filesystem path", show.CueID{}, "")
-				complete(false)
+				complete(ctx, false)
 				return
 			}
-			uiActions <- func() { topBar.SetStatus("Saving and optimizing bundled media…") }
-			window.Invalidate()
+			postUI(ctx, func() { topBar.SetStatus("Saving and optimizing bundled media…") })
 			snapshot := manager.ShowSnapshot()
 			saveMu.Lock()
 			manifest, err := saveShowAtPath(path, snapshot, settingsStore.Snapshot().FFmpegPath)
 			saveMu.Unlock()
 			if err != nil {
 				operatorEvents.Add(operatorlog.Recoverable, "FFmpeg / save show", err.Error(), show.CueID{}, "")
-				uiActions <- func() { topBar.SetStatus("Save failed: " + err.Error()) }
-				window.Invalidate()
-				complete(false)
+				postUI(ctx, func() { topBar.SetStatus("Save failed: " + err.Error()) })
+				complete(ctx, false)
 				return
 			}
 			documentMu.Lock()
@@ -755,13 +761,12 @@ func (a *App) run(window *app.Window) error {
 					operatorEvents.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
 				}
 			}
-			uiActions <- func() {
+			postUI(ctx, func() {
 				topBar.SetStatus("Saved " + documentName(path) + " · recovery journal on · " + formatFileCount(len(manifest.Assets)))
 				operatorEvents.Diagnostic("Save show", "Show archive published", map[string]any{"documentPath": path, "assets": len(manifest.Assets)})
-			}
-			window.Invalidate()
-			complete(true)
-		}()
+			})
+			complete(ctx, true)
+		})
 	}
 
 	saveShow = func(done func(bool)) {
@@ -772,19 +777,17 @@ func (a *App) run(window *app.Window) error {
 			saveAsShow(done)
 			return
 		}
-		go func() {
+		tasks.Go("save-show", func(ctx context.Context) {
 			snapshot := manager.ShowSnapshot()
-			uiActions <- func() { topBar.SetStatus("Saving " + documentName(path) + "…") }
-			window.Invalidate()
+			postUI(ctx, func() { topBar.SetStatus("Saving " + documentName(path) + "…") })
 			saveMu.Lock()
 			manifest, err := saveShowAtPath(path, snapshot, settingsStore.Snapshot().FFmpegPath)
 			saveMu.Unlock()
 			if err != nil {
 				operatorEvents.Add(operatorlog.Recoverable, "Save show", err.Error(), show.CueID{}, "")
-				uiActions <- func() { topBar.SetStatus("Save failed: " + err.Error()) }
-				window.Invalidate()
+				postUI(ctx, func() { topBar.SetStatus("Save failed: " + err.Error()) })
 				if done != nil {
-					uiActions <- func() { done(false) }
+					postUI(ctx, func() { done(false) })
 				}
 				return
 			}
@@ -796,15 +799,14 @@ func (a *App) run(window *app.Window) error {
 					operatorEvents.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
 				}
 			}
-			uiActions <- func() {
+			postUI(ctx, func() {
 				topBar.SetStatus("Saved " + documentName(path) + " · recovery journal on · " + formatFileCount(len(manifest.Assets)))
 				operatorEvents.Diagnostic("Save show", "Show archive published", map[string]any{"documentPath": path, "assets": len(manifest.Assets)})
-			}
-			window.Invalidate()
+			})
 			if done != nil {
-				uiActions <- func() { done(true) }
+				postUI(ctx, func() { done(true) })
 			}
-		}()
+		})
 	}
 
 	performNew := func() {
@@ -878,6 +880,9 @@ func (a *App) run(window *app.Window) error {
 				if err := a.Journal.RecordDirty(snapshot, path); err != nil {
 					operatorEvents.Add(operatorlog.ShowStopping, "Edit recovery", err.Error(), show.CueID{}, "")
 				}
+			}
+			if err := tasks.Close(3 * time.Second); err != nil {
+				operatorEvents.Diagnostic("Shutdown", err.Error(), nil)
 			}
 			playbackEngine.Close()
 			mediaManager.Close()
