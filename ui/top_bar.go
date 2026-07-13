@@ -47,6 +47,7 @@ type TopBar struct {
 	stopAllRequest  bool
 	blackoutRequest bool
 	eStopResetting  bool
+	statusSink      func(string)
 }
 
 func (tb *TopBar) setAllFalse() {
@@ -239,6 +240,16 @@ func (tb *TopBar) SetEmergencyResetting(resetting bool) {
 	tb.eStopResetting = resetting
 	if resetting {
 		tb.eStopRequest = false
+	}
+}
+
+// SetStatusSink routes compatibility status updates to the operator status
+// bar without rendering them in the application toolbar.
+func (tb *TopBar) SetStatusSink(sink func(string)) { tb.statusSink = sink }
+
+func (tb *TopBar) SetStatus(status string) {
+	if tb.statusSink != nil {
+		tb.statusSink(status)
 	}
 }
 

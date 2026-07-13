@@ -581,6 +581,7 @@ func (a *App) run(window *app.Window) error {
 	projectLibrary := a.UI.ProjectLibrary
 	operatorEvents := a.OperatorLog
 	operatorPanel := &a.UI.OperatorPanel
+	topBar.SetStatusSink(operatorPanel.SetStatus)
 	audioWarningSettings := &a.UI.AudioWarningSettings
 	var ops op.Ops
 	windowFocused := true
