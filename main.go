@@ -39,6 +39,7 @@ import (
 	"github.com/syspoe/cusus/palette"
 	"github.com/syspoe/cusus/playback"
 	"github.com/syspoe/cusus/project"
+	"github.com/syspoe/cusus/redundancy"
 	"github.com/syspoe/cusus/show"
 	"github.com/syspoe/cusus/timecode"
 	"github.com/syspoe/cusus/ui"
@@ -52,6 +53,7 @@ type App struct {
 	OperatorLog   *operatorlog.Store
 	Journal       *project.EditJournal
 	Timecode      *timecode.Service
+	Redundancy    *redundancy.Service
 	Recovered     bool
 	RecoveredPath string
 	UI            UIState
@@ -148,6 +150,7 @@ func newApp() (*App, error) {
 			engine.LatchClockDiscontinuity(gap)
 		}
 	})
+	spare := redundancy.NewService(redundancyConfig(settings.Snapshot()))
 	engine.SetOperatorLog(operatorEvents)
 	engine.SetDurationProbe(func(source string) (int64, error) {
 		return media.ProbeDurationMs(settings.Snapshot().FFmpegPath, source)
@@ -167,6 +170,7 @@ func newApp() (*App, error) {
 		OperatorLog:   operatorEvents,
 		Journal:       journal,
 		Timecode:      timecodeInput,
+		Redundancy:    spare,
 		Recovered:     hasRecovery,
 		RecoveredPath: recovered.DocumentPath,
 		UI: UIState{
@@ -186,6 +190,14 @@ func newApp() (*App, error) {
 	settingsPage.SetOnSaved(func() {
 		current := settings.Snapshot()
 		timecodeInput.Configure(timecodeConfig(current), current.TimecodeListenAddress)
+		wasAuthority := spare.Status().Authority
+		if err := spare.Configure(redundancyConfig(current)); err != nil {
+			operatorEvents.Add(operatorlog.ShowStopping, "Warm-spare redundancy", err.Error(), show.CueID{}, "")
+		}
+		if wasAuthority && !spare.Status().Authority && (len(application.Playback.ActiveInstances()) > 0 || len(application.Playback.ActiveExecutions()) > 0) {
+			application.Playback.StopAll()
+			operatorEvents.Add(operatorlog.ShowStopping, "Warm-spare redundancy", "Command authority changed while cues were active; local outputs were stopped", show.CueID{}, "")
+		}
 		application.Playback.RefreshDurations()
 		application.Media.SyncOutputs(application.Playback.OutputIDs())
 		application.Media.RefreshAudioDeviceStatus()
@@ -203,6 +215,29 @@ func newApp() (*App, error) {
 		}
 		return path, err
 	})
+	settingsPage.SetRedundancyControl(
+		func() string { return spare.Status().Summary() },
+		func() error {
+			if len(application.Playback.ActiveInstances()) > 0 || len(application.Playback.ActiveExecutions()) > 0 {
+				return errors.New("STOP all local cues before taking command authority")
+			}
+			if err := spare.RequestTakeover(); err != nil {
+				return err
+			}
+			operatorEvents.Diagnostic("Warm-spare redundancy", "Command authority acquired", map[string]any{"nodeId": spare.Status().NodeID})
+			return nil
+		},
+		func() error {
+			if len(application.Playback.ActiveInstances()) > 0 || len(application.Playback.ActiveExecutions()) > 0 {
+				return errors.New("STOP all local cues before releasing command authority")
+			}
+			if err := spare.ReleaseAuthority(); err != nil {
+				return err
+			}
+			operatorEvents.Diagnostic("Warm-spare redundancy", "Command authority released for handoff", map[string]any{"nodeId": spare.Status().NodeID})
+			return nil
+		},
+	)
 	application.UI.TBContext = ui.TBContext{
 		TopBar:         &application.UI.TopBar,
 		TogglePreview:  application.Playback.TogglePreview,
@@ -218,6 +253,15 @@ func timecodeConfig(settings config.Settings) timecode.Config {
 	return timecode.Config{
 		Source: timecode.Source(settings.TimecodeSource), Policy: timecode.Policy(settings.TimecodePolicy),
 		FrameRate: settings.TimecodeFrameRate, JumpTolerance: 500 * time.Millisecond,
+	}
+}
+
+func redundancyConfig(settings config.Settings) redundancy.Config {
+	return redundancy.Config{
+		Role: redundancy.Role(settings.RedundancyRole), NodeID: settings.RedundancyNodeID,
+		ListenAddress: settings.RedundancyListenAddress, PeerAddress: settings.RedundancyPeerAddress,
+		SharedKey: settings.RedundancySharedKey, InterlockPath: settings.RedundancyInterlockPath,
+		HeartbeatInterval: 500 * time.Millisecond, PeerTimeout: 2500 * time.Millisecond,
 	}
 }
 
@@ -581,15 +625,18 @@ func (a *App) run(window *app.Window) error {
 		documentMu.RLock()
 		path, dirty := currentShowPath, showDigest(manager.ShowSnapshot()) != lastSavedDigest
 		documentMu.RUnlock()
-		return collectHealthComponents(playbackEngine, mediaManager, a.Timecode, settingsStore.Snapshot(), path, dirty)
+		return collectHealthComponents(playbackEngine, mediaManager, a.Timecode, a.Redundancy, settingsStore.Snapshot(), path, dirty)
 	})
 	defer healthMonitor.Close()
 	defer a.Timecode.Close()
+	defer a.Redundancy.Close()
 	power := startPowerKeeper()
 	defer power.Close()
 	preflightService := newPreflightService()
 	defer preflightService.Close()
 	playbackEngine.SetPreflightGate(func(cue show.Cue) error { return preflightService.Gate(manager.ShowSnapshot(), cue) })
+	playbackEngine.SetAuthorityGate(a.Redundancy.Gate)
+	playbackEngine.SetRemoteAuthorityExecutor(a.Redundancy.WithAuthority)
 	cacheMaintainer := project.StartCacheMaintainer(
 		func() bool {
 			return len(playbackEngine.ActiveInstances()) > 0 || len(playbackEngine.ActiveExecutions()) > 0
@@ -921,6 +968,7 @@ func (a *App) run(window *app.Window) error {
 			}
 			healthMonitor.Close()
 			a.Timecode.Close()
+			a.Redundancy.Close()
 			playbackEngine.Close()
 			mediaManager.Close()
 			return e.Err
@@ -999,7 +1047,9 @@ func (a *App) run(window *app.Window) error {
 			lastAudioOperatorWarning, lastVideoOperatorWarning = audioWarning, videoWarning
 			healthSnapshot := healthMonitor.Snapshot()
 			topBar.SetHealth(healthSnapshot.Overall.String())
-			preflight := preflightService.Request(manager.ShowSnapshot(), settingsStore.Snapshot(), audioWarning, videoWarning, playbackEngine.RemoteHealth(), playbackEngine.CueProblems)
+			showState, settingsState := manager.ShowSnapshot(), settingsStore.Snapshot()
+			preflight := preflightService.Request(showState, settingsState, audioWarning, videoWarning, playbackEngine.RemoteHealth(), playbackEngine.CueProblems)
+			a.Redundancy.UpdateFingerprint(buildRedundancyFingerprint(showState, settingsState, projectLibrary.Files(""), redundancyPreflightReady(preflight)))
 			preflight = append(preflight, healthPreflightChecks(healthSnapshot)...)
 			for i := range preflight {
 				preflight[i].Acknowledged = manager.ProblemAcknowledged(preflight[i].Fingerprint)

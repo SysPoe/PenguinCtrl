@@ -86,6 +86,8 @@ type Engine struct {
 	dispatchNotify      chan struct{}
 	commandHistory      []CommandRecord
 	preflightGate       func(show.Cue) error
+	authorityGate       func() error
+	remoteAuthority     func(func() error) error
 	timeline            Timeline
 }
 
@@ -146,6 +148,22 @@ func (e *Engine) SetOperatorLog(store *operatorlog.Store) {
 func (e *Engine) SetPreflightGate(gate func(show.Cue) error) {
 	e.mu.Lock()
 	e.preflightGate = gate
+	e.mu.Unlock()
+}
+
+// SetAuthorityGate installs a non-overridable command-ownership barrier. It
+// is checked both when a cue is accepted and immediately before execution.
+func (e *Engine) SetAuthorityGate(gate func() error) {
+	e.mu.Lock()
+	e.authorityGate = gate
+	e.mu.Unlock()
+}
+
+// SetRemoteAuthorityExecutor keeps distributed command ownership held across
+// the complete remote dispatch, avoiding a release between check and send.
+func (e *Engine) SetRemoteAuthorityExecutor(executor func(func() error) error) {
+	e.mu.Lock()
+	e.remoteAuthority = executor
 	e.mu.Unlock()
 }
 
@@ -506,6 +524,11 @@ func (e *Engine) enqueueCommand(cue show.Cue, index int, preview bool, origin st
 		return err
 	}
 	if !preview {
+		if err := e.checkAuthority(cue, origin); err != nil {
+			return err
+		}
+	}
+	if !preview {
 		e.mu.RLock()
 		gate := e.preflightGate
 		e.mu.RUnlock()
@@ -569,6 +592,20 @@ func (e *Engine) enqueueCommand(cue show.Cue, index int, preview bool, origin st
 		}
 		return err
 	}
+}
+
+func (e *Engine) checkAuthority(cue show.Cue, origin string) error {
+	e.mu.RLock()
+	gate := e.authorityGate
+	e.mu.RUnlock()
+	if gate == nil {
+		return nil
+	}
+	if err := gate(); err != nil {
+		e.recordCueError(cue, origin+" · command authority", err)
+		return err
+	}
+	return nil
 }
 
 func (e *Engine) LatchClockDiscontinuity(gap time.Duration) {
@@ -674,6 +711,11 @@ func (e *Engine) execute(next command) {
 	if !e.cueRunCurrent(next.cue.ID, next.runID) {
 		return
 	}
+	if !next.preview {
+		if err := e.checkAuthority(next.cue, next.origin); err != nil {
+			return
+		}
+	}
 	if !e.awaitDispatch(next.ctx, next.sequence) {
 		return
 	}
@@ -697,7 +739,15 @@ func (e *Engine) execute(next command) {
 		if next.cue.Play.Remote == nil {
 			err = errors.New("remote cue has no remote action")
 		} else {
-			err = e.remote.Dispatch(e.ctx, *next.cue.Play.Remote, next.cue)
+			dispatch := func() error { return e.remote.Dispatch(e.ctx, *next.cue.Play.Remote, next.cue) }
+			e.mu.RLock()
+			authorize := e.remoteAuthority
+			e.mu.RUnlock()
+			if authorize != nil {
+				err = authorize(dispatch)
+			} else {
+				err = dispatch()
+			}
 			if err == nil && e.operatorLog != nil {
 				message := "Command sent; UDP delivery is unconfirmed"
 				severity := operatorlog.Warning

@@ -74,6 +74,12 @@ type Settings struct {
 	TimecodePolicy            string            `json:"timecodePolicy,omitempty"`
 	TimecodeListenAddress     string            `json:"timecodeListenAddress,omitempty"`
 	TimecodeFrameRate         float64           `json:"timecodeFrameRate,omitempty"`
+	RedundancyRole            string            `json:"redundancyRole,omitempty"`
+	RedundancyNodeID          string            `json:"redundancyNodeId,omitempty"`
+	RedundancyListenAddress   string            `json:"redundancyListenAddress,omitempty"`
+	RedundancyPeerAddress     string            `json:"redundancyPeerAddress,omitempty"`
+	RedundancySharedKey       string            `json:"redundancySharedKey,omitempty"`
+	RedundancyInterlockPath   string            `json:"redundancyInterlockPath,omitempty"`
 }
 
 const (
@@ -89,27 +95,42 @@ const (
 	TimecodeHold               = "hold"
 	TimecodeChase              = "chase"
 	TimecodeResync             = "resync"
+	RedundancyOff              = "off"
+	RedundancyPrimary          = "primary"
+	RedundancyStandby          = "standby"
 )
 
 func Defaults() Settings {
 	return Settings{
-		FFmpegPath:            "ffmpeg",
-		DefaultPlayback:       "1",
-		DefaultMediaOutput:    "main",
-		PlaybackAudioRecovery: AudioRecoveryFailClosed,
-		PreviewAudioRecovery:  AudioRecoveryFailClosed,
-		VideoOutputs:          []VideoOutput{{Stage: "main", Fullscreen: true, Width: 960, Height: 540, ResolutionWidth: 1920, ResolutionHeight: 1080, Scaling: "contain", IdleBehavior: "black", Layers: 1}},
-		Variables:             map[string]string{},
-		RemoteTargets:         []RemoteTarget{{Name: "Local console", Host: "127.0.0.1", OSCPort: 8000, ERCPort: 6553}},
-		RemoteSuccessPolicy:   RemoteSuccessAll,
-		CacheQuotaGB:          20,
-		CacheReserveGB:        5,
-		OperatorWindow:        WindowPlacement{X: 80, Y: 80, Width: 1300, Height: 720},
-		TimecodeSource:        TimecodeInternal,
-		TimecodePolicy:        TimecodeHold,
-		TimecodeListenAddress: "127.0.0.1:9001",
-		TimecodeFrameRate:     30,
+		FFmpegPath:              "ffmpeg",
+		DefaultPlayback:         "1",
+		DefaultMediaOutput:      "main",
+		PlaybackAudioRecovery:   AudioRecoveryFailClosed,
+		PreviewAudioRecovery:    AudioRecoveryFailClosed,
+		VideoOutputs:            []VideoOutput{{Stage: "main", Fullscreen: true, Width: 960, Height: 540, ResolutionWidth: 1920, ResolutionHeight: 1080, Scaling: "contain", IdleBehavior: "black", Layers: 1}},
+		Variables:               map[string]string{},
+		RemoteTargets:           []RemoteTarget{{Name: "Local console", Host: "127.0.0.1", OSCPort: 8000, ERCPort: 6553}},
+		RemoteSuccessPolicy:     RemoteSuccessAll,
+		CacheQuotaGB:            20,
+		CacheReserveGB:          5,
+		OperatorWindow:          WindowPlacement{X: 80, Y: 80, Width: 1300, Height: 720},
+		TimecodeSource:          TimecodeInternal,
+		TimecodePolicy:          TimecodeHold,
+		TimecodeListenAddress:   "127.0.0.1:9001",
+		TimecodeFrameRate:       30,
+		RedundancyRole:          RedundancyOff,
+		RedundancyNodeID:        defaultNodeID(),
+		RedundancyListenAddress: "127.0.0.1:9012",
+		RedundancyPeerAddress:   "127.0.0.1:9013",
 	}
+}
+
+func defaultNodeID() string {
+	name, err := os.Hostname()
+	if err != nil || strings.TrimSpace(name) == "" {
+		return "cusus-node"
+	}
+	return strings.TrimSpace(name)
 }
 
 func DefaultPath() (string, error) {
@@ -338,6 +359,25 @@ func normalize(in Settings) Settings {
 	if in.TimecodeFrameRate != 24 && in.TimecodeFrameRate != 25 && in.TimecodeFrameRate != 29.97 && in.TimecodeFrameRate != 30 {
 		in.TimecodeFrameRate = 30
 	}
+	switch in.RedundancyRole {
+	case RedundancyPrimary, RedundancyStandby:
+	default:
+		in.RedundancyRole = RedundancyOff
+	}
+	in.RedundancyNodeID = strings.TrimSpace(in.RedundancyNodeID)
+	if in.RedundancyNodeID == "" {
+		in.RedundancyNodeID = defaultNodeID()
+	}
+	in.RedundancyListenAddress = strings.TrimSpace(in.RedundancyListenAddress)
+	if in.RedundancyListenAddress == "" {
+		in.RedundancyListenAddress = "127.0.0.1:9012"
+	}
+	in.RedundancyPeerAddress = strings.TrimSpace(in.RedundancyPeerAddress)
+	if in.RedundancyPeerAddress == "" {
+		in.RedundancyPeerAddress = "127.0.0.1:9013"
+	}
+	in.RedundancySharedKey = strings.TrimSpace(in.RedundancySharedKey)
+	in.RedundancyInterlockPath = strings.TrimSpace(in.RedundancyInterlockPath)
 	return in
 }
 

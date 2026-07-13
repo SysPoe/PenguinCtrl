@@ -14,6 +14,7 @@ import (
 	"github.com/syspoe/cusus/media"
 	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/playback"
+	"github.com/syspoe/cusus/redundancy"
 	"github.com/syspoe/cusus/timecode"
 )
 
@@ -61,14 +62,47 @@ func (s *healthService) Snapshot() health.Snapshot {
 
 func (s *healthService) Close() { s.cancel(); s.wg.Wait() }
 
-func collectHealthComponents(engine *playback.Engine, backend media.Backend, timeline *timecode.Service, settings config.Settings, documentPath string, dirty bool) []health.Component {
-	components := []health.Component{engineHealth(engine), archiveHealth(documentPath, dirty), timecodeHealth(timeline)}
+func collectHealthComponents(engine *playback.Engine, backend media.Backend, timeline *timecode.Service, spare *redundancy.Service, settings config.Settings, documentPath string, dirty bool) []health.Component {
+	components := []health.Component{engineHealth(engine), archiveHealth(documentPath, dirty), timecodeHealth(timeline), redundancyHealth(spare)}
 	components = append(components, audioHealth(engine, backend, settings)...)
 	components = append(components, outputHealth(backend, settings)...)
 	components = append(components, decoderHealth(engine)...)
 	components = append(components, remoteTargetHealth(engine)...)
 	components = append(components, diskHealth(settings))
 	return components
+}
+
+func redundancyHealth(service *redundancy.Service) health.Component {
+	if service == nil {
+		return health.Component{ID: "redundancy", Kind: "redundancy", Name: "Warm spare", State: health.Failed, Summary: "Redundancy service is unavailable", Action: "Restart CuSus and inspect the Event Log"}
+	}
+	status := service.Status()
+	component := health.Component{
+		ID: "redundancy", Kind: "redundancy", Name: "Warm spare", State: health.Normal,
+		Summary: status.Summary(), Action: "Open Settings > Warm-spare redundancy and follow the handoff status",
+		Details: map[string]any{
+			"role": status.Role, "nodeId": status.NodeID, "authority": status.Authority, "canIssueCommands": status.CanIssueCommands,
+			"peerNodeId": status.PeerNodeID, "peerRole": status.PeerRole, "peerSeen": status.PeerSeen, "peerFresh": status.PeerFresh,
+			"peerActive": status.PeerActive, "fingerprintsMatch": status.FingerprintsMatch, "interlockMatch": status.InterlockMatch,
+			"lastPeerHeartbeat": status.LastPeerHeartbeat, "lastLocalHeartbeat": status.LastLocalHeartbeat, "interlockPath": status.InterlockPath,
+		},
+	}
+	if status.Role == redundancy.RoleOff {
+		return component
+	}
+	switch {
+	case status.State == redundancy.StateFailed:
+		component.State, component.Action = health.Failed, "Correct redundancy addresses, key, and shared interlock path, then save settings"
+	case status.State == redundancy.StateMismatch:
+		component.State, component.Action = health.Failed, "Load the identical verified show/media and align audio, display, remote, variable, and timecode routing on both nodes"
+	case status.Authority && !status.CanIssueCommands:
+		component.State, component.Action = health.Failed, "Keep GO stopped until both nodes report matching production fingerprints"
+	case !status.Authority && (!status.PeerFresh || !status.PeerActive):
+		component.State, component.Action = health.Failed, "Verify the active node; use Take command authority only after lease expiry or planned release"
+	case status.Authority && !status.PeerFresh:
+		component.State, component.Action = health.Degraded, "Restore or replace the warm spare while this node retains the shared command interlock"
+	}
+	return component
 }
 
 func timecodeHealth(service *timecode.Service) health.Component {

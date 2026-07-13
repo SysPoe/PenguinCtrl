@@ -79,6 +79,12 @@ type SettingsPage struct {
 	timecodePolicy            *input.Dropdown
 	timecodeListenAddress     *input.Text
 	timecodeFrameRate         *input.Float
+	redundancyRole            *input.Dropdown
+	redundancyNodeID          *input.Text
+	redundancyListenAddress   *input.Text
+	redundancyPeerAddress     *input.Text
+	redundancySharedKey       *input.Text
+	redundancyInterlockPath   *input.Text
 	remoteSuccessPolicy       *input.Dropdown
 	playbackAudioDevice       *input.Dropdown
 	playbackAudioRecovery     *input.Dropdown
@@ -102,11 +108,16 @@ type SettingsPage struct {
 	refreshAudioDevices       widget.Clickable
 	refreshDisplays           widget.Clickable
 	addVideoOutput            widget.Clickable
+	takeAuthority             widget.Clickable
+	releaseAuthority          widget.Clickable
 	status                    string
 	statusError               bool
 	onSaved                   func()
 	onReopenOutputs           func()
 	onSupportBundle           func() (string, error)
+	redundancyStatus          func() string
+	onTakeAuthority           func() error
+	onReleaseAuthority        func() error
 }
 
 func (p *SettingsPage) SetOnSaved(callback func()) { p.onSaved = callback }
@@ -115,6 +126,12 @@ func (p *SettingsPage) SetOnReopenOutputs(callback func()) { p.onReopenOutputs =
 
 func (p *SettingsPage) SetOnSupportBundle(callback func() (string, error)) {
 	p.onSupportBundle = callback
+}
+
+func (p *SettingsPage) SetRedundancyControl(status func() string, takeAuthority, releaseAuthority func() error) {
+	p.redundancyStatus = status
+	p.onTakeAuthority = takeAuthority
+	p.onReleaseAuthority = releaseAuthority
 }
 
 func (p *SettingsPage) SetAudioDeviceProvider(provider func() ([]AudioDevice, error)) {
@@ -151,6 +168,12 @@ func (p *SettingsPage) load() {
 	p.timecodePolicy = enumDropdown([]input.DropdownItem{{Label: "Hold for operator", Value: config.TimecodeHold}, {Label: "Chase external source", Value: config.TimecodeChase}, {Label: "Immediate resync", Value: config.TimecodeResync}}, settings.TimecodePolicy)
 	p.timecodeListenAddress = input.NewText("OSC listen address", settings.TimecodeListenAddress)
 	p.timecodeFrameRate = input.NewFloat("Frame rate", settings.TimecodeFrameRate)
+	p.redundancyRole = enumDropdown([]input.DropdownItem{{Label: "Disabled", Value: config.RedundancyOff}, {Label: "Primary", Value: config.RedundancyPrimary}, {Label: "Warm standby", Value: config.RedundancyStandby}}, settings.RedundancyRole)
+	p.redundancyNodeID = input.NewText("Unique node ID", settings.RedundancyNodeID)
+	p.redundancyListenAddress = input.NewText("Heartbeat listen address", settings.RedundancyListenAddress)
+	p.redundancyPeerAddress = input.NewText("Peer heartbeat address", settings.RedundancyPeerAddress)
+	p.redundancySharedKey = input.NewText("Shared authentication key", settings.RedundancySharedKey)
+	p.redundancyInterlockPath = input.NewText("Shared interlock path", settings.RedundancyInterlockPath)
 	p.remoteSuccessPolicy = enumDropdown([]input.DropdownItem{{Label: "Require every target", Value: config.RemoteSuccessAll}, {Label: "Any redundant target", Value: config.RemoteSuccessAny}}, settings.RemoteSuccessPolicy)
 	p.playbackAudioDevice = newAudioDeviceDropdown(p.audioDevices, settings.PlaybackAudioDevice)
 	p.playbackAudioRecovery = newAudioRecoveryDropdown(settings.PlaybackAudioRecovery)
@@ -203,6 +226,7 @@ func (p *SettingsPage) Layout(th *material.Theme, gtx layout.Context) layout.Dim
 		func(gtx layout.Context) layout.Dimensions { return p.audioSection(th, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.videoOutputsSection(th, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.timecodeSection(th, gtx) },
+		func(gtx layout.Context) layout.Dimensions { return p.redundancySection(th, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.targetsSection(th, gtx) },
 		func(gtx layout.Context) layout.Dimensions { return p.variablesSection(th, gtx) },
 	}
@@ -234,6 +258,20 @@ func (p *SettingsPage) handleClicks(gtx layout.Context) {
 			p.status, p.statusError = "Support bundle failed: "+err.Error(), true
 		} else {
 			p.status, p.statusError = "Support bundle saved: "+path, false
+		}
+	}
+	if p.takeAuthority.Clicked(gtx) && p.onTakeAuthority != nil {
+		if err := p.onTakeAuthority(); err != nil {
+			p.status, p.statusError = "Take authority failed: "+err.Error(), true
+		} else {
+			p.status, p.statusError = "Command authority acquired", false
+		}
+	}
+	if p.releaseAuthority.Clicked(gtx) && p.onReleaseAuthority != nil {
+		if err := p.onReleaseAuthority(); err != nil {
+			p.status, p.statusError = "Release authority failed: "+err.Error(), true
+		} else {
+			p.status, p.statusError = "Command authority released", false
 		}
 	}
 	if p.refreshAudioDevices.Clicked(gtx) {
@@ -286,6 +324,22 @@ func (p *SettingsPage) saveSettings() {
 	settings.TimecodePolicy = selectedDropdownValue(p.timecodePolicy)
 	settings.TimecodeListenAddress = strings.TrimSpace(p.timecodeListenAddress.Value)
 	settings.TimecodeFrameRate = p.timecodeFrameRate.Value
+	settings.RedundancyRole = selectedDropdownValue(p.redundancyRole)
+	settings.RedundancyNodeID = strings.TrimSpace(p.redundancyNodeID.Value)
+	settings.RedundancyListenAddress = strings.TrimSpace(p.redundancyListenAddress.Value)
+	settings.RedundancyPeerAddress = strings.TrimSpace(p.redundancyPeerAddress.Value)
+	settings.RedundancySharedKey = strings.TrimSpace(p.redundancySharedKey.Value)
+	settings.RedundancyInterlockPath = strings.TrimSpace(p.redundancyInterlockPath.Value)
+	if settings.RedundancyRole != config.RedundancyOff {
+		if settings.RedundancyNodeID == "" || settings.RedundancyListenAddress == "" || settings.RedundancyPeerAddress == "" || settings.RedundancyInterlockPath == "" {
+			p.status, p.statusError = "Redundancy requires node ID, heartbeat addresses, and a shared interlock path", true
+			return
+		}
+		if len(settings.RedundancySharedKey) < 16 {
+			p.status, p.statusError = "Redundancy shared key must contain at least 16 characters", true
+			return
+		}
+	}
 	settings.PlaybackAudioDevice = selectedDropdownValue(p.playbackAudioDevice)
 	settings.PlaybackAudioRecovery = selectedDropdownValue(p.playbackAudioRecovery)
 	settings.PlaybackBackupAudioDevice = selectedDropdownValue(p.playbackBackupAudioDevice)
@@ -445,6 +499,41 @@ func (p *SettingsPage) timecodeSection(th *material.Theme, gtx layout.Context) l
 		},
 		func(gtx layout.Context) layout.Dimensions {
 			return pairedSettingsFields(th, gtx, "OSC address / frame rate", p.timecodeListenAddress.Layout, p.timecodeFrameRate.Layout)
+		},
+	})
+}
+
+func (p *SettingsPage) redundancySection(th *material.Theme, gtx layout.Context) layout.Dimensions {
+	status := "Save redundancy settings to start heartbeat and interlock supervision"
+	if p.redundancyStatus != nil {
+		status = p.redundancyStatus()
+	}
+	return settingsSection(th, gtx, "Warm-spare redundancy", []layout.Widget{
+		func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return layoutStableText(gtx, stableBody1(th, status).Layout)
+			})
+		},
+		func(gtx layout.Context) layout.Dimensions {
+			return pairedSettingsFields(th, gtx, "Role / unique node ID", p.redundancyRole.Layout, p.redundancyNodeID.Layout)
+		},
+		func(gtx layout.Context) layout.Dimensions {
+			return pairedSettingsFields(th, gtx, "Heartbeat listen / peer", p.redundancyListenAddress.Layout, p.redundancyPeerAddress.Layout)
+		},
+		func(gtx layout.Context) layout.Dimensions {
+			return pairedSettingsFields(th, gtx, "Shared key / interlock path", p.redundancySharedKey.Layout, p.redundancyInterlockPath.Layout)
+		},
+		func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layoutButton(th, gtx, &p.takeAuthority, "Take command authority", palette.Primary)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return layoutButton(th, gtx, &p.releaseAuthority, "Release for handoff", th.ContrastBg)
+					})
+				}),
+			)
 		},
 	})
 }
