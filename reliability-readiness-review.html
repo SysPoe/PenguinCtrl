@@ -142,7 +142,7 @@
 
   <section id="architecture">
     <h2>Runtime architecture and failure domains</h2>
-    <p>One process owns the operator window, every output window, cue scheduling, show mutation, autosave/transcoding, FFmpeg child processes, audio devices, and remote-control transmission. A failure or resource stall in any of these paths can therefore affect all show functions.</p>
+    <p>One process owns the operator window, every output window, cue scheduling, show mutation, explicit archive packaging, FFmpeg child processes, audio devices, and remote-control transmission. A failure or resource stall in any of these paths can therefore affect all show functions.</p>
     <table>
       <thead><tr><th>Layer</th><th>Current owner</th><th>Important coupling</th></tr></thead>
       <tbody>
@@ -229,7 +229,7 @@
 
     <article class="finding complete"><h3><span class="badge complete">R-12 Complete</span>Decoder work has global admission and memory bounds</h3><p>The shared backend admits at most twelve concurrent decoder sessions and reserves estimated RGBA queue memory against a 512 MiB global budget before launching FFmpeg. Dimension, pixel-count, frame-rate, video-bitrate, and aggregate audio-bitrate limits are enforced before allocation. Video frames use a per-session pool and bounded backpressure. Output compositing suspends fully obscured or blacked-out video decoders while their logical presentation time continues, then restarts them at the current clock position when revealed.</p></article>
 
-    <article class="finding high"><h3><span class="badge high">R-13 High</span>Autosave performs heavy full-archive work during playback</h3><p>Every autosave calls <code>project.Save</code>, which walks cue media and writes an entire ZIP. Cached transcoding reduces codec cost but not hashing/copying/archive I/O. This can compete with media playback for disk, CPU, memory, and OneDrive locks. Keep fast journal/checkpoint autosave separate from explicit portable “Package Show.” Throttle background maintenance, pause it in show mode, and monitor disk latency.</p></article>
+    <article class="finding complete"><h3><span class="badge complete">R-13 Complete</span>Routine recovery never packages the portable archive</h3><p>Every show mutation is synchronously appended and flushed to the bounded recovery journal, which contains only show state. The former debounce worker and automatic <code>project.Save</code> archive rebuild have been removed. Media hashing, transcoding, ZIP writing, and atomic archive publication now run only for an explicit Save or Save As action under the save mutex, so playback cannot unexpectedly trigger packaging I/O.</p></article>
 
     <article class="finding complete"><h3><span class="badge complete">R-14 Complete</span>Settings updates are transactional and recoverable</h3><p>A candidate is encoded and flushed before publication, the previous primary is retained as a last-known-good generation during Windows replacement, failed publication leaves the in-memory snapshot unchanged, startup restores an interrupted replacement, and corrupt primaries are preserved before falling back to the verified backup. Failure, replacement, recovery, and corrupt-primary tests cover the boundary.</p></article>
 

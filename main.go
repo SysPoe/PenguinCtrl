@@ -423,7 +423,6 @@ func (a *App) run(window *app.Window) error {
 	th := newTheme()
 	expl := explorer.NewExplorer(window)
 	uiActions := make(chan func(), 16)
-	autosaveRequests := make(chan struct{}, 1)
 	var documentMu sync.RWMutex
 	var saveMu sync.Mutex
 	currentShowPath := a.RecoveredPath
@@ -432,7 +431,7 @@ func (a *App) run(window *app.Window) error {
 		lastSavedDigest = [sha256.Size]byte{}
 		topBar.SetStatus("Recovered unsaved show edits · save to confirm recovery")
 	}
-	var suppressAutosave bool
+	var suppressJournal bool
 	var documentGuard ui.DocumentGuard
 	var closeInterceptor windowCloseInterceptor
 	closeRequests := make(chan struct{}, 1)
@@ -455,7 +454,7 @@ func (a *App) run(window *app.Window) error {
 	manager.SetOnChange(func() {
 		snapshot := manager.ShowSnapshot()
 		documentMu.RLock()
-		path, suppressed, dirty := currentShowPath, suppressAutosave, showDigest(snapshot) != lastSavedDigest
+		path, suppressed, dirty := currentShowPath, suppressJournal, showDigest(snapshot) != lastSavedDigest
 		documentMu.RUnlock()
 		if !suppressed && dirty && a.Journal != nil {
 			if err := a.Journal.RecordDirty(snapshot, path); err != nil {
@@ -465,15 +464,6 @@ func (a *App) run(window *app.Window) error {
 		window.Invalidate()
 		playbackEngine.RefreshDurations()
 		mediaManager.SyncOutputs(playbackEngine.OutputIDs())
-		documentMu.RLock()
-		shouldAutosave := currentShowPath != "" && !suppressAutosave
-		documentMu.RUnlock()
-		if shouldAutosave {
-			select {
-			case autosaveRequests <- struct{}{}:
-			default:
-			}
-		}
 	})
 
 	tbCtx.ProjectFiles = func(kind string) []ui.ProjectFile {
@@ -564,20 +554,20 @@ func (a *App) run(window *app.Window) error {
 				playbackEngine.StopAll()
 				projectLibrary.Replace(files)
 				documentMu.Lock()
-				suppressAutosave = true
+				suppressJournal = true
 				documentMu.Unlock()
 				manager.ReplaceShow(manifest.Show)
 				documentMu.Lock()
 				currentShowPath = loadedPath
 				lastSavedDigest = showDigest(manifest.Show)
-				suppressAutosave = false
+				suppressJournal = false
 				documentMu.Unlock()
 				if a.Journal != nil {
 					if err := a.Journal.MarkSaved(manifest.Show, loadedPath); err != nil {
 						operatorEvents.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
 					}
 				}
-				topBar.SetStatus("Loaded " + documentName(loadedPath) + " · autosave on")
+				topBar.SetStatus("Loaded " + documentName(loadedPath) + " · recovery journal on")
 			}
 			window.Invalidate()
 		}()
@@ -638,7 +628,7 @@ func (a *App) run(window *app.Window) error {
 				}
 			}
 			uiActions <- func() {
-				topBar.SetStatus("Saved " + documentName(path) + " · autosave on · " + formatFileCount(len(manifest.Assets)))
+				topBar.SetStatus("Saved " + documentName(path) + " · recovery journal on · " + formatFileCount(len(manifest.Assets)))
 			}
 			window.Invalidate()
 			complete(true)
@@ -678,7 +668,7 @@ func (a *App) run(window *app.Window) error {
 				}
 			}
 			uiActions <- func() {
-				topBar.SetStatus("Saved " + documentName(path) + " · autosave on · " + formatFileCount(len(manifest.Assets)))
+				topBar.SetStatus("Saved " + documentName(path) + " · recovery journal on · " + formatFileCount(len(manifest.Assets)))
 			}
 			window.Invalidate()
 			if done != nil {
@@ -691,18 +681,18 @@ func (a *App) run(window *app.Window) error {
 		playbackEngine.StopAll()
 		projectLibrary.Replace(nil)
 		documentMu.Lock()
-		suppressAutosave = true
+		suppressJournal = true
 		documentMu.Unlock()
 		manager.ReplaceShow(show.Show{})
 		documentMu.Lock()
 		currentShowPath = ""
 		lastSavedDigest = showDigest(show.Show{})
-		suppressAutosave = false
+		suppressJournal = false
 		documentMu.Unlock()
 		if a.Journal != nil {
 			_ = a.Journal.MarkSaved(show.Show{}, "")
 		}
-		topBar.SetStatus("New untitled show · choose Save to start autosave")
+		topBar.SetStatus("New untitled show · recovery journal on")
 	}
 	performDocumentAction := func(action ui.DocumentAction) {
 		switch action {
@@ -714,53 +704,6 @@ func (a *App) run(window *app.Window) error {
 			closeInterceptor.AllowAndClose()
 		}
 	}
-
-	go func() {
-		for range autosaveRequests {
-			timer := time.NewTimer(1200 * time.Millisecond)
-		debounce:
-			for {
-				select {
-				case <-autosaveRequests:
-					if !timer.Stop() {
-						select {
-						case <-timer.C:
-						default:
-						}
-					}
-					timer.Reset(1200 * time.Millisecond)
-				case <-timer.C:
-					break debounce
-				}
-			}
-			snapshot := manager.ShowSnapshot()
-			digest := showDigest(snapshot)
-			documentMu.RLock()
-			path, alreadySaved := currentShowPath, digest == lastSavedDigest
-			documentMu.RUnlock()
-			if path == "" || alreadySaved {
-				continue
-			}
-			saveMu.Lock()
-			_, err := saveShowAtPath(path, snapshot, settingsStore.Snapshot().FFmpegPath)
-			saveMu.Unlock()
-			if err != nil {
-				operatorEvents.Add(operatorlog.Recoverable, "Autosave", err.Error(), show.CueID{}, "")
-				uiActions <- func() { topBar.SetStatus("Autosave failed: " + err.Error()) }
-			} else {
-				documentMu.Lock()
-				lastSavedDigest = digest
-				documentMu.Unlock()
-				if a.Journal != nil {
-					if err := a.Journal.MarkSaved(snapshot, path); err != nil {
-						operatorEvents.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
-					}
-				}
-				uiActions <- func() { topBar.SetStatus("Autosaved " + documentName(path)) }
-			}
-			window.Invalidate()
-		}
-	}()
 
 	for {
 		e := window.Event()
