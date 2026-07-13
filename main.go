@@ -817,6 +817,9 @@ func (a *App) run(window *app.Window) error {
 		case app.FrameEvent:
 			gtx := app.NewContext(&ops, e)
 			gtx.Execute(op.InvalidateCmd{At: time.Now().Add(time.Second)})
+			if warmer, ok := mediaManager.(interface{ Prewarm([]playback.Instance) }); ok {
+				warmer.Prewarm(playbackEngine.PreloadCandidates(3))
+			}
 			if audioWarningSettings.Clicked(gtx) {
 				a.UI.ShowSettings = true
 				settingsPage.ShowAudioDevices()

@@ -84,15 +84,47 @@ type PlaybackSession interface {
 }
 
 type FFmpegBackend struct {
-	settings *config.Store
-	audio    *AudioSystem
+	settings   *config.Store
+	audio      *AudioSystem
+	warmMu     sync.Mutex
+	warm       map[string]warmSession
+	warming    map[string]struct{}
+	warmFailed map[string]time.Time
+	ctx        context.Context
+	cancel     context.CancelFunc
+	closed     bool
+}
+
+type warmSession struct {
+	session PlaybackSession
+	warmed  time.Time
 }
 
 func NewFFmpegBackend(settings *config.Store, audio *AudioSystem) *FFmpegBackend {
-	return &FFmpegBackend{settings: settings, audio: audio}
+	ctx, cancel := context.WithCancel(context.Background())
+	return &FFmpegBackend{settings: settings, audio: audio, warm: map[string]warmSession{}, warming: map[string]struct{}{}, warmFailed: map[string]time.Time{}, ctx: ctx, cancel: cancel}
 }
 
 func (b *FFmpegBackend) Open(request PlaybackRequest) (PlaybackSession, error) {
+	key := b.warmKey(request)
+	b.warmMu.Lock()
+	if b.closed {
+		b.warmMu.Unlock()
+		return nil, errors.New("media backend is closed")
+	}
+	if warmed, ok := b.warm[key]; ok {
+		delete(b.warm, key)
+		b.warmMu.Unlock()
+		if session, ok := warmed.session.(*ffmpegSession); ok {
+			session.rebind(request)
+		}
+		return warmed.session, nil
+	}
+	b.warmMu.Unlock()
+	return b.openFresh(request)
+}
+
+func (b *FFmpegBackend) openFresh(request PlaybackRequest) (PlaybackSession, error) {
 	path, err := sourcePath(request.Instance.Source)
 	if err != nil {
 		return nil, err
@@ -106,6 +138,94 @@ func (b *FFmpegBackend) Open(request PlaybackRequest) (PlaybackSession, error) {
 		frames: make(chan decodedFrame, decodedFrameBuffer), done: make(chan struct{}),
 		ctx: ctx, cancel: cancel,
 	}, nil
+}
+
+// Prewarm starts bounded decoder and audio prebuffer work for imminent cues.
+// A later Open atomically claims the ready session; stale entries are closed.
+func (b *FFmpegBackend) Prewarm(requests []PlaybackRequest) {
+	for _, request := range requests {
+		request := request
+		key := b.warmKey(request)
+		b.warmMu.Lock()
+		if b.closed {
+			b.warmMu.Unlock()
+			return
+		}
+		_, ready := b.warm[key]
+		_, running := b.warming[key]
+		failedAt := b.warmFailed[key]
+		if ready || running || (!failedAt.IsZero() && time.Since(failedAt) < 30*time.Second) {
+			b.warmMu.Unlock()
+			continue
+		}
+		b.warming[key] = struct{}{}
+		b.warmMu.Unlock()
+		go func() {
+			ctx, cancel := context.WithTimeout(b.ctx, 15*time.Second)
+			defer cancel()
+			session, err := b.openFresh(request)
+			if err == nil {
+				err = session.Preload(ctx)
+			}
+			b.warmMu.Lock()
+			delete(b.warming, key)
+			if err == nil && !b.closed {
+				b.warm[key] = warmSession{session: session, warmed: time.Now()}
+				delete(b.warmFailed, key)
+			} else if err == nil {
+				err = context.Canceled
+			} else if !b.closed {
+				b.warmFailed[key] = time.Now()
+			}
+			var stale []PlaybackSession
+			for len(b.warm) > 4 {
+				oldestKey := ""
+				var oldest time.Time
+				for candidate, warmed := range b.warm {
+					if oldestKey == "" || warmed.warmed.Before(oldest) {
+						oldestKey, oldest = candidate, warmed.warmed
+					}
+				}
+				stale = append(stale, b.warm[oldestKey].session)
+				delete(b.warm, oldestKey)
+			}
+			b.warmMu.Unlock()
+			if err != nil && session != nil {
+				session.Close()
+			}
+			for _, session := range stale {
+				session.Close()
+			}
+		}()
+	}
+}
+
+func (b *FFmpegBackend) warmKey(request PlaybackRequest) string {
+	settings := b.settings.Snapshot()
+	device, policy, backup := config.AudioRoute(settings, request.Instance.Preview)
+	video := config.VideoOutputFor(settings, request.Instance.OutputID)
+	return fmt.Sprintf("%s|%s|%s|%d|%d|%t|%s|%s|%s|%dx%d", settings.FFmpegPath, request.Instance.MediaType,
+		request.Instance.Source, request.Position.Milliseconds(), request.Instance.ClipEndMs, request.Instance.Preview,
+		device, policy, backup, video.ResolutionWidth, video.ResolutionHeight)
+}
+
+func (b *FFmpegBackend) Close() {
+	b.warmMu.Lock()
+	if b.closed {
+		b.warmMu.Unlock()
+		return
+	}
+	b.closed = true
+	b.cancel()
+	sessions := make([]PlaybackSession, 0, len(b.warm))
+	for _, warmed := range b.warm {
+		sessions = append(sessions, warmed.session)
+	}
+	b.warm = map[string]warmSession{}
+	b.warmMu.Unlock()
+	for _, session := range sessions {
+		session.Close()
+	}
 }
 
 type decodedFrame struct {
@@ -140,6 +260,12 @@ type ffmpegSession struct {
 	frameMu sync.Mutex
 	current *decodedFrame
 	pending *decodedFrame
+}
+
+func (s *ffmpegSession) rebind(request PlaybackRequest) {
+	s.mu.Lock()
+	s.request = request
+	s.mu.Unlock()
 }
 
 func (s *ffmpegSession) Preload(ctx context.Context) error {

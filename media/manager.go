@@ -31,6 +31,7 @@ type Manager struct {
 	desired           map[string]struct{}
 	closed            bool
 	audio             *AudioSystem
+	decoder           *FFmpegBackend
 	audioStatusMu     sync.Mutex
 	lastAudioCheck    time.Time
 	audioDeviceStatus string
@@ -48,9 +49,21 @@ func NewManager(engine *playback.Engine, settings *config.Store) *Manager {
 		log.Printf("initialize audio output: %v", err)
 	}
 	manager := &Manager{engine: engine, settings: settings, windows: map[string]*outputWindow{}, desired: map[string]struct{}{}, audio: context}
+	manager.decoder = NewFFmpegBackend(settings, context)
 	manager.refreshDisplays(true)
 	go manager.monitorDisplays()
 	return manager
+}
+
+func (m *Manager) Prewarm(instances []playback.Instance) {
+	requests := make([]PlaybackRequest, 0, len(instances))
+	for _, instance := range instances {
+		requests = append(requests, PlaybackRequest{
+			Instance: instance,
+			Position: time.Duration(max(int64(0), instance.ClipStartMs)) * time.Millisecond,
+		})
+	}
+	m.decoder.Prewarm(requests)
 }
 
 func (m *Manager) AudioDevices() ([]AudioDevice, error) {
@@ -222,6 +235,9 @@ func (m *Manager) Close() {
 		if output.window != nil {
 			output.window.Perform(system.ActionClose)
 		}
+	}
+	if m.decoder != nil {
+		m.decoder.Close()
 	}
 	if m.audio != nil {
 		m.audio.Close()
@@ -680,10 +696,10 @@ func (o *outputWindow) start(instance *playback.Instance) {
 	if instance == nil || o.players[instance.ID] != nil {
 		return
 	}
-	player := NewPlayer(
+	player := NewPlayerWithBackend(
 		*instance,
 		o.manager.settings,
-		o.manager.audio,
+		o.manager.decoder,
 		o.window,
 		func(report string) { o.manager.engine.HandleOutputReport(instance.ID, report) },
 		func(durationMs int64) { o.manager.engine.HandleOutputDuration(instance.ID, durationMs) },

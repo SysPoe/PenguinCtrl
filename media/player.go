@@ -54,9 +54,13 @@ type Player struct {
 }
 
 func NewPlayer(instance playback.Instance, settings *config.Store, audio *AudioSystem, window *app.Window, report func(string), duration func(int64), failure func(error)) *Player {
+	return NewPlayerWithBackend(instance, settings, NewFFmpegBackend(settings, audio), window, report, duration, failure)
+}
+
+func NewPlayerWithBackend(instance playback.Instance, settings *config.Store, backend PlaybackBackend, window *app.Window, report func(string), duration func(int64), failure func(error)) *Player {
 	return &Player{
 		instance: instance, settings: settings, window: window, report: report, duration: duration, failure: failure,
-		backend: NewFFmpegBackend(settings, audio), volumeDB: instance.LevelDB,
+		backend: backend, volumeDB: instance.LevelDB,
 	}
 }
 

@@ -292,6 +292,49 @@ func durationDetails(cue show.Cue, settings config.Settings) (source string, cli
 	return
 }
 
+// PreloadCandidates returns the selected and following playable media cues in
+// cue-list order. They contain only the immutable routing/decode fields needed
+// to warm a session; GO still creates the authoritative runtime instance.
+func (e *Engine) PreloadCandidates(limit int) []Instance {
+	_, selected, ok := e.manager.SelectedCueCopy()
+	if !ok || limit <= 0 {
+		return nil
+	}
+	cues, settings := e.manager.Snapshot(), e.settings.Snapshot()
+	result := make([]Instance, 0, limit)
+	for index := selected; index < len(cues) && len(result) < limit; index++ {
+		cue := cues[index]
+		if cue.Disabled || e.CueActive(cue.ID) {
+			continue
+		}
+		instance := Instance{CueID: cue.ID, CueNumber: cue.CueNumber, CueIndex: index}
+		switch cue.Type {
+		case show.CueTypeSound:
+			if cue.Play.Sound == nil {
+				continue
+			}
+			play := cue.Play.Sound
+			instance.MediaType, instance.Source = "audio", config.Resolve(play.File, settings, cue.CueNumber)
+			instance.OutputID = resolveOutput(play.OutputID, settings, cue.CueNumber)
+			instance.ClipStartMs, instance.ClipEndMs, instance.Preview = play.ClipStartMs, play.ClipEndMs, false
+		case show.CueTypeVideo:
+			if cue.Play.Video == nil {
+				continue
+			}
+			play := cue.Play.Video
+			instance.MediaType, instance.Source = "video", config.Resolve(play.File, settings, cue.CueNumber)
+			instance.OutputID = resolveOutput(play.OutputID, settings, cue.CueNumber)
+			instance.ClipStartMs, instance.ClipEndMs, instance.Preview = play.ClipStartMs, play.ClipEndMs, false
+		default:
+			continue
+		}
+		if strings.TrimSpace(instance.Source) != "" && !strings.Contains(instance.Source, "{") {
+			result = append(result, instance)
+		}
+	}
+	return result
+}
+
 func (e *Engine) run() {
 	defer close(e.done)
 	for {
