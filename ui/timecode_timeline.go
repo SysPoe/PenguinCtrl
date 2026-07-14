@@ -25,6 +25,10 @@ const (
 	timelineDragActionDuration
 )
 
+// TODO(macro): Separate the timeline document/history model from Gio gesture,
+// viewport, and asynchronous waveform state. A pure command model would make
+// undo/redo and marker/range edits testable without sharing lifecycle with
+// pointer capture and media-loading callbacks.
 type timecodeTimelineState struct {
 	tag struct{}
 

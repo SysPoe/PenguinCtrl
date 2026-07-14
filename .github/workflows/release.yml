@@ -69,4 +69,7 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+        # TODO(macro): Make release notes a declared or generated build input and
+        # validate it before packaging; the workflow currently assumes a tracked
+        # docs/release-notes.md even though that artifact is absent from the tree.
         run: gh release create $env:GITHUB_REF_NAME artifacts/release/*.zip artifacts/release/SHA256SUMS.txt artifacts/release/CuSus-*/SBOM.spdx.json artifacts/release/CuSus-*/release-manifest.json --verify-tag --notes-file docs/release-notes.md

@@ -43,6 +43,10 @@ func (udpSender) Send(ctx context.Context, host string, port int, payload []byte
 	return err
 }
 
+// TODO(macro): Separate protocol codecs/transports, dispatch success policy,
+// and target-health monitoring behind small interfaces. Dispatcher currently
+// owns all three concerns and their goroutines, so adding a protocol or health
+// strategy expands the same lifecycle-sensitive type.
 type Dispatcher struct {
 	settings         settingsProvider
 	sender           packetSender

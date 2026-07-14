@@ -53,6 +53,10 @@ type WarningContext struct {
 	HasRuntimeState    bool
 }
 
+// TODO(macro): Retire the string-first validators and have each validation
+// domain emit CueProblem directly. Deriving stable codes, fields, severity, and
+// fixes from English message text makes operator behavior change when wording
+// changes and leaves two validation representations to keep synchronized.
 // CueProblems returns static problems that can be determined from a cue and
 // cue list. Use CueProblemsWithContext at GO/preflight boundaries.
 func CueProblems(cue Cue, cues []Cue) []CueProblem {

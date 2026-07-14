@@ -30,6 +30,10 @@ type heartbeat struct {
 	Signature    string      `json:"signature,omitempty"`
 }
 
+// TODO(macro): Extract a pure authority/peer state machine from the UDP
+// heartbeat transport and OS interlock ownership. Keeping protocol I/O,
+// reconciliation policy, and takeover state under one mutex makes exhaustive
+// failover testing and future transport changes unnecessarily coupled.
 type Service struct {
 	mu sync.RWMutex
 

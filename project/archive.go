@@ -73,6 +73,9 @@ func SaveWithProgress(dst io.Writer, current show.Show, ffmpegPath string, progr
 	assets := map[string]pendingAsset{}
 	usedAssetPaths := map[string]struct{}{}
 
+	// TODO(macro): Ask the show domain for a cue's portable assets through one
+	// asset-enumeration contract. This archive-layer cue-type switch duplicates
+	// domain knowledge and can silently omit assets when a media cue type evolves.
 	for i := range manifest.Show.Cues {
 		cue := &manifest.Show.Cues[i]
 		var source, kind string

@@ -53,7 +53,11 @@ const (
 	CueTypeOutputControl
 )
 
-// Exactly one of these should be non-empty
+// TODO(macro): Replace Type plus this optional-pointer bag with a validated
+// tagged payload (or one central visitor). "Exactly one" is only a convention,
+// so each cue type addition must currently update parallel switches throughout
+// playback, validation, editing, repair, and archive code without compiler help.
+// Exactly one of these should be non-empty.
 type CuePlay struct {
 	Sound         *SoundPlay         `json:"sound,omitempty"`
 	Video         *VideoPlay         `json:"video,omitempty"`

@@ -36,6 +36,10 @@ type Timeline interface {
 	WaitUntil(context.Context, time.Duration) bool
 }
 
+// TODO(macro): Keep Engine as a facade, but move scheduling, runtime instances,
+// media validation, output state, and safety gates into owned components with
+// explicit snapshots. One broad state lock and 80+ methods currently couple
+// otherwise independent policies and make their lifecycle ordering implicit.
 type Engine struct {
 	manager             *show.ShowManager
 	settings            *config.Store

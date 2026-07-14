@@ -38,6 +38,8 @@ $windresCommand = Get-Command windres.exe -ErrorAction SilentlyContinue
 if (-not $windresCommand) { throw "windres.exe is required to embed the pinned Windows manifests and resources." }
 $mainResource = Join-Path $root "resource_windows_amd64.syso"
 $supervisorResource = Join-Path $root "cmd/cusus-supervisor/resource_windows_amd64.syso"
+# TODO(macro): Generate both resource/version inputs from $version so Explorer
+# metadata, assembly identity, buildinfo, and release-manifest.json cannot drift.
 Push-Location (Join-Path $root "build/windows")
 try {
     & $windresCommand.Source --input-format=rc --output-format=coff --target=pe-x86-64 cusus.rc $mainResource

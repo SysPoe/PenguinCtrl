@@ -203,6 +203,10 @@ func (sm *ShowManager) PasteCueBeforeSelected(cue Cue) bool {
 	return true
 }
 
+// TODO(macro): Remove these pointer-shaped compatibility getters in favor of
+// (Cue, bool), []Cue snapshots, and SelectedCueCopy. They return pointers to
+// detached copies, are now used only by compatibility tests, and misleadingly
+// imply that callers can mutate manager-owned state.
 func (sm *ShowManager) GetCue(index int) *Cue {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()

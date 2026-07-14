@@ -12,6 +12,10 @@ import (
 	"golang.org/x/exp/shiny/materialdesign/icons"
 )
 
+// TODO(macro): Encapsulate the cue-list widgets, selection cache, group maps,
+// and tooltip state in a CueListState owned by UIState. Package globals leak
+// state across window instances and tests, and their lifetime is unrelated to
+// the show document whose cue/group IDs they retain.
 var mainList = &widget.List{
 	List: layout.List{
 		Axis: layout.Vertical,

@@ -31,6 +31,10 @@ import (
 	"github.com/syspoe/cusus/ui"
 )
 
+// TODO(macro): Move document lifecycle, background-service ownership, and UI
+// command handling into a window-session controller, leaving run as a small Gio
+// event pump. This function currently owns enough unrelated lifetimes that save,
+// recovery, shutdown, and frame behavior cannot be exercised independently.
 func (a *App) run(window *app.Window) error {
 	topBar := &a.UI.TopBar
 	playbackSidebar := &a.UI.PlaybackSidebar

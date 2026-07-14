@@ -60,6 +60,10 @@ type videoOutputFields struct {
 	remove           widget.Clickable
 }
 
+// TODO(macro): Bind per-domain settings view models through the same typed
+// validation boundary used by config.Store. This flat widget mirror plus the
+// manual load/save mapping lets persistence, validation, and UI fields drift as
+// the settings schema grows.
 type SettingsPage struct {
 	store                     *config.Store
 	initialized               bool

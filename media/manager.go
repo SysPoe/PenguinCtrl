@@ -16,6 +16,10 @@ import (
 	"github.com/syspoe/cusus/playback"
 )
 
+// TODO(macro): Split hardware inventory, decoder/audio reset, and output-window
+// lifecycle into separately owned services, and have output windows depend on a
+// narrow playback event port rather than *playback.Engine. Manager currently
+// coordinates several lock domains and background loops as one failure domain.
 type Manager struct {
 	engine            *playback.Engine
 	settings          *config.Store

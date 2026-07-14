@@ -10,6 +10,10 @@ import (
 	"github.com/syspoe/cusus/ui/input"
 )
 
+// TODO(macro): Replace the parallel string-keyed widget maps with typed
+// per-cue editor models or field descriptors. Misspelled/missing keys and
+// mismatches between initialization, rendering, and apply logic are currently
+// runtime failures that the compiler cannot expose.
 type cueEditPageState struct {
 	initialized bool
 	cueID       show.CueID

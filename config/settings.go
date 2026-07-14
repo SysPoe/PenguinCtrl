@@ -53,6 +53,10 @@ type WindowPlacement struct {
 	Height int `json:"height"`
 }
 
+// TODO(macro): Split this persistence DTO into versioned domain settings
+// (media, routing, timecode, redundancy, and operator UI), with one migration
+// boundary preserving the on-disk JSON contract. The flat aggregate makes every
+// new option fan out through defaults, normalization, UI binding, and consumers.
 type Settings struct {
 	FFmpegPath                string            `json:"ffmpegPath"`
 	DefaultPlayback           string            `json:"defaultPlayback"`

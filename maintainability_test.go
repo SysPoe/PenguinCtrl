@@ -34,6 +34,10 @@ var formerLargeFiles = map[string]struct{}{
 }
 
 func TestProductionFilesStayWithinMaintainabilityLimits(t *testing.T) {
+	// TODO(macro): Add function-size/complexity, package-global mutable state,
+	// and dependency-direction guardrails. File LOC alone can be satisfied by
+	// mechanical splits while a 600-line orchestration function or god struct
+	// remains architecturally unchanged.
 	t.Parallel()
 
 	err := filepath.WalkDir(".", func(path string, entry fs.DirEntry, walkErr error) error {
