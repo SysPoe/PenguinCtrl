@@ -13,6 +13,7 @@ import (
 	"gioui.org/widget/material"
 	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/palette"
+	"github.com/syspoe/cusus/utils"
 )
 
 func operatorButton(th *material.Theme, gtx layout.Context, clickable *widget.Clickable, label string) layout.Dimensions {
@@ -46,11 +47,11 @@ func operatorEventCard(th *material.Theme, gtx layout.Context, accent color.NRGB
 							label.Color = palette.White
 							return label.Layout(gtx)
 						}),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						utils.Ter(message != "", layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							label := material.Body2(th, message)
-							label.Color = palette.TextSoft
-							return layout.Inset{Top: unit.Dp(4)}.Layout(gtx, label.Layout)
-						}),
+							label.Color = palette.White
+							return label.Layout(gtx)
+						}), layout.Rigid(func(gtx layout.Context) layout.Dimensions { return layout.Dimensions{} })),
 					)
 				})
 			},

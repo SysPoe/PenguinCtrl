@@ -4,4 +4,5 @@ AGENTS.md
 .audio-normalized-tmp/
 .audio-normalized-limited-tmp/
 cusus.exe
+cusus.exe~
 *.cusus*

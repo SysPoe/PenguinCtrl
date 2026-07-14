@@ -126,7 +126,7 @@ func (p *OperatorPanel) layoutPreflight(th *material.Theme, gtx layout.Context, 
 	return material.List(th, &p.list).Layout(gtx, len(checks)+1, func(gtx layout.Context, index int) layout.Dimensions {
 		if index == 0 {
 			if !preflightRequiresAttention(checks) {
-				return operatorEventCard(th, gtx, palette.Success, "READY FOR PERFORMANCE", "No actionable preflight problems found", "Informational checks below do not require action before performance.", false)
+				return operatorEventCard(th, gtx, palette.Success, "READY FOR PERFORMANCE", "No actionable preflight problems found", "", false)
 			}
 			return operatorEventCard(th, gtx, preflightColor(checks), "ATTENTION REQUIRED", preflightSummary(checks), "Plz resolve all of these before perf.", false)
 		}
