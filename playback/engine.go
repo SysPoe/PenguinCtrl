@@ -120,6 +120,7 @@ func (e *Engine) Close() {
 	e.remote.Close()
 }
 
+// TODO(micro): Remove the bool result or make callers handle it; every current caller discards the shutdown rejection signal.
 func (e *Engine) goOwned(work func()) bool {
 	e.workerMu.Lock()
 	if e.closing {
@@ -265,6 +266,7 @@ func (e *Engine) RefreshDurations() {
 		e.changed()
 	}
 	for _, next := range tasks {
+		// TODO(micro): Remove this pre-Go-1.22 closure workaround; next is already a per-iteration variable.
 		next := next
 		e.goOwned(func() {
 			if !e.acquireMediaProbe() {
@@ -292,6 +294,7 @@ func (e *Engine) RefreshDurations() {
 		})
 	}
 	for _, next := range validationTasks {
+		// TODO(micro): Remove this pre-Go-1.22 closure workaround; next is already a per-iteration variable.
 		next := next
 		e.goOwned(func() {
 			if !e.acquireMediaProbe() {

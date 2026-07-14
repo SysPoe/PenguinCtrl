@@ -42,6 +42,7 @@ type preflightService struct {
 func newPreflightService() *preflightService {
 	ctx, cancel := context.WithCancel(context.Background())
 	service := &preflightService{ctx: ctx, cancel: cancel}
+	// TODO(micro): Handle rand.Read failure rather than silently continuing with a predictable all-zero secret.
 	_, _ = rand.Read(service.secret[:])
 	return service
 }

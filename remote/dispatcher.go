@@ -35,6 +35,7 @@ func (udpSender) Send(ctx context.Context, host string, port int, payload []byte
 	if err != nil {
 		return err
 	}
+	// TODO(micro): Explicitly mark this UDP close as best effort or return its error when no earlier send error exists.
 	defer conn.Close()
 	if deadline, ok := ctx.Deadline(); ok {
 		_ = conn.SetWriteDeadline(deadline)
@@ -131,6 +132,7 @@ func (d *Dispatcher) DispatchWithResult(ctx context.Context, play show.RemotePla
 	}
 	results := make(chan result, len(settings.RemoteTargets))
 	for _, target := range settings.RemoteTargets {
+		// TODO(micro): Remove this obsolete loop-variable copy; target is already distinct per iteration on the required Go version.
 		target := target
 		go func() {
 			protocol, acknowledged, err := d.dispatchTarget(ctx, target, play.Protocol, resolved)
@@ -218,6 +220,7 @@ func sendAcknowledged(ctx context.Context, host string, port int, id string, pay
 	if err != nil {
 		return err
 	}
+	// TODO(micro): Explicitly mark this TCP close as best effort or combine it with the result.
 	defer conn.Close()
 	if deadline, ok := ctx.Deadline(); ok {
 		_ = conn.SetDeadline(deadline)
@@ -274,6 +277,7 @@ func (d *Dispatcher) probeTargets() {
 		if target.HealthPort <= 0 {
 			continue
 		}
+		// TODO(micro): Remove this obsolete loop-variable copy; the goroutine can capture the per-iteration target directly.
 		target := target
 		probes.Add(1)
 		go func() {

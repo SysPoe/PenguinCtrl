@@ -1,3 +1,4 @@
+// TODO(micro): Add a package comment and Go-style docs for the exported schema constant and Identity function.
 package buildinfo
 
 import "strings"

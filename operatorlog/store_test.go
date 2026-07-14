@@ -74,6 +74,7 @@ func TestSupportBundleRedactsSettingsAndIncludesIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// TODO(micro): Register a cleanup that reports reader.Close failure through t.Errorf instead of ignoring it.
 	defer reader.Close()
 	files := map[string][]byte{}
 	for _, file := range reader.File {

@@ -45,7 +45,9 @@ func Write(path string, data []byte, perm os.FileMode) error {
 		return fmt.Errorf("create temporary file: %w", err)
 	}
 	tmpPath := tmp.Name()
+	// TODO(micro): Make cleanup explicit if Remove failure matters, or assign it to _ to document intentional best effort.
 	defer os.Remove(tmpPath)
+	// TODO(micro): Stop shadowing the outer err here; both Chmod and Write failures are currently discarded before the Sync check.
 	if err := tmp.Chmod(perm); err == nil {
 		_, err = tmp.Write(data)
 	}
@@ -89,6 +91,7 @@ func syncDirectory(path string) error {
 	if err != nil {
 		return nil // best effort on platforms that do not permit directory handles
 	}
+	// TODO(micro): Assign this best-effort close result to _ explicitly so the ignored error is intentional.
 	defer dir.Close()
 	_ = dir.Sync() // Windows and some filesystems may not support this operation.
 	return nil

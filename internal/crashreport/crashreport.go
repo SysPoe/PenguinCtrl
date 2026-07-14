@@ -1,3 +1,4 @@
+// TODO(micro): Add a package comment and Go-style docs for the exported crash-output lifecycle functions.
 package crashreport
 
 import (
@@ -45,6 +46,7 @@ func InstallFatalOutput() error {
 		return err
 	}
 	if err := debug.SetCrashOutput(file, debug.CrashOptions{}); err != nil {
+		// TODO(micro): Preserve or explicitly discard the close error instead of calling Close unchecked on this failure path.
 		file.Close()
 		return err
 	}

@@ -28,12 +28,14 @@ func makeBtnWithColor(th *material.Theme, wid *widget.Clickable, txt string, bgC
 	})
 }
 
+// TODO(micro): Remove weight while every call passes 1, or add a caller that actually needs variable weighting.
 func makeFlexedBtnWithColor(th *material.Theme, wid *widget.Clickable, txt string, bgColor color.NRGBA, weight float32) layout.FlexChild {
 	return layout.Flexed(weight, func(gtx layout.Context) layout.Dimensions {
 		return layoutCenteredButton(th, gtx, wid, txt, bgColor)
 	})
 }
 
+// TODO(micro): Remove width while every call passes menuWidth; the parameter suggests flexibility that does not exist.
 func makeFixedWidthBtn(th *material.Theme, wid *widget.Clickable, txt string, width int) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		setFixedWidth(&gtx, width)
@@ -43,6 +45,7 @@ func makeFixedWidthBtn(th *material.Theme, wid *widget.Clickable, txt string, wi
 	})
 }
 
+// TODO(micro): Remove width while every call passes menuWidth; keep only the meaningful enabled argument.
 func makeFixedWidthBtnEnabled(th *material.Theme, wid *widget.Clickable, txt string, width int, enabled bool) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		if !enabled {
@@ -59,6 +62,7 @@ func opaqueForeground(th *material.Theme) color.NRGBA {
 	return palette.Opaque(th.Fg)
 }
 
+// TODO(micro): Remove this unused button variant until a caller needs it.
 func makeFixedWidthBtnWithColor(th *material.Theme, wid *widget.Clickable, txt string, width int, bgColor color.NRGBA) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		setFixedWidth(&gtx, width)
@@ -84,6 +88,7 @@ func makeMeasuredBtn(th *material.Theme, wid *widget.Clickable, txt string, size
 	})
 }
 
+// TODO(micro): Remove this unused enabled-state variant; it only duplicates makeMeasuredBtn with a Disabled wrapper.
 func makeMeasuredBtnEnabled(th *material.Theme, wid *widget.Clickable, txt string, size *image.Point, enabled bool) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		if !enabled {
@@ -191,6 +196,7 @@ func makeFlexedTextHeader(th *material.Theme, txt string, weight float32, align 
 	})
 }
 
+// TODO(micro): Delete this unused separator helper and its now-unnecessary drawing imports.
 func rigidVerticalSeparatorBar(height unit.Dp) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		// Create a vertical line with a fixed width of 1 dp

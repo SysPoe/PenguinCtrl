@@ -1,3 +1,4 @@
+// TODO(micro): Add Go-style documentation for Checkbox and its exported constructor, listener, and layout API.
 package input
 
 import (

@@ -123,6 +123,7 @@ func SaveWithProgress(dst io.Writer, current show.Show, ffmpegPath string, progr
 	}
 
 	zw := zip.NewWriter(dst)
+	// TODO(micro): Remove this unchecked deferred Close; SaveWithProgress already performs and checks the final Close below.
 	defer zw.Close()
 	keys := make([]string, 0, len(assets))
 	for key := range assets {
@@ -154,6 +155,7 @@ func SaveWithProgress(dst io.Writer, current show.Show, ffmpegPath string, progr
 			input, err = os.Open(converted)
 			if err == nil {
 				_, err = io.Copy(entry, input)
+				// TODO(micro): Fold the input Close error into err instead of discarding a possible read/handle failure.
 				input.Close()
 			}
 		}

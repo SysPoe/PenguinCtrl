@@ -99,6 +99,7 @@ func (e *Engine) scheduleTimecode(instanceID string, cue show.Cue, cueIndex int,
 		base = timeline.Position()
 	}
 	for _, marker := range markers {
+		// TODO(micro): Remove this obsolete loop-variable copy; Go 1.22+ closures capture marker safely.
 		marker := marker
 		if marker.Disabled || marker.TimeMs < 0 {
 			continue
@@ -388,6 +389,7 @@ func (e *Engine) executeWait(cue show.Cue, runCtx context.Context) error {
 		if e.waitSatisfied(*wait) {
 			return nil
 		}
+		// TODO(micro): Reuse a ticker for this polling fallback instead of allocating a new time.After timer on every iteration.
 		select {
 		case <-runCtx.Done():
 			return runCtx.Err()

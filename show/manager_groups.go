@@ -115,6 +115,7 @@ func (sm *ShowManager) UngroupSelectedCue() bool {
 func (sm *ShowManager) MoveSelectedCueIntoGroup(groupID GroupID, atEnd bool) bool {
 	sm.mu.Lock()
 	source := sm.SelectedCueIndex
+	// TODO(micro): Do not bind last in this first lookup; it is overwritten after the selected cue is removed.
 	first, last, title := groupBounds(sm.show.Cues, groupID)
 	if source < 0 || source >= len(sm.show.Cues) || first < 0 {
 		sm.mu.Unlock()
@@ -153,6 +154,7 @@ func (sm *ShowManager) MoveSelectedCueAfterGroup(groupID GroupID) bool {
 func (sm *ShowManager) moveSelectedOutsideGroup(groupID GroupID, after bool) bool {
 	sm.mu.Lock()
 	source := sm.SelectedCueIndex
+	// TODO(micro): Do not bind last in this first lookup; it is overwritten after the selected cue is removed.
 	first, last, _ := groupBounds(sm.show.Cues, groupID)
 	if source < 0 || source >= len(sm.show.Cues) || first < 0 {
 		sm.mu.Unlock()

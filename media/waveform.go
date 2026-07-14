@@ -38,6 +38,7 @@ func ExtractWaveformContext(parent context.Context, ffmpegPath, source string) (
 	const sampleRate = 400
 	ctx, cancel := context.WithTimeout(parent, 2*time.Minute)
 	defer cancel()
+	// TODO(micro): Use strconv.Itoa for sampleRate instead of the reflection-backed fmt.Sprint path.
 	cmd := processgroup.CommandContext(ctx, ffmpegPath, "-v", "error", "-i", path, "-map", "0:a:0", "-ac", "1", "-ar", fmt.Sprint(sampleRate), "-f", "s16le", "pipe:1")
 	raw, err := processgroup.Output(cmd)
 	if err != nil {

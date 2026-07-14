@@ -137,6 +137,7 @@ func integerRow(th *material.Theme, label string, field *input.Integer, apply fu
 	}}
 }
 
+// TODO(micro): Remove label while every caller passes "Level dB", or rename this to levelDBRow.
 func floatRow(th *material.Theme, label string, field *input.Float, apply func(value float64)) cueEditFormRow {
 	return cueEditFormRow{label: label, layout: func(gtx layout.Context) layout.Dimensions {
 		dims := field.Layout(th, gtx)

@@ -1,3 +1,4 @@
+// TODO(micro): Add Go-style documentation for Integer and its exported focus/constructor API.
 package input
 
 import (

@@ -61,6 +61,7 @@ func redundancyProductionIdentity(current show.Show, settings config.Settings, f
 	return logical, redundancyMediaIdentityDigest(identities), ready
 }
 
+// TODO(micro): Remove this unused forwarding helper; all callers use redundancyProductionIdentity directly.
 func redundancyMediaDigest(cues []show.Cue, settings config.Settings, files []project.File) (string, bool) {
 	_, digest, ready := redundancyProductionIdentity(show.Show{Cues: cues}, settings, files)
 	return digest, ready

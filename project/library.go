@@ -79,6 +79,7 @@ func HashFile(path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("open media %q: %w", path, err)
 	}
+	// TODO(micro): Explicitly discard or return this read-only Close error so the cleanup policy is clear.
 	defer file.Close()
 	hash := sha256.New()
 	if _, err := io.Copy(hash, file); err != nil {

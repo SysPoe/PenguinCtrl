@@ -60,6 +60,7 @@ type WarningContext struct {
 // CueProblems returns static problems that can be determined from a cue and
 // cue list. Use CueProblemsWithContext at GO/preflight boundaries.
 func CueProblems(cue Cue, cues []Cue) []CueProblem {
+	// TODO(micro): Seed capacity from the legacy warning count before appending the other problem domains.
 	problems := make([]CueProblem, 0)
 	for _, message := range cueWarningMessages(cue, cues) {
 		problems = append(problems, problemForMessage(message))

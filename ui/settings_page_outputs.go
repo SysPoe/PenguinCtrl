@@ -29,6 +29,7 @@ func (p *SettingsPage) refreshVideoDisplayList() {
 func (p *SettingsPage) videoOutputsSection(th *material.Theme, gtx layout.Context) layout.Dimensions {
 	rows := make([]layout.Widget, 0, len(p.videoOutputs)+2)
 	for _, fields := range p.videoOutputs {
+		// TODO(micro): Remove this obsolete loop-variable copy; fields already has per-iteration scope on Go 1.22+.
 		fields := fields
 		rows = append(rows, func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Bottom: unit.Dp(16)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -136,6 +137,7 @@ func (p *SettingsPage) targetsSection(th *material.Theme, gtx layout.Context) la
 		})
 	})
 	for _, fields := range p.targets {
+		// TODO(micro): Remove this obsolete loop-variable copy; fields already has per-iteration scope on Go 1.22+.
 		fields := fields
 		rows = append(rows, func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -169,6 +171,7 @@ func (p *SettingsPage) variablesSection(th *material.Theme, gtx layout.Context) 
 		})
 	})
 	for _, fields := range p.variables {
+		// TODO(micro): Remove this obsolete loop-variable copy; fields already has per-iteration scope on Go 1.22+.
 		fields := fields
 		rows = append(rows, func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -223,6 +226,7 @@ type settingsColumnHeader struct {
 func settingsColumnHeaders(th *material.Theme, gtx layout.Context, headers []settingsColumnHeader) layout.Dimensions {
 	children := make([]layout.FlexChild, len(headers))
 	for i, header := range headers {
+		// TODO(micro): Remove this obsolete loop-variable copy; header already has per-iteration scope on Go 1.22+.
 		header := header
 		if header.weight <= 0 {
 			header.weight = 1

@@ -464,6 +464,7 @@ func (t *timecodeTimelineState) checkpoint(markers []show.TimecodeMarker) {
 	t.future = nil
 }
 
+// TODO(micro): Remove the bool result while all callers ignore it, or use it to drive disabled/feedback state.
 func (ctx *CueEditUI) undoTimeline(markers *[]show.TimecodeMarker) bool {
 	t := &ctx.timeline
 	if len(t.history) == 0 {
@@ -477,6 +478,7 @@ func (ctx *CueEditUI) undoTimeline(markers *[]show.TimecodeMarker) bool {
 	return true
 }
 
+// TODO(micro): Remove the bool result while all callers ignore it, or use it to drive disabled/feedback state.
 func (ctx *CueEditUI) redoTimeline(markers *[]show.TimecodeMarker) bool {
 	t := &ctx.timeline
 	if len(t.future) == 0 {

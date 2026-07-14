@@ -16,6 +16,7 @@ func ListenOSC(ctx context.Context, address string, coordinator *Coordinator) er
 	if err != nil {
 		return err
 	}
+	// TODO(micro): Explicitly discard or return packet.Close's error instead of leaving the cleanup result unchecked.
 	defer packet.Close()
 	stopClose := context.AfterFunc(ctx, func() { _ = packet.Close() })
 	defer stopClose()

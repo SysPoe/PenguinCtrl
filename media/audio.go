@@ -57,6 +57,7 @@ func NewAudioSystem(settings *config.Store) (*AudioSystem, error) {
 
 func (a *AudioSystem) Devices() ([]AudioDevice, error) {
 	if a == nil || a.context == nil {
+		// TODO(micro): Use errors.New for this static message instead of fmt.Errorf.
 		return nil, fmt.Errorf("audio system is unavailable")
 	}
 	devices, err := a.context.Devices(malgo.Playback)
@@ -90,6 +91,7 @@ func (a *AudioSystem) NewPlayer(reader io.Reader, preview bool) (*devicePlayer, 
 // video can be buffered before the shared clock begins.
 func (a *AudioSystem) NewPreparedPlayer(reader io.Reader, preview bool) (*devicePlayer, error) {
 	if a == nil || a.context == nil {
+		// TODO(micro): Use errors.New for this static message instead of fmt.Errorf.
 		return nil, fmt.Errorf("audio output is unavailable")
 	}
 	deviceID, recoveryPolicy, backupID := config.AudioRoute(a.settings.Snapshot(), preview)

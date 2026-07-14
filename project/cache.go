@@ -28,6 +28,7 @@ func StartCacheMaintainer(active func() bool, protected func() []string, limits 
 		for {
 			if !active() {
 				quota, reserve := limits()
+				// TODO(micro): Retain or report this error; recurring cache-maintenance failures are currently invisible to the caller.
 				_ = MaintainCache(quota, reserve, protected())
 			}
 			select {
@@ -112,6 +113,7 @@ func cacheObjects(root string) ([]cacheObject, error) {
 			path := filepath.Join(root, directory, entry.Name())
 			var size uint64
 			used := time.Time{}
+			// TODO(micro): Check WalkDir's result and child errors; treating unreadable files as zero bytes can evict the wrong cache entries.
 			_ = filepath.WalkDir(path, func(child string, item fs.DirEntry, walkErr error) error {
 				if walkErr != nil {
 					return nil
@@ -144,4 +146,5 @@ func cacheObjectProtected(object string, protected []string) bool {
 	return false
 }
 
+// TODO(micro): Return the Chtimes error so callers can distinguish a refreshed cache entry from a failed timestamp update.
 func touchCachePath(path string) { now := time.Now(); _ = os.Chtimes(path, now, now) }

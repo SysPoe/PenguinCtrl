@@ -269,6 +269,7 @@ func normalizedVolume(levelDB float64) float32 {
 	return min(float32(1), max(float32(0), float32((levelDB+80)/92)))
 }
 
+// TODO(micro): Remove weight while every caller passes 1; the unused variability makes call sites noisier.
 func sidebarButton(th *material.Theme, clickable *widget.Clickable, label string, enabled bool, bg, fg color.NRGBA, weight float32) layout.FlexChild {
 	return layout.Flexed(weight, func(gtx layout.Context) layout.Dimensions {
 		if !enabled {

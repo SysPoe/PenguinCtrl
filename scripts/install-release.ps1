@@ -27,6 +27,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $source "cusus.exe"))) {
 }
 $incoming = $install + ".incoming-" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
 New-Item -ItemType Directory -Force -Path $incoming | Out-Null
+# TODO(micro): Remove $incoming in a finally block so a failed copy does not leave a partial installation directory behind.
 Copy-Item -Path (Join-Path $source "*") -Destination $incoming -Recurse -Force
 
 if (Test-Path -LiteralPath $previous) {

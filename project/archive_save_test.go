@@ -89,6 +89,7 @@ func TestSaveWithProgressDoesNotMutateShowSnapshot(t *testing.T) {
 }
 
 func TestSavePreservesMediaFilenameAndNumbersCollisions(t *testing.T) {
+	// TODO(micro): Allocate cues with capacity three; this test appends exactly three fixtures.
 	var cues []show.Cue
 	for i, content := range []string{"first", "second", "third"} {
 		directory := filepath.Join(t.TempDir(), content)

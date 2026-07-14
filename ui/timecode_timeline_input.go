@@ -20,6 +20,7 @@ import (
 	"github.com/syspoe/cusus/ui/input"
 )
 
+// TODO(micro): Remove these unused pass-through constructors and the input import they keep alive.
 func inputInteger(label string, value int) *input.Integer    { return input.NewInteger(label, value) }
 func inputCheckbox(label string, value bool) *input.Checkbox { return input.NewCheckbox(label, value) }
 
@@ -238,6 +239,7 @@ func (ctx *CueEditUI) handleTimelinePointer(gtx layout.Context, size image.Point
 				t.dragIndex = durationIndex
 				t.dragMode = timelineDragActionDuration
 			} else if index >= 0 {
+				// TODO(micro): Flatten this selection toggle into a switch to make modifier, existing-selection, and replacement cases explicit.
 				if e.Modifiers.Contain(key.ModShift) || e.Modifiers.Contain(key.ModShortcut) {
 					if t.selected[index] {
 						delete(t.selected, index)

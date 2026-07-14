@@ -33,9 +33,11 @@ func startPowerKeeper() *powerKeeper {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 		for {
+			// TODO(micro): Check SetThreadExecutionState results; a zero return means the show-safety power request was not applied.
 			procSetThreadExecutionState.Call(esContinuous | esSystemRequired | esDisplayRequired)
 			select {
 			case <-keeper.done:
+				// TODO(micro): Check or explicitly discard the error when restoring the default execution state.
 				procSetThreadExecutionState.Call(esContinuous)
 				return
 			case <-ticker.C:

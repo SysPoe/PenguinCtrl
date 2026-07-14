@@ -1,3 +1,4 @@
+// TODO(micro): Add a package comment and Go-style docs for ErrShutdownTimeout and Group's exported lifecycle API.
 package taskgroup
 
 import (

@@ -30,6 +30,7 @@ func (p *devicePlayer) Start() error {
 	select {
 	case <-p.ready:
 	case <-time.After(time.Second):
+		// TODO(micro): Use errors.New for this static message instead of fmt.Errorf.
 		return fmt.Errorf("audio prebuffer timed out")
 	}
 	p.mu.Lock()
@@ -81,6 +82,7 @@ func (p *devicePlayer) fillRing() {
 				p.readyOnce.Do(func() { close(p.ready) })
 			}
 			if written < n {
+				// TODO(micro): Reuse a timer or another backoff primitive here; time.After allocates a fresh timer on every full-ring retry.
 				select {
 				case <-p.done:
 					return

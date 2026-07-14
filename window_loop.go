@@ -111,6 +111,7 @@ func (a *App) run(window *app.Window) error {
 		},
 		func() []string {
 			current, settings := manager.ShowSnapshot(), settingsStore.Snapshot()
+			// TODO(micro): Preallocate at least len(current.Cues); most media cues contribute one path.
 			var paths []string
 			for _, cue := range current.Cues {
 				paths = append(paths, cueMediaSources(cue, settings)...)
@@ -217,7 +218,9 @@ func (a *App) run(window *app.Window) error {
 				_, err = io.Copy(tmp, file)
 			}
 			if tmp != nil {
+				// TODO(micro): Fold tmp.Close into err before attempting to load the copied archive.
 				tmp.Close()
+				// TODO(micro): Explicitly mark temporary-file removal as best effort or report cleanup failure.
 				defer os.Remove(tmp.Name())
 			}
 			if err != nil {

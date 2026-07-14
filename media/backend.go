@@ -207,6 +207,7 @@ func (b *FFmpegBackend) release(session *ffmpegSession) {
 // A later Open atomically claims the ready session; stale entries are closed.
 func (b *FFmpegBackend) Prewarm(requests []PlaybackRequest) {
 	for _, request := range requests {
+		// TODO(micro): Remove this pre-Go-1.22 loop-variable copy; each iteration now has its own request variable.
 		request := request
 		key := b.warmKey(request)
 		b.warmMu.Lock()
@@ -232,6 +233,7 @@ func (b *FFmpegBackend) Prewarm(requests []PlaybackRequest) {
 			}
 			b.warmMu.Lock()
 			delete(b.warming, key)
+			// TODO(micro): Rewrite this mutually exclusive err/closed chain as a switch so each state transition is explicit.
 			if err == nil && !b.closed {
 				b.warm[key] = warmSession{session: session, warmed: time.Now()}
 				delete(b.warmFailed, key)

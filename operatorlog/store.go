@@ -132,6 +132,7 @@ func (s *Store) AddDetails(severity Severity, source, message string, cueID show
 	s.mu.Unlock()
 	if logPath != "" {
 		s.logMu.Lock()
+		// TODO(micro): Surface or record append failures; silently dropping the durable copy makes this Store look healthier than it is.
 		_ = appendEventLog(logPath, event)
 		s.logMu.Unlock()
 	}
@@ -178,6 +179,7 @@ func (s *Store) appendDiagnostic(source, message string, details map[string]any)
 	s.mu.Unlock()
 	if logPath != "" {
 		s.logMu.Lock()
+		// TODO(micro): Share one helper with AddDetails that handles append failures instead of discarding this result independently.
 		_ = appendEventLog(logPath, event)
 		s.logMu.Unlock()
 	}
@@ -206,6 +208,7 @@ func appendEventLog(path string, event Event) error {
 }
 
 func rotateEventLogs(path string, generations int) error {
+	// TODO(micro): Use strconv.Itoa for generation suffixes instead of fmt.Sprint in this rotation loop.
 	_ = os.Remove(path + "." + fmt.Sprint(generations))
 	for generation := generations - 1; generation >= 1; generation-- {
 		from, to := path+"."+fmt.Sprint(generation), path+"."+fmt.Sprint(generation+1)

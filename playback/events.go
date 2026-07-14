@@ -119,6 +119,7 @@ func newEventHub() *eventHub {
 	return &eventHub{subscribers: map[string]map[chan Event]struct{}{}}
 }
 
+// TODO(micro): Drop outputID from this test-only helper while every caller passes "main", or add a non-main coverage case.
 func (h *eventHub) subscribe(outputID string) chan Event {
 	ch := make(chan Event, 256)
 	h.mu.Lock()

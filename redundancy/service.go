@@ -1,3 +1,4 @@
+// TODO(micro): Add Go-style documentation for Service and each exported constructor/lifecycle method in this file.
 package redundancy
 
 import (
@@ -80,6 +81,7 @@ func (s *Service) Configure(config Config) error {
 	if s.closed {
 		return errors.New("redundancy service is closed")
 	}
+	// TODO(micro): Handle release failure before replacing config; discarding it can leave stale authority/interlock state.
 	s.releaseAuthorityLocked()
 	s.config = config
 	s.interlockID = interlockIdentity(config.InterlockPath)

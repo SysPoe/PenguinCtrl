@@ -63,6 +63,7 @@ func (s *healthService) Snapshot() health.Snapshot {
 func (s *healthService) Close() { s.cancel(); s.wg.Wait() }
 
 func collectHealthComponents(engine *playback.Engine, backend media.Backend, timeline *timecode.Service, spare *redundancy.Service, settings config.Settings, documentPath string, dirty bool) []health.Component {
+	// TODO(micro): Preallocate room beyond the four fixed entries to avoid repeated growth as each health domain is appended.
 	components := []health.Component{engineHealth(engine), archiveHealth(documentPath, dirty), timecodeHealth(timeline), redundancyHealth(spare)}
 	components = append(components, audioHealth(engine, backend, settings)...)
 	components = append(components, outputHealth(backend, settings)...)

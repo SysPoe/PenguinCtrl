@@ -146,6 +146,7 @@ func transcode(ffmpegPath, source, kind, sourceHash string) (string, error) {
 		return "", err
 	}
 	temporary := tmp.Name()
+	// TODO(micro): Check Close before removing/reusing the temporary path; a handle failure is currently ignored.
 	tmp.Close()
 	_ = os.Remove(temporary)
 

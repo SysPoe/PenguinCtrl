@@ -1,3 +1,4 @@
+// TODO(micro): Add Go-style documentation for the exported redundancy types, constants, error, and summary methods.
 package redundancy
 
 import (
@@ -84,9 +85,11 @@ func (s Status) Summary() string {
 		if s.PeerFresh {
 			return fmt.Sprintf("%s owns command authority; peer %s is validated", titleRole(s.Role), s.PeerNodeID)
 		}
+		// TODO(micro): Use string concatenation for this fixed-prefix/suffix message instead of fmt.Sprintf.
 		return fmt.Sprintf("%s owns command authority; validated peer heartbeat is stale", titleRole(s.Role))
 	}
 	if s.Authority {
+		// TODO(micro): Use string concatenation for this fixed-prefix/suffix message instead of fmt.Sprintf.
 		return fmt.Sprintf("%s owns the interlock but command issue is blocked until both nodes match", titleRole(s.Role))
 	}
 	if s.PeerActive && s.PeerFresh {

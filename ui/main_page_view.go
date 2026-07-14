@@ -143,6 +143,7 @@ func Main(
 	}
 	if moveCueActive && !moveHandled && moveToEndClick.Clicked(gtx) && moveToEnd != nil {
 		moveToEnd()
+		// TODO(micro): Delete this assignment; moveHandled is never read again before the function returns.
 		moveHandled = true
 	}
 
@@ -239,6 +240,7 @@ func Main(
 						hoverColor := applyAlpha(palette.WithAlpha(cue.Color, 30), th.Bg)
 
 						bg := th.Bg
+						// TODO(micro): Express these mutually exclusive row states as a switch; the priority order is easier to scan that way.
 						if cueFailed {
 							bg = applyAlpha(palette.WithAlpha(palette.Danger, 95), th.Bg)
 						} else if cueIndex == selectedIndex {
@@ -333,6 +335,7 @@ func Main(
 													func(gtx layout.Context) layout.Dimensions {
 
 														return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+															// TODO(micro): Drop the empty initializer; every switch arm, including default, overwrites str.
 															var str = ""
 															switch cue.Type {
 															case show.CueTypeImage:
@@ -378,6 +381,7 @@ func Main(
 											// Link
 											layout.Flexed(weights[10], func(gtx layout.Context) layout.Dimensions {
 												return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+													// TODO(micro): Drop the empty initializer; every switch arm, including default, overwrites str.
 													var str = ""
 													switch cue.Link.Mode {
 													case show.CueLinkManual:

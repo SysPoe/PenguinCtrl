@@ -123,6 +123,7 @@ func newApp() (*App, error) {
 	operatorEvents.SetLogPath(filepath.Join(filepath.Dir(settings.Path()), "operator-events.jsonl"))
 	operatorEvents.SetContext(applicationBuildID(), func() string {
 		digest := showDigest(showManager.ShowSnapshot())
+		// TODO(micro): Use hex.EncodeToString here instead of routing fixed bytes through fmt.Sprintf.
 		return fmt.Sprintf("%x", digest[:8])
 	})
 	log.SetOutput(operatorEvents.Writer("Runtime"))

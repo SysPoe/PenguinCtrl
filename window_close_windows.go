@@ -63,6 +63,7 @@ func (g *windowCloseInterceptor) AllowAndClose() {
 		return
 	}
 	g.allow.Store(true)
+	// TODO(micro): Check PostMessageW's return value so a failed close request can be retried or reported.
 	procPostMessageW.Call(g.hwnd, wmClose, 0, 0)
 }
 

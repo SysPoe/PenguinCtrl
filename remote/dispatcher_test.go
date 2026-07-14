@@ -20,6 +20,7 @@ type staticSettings struct{ value config.Settings }
 
 func (s staticSettings) Snapshot() config.Settings { return s.value }
 
+// TODO(micro): Remove concurrentSender's unused mutex; the fake has no mutable shared state to protect.
 type concurrentSender struct {
 	delay    time.Duration
 	mu       sync.Mutex
@@ -74,12 +75,14 @@ func TestAcknowledgedRelayReturnsMatchingCommandID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// TODO(micro): Register a cleanup that reports listener.Close failure instead of ignoring it.
 	defer listener.Close()
 	go func() {
 		conn, err := listener.Accept()
 		if err != nil {
 			return
 		}
+		// TODO(micro): Explicitly mark this accepted test connection's Close error as best effort.
 		defer conn.Close()
 		var request struct {
 			ID      string `json:"id"`
@@ -110,6 +113,7 @@ func TestAcknowledgedRelayRejectsWrongID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// TODO(micro): Register a cleanup that reports listener.Close failure instead of ignoring it.
 	defer listener.Close()
 	go func() {
 		conn, err := listener.Accept()

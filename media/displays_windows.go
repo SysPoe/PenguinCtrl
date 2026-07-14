@@ -85,6 +85,7 @@ func enumDisplayMonitor(monitor, _ uintptr, _ *winRect, data uintptr) uintptr {
 		}
 	}
 	mode := deviceMode{Size: uint16(unsafe.Sizeof(deviceMode{}))}
+	// TODO(micro): Check both Win32 call results before publishing refresh-rate/DPI values; the current defaults hide API failure.
 	procEnumDisplaySettings.Call(uintptr(unsafe.Pointer(adapterPtr)), uintptr(enumCurrentSettings), uintptr(unsafe.Pointer(&mode)))
 	var dpiX, dpiY uint32 = 96, 96
 	procGetDpiForMonitor.Call(monitor, 0, uintptr(unsafe.Pointer(&dpiX)), uintptr(unsafe.Pointer(&dpiY)))
@@ -101,6 +102,7 @@ func enumerateVideoDisplays() ([]VideoDisplay, error) {
 		return nil, callErr
 	}
 	if len(enumeration.result) == 0 {
+		// TODO(micro): Start this error with lowercase text so callers can wrap it without producing mid-sentence capitalization.
 		return nil, errors.New("Windows reported no connected displays")
 	}
 	return enumeration.result, nil
@@ -124,6 +126,7 @@ func platformPlaceWindow(hwnd uintptr, route config.VideoOutput, displays []Vide
 	if route.AlwaysOnTop {
 		insertAfter = ^uintptr(0) // HWND_TOPMOST (-1).
 	}
+	// TODO(micro): Return SetWindowPos failure instead of reporting placement success unconditionally.
 	procSetWindowPos.Call(hwnd, insertAfter, uintptr(x), uintptr(y), uintptr(w), uintptr(h), swpNoActivate)
 	return found
 }

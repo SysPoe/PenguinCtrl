@@ -68,6 +68,7 @@ func saveShowAtPath(path string, current show.Show, ffmpegPath string, progress 
 		return project.Manifest{}, err
 	}
 	tmpPath := tmp.Name()
+	// TODO(micro): Make cleanup explicit if Remove failure matters, or assign it to _ to document intentional best effort.
 	defer os.Remove(tmpPath)
 	manifest, err := project.SaveWithProgress(tmp, current, ffmpegPath, progress)
 	if err == nil {
@@ -86,6 +87,7 @@ func saveShowAtPath(path string, current show.Show, ffmpegPath string, progress 
 	// Windows does not consistently replace an existing file with Rename.
 	// Keep the old document as a short-lived backup until the new one lands.
 	backup := path + ".autosave-backup"
+	// TODO(micro): Check this removal error; otherwise a stale, undeletable backup is misreported later as a primary-file rename failure.
 	_ = os.Remove(backup)
 	if err := os.Rename(path, backup); err != nil {
 		return project.Manifest{}, fmt.Errorf("replace show file: %w", err)
@@ -222,6 +224,7 @@ func preflightProblemSeverity(severity show.ProblemSeverity) operatorlog.Severit
 	return operatorlog.Warning
 }
 
+// TODO(micro): Return only error; every caller discards the resolved executable path.
 func findExecutable(path string) (string, error) {
 	path = strings.TrimSpace(path)
 	if path == "" {

@@ -163,6 +163,7 @@ func (c *Coordinator) Update(source Source, position time.Duration, running bool
 	} else {
 		c.position, c.anchor, c.running, c.held = position, now, running, false
 		c.jump = jump
+		// TODO(micro): Use a switch for the chase/running/stopped state selection instead of a three-level if/else chain.
 		if discontinuity && c.config.Policy == PolicyChase {
 			c.state = StateChasing
 		} else if running {

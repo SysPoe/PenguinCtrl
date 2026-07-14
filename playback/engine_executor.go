@@ -308,6 +308,7 @@ func (e *Engine) scheduleLink(source show.Cue, sourceIndex int, delayMs int64, m
 		}
 		e.manager.SelectCue(targetIndex)
 		e.changed()
+		// TODO(micro): Build this fixed-prefix message with string concatenation instead of fmt.Sprintf.
 		_ = e.enqueue(target, targetIndex, fmt.Sprintf("Cue link from %s", cueDisplayNumberAt(e.manager.Snapshot(), sourceIndex)))
 	})
 }

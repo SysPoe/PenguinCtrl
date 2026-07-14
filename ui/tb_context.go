@@ -109,6 +109,7 @@ func (ctx *TBContext) DeleteConfirmationOpen() bool {
 
 func (ctx *TBContext) GroupDialogOpen() bool { return ctx.groupDialog != "" }
 
+// TODO(micro): Remove the bool result or handle it at call sites; every caller currently discards success/failure.
 func (ctx *TBContext) openGroupDialog(manager *show.ShowManager, mode string) bool {
 	if !manager.HasSelectedCue() {
 		return false
@@ -129,6 +130,7 @@ func (ctx *TBContext) openGroupDialog(manager *show.ShowManager, mode string) bo
 	return true
 }
 
+// TODO(micro): Remove the bool result or handle it at call sites; every caller currently discards whether anything changed.
 func (ctx *TBContext) confirmGroupDialog(manager *show.ShowManager) bool {
 	if ctx.groupDialog == "" || ctx.groupName == nil {
 		return false

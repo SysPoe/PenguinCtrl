@@ -17,6 +17,7 @@ func Load(path string) (Manifest, []File, error) {
 	if err != nil {
 		return Manifest{}, nil, fmt.Errorf("open .cusus archive: %w", err)
 	}
+	// TODO(micro): Explicitly mark this read-only close as best effort or propagate its error through a named return.
 	defer zr.Close()
 	if len(zr.File) > maxArchiveEntries {
 		return Manifest{}, nil, fmt.Errorf("archive has %d entries; limit is %d", len(zr.File), maxArchiveEntries)
@@ -53,6 +54,7 @@ func Load(path string) (Manifest, []File, error) {
 		return Manifest{}, nil, err
 	}
 	err = decodeManifest(io.LimitReader(reader, maxManifestBytes+1), &manifest)
+	// TODO(micro): Combine the manifest reader's Close error with decode failure instead of discarding it.
 	reader.Close()
 	if err != nil {
 		return Manifest{}, nil, fmt.Errorf("decode show manifest: %w", err)
@@ -80,6 +82,7 @@ func Load(path string) (Manifest, []File, error) {
 	if err != nil {
 		return Manifest{}, nil, fmt.Errorf("create extraction directory: %w", err)
 	}
+	// TODO(micro): Explicitly mark failed temporary-tree cleanup as best effort or report it for cache hygiene.
 	defer os.RemoveAll(temporary)
 	if err := os.MkdirAll(filepath.Join(temporary, "media"), 0o755); err != nil {
 		return Manifest{}, nil, err
@@ -129,6 +132,7 @@ func Load(path string) (Manifest, []File, error) {
 				err = closeErr
 			}
 		}
+		// TODO(micro): Fold the archive entry reader's Close error into err before deciding extraction succeeded.
 		reader.Close()
 		if err != nil {
 			return Manifest{}, nil, fmt.Errorf("extract %q: %w", asset.Name, err)
@@ -136,6 +140,7 @@ func Load(path string) (Manifest, []File, error) {
 		if copied != asset.Size {
 			return Manifest{}, nil, fmt.Errorf("asset %q extracted %d bytes; expected %d", name, copied, asset.Size)
 		}
+		// TODO(micro): Use hex.EncodeToString for the digest instead of fmt.Sprintf.
 		contentHash := fmt.Sprintf("%x", hash.Sum(nil))
 		if asset.ContentSHA256 != "" && !strings.EqualFold(contentHash, asset.ContentSHA256) {
 			return Manifest{}, nil, fmt.Errorf("asset %q failed SHA-256 verification", name)

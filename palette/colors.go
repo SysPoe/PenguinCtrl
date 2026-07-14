@@ -1,3 +1,4 @@
+// TODO(micro): Add Go-style documentation for the exported palette values and color helper functions.
 package palette
 
 import "image/color"

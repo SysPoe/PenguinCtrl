@@ -102,6 +102,7 @@ func (o *outputWindow) layoutContent(gtx layout.Context, route config.VideoOutpu
 	if len(visible) > 0 {
 		children := make([]layout.StackChild, 0, len(visible))
 		for _, player := range visible {
+			// TODO(micro): Remove this obsolete loop-variable copy; Go 1.22+ closures capture the per-iteration player.
 			player := player
 			children = append(children, layout.Expanded(func(gtx layout.Context) layout.Dimensions {
 				return player.LayoutScaled(gtx, route.Scaling)
@@ -292,6 +293,7 @@ func (o *outputWindow) reconcile(instances []playback.Instance) {
 		if o.players[instance.ID] != nil {
 			continue
 		}
+		// TODO(micro): Remove this obsolete loop-variable copy; the module requires Go 1.26.
 		instance := instance
 		o.start(&instance)
 	}
@@ -428,6 +430,7 @@ var testPatternColors = []color.NRGBA{
 func layoutTestPattern(gtx layout.Context) layout.Dimensions {
 	children := make([]layout.FlexChild, len(testPatternColors))
 	for i, barColor := range testPatternColors {
+		// TODO(micro): Remove this obsolete loop-variable copy; barColor is already scoped to this iteration.
 		barColor := barColor
 		children[i] = layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			paint.FillShape(gtx.Ops, barColor, clip.Rect{Max: gtx.Constraints.Max}.Op())

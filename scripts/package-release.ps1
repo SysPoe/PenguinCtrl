@@ -65,6 +65,7 @@ finally {
 }
 
 Copy-Item (Join-Path $root "scripts/install-release.ps1") (Join-Path $stage "install.ps1")
+# TODO(micro): Add or generate docs/release-notes.md before copying it; this path is absent from the repository, so packaging currently stops here.
 Copy-Item (Join-Path $root "docs/release-notes.md") (Join-Path $stage "RELEASE-NOTES.md")
 
 $modules = & go -C $root list -m -f '{{if not .Main}}{{.Path}}|{{.Version}}|{{.Sum}}{{end}}' all

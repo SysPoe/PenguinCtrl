@@ -165,6 +165,7 @@ func (ctx *CueEditUI) renderWaitTab(th *material.Theme, gtx layout.Context, mana
 	if play.Kind == show.WaitDuration {
 		rows = append(rows, integerRow(th, "Duration MS", ctx.page.integer["waitDurationMs"], func(value int) { play.DurationMs = int64(value) }))
 	} else {
+		// TODO(micro): Collapse this nested branch to "else if" to reduce indentation.
 		if waitKindUsesMediaTarget(play.Kind) {
 			rows = ctx.appendMediaTargetRows(rows, th, manager, "waitMedia", &play.Media)
 		}

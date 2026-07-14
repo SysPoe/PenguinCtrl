@@ -147,6 +147,7 @@ func formatWarningTime(ms int64) string {
 	return fmt.Sprintf("%02d:%02d.%03d", ms/60000, (ms%60000)/1000, ms%1000)
 }
 
+// TODO(micro): Delete this unused predicate; keeping a second definition of payload presence invites drift from cuePayloadProblems.
 func cuePlayConfigured(play CuePlay) bool {
 	return play.Sound != nil || play.Video != nil || play.Image != nil || play.Remote != nil ||
 		play.Wait != nil || play.MediaControl != nil || play.OutputControl != nil

@@ -1,3 +1,4 @@
+// TODO(micro): Add Go-style documentation for the exported State, Component, Snapshot, and NewSnapshot API in this file.
 package health
 
 import (

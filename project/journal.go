@@ -116,6 +116,7 @@ func readLastJournalRecord(path string) (RecoveryRecord, bool, error) {
 	if err != nil {
 		return RecoveryRecord{}, false, fmt.Errorf("open edit journal: %w", err)
 	}
+	// TODO(micro): Explicitly discard or return this read-only Close error so the cleanup policy is clear.
 	defer file.Close()
 	reader := bufio.NewReaderSize(file, 64*1024)
 	var last RecoveryRecord

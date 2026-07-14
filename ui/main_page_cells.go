@@ -97,6 +97,7 @@ func layoutMoveCueToEndTarget(th *material.Theme, gtx layout.Context) layout.Dim
 	})
 }
 
+// TODO(micro): Remove this unused legacy formatter; problemTooltipText is the active tooltip path.
 func warningTooltipText(warnings []string) string {
 	if len(warnings) == 0 {
 		return ""
@@ -274,6 +275,7 @@ func cuePlaybackProgress(cue show.Cue, instance playback.Instance, active bool, 
 }
 
 func cueWaitCellValues(cue show.Cue, execution playback.CueExecution, executing bool) (string, float32, string, float32) {
+	// TODO(micro): Use strconv.FormatInt for these known int64 values instead of fmt.Sprint.
 	preLabel := fmt.Sprint(cue.Timing.PreWaitMs)
 	postLabel := fmt.Sprint(cue.Timing.PostWaitMs)
 	if !executing || execution.DurationMs <= 0 {
@@ -295,6 +297,7 @@ func waitCountdownLabel(remainingMs int64) string {
 	if remainingMs <= 100 {
 		return "0"
 	}
+	// TODO(micro): Use strconv.FormatInt for this known int64 value instead of fmt.Sprint.
 	return fmt.Sprint((remainingMs / 100) * 100)
 }
 
