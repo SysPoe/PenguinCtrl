@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/syspoe/cusus/config"
+	"github.com/syspoe/cusus/cuevars"
 	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/remote"
 	"github.com/syspoe/cusus/show"
@@ -209,18 +210,18 @@ func durationDetails(cue show.Cue, settings config.Settings) (source string, cli
 	case show.CueTypeSound:
 		if cue.Play.Sound != nil {
 			play := cue.Play.Sound
-			source = strings.TrimSpace(config.Resolve(play.File, settings, cue.CueNumber))
+			source = strings.TrimSpace(cuevars.Resolve(play.File, settings, cue.CueNumber))
 			clipStartMs, clipEndMs = play.ClipStartMs, play.ClipEndMs
 		}
 	case show.CueTypeVideo:
 		if cue.Play.Video != nil {
 			play := cue.Play.Video
-			source = strings.TrimSpace(config.Resolve(play.File, settings, cue.CueNumber))
+			source = strings.TrimSpace(cuevars.Resolve(play.File, settings, cue.CueNumber))
 			clipStartMs, clipEndMs = play.ClipStartMs, play.ClipEndMs
 		}
 	case show.CueTypeImage:
 		if cue.Play.Image != nil {
-			source = strings.TrimSpace(config.Resolve(cue.Play.Image.File, settings, cue.CueNumber))
+			source = strings.TrimSpace(cuevars.Resolve(cue.Play.Image.File, settings, cue.CueNumber))
 			configuredMs = cue.Play.Image.DurationMs
 		}
 	case show.CueTypeWait:

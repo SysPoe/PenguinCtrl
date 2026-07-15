@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/syspoe/cusus/config"
+	"github.com/syspoe/cusus/cuevars"
 	"github.com/syspoe/cusus/internal/mediapath"
 	"github.com/syspoe/cusus/show"
 )
@@ -96,7 +97,7 @@ func resolvedMediaProblems(cue Cue, context WarningContext) []CueProblem {
 	default:
 		return nil
 	}
-	resolved := strings.TrimSpace(config.Resolve(source, context.Settings, cue.CueNumber))
+	resolved := strings.TrimSpace(cuevars.Resolve(source, context.Settings, cue.CueNumber))
 	if resolved == "" {
 		return []CueProblem{{Code: "media.path.resolved.empty", Severity: ProblemBlocker, Message: "Resolved media path is empty", Consequence: "No media can be opened.", Fix: "Edit the media path or variable", Field: "media.file"}}
 	}
@@ -154,12 +155,12 @@ func resolvedRemoteProblems(cue Cue, settings config.Settings) []CueProblem {
 		return nil
 	}
 	play := *cue.Play.Remote
-	play.Playback = config.Resolve(play.Playback, settings, cue.CueNumber)
-	play.CueNumber = config.Resolve(play.CueNumber, settings, cue.CueNumber)
-	play.Level = config.Resolve(play.Level, settings, cue.CueNumber)
-	play.Custom = config.Resolve(play.Custom, settings, cue.CueNumber)
+	play.Playback = cuevars.Resolve(play.Playback, settings, cue.CueNumber)
+	play.CueNumber = cuevars.Resolve(play.CueNumber, settings, cue.CueNumber)
+	play.Level = cuevars.Resolve(play.Level, settings, cue.CueNumber)
+	play.Custom = cuevars.Resolve(play.Custom, settings, cue.CueNumber)
 	for i := range play.Values {
-		play.Values[i].Value = config.Resolve(play.Values[i].Value, settings, cue.CueNumber)
+		play.Values[i].Value = cuevars.Resolve(play.Values[i].Value, settings, cue.CueNumber)
 	}
 	for _, value := range []string{play.Playback, play.CueNumber, play.Level, play.Custom} {
 		if vars := unresolvedVariables(value); len(vars) > 0 {
@@ -248,7 +249,7 @@ func resolvedOutputProblems(cue Cue, settings config.Settings) []CueProblem {
 	default:
 		return nil
 	}
-	resolved := strings.TrimSpace(config.Resolve(output, settings, cue.CueNumber))
+	resolved := strings.TrimSpace(cuevars.Resolve(output, settings, cue.CueNumber))
 	if resolved == "" {
 		resolved = strings.TrimSpace(settings.DefaultMediaOutput)
 	}

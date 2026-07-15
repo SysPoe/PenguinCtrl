@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/syspoe/cusus/config"
+	"github.com/syspoe/cusus/cuevars"
 	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/show"
 )
@@ -26,8 +26,8 @@ func (actions *controlActions) executeMedia(cue show.Cue, runCtx context.Context
 	}
 	playCopy := *cue.Play.MediaControl
 	settings := e.settings.Snapshot()
-	playCopy.Target.OutputID = config.Resolve(playCopy.Target.OutputID, settings, cue.CueNumber)
-	playCopy.Target.InstanceID = config.Resolve(playCopy.Target.InstanceID, settings, cue.CueNumber)
+	playCopy.Target.OutputID = cuevars.Resolve(playCopy.Target.OutputID, settings, cue.CueNumber)
+	playCopy.Target.InstanceID = cuevars.Resolve(playCopy.Target.InstanceID, settings, cue.CueNumber)
 	play := &playCopy
 	if play.Action < show.MediaControlFadeTo || play.Action > show.MediaControlUnmute {
 		return fmt.Errorf("invalid media control action %d", play.Action)
@@ -139,7 +139,7 @@ func (actions *controlActions) executeOutput(cue show.Cue, runCtx context.Contex
 	}
 	playCopy := *cue.Play.OutputControl
 	settings := e.settings.Snapshot()
-	playCopy.Message = config.Resolve(playCopy.Message, settings, cue.CueNumber)
+	playCopy.Message = cuevars.Resolve(playCopy.Message, settings, cue.CueNumber)
 	play := &playCopy
 	if play.Action < show.OutputControlBlackout || play.Action > show.OutputControlExitFullscreen {
 		return fmt.Errorf("invalid output control action %d", play.Action)

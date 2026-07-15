@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/syspoe/cusus/config"
+	"github.com/syspoe/cusus/cuevars"
 	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/project"
 	"github.com/syspoe/cusus/remote"
@@ -134,7 +135,7 @@ func VideoWarningAffectedCues(cues []show.Cue, settings config.Settings, warning
 		default:
 			return false
 		}
-		output = strings.TrimSpace(config.Resolve(output, settings, cue.CueNumber))
+		output = strings.TrimSpace(cuevars.Resolve(output, settings, cue.CueNumber))
 		if output == "" {
 			output = strings.TrimSpace(settings.DefaultMediaOutput)
 		}

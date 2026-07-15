@@ -3,7 +3,7 @@ package playback
 import (
 	"strings"
 
-	"github.com/syspoe/cusus/config"
+	"github.com/syspoe/cusus/cuevars"
 	"github.com/syspoe/cusus/show"
 )
 
@@ -41,7 +41,7 @@ func (e *Engine) PreloadCandidates(limit int) []PreloadSpec {
 				continue
 			}
 			play := cue.Play.Sound
-			spec.MediaType, spec.Source = "audio", config.Resolve(play.File, settings, cue.CueNumber)
+			spec.MediaType, spec.Source = "audio", cuevars.Resolve(play.File, settings, cue.CueNumber)
 			spec.OutputID = resolveOutput(play.OutputID, settings, cue.CueNumber)
 			spec.ClipStartMs, spec.ClipEndMs = play.ClipStartMs, play.ClipEndMs
 		case show.CueTypeVideo:
@@ -49,7 +49,7 @@ func (e *Engine) PreloadCandidates(limit int) []PreloadSpec {
 				continue
 			}
 			play := cue.Play.Video
-			spec.MediaType, spec.Source = "video", config.Resolve(play.File, settings, cue.CueNumber)
+			spec.MediaType, spec.Source = "video", cuevars.Resolve(play.File, settings, cue.CueNumber)
 			spec.OutputID = resolveOutput(play.OutputID, settings, cue.CueNumber)
 			spec.ClipStartMs, spec.ClipEndMs = play.ClipStartMs, play.ClipEndMs
 		default:

@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/syspoe/cusus/config"
+	"github.com/syspoe/cusus/cuevars"
 	"github.com/syspoe/cusus/show"
 )
 
@@ -51,7 +52,7 @@ func (runtime *cueMediaRuntime) start(next command) error {
 			return errors.New("image cue has no media settings")
 		}
 		play := cue.Play.Image
-		instance.MediaType, instance.Source = "image", config.Resolve(play.File, settings, cue.CueNumber)
+		instance.MediaType, instance.Source = "image", cuevars.Resolve(play.File, settings, cue.CueNumber)
 		instance.OutputID = resolveOutput(play.OutputID, settings, cue.CueNumber)
 		instance.FadeInMs, instance.FadeOutMs, instance.DurationMs = play.FadeInMs, play.FadeOutMs, play.DurationMs
 	}
@@ -85,7 +86,7 @@ func (runtime *cueMediaRuntime) start(next command) error {
 }
 
 func applyTimedMedia(instance *Instance, mediaType string, play show.MediaClip, settings config.Settings, cueNumber string) {
-	instance.MediaType, instance.Source = mediaType, config.Resolve(play.File, settings, cueNumber)
+	instance.MediaType, instance.Source = mediaType, cuevars.Resolve(play.File, settings, cueNumber)
 	instance.OutputID = resolveOutput(play.OutputID, settings, cueNumber)
 	instance.ClipStartMs, instance.ClipEndMs = play.ClipStartMs, play.ClipEndMs
 	instance.FadeInMs, instance.FadeOutMs, instance.LevelDB = play.FadeInMs, play.FadeOutMs, play.LevelDB

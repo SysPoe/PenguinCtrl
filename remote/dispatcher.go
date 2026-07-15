@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/syspoe/cusus/config"
+	"github.com/syspoe/cusus/cuevars"
 	"github.com/syspoe/cusus/show"
 )
 
@@ -178,12 +179,12 @@ func (d *Dispatcher) dispatchTarget(parent context.Context, target config.Remote
 }
 
 func resolvePlay(play show.RemotePlay, settings config.Settings, cueNumber string) show.RemotePlay {
-	play.Playback = config.Resolve(play.Playback, settings, cueNumber)
-	play.CueNumber = config.Resolve(play.CueNumber, settings, cueNumber)
-	play.Level = config.Resolve(play.Level, settings, cueNumber)
-	play.Custom = config.Resolve(play.Custom, settings, cueNumber)
+	play.Playback = cuevars.Resolve(play.Playback, settings, cueNumber)
+	play.CueNumber = cuevars.Resolve(play.CueNumber, settings, cueNumber)
+	play.Level = cuevars.Resolve(play.Level, settings, cueNumber)
+	play.Custom = cuevars.Resolve(play.Custom, settings, cueNumber)
 	for i := range play.Values {
-		play.Values[i].Value = config.Resolve(play.Values[i].Value, settings, cueNumber)
+		play.Values[i].Value = cuevars.Resolve(play.Values[i].Value, settings, cueNumber)
 	}
 	if strings.TrimSpace(play.Playback) == "" {
 		play.Playback = settings.DefaultPlayback

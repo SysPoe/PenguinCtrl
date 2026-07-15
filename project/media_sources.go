@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/syspoe/cusus/config"
+	"github.com/syspoe/cusus/cuevars"
 	"github.com/syspoe/cusus/show"
 )
 
@@ -15,7 +16,7 @@ func ResolvedMediaSources(cue show.Cue, settings config.Settings) []string {
 	if !ok {
 		return nil
 	}
-	source := config.Resolve(reference.Path(), settings, reference.CueNumber)
+	source := cuevars.Resolve(reference.Path(), settings, reference.CueNumber)
 	source = strings.TrimSpace(source)
 	if source == "" || strings.Contains(source, "{") {
 		return nil

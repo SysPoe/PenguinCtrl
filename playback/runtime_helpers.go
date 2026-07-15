@@ -6,11 +6,12 @@ import (
 	"time"
 
 	"github.com/syspoe/cusus/config"
+	"github.com/syspoe/cusus/cuevars"
 	"github.com/syspoe/cusus/show"
 )
 
 func resolveOutput(value string, settings config.Settings, cueNumber string) string {
-	resolved := strings.TrimSpace(config.Resolve(value, settings, cueNumber))
+	resolved := strings.TrimSpace(cuevars.Resolve(value, settings, cueNumber))
 	if resolved == "" || strings.Contains(resolved, "{") {
 		resolved = settings.DefaultMediaOutput
 	}
