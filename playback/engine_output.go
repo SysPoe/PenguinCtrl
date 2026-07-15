@@ -172,20 +172,21 @@ func (e *Engine) HandleOutputError(instanceID string, err error) {
 }
 
 func (e *Engine) HandleOutputWarning(instanceID string, err error) {
-	if err == nil || e.operatorLog == nil {
+	log := e.operatorLogStore()
+	if err == nil || log == nil {
 		return
 	}
 	e.mu.RLock()
 	instance := e.instances[instanceID]
 	if instance == nil {
 		e.mu.RUnlock()
-		e.operatorLog.Add(operatorlog.Recoverable, "FFmpeg / media output", err.Error(), show.CueID{}, "")
+		log.Add(operatorlog.Recoverable, "FFmpeg / media output", err.Error(), show.CueID{}, "")
 		return
 	}
 	// TODO(micro): rename copy (shadows builtin copy); use snapshot or inst
 	copy := *instance
 	e.mu.RUnlock()
-	e.operatorLog.Add(operatorlog.Recoverable, "FFmpeg / media output", err.Error(), copy.CueID, copy.CueNumber)
+	log.Add(operatorlog.Recoverable, "FFmpeg / media output", err.Error(), copy.CueID, copy.CueNumber)
 	e.changed()
 }
 

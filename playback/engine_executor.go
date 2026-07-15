@@ -83,14 +83,14 @@ func (e *Engine) execute(next command) {
 			} else {
 				err = dispatch()
 			}
-			if err == nil && e.operatorLog != nil {
+			if log := e.operatorLogStore(); err == nil && log != nil {
 				message := remoteDispatchMessage(result, false)
 				severity := operatorlog.Warning
 				if result.Acknowledged {
 					message = remoteDispatchMessage(result, true)
 					severity = operatorlog.Info
 				}
-				e.operatorLog.Add(severity, next.origin+" · remote result", message, next.cue.ID, next.cue.CueNumber)
+				log.Add(severity, next.origin+" · remote result", message, next.cue.ID, next.cue.CueNumber)
 			}
 		}
 	case show.CueTypeWait:
@@ -322,9 +322,9 @@ func (e *Engine) scheduleLink(source show.Cue, sourceIndex int, delayMs int64, m
 		}
 		e.manager.SelectCue(targetIndex)
 		e.changed()
-		// TODO(micro): Build this fixed-prefix message with string concatenation instead of fmt.Sprintf.
-		// TODO(micro): reuse cues from resolveTarget (or source.CueNumber) instead of a third manager.Snapshot(); also don't discard enqueue error without logging
-		_ = e.enqueue(target, targetIndex, fmt.Sprintf("Cue link from %s", cueDisplayNumberAt(e.manager.Snapshot(), sourceIndex)))
+		if err := e.enqueue(target, targetIndex, "Cue link from "+cueDisplayNumber(source)); err != nil {
+			return
+		}
 	})
 }
 

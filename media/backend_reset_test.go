@@ -37,3 +37,35 @@ func TestBackendCloseForceClosesActiveSessions(t *testing.T) {
 		t.Fatal("closed backend accepted a new playback session")
 	}
 }
+
+func TestBackendCloseForceClosesWarmOnlySessions(t *testing.T) {
+	settings, err := config.Open(filepath.Join(t.TempDir(), "settings.json"))
+	if err != nil {
+		t.Fatalf("open settings: %v", err)
+	}
+	backend := NewFFmpegBackend(settings, nil)
+	opened, err := backend.Open(PlaybackRequest{Instance: playback.Instance{Source: "prewarmed.wav"}})
+	if err != nil {
+		t.Fatalf("open warm session: %v", err)
+	}
+	session := opened.(*ffmpegSession)
+
+	backend.warmMu.Lock()
+	backend.warm["warm-only"] = warmSession{session: session}
+	delete(backend.active, session)
+	backend.warmMu.Unlock()
+
+	backend.Close()
+
+	session.mu.RLock()
+	closed := session.closed
+	session.mu.RUnlock()
+	if !closed {
+		t.Fatal("backend close left a warm-only session running")
+	}
+	select {
+	case <-session.Done():
+	default:
+		t.Fatal("backend close did not signal the warm-only session")
+	}
+}

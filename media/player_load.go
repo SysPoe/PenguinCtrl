@@ -35,9 +35,8 @@ func (p *Player) loadImage() error {
 	if p.closed {
 		return errors.New("player is closed")
 	}
-	// TODO(micro): p.window is assumed non-nil; guard or document that image players always have a window
 	p.frame = img
-	p.window.Invalidate()
+	p.invalidate()
 	return nil
 }
 
@@ -86,7 +85,7 @@ func (p *Player) restart(position time.Duration) error {
 	p.started = clock.Start()
 	p.mu.Unlock()
 	p.report("started")
-	p.window.Invalidate()
+	p.invalidate()
 	p.goOwned(func(ctx context.Context) {
 		select {
 		case <-session.Done():
@@ -100,8 +99,8 @@ func (p *Player) restart(position time.Duration) error {
 			return
 		}
 		metrics := session.Metrics()
-		if metrics.State == LoadFailed && metrics.Error != "" && p.failure != nil {
-			p.failure(errors.New(metrics.Error))
+		if metrics.State == LoadFailed && metrics.Error != "" {
+			p.reportFailure(errors.New(metrics.Error))
 		} else if metrics.State == LoadEnded {
 			p.report("ended")
 		}

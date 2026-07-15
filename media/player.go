@@ -85,6 +85,18 @@ func (p *Player) goOwned(work func(context.Context)) bool {
 	return true
 }
 
+func (p *Player) reportFailure(err error) {
+	if err != nil && p.failure != nil {
+		p.failure(err)
+	}
+}
+
+func (p *Player) invalidate() {
+	if p.window != nil {
+		p.window.Invalidate()
+	}
+}
+
 func (p *Player) MediaType() string { return p.instance.MediaType }
 
 // SetDecodeVisible suspends only obscured video decoding. The logical clock
@@ -109,8 +121,7 @@ func (p *Player) SetDecodeVisible(visible bool) {
 	position, paused := p.position, p.paused
 	p.mu.Unlock()
 	if !paused {
-		// TODO(micro): restart error is discarded on reveal; surface via p.failure like start() does.
-		p.goOwned(func(context.Context) { _ = p.restart(position) })
+		p.goOwned(func(context.Context) { p.reportFailure(p.restart(position)) })
 	}
 }
 

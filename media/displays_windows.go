@@ -85,14 +85,17 @@ func enumDisplayMonitor(monitor, _ uintptr, _ *winRect, data uintptr) uintptr {
 		}
 	}
 	mode := deviceMode{Size: uint16(unsafe.Sizeof(deviceMode{}))}
-	// TODO(micro): Check both Win32 call results before publishing refresh-rate/DPI values; the current defaults hide API failure.
-	// TODO(micro): EnumDisplaySettingsW and GetDpiForMonitor return values are ignored; check ok and fall back explicitly when the call fails.
-	procEnumDisplaySettings.Call(uintptr(unsafe.Pointer(adapterPtr)), uintptr(enumCurrentSettings), uintptr(unsafe.Pointer(&mode)))
+	refreshRate := 0
+	if ok, _, _ := procEnumDisplaySettings.Call(uintptr(unsafe.Pointer(adapterPtr)), uintptr(enumCurrentSettings), uintptr(unsafe.Pointer(&mode))); ok != 0 {
+		refreshRate = int(mode.DisplayFrequency)
+	}
 	// TODO(micro): default DPI 96 is magic; name a windowsDefaultDPI constant (also used by non-Windows stub).
 	var dpiX, dpiY uint32 = 96, 96
 	// TODO(micro): MDT_EFFECTIVE_DPI is the bare 0; name the monitor DPI type constant.
-	procGetDpiForMonitor.Call(monitor, 0, uintptr(unsafe.Pointer(&dpiX)), uintptr(unsafe.Pointer(&dpiY)))
-	enumeration.result = append(enumeration.result, VideoDisplay{ID: id, Name: name, Primary: info.Flags&monitorInfoPrimary != 0, X: int(info.Monitor.Left), Y: int(info.Monitor.Top), Width: int(info.Monitor.Right - info.Monitor.Left), Height: int(info.Monitor.Bottom - info.Monitor.Top), RefreshRate: int(mode.DisplayFrequency), DPI: int(dpiX)})
+	if result, _, _ := procGetDpiForMonitor.Call(monitor, 0, uintptr(unsafe.Pointer(&dpiX)), uintptr(unsafe.Pointer(&dpiY))); result != 0 {
+		dpiX, dpiY = 96, 96
+	}
+	enumeration.result = append(enumeration.result, VideoDisplay{ID: id, Name: name, Primary: info.Flags&monitorInfoPrimary != 0, X: int(info.Monitor.Left), Y: int(info.Monitor.Top), Width: int(info.Monitor.Right - info.Monitor.Left), Height: int(info.Monitor.Bottom - info.Monitor.Top), RefreshRate: refreshRate, DPI: int(dpiX)})
 	return 1
 }
 
@@ -134,10 +137,8 @@ func platformPlaceWindow(hwnd uintptr, route config.VideoOutput, displays []Vide
 	if route.AlwaysOnTop {
 		insertAfter = ^uintptr(0) // HWND_TOPMOST (-1).
 	}
-	// TODO(micro): Return SetWindowPos failure instead of reporting placement success unconditionally.
-	// TODO(micro): SetWindowPos result is ignored; surface failure (return false or log) when placement fails.
-	procSetWindowPos.Call(hwnd, insertAfter, uintptr(x), uintptr(y), uintptr(w), uintptr(h), swpNoActivate)
-	return found
+	ok, _, _ := procSetWindowPos.Call(hwnd, insertAfter, uintptr(x), uintptr(y), uintptr(w), uintptr(h), swpNoActivate)
+	return found && ok != 0
 }
 func platformWindowGeometry(hwnd uintptr, d VideoDisplay) (int, int, int, int, bool) {
 	var r winRect

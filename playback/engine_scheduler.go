@@ -149,8 +149,8 @@ func (e *Engine) enqueueCommand(cue show.Cue, index int, preview bool, origin st
 					e.recordCueError(cue, origin+" · preflight", err)
 					return err
 				}
-				if e.operatorLog != nil {
-					e.operatorLog.Add(operatorlog.Warning, origin+" · preflight override", "GO override accepted despite: "+err.Error(), cue.ID, cue.CueNumber)
+				if log := e.operatorLogStore(); log != nil {
+					log.Add(operatorlog.Warning, origin+" · preflight override", "GO override accepted despite: "+err.Error(), cue.ID, cue.CueNumber)
 				}
 			}
 		}
@@ -163,11 +163,11 @@ func (e *Engine) enqueueCommand(cue show.Cue, index int, preview bool, origin st
 			e.recordCueError(cue, origin+" · validation", err)
 			return err
 		}
-		if len(blockers) > 0 && override && e.operatorLog != nil {
-			e.operatorLog.Add(operatorlog.Warning, origin+" · override", "GO override accepted despite: "+strings.Join(blockers, "; "), cue.ID, cue.CueNumber)
+		if log := e.operatorLogStore(); len(blockers) > 0 && override && log != nil {
+			log.Add(operatorlog.Warning, origin+" · override", "GO override accepted despite: "+strings.Join(blockers, "; "), cue.ID, cue.CueNumber)
 		}
-		if len(cautions) > 0 && e.operatorLog != nil {
-			e.operatorLog.Add(operatorlog.Warning, origin+" · caution", strings.Join(cautions, "; "), cue.ID, cue.CueNumber)
+		if log := e.operatorLogStore(); len(cautions) > 0 && log != nil {
+			log.Add(operatorlog.Warning, origin+" · caution", strings.Join(cautions, "; "), cue.ID, cue.CueNumber)
 		}
 	}
 	runCtx, runID, stopped := e.beginCueRun(cue.ID)

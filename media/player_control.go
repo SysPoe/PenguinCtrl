@@ -26,8 +26,7 @@ func (p *Player) Control(event playback.Event) {
 		p.resume()
 	case "seek":
 		if event.PositionMs != nil {
-			// TODO(micro): seek discards restart error; report via p.failure.
-			_ = p.restart(time.Duration(max(0, *event.PositionMs)) * time.Millisecond)
+			p.reportFailure(p.restart(time.Duration(max(0, *event.PositionMs)) * time.Millisecond))
 		}
 	case "set-volume", "fade-to":
 		if event.LevelDB != nil {
@@ -59,10 +58,7 @@ func (p *Player) startVisualFadeOut(duration time.Duration) {
 	p.mu.Lock()
 	p.visualFadeAt, p.visualFadeFor = time.Now(), max(time.Duration(0), duration)
 	p.mu.Unlock()
-	if p.window != nil {
-		// TODO(micro): applyFadeVolume/applyVolume call p.window.Invalidate without nil-check while startVisualFadeOut guards; guard or document that window is always non-nil for audio-bearing players.
-		p.window.Invalidate()
-	}
+	p.invalidate()
 }
 
 func (p *Player) HasPresented() bool {
@@ -112,8 +108,7 @@ func (p *Player) resume() {
 	position, paused := p.position, p.paused
 	p.mu.RUnlock()
 	if paused {
-		// TODO(micro): resume discards restart error; report via p.failure like Start does.
-		_ = p.restart(position)
+		p.reportFailure(p.restart(position))
 	}
 }
 
@@ -189,8 +184,7 @@ func (p *Player) applyFadeVolume(db float64, fadeID uint64) bool {
 	if p.session != nil {
 		p.session.SetVolume(db)
 	}
-	// TODO(micro): applyVolume Invalidate also lacks the nil window guard used by startVisualFadeOut; align nil-safety.
-	p.window.Invalidate()
+	p.invalidate()
 	return true
 }
 
@@ -202,5 +196,5 @@ func (p *Player) applyVolume(db float64) {
 	if p.session != nil {
 		p.session.SetVolume(db)
 	}
-	p.window.Invalidate()
+	p.invalidate()
 }

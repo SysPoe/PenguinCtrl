@@ -166,11 +166,11 @@ func formatPlaybackTime(ms int64) string {
 	return fmt.Sprintf("%02d:%02d.%03d", ms/60000, (ms%60000)/1000, ms%1000)
 }
 
-func cueDisplayNumberAt(cues []show.Cue, index int) string {
-	if index < 0 || index >= len(cues) || strings.TrimSpace(cues[index].CueNumber) == "" {
+func cueDisplayNumber(cue show.Cue) string {
+	if strings.TrimSpace(cue.CueNumber) == "" {
 		return "an unnumbered cue"
 	}
-	return "cue " + cues[index].CueNumber
+	return "cue " + cue.CueNumber
 }
 
 // TODO(macro): Instance lifecycle ownership is fragmented: beginCueRun deletes
@@ -242,8 +242,8 @@ func (e *Engine) executeMediaControl(cue show.Cue, runCtx context.Context) error
 		return fmt.Errorf("invalid media control action %d", play.Action)
 	}
 	instances := e.matchingInstances(play.Target)
-	if len(instances) == 0 && e.operatorLog != nil {
-		e.operatorLog.Add(operatorlog.Warning, "Media control result", "No active media matched", cue.ID, cue.CueNumber)
+	if log := e.operatorLogStore(); len(instances) == 0 && log != nil {
+		log.Add(operatorlog.Warning, "Media control result", "No active media matched", cue.ID, cue.CueNumber)
 	}
 	idsByOutput := map[string][]string{}
 	for _, instance := range instances {

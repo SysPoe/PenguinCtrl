@@ -292,11 +292,22 @@ func (b *FFmpegBackend) Close() {
 	for session := range b.active {
 		sessions = append(sessions, session)
 	}
-	// TODO(micro): warm sessions are discarded without Close(); collect warm entries and Close them with active sessions so prewarmed decoders/audio are not leaked.
+	warmSessions := make([]PlaybackSession, 0, len(b.warm))
+	for _, warmed := range b.warm {
+		if session, ok := warmed.session.(*ffmpegSession); ok {
+			if _, active := b.active[session]; active {
+				continue
+			}
+		}
+		warmSessions = append(warmSessions, warmed.session)
+	}
 	b.warm = map[string]warmSession{}
 	b.active = map[*ffmpegSession]struct{}{}
 	b.warmMu.Unlock()
 	for _, session := range sessions {
+		session.Close()
+	}
+	for _, session := range warmSessions {
 		session.Close()
 	}
 }

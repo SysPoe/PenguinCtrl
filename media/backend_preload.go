@@ -30,15 +30,15 @@ func (s *ffmpegSession) rebind(request PlaybackRequest) {
 func (s *ffmpegSession) Preload(ctx context.Context) error {
 	started := time.Now()
 	s.setState(LoadLoading)
-	info, err := probeMediaInfo(s.backend.settings.Snapshot().FFmpegPath, s.path)
+	settings := s.backend.settings.Snapshot()
+	info, err := probeMediaInfo(settings.FFmpegPath, s.path)
 	if err != nil {
 		return s.fail(err)
 	}
 	s.info = info
 	bufferBytes := int64(0)
 	if s.request.Instance.MediaType == "video" && info.hasVideo {
-		// TODO(micro): Snapshot() is called again below in preloadVideo; cache settings once in Preload and pass/reuse it.
-		width, height := decodeSize(info.width, info.height, config.VideoOutputFor(s.backend.settings.Snapshot(), s.request.Instance.OutputID))
+		width, height := decodeSize(info.width, info.height, config.VideoOutputFor(settings, s.request.Instance.OutputID))
 		bufferBytes = int64(width) * int64(height) * 4 * (decodedFrameBuffer + 2)
 	}
 	if !s.backend.admission.acquire(ctx, s.ctx, bufferBytes) {
@@ -53,11 +53,11 @@ func (s *ffmpegSession) Preload(ctx context.Context) error {
 	components := 0
 	if s.request.Instance.MediaType == "video" && info.hasVideo {
 		components++
-		go func() { results <- result{err: s.preloadVideo()} }()
+		go func() { results <- result{err: s.preloadVideo(settings)} }()
 	}
 	if (s.request.Instance.MediaType == "audio" || s.request.Instance.MediaType == "video") && info.hasAudio && s.backend.audio != nil {
 		components++
-		go func() { results <- result{err: s.preloadAudio()} }()
+		go func() { results <- result{err: s.preloadAudio(settings)} }()
 	}
 	if components == 0 {
 		s.Close()
@@ -102,9 +102,7 @@ func (s *ffmpegSession) Preload(ctx context.Context) error {
 	return nil
 }
 
-func (s *ffmpegSession) preloadVideo() error {
-	// TODO(micro): another Snapshot() after Preload already snapped settings for admission; pass settings into preloadVideo/preloadAudio.
-	settings := s.backend.settings.Snapshot()
+func (s *ffmpegSession) preloadVideo(settings config.Settings) error {
 	width, height := decodeSize(s.info.width, s.info.height, config.VideoOutputFor(settings, s.request.Instance.OutputID))
 	s.info.width, s.info.height = width, height
 	args := mediaInputArgs(s.request.Position, s.request.Instance.ClipEndMs)
@@ -202,10 +200,10 @@ func (s *ffmpegSession) recycleFrame(frame *image.RGBA) {
 	}
 }
 
-func (s *ffmpegSession) preloadAudio() error {
+func (s *ffmpegSession) preloadAudio(settings config.Settings) error {
 	args := mediaInputArgs(s.request.Position, s.request.Instance.ClipEndMs)
 	args = append(args, "-i", s.path, "-map", "0:a:0", "-vn", "-f", "s16le", "-ar", strconv.Itoa(audioSampleRate), "-ac", strconv.Itoa(audioChannels), "pipe:1")
-	cmd := processgroup.CommandContext(s.ctx, s.backend.settings.Snapshot().FFmpegPath, args...)
+	cmd := processgroup.CommandContext(s.ctx, settings.FFmpegPath, args...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return err

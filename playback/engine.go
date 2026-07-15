@@ -53,24 +53,24 @@ type Timeline interface {
 // package. Prefer injecting a RemoteDispatcher interface constructed outside playback
 // so cue execution stays domain-local and remote lifecycle is not Engine.Close's job.
 type Engine struct {
-	manager             *show.ShowManager
-	settings            *config.Store
-	remote              *remote.Dispatcher
-	commands            chan command
-	ctx                 context.Context
-	cancel              context.CancelFunc
-	runCtx              context.Context
-	runCancel           context.CancelFunc
-	done                chan struct{}
-	workerMu            sync.Mutex
-	workers             sync.WaitGroup
-	closing             bool
-	hub                 *eventHub
-	mu                  sync.RWMutex
-	instances           map[string]*Instance
-	executions          map[string]*CueExecution
-	outputVisuals       map[string]Event
-	outputWindows       map[string]Event
+	manager       *show.ShowManager
+	settings      *config.Store
+	remote        *remote.Dispatcher
+	commands      chan command
+	ctx           context.Context
+	cancel        context.CancelFunc
+	runCtx        context.Context
+	runCancel     context.CancelFunc
+	done          chan struct{}
+	workerMu      sync.Mutex
+	workers       sync.WaitGroup
+	closing       bool
+	hub           *eventHub
+	mu            sync.RWMutex
+	instances     map[string]*Instance
+	executions    map[string]*CueExecution
+	outputVisuals map[string]Event
+	outputWindows map[string]Event
 	// TODO(macro): durations/mediaValidated and their pending/error/key maps form a
 	// complete media-metadata subsystem (probe, validate, cache invalidation) with
 	// its own concurrency (mediaProbeSlots). Extract a MediaCatalog type rather than
@@ -103,15 +103,15 @@ type Engine struct {
 	// type boundary—logic lives in engine_executor.go while fields sit on Engine.
 	// Extract a DispatchSequencer so execute() awaits a collaborator instead of
 	// inlining barrier primitives into the cue worker.
-	dispatchMu          sync.Mutex
-	dispatchNext        uint64
-	dispatchSkipped     map[uint64]struct{}
-	dispatchNotify      chan struct{}
-	commandHistory      []CommandRecord
-	preflightGate       func(show.Cue) error
-	authorityGate       func() error
-	remoteAuthority     func(func() error) error
-	timeline            Timeline
+	dispatchMu      sync.Mutex
+	dispatchNext    uint64
+	dispatchSkipped map[uint64]struct{}
+	dispatchNotify  chan struct{}
+	commandHistory  []CommandRecord
+	preflightGate   func(show.Cue) error
+	authorityGate   func() error
+	remoteAuthority func(func() error) error
+	timeline        Timeline
 }
 
 func NewEngine(manager *show.ShowManager, settings *config.Store) *Engine {
@@ -159,17 +159,31 @@ func (e *Engine) goOwned(work func()) bool {
 
 func (e *Engine) RemoteHealth() []remote.TargetHealth { return e.remote.Health() }
 
-// TODO(micro): write onChange under e.mu like other setters; changed() reads it unlocked and races with concurrent SetOnChange
-func (e *Engine) SetOnChange(callback func()) { e.onChange = callback }
+func (e *Engine) SetOnChange(callback func()) {
+	e.mu.Lock()
+	e.onChange = callback
+	e.mu.Unlock()
+}
 
-// TODO(micro): write operatorLog/hub.onResync under a lock; concurrent reads in execute paths race with this setter
 func (e *Engine) SetOperatorLog(store *operatorlog.Store) {
+	e.mu.Lock()
 	e.operatorLog = store
-	e.hub.onResync = func(outputID string, sequence uint64, queueCapacity int) {
+	e.mu.Unlock()
+	if store == nil {
+		e.hub.setOnResync(nil)
+		return
+	}
+	e.hub.setOnResync(func(outputID string, sequence uint64, queueCapacity int) {
 		store.Diagnostic("Output queue", "Output event queue saturated; authoritative resync requested", map[string]any{
 			"outputId": outputID, "eventSequence": sequence, "queueCapacity": queueCapacity,
 		})
-	}
+	})
+}
+
+func (e *Engine) operatorLogStore() *operatorlog.Store {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.operatorLog
 }
 
 func (e *Engine) SetPreflightGate(gate func(show.Cue) error) {

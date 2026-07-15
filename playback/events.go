@@ -133,6 +133,12 @@ func newEventHub() *eventHub {
 	return &eventHub{subscribers: map[string]map[chan Event]struct{}{}}
 }
 
+func (h *eventHub) setOnResync(callback func(outputID string, sequence uint64, queueCapacity int)) {
+	h.mu.Lock()
+	h.onResync = callback
+	h.mu.Unlock()
+}
+
 // TODO(micro): Drop outputID from this test-only helper while every caller passes "main", or add a non-main coverage case.
 // TODO(micro): subscribe is only used by tests; production uses subscribePaused - share map-ensure helper or drop if tests can use paused form
 func (h *eventHub) subscribe(outputID string) chan Event {

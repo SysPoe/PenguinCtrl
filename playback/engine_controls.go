@@ -15,8 +15,8 @@ import (
 // waitContext). Split OperatorControls from InstanceQuery helpers and shared
 // time/fade utilities so this file is not the residual grab-bag for Engine methods.
 func (e *Engine) StopAll() {
-	if e.operatorLog != nil {
-		e.operatorLog.Diagnostic("Operator action", "STOP ALL dispatched", nil)
+	if log := e.operatorLogStore(); log != nil {
+		log.Diagnostic("Operator action", "STOP ALL dispatched", nil)
 	}
 	e.mu.Lock()
 	e.runCancel()
@@ -47,8 +47,8 @@ func (e *Engine) BlackoutAll() {
 		e.mu.Unlock()
 		e.hub.publish(event)
 	}
-	if e.operatorLog != nil {
-		e.operatorLog.Diagnostic("Operator action", "Emergency blackout asserted on all outputs", nil)
+	if log := e.operatorLogStore(); log != nil {
+		log.Diagnostic("Operator action", "Emergency blackout asserted on all outputs", nil)
 	}
 	e.signalState()
 }
@@ -79,8 +79,9 @@ func (e *Engine) FadeInstance(instanceID string) error {
 // FadeAll performs the fixed two-second operator fade on every live instance.
 func (e *Engine) FadeAll() {
 	for _, instance := range e.ActiveInstances() {
-		// TODO(micro): surface or log FadeInstance errors instead of discarding; partial fade-all failures are silent
-		_ = e.FadeInstance(instance.ID)
+		if err := e.FadeInstance(instance.ID); err != nil {
+			e.recordError("Operator Fade All", err)
+		}
 	}
 }
 
@@ -200,8 +201,8 @@ func (e *Engine) recordOperatorError(severity operatorlog.Severity, source strin
 		return
 	}
 	e.lastError.Store(err.Error())
-	if e.operatorLog != nil {
-		e.operatorLog.Add(severity, source, err.Error(), cueID, cueNumber)
+	if log := e.operatorLogStore(); log != nil {
+		log.Add(severity, source, err.Error(), cueID, cueNumber)
 	}
 	for _, outputID := range e.OutputIDs() {
 		e.hub.publish(Event{Action: "error", OutputID: outputID, Error: err.Error()})
@@ -254,8 +255,11 @@ func (e *Engine) signalState() {
 }
 
 func (e *Engine) changed() {
-	if e.onChange != nil {
-		e.onChange()
+	e.mu.RLock()
+	callback := e.onChange
+	e.mu.RUnlock()
+	if callback != nil {
+		callback()
 	}
 }
 
@@ -317,12 +321,18 @@ func startInstanceFade(instance *Instance, targetDB float64, durationMs int64, n
 	instance.FadeStartedAt = now
 }
 
-// TODO(micro): bounds-check or map lookup; bare index panics if Action is out of range (validation is only at call sites)
 func mediaControlName(action show.MediaControlAction) string {
-	return []string{"fade-to", "fade-out", "stop", "pause", "resume", "seek", "set-volume", "mute", "unmute"}[action]
+	names := [...]string{"fade-to", "fade-out", "stop", "pause", "resume", "seek", "set-volume", "mute", "unmute"}
+	if action < 0 || int(action) >= len(names) {
+		return ""
+	}
+	return names[action]
 }
 
-// TODO(micro): bounds-check or map lookup; bare index panics if Action is out of range
 func outputControlName(action show.OutputControlAction) string {
-	return []string{"blackout", "clear", "test-pattern", "identify", "reopen", "fullscreen", "exit-fullscreen"}[action]
+	names := [...]string{"blackout", "clear", "test-pattern", "identify", "reopen", "fullscreen", "exit-fullscreen"}
+	if action < 0 || int(action) >= len(names) {
+		return ""
+	}
+	return names[action]
 }
