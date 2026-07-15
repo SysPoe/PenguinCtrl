@@ -251,12 +251,10 @@ func newApp(reporter *crashreport.Reporter) (*App, error) {
 			return nil
 		},
 	)
-	application.UI.TBContext = ui.TBContext{
-		TopBar:         &application.UI.TopBar,
-		TogglePreview:  application.Playback.Engine.TogglePreview,
-		StopPreview:    application.Playback.Engine.StopPreview,
-		ProblemsForCue: application.Playback.Engine.CueProblems,
-	}
+	application.UI.TBContext = ui.TBContext{TopBar: &application.UI.TopBar}
+	application.UI.TBContext.TogglePreview = application.Playback.Engine.TogglePreview
+	application.UI.TBContext.StopPreview = application.Playback.Engine.StopPreview
+	application.UI.TBContext.ProblemsForCue = application.Playback.Engine.CueProblems
 	return application, nil
 }
 

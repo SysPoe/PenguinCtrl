@@ -3,74 +3,51 @@ package ui
 import (
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"github.com/syspoe/cusus/show"
 )
 
 func (ctx *TBContext) handleButtonClicks(gtx layout.Context, manager *show.ShowManager) {
-	// TODO(micro): long chain of independent if-Clicked blocks; a table of {clickable, action} would shrink noise and avoid missed handlers
-	if ctx.btnDeleteCue.Clicked(gtx) {
-		ctx.RequestDeleteCue(manager)
+	actions := []struct {
+		button *widget.Clickable
+		run    func()
+	}{
+		{&ctx.btnDeleteCue, func() { ctx.RequestDeleteCue(manager) }},
+		{&ctx.btnEditCue, func() { ctx.TopBar.CloseMenus(); ctx.EditSelectedCue(manager) }},
+		{&ctx.btnMoveCue, func() { ctx.StartMoveCue(manager) }},
+		{&ctx.btnDuplicateCue, func() { ctx.DuplicateSelectedCue(manager) }},
+		{&ctx.btnCopyCue, func() { ctx.CopySelectedCue(manager) }},
+		{&ctx.btnPasteCue, func() { ctx.PasteCueBeforeSelected(manager) }},
+		{&ctx.btnCreateGroup, func() { ctx.openGroupDialog(manager, "create") }},
+		{&ctx.btnRenameGroup, func() { ctx.openGroupDialog(manager, "rename") }},
+		{&ctx.btnUngroupCue, func() { ctx.TopBar.CloseMenus(); manager.UngroupSelectedCue() }},
+		{&ctx.btnConfirmDelete, func() { ctx.ConfirmDeleteCue(manager) }},
+		{&ctx.btnCancelDelete, ctx.CancelDeleteCue},
+		{&ctx.btnConfirmGroup, func() { ctx.confirmGroupDialog(manager) }},
+		{&ctx.btnCancelGroup, ctx.cancelGroupDialog},
 	}
-	if ctx.btnEditCue.Clicked(gtx) {
-		ctx.TopBar.setAllFalse()
-		ctx.EditSelectedCue(manager)
+	for _, action := range actions {
+		if action.button.Clicked(gtx) {
+			action.run()
+		}
 	}
-	if ctx.btnMoveCue.Clicked(gtx) {
-		ctx.StartMoveCue(manager)
+	cueTypes := []struct {
+		button *widget.Clickable
+		cue    func() show.Cue
+	}{
+		{&ctx.btnCueTypeSound, show.NewSoundCue},
+		{&ctx.btnCueTypeVideo, show.NewVideoCue},
+		{&ctx.btnCueTypeImage, show.NewImageCue},
+		{&ctx.btnCueTypeRemote, show.NewRemoteCue},
+		{&ctx.btnCueTypeWait, show.NewWaitCue},
+		{&ctx.btnCueTypeMediaControl, show.NewMediaControlCue},
+		{&ctx.btnCueTypeOutputControl, show.NewOutputControlCue},
 	}
-	if ctx.btnDuplicateCue.Clicked(gtx) {
-		ctx.DuplicateSelectedCue(manager)
-	}
-	if ctx.btnCopyCue.Clicked(gtx) {
-		ctx.CopySelectedCue(manager)
-	}
-	if ctx.btnPasteCue.Clicked(gtx) {
-		ctx.PasteCueBeforeSelected(manager)
-	}
-	if ctx.btnCreateGroup.Clicked(gtx) {
-		ctx.openGroupDialog(manager, "create")
-	}
-	if ctx.btnRenameGroup.Clicked(gtx) {
-		ctx.openGroupDialog(manager, "rename")
-	}
-	if ctx.btnUngroupCue.Clicked(gtx) {
-		ctx.TopBar.setAllFalse()
-		manager.UngroupSelectedCue()
-	}
-	if ctx.btnConfirmDelete.Clicked(gtx) {
-		ctx.ConfirmDeleteCue(manager)
-	}
-	if ctx.btnCancelDelete.Clicked(gtx) {
-		ctx.CancelDeleteCue()
-	}
-	if ctx.btnConfirmGroup.Clicked(gtx) {
-		ctx.confirmGroupDialog(manager)
-	}
-	if ctx.btnCancelGroup.Clicked(gtx) {
-		ctx.cancelGroupDialog()
-	}
-
-	if ctx.btnCueTypeSound.Clicked(gtx) {
-		ctx.openCueEditor(show.NewSoundCue(), true)
-	}
-	if ctx.btnCueTypeVideo.Clicked(gtx) {
-		ctx.openCueEditor(show.NewVideoCue(), true)
-	}
-	if ctx.btnCueTypeImage.Clicked(gtx) {
-		ctx.openCueEditor(show.NewImageCue(), true)
-	}
-	if ctx.btnCueTypeRemote.Clicked(gtx) {
-		ctx.openCueEditor(show.NewRemoteCue(), true)
-	}
-	if ctx.btnCueTypeWait.Clicked(gtx) {
-		ctx.openCueEditor(show.NewWaitCue(), true)
-	}
-	if ctx.btnCueTypeMediaControl.Clicked(gtx) {
-		ctx.openCueEditor(show.NewMediaControlCue(), true)
-	}
-	if ctx.btnCueTypeOutputControl.Clicked(gtx) {
-		ctx.openCueEditor(show.NewOutputControlCue(), true)
+	for _, cueType := range cueTypes {
+		if cueType.button.Clicked(gtx) {
+			ctx.openCueEditor(cueType.cue(), true)
+		}
 	}
 }
 
@@ -83,15 +60,17 @@ func (ctx *TBContext) Layout(th *material.Theme, gtx layout.Context, manager *sh
 	ctx.cueEditUI.problemsForCue = ctx.ProblemsForCue
 	ctx.handleButtonClicks(gtx, manager)
 
-	if ctx.TopBar.showAddCue {
+	addCueOpen, addCuePosition := ctx.TopBar.AddCueMenuState()
+	if addCueOpen {
 		ctx.cueEditUI.show = false
 	}
+	actionOpen, actionPosition := ctx.TopBar.ActionMenuState()
 
 	return layout.Stack{}.Layout(gtx,
 		// action menu
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-			defer op.Offset(ctx.TopBar.actionPos).Push(gtx.Ops).Pop()
-			if ctx.TopBar.showAction {
+			defer op.Offset(actionPosition).Push(gtx.Ops).Pop()
+			if actionOpen {
 				hasSelection := manager.HasSelectedCue()
 				_, hasGroup := manager.SelectedGroup()
 				return layout.Flex{Axis: layout.Vertical, Alignment: layout.Baseline}.Layout(gtx,
@@ -110,8 +89,8 @@ func (ctx *TBContext) Layout(th *material.Theme, gtx layout.Context, manager *sh
 		}),
 		// addCue
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-			defer op.Offset(ctx.TopBar.addCuePos).Push(gtx.Ops).Pop()
-			if ctx.TopBar.showAddCue {
+			defer op.Offset(addCuePosition).Push(gtx.Ops).Pop()
+			if addCueOpen {
 				return layout.Flex{
 					Axis:      layout.Vertical,
 					Alignment: layout.Baseline,

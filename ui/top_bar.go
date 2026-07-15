@@ -18,9 +18,18 @@ const topBarHeight int = 40
 const menuWidth int = 200
 const topBarCompactWidth = unit.Dp(900)
 
-// TODO(macro): TopBar mixes menu chrome, file/page request flags, blackout, and a
-// status sink. Keep menus as one concern and replace the Take*/Request* flag bus
-// with a single outbound command channel so hosts aren't polling many booleans.
+type topBarCommand uint8
+
+const (
+	topBarCommandPage topBarCommand = iota + 1
+	topBarCommandNew
+	topBarCommandLoad
+	topBarCommandSave
+	topBarCommandSaveAs
+	topBarCommandEmergencyStop
+	topBarCommandBlackout
+)
+
 type TopBar struct {
 	actionPos image.Point
 	addCuePos image.Point
@@ -43,13 +52,7 @@ type TopBar struct {
 	btnEStopConfirm widget.Clickable
 	btnEStopCancel  widget.Clickable
 
-	pageRequested   bool
-	newRequested    bool
-	loadRequested   bool
-	saveRequested   bool
-	saveAsRequest   bool
-	eStopRequest    bool
-	blackoutRequest bool
+	commands        []topBarCommand
 	eStopResetting  bool
 	eStopConfirming bool
 	statusSink      func(string)
@@ -72,12 +75,35 @@ func (tb *TopBar) AddCueMenuOpen() bool {
 
 func (tb *TopBar) FileMenuOpen() bool { return tb.showFile }
 
+func (tb *TopBar) ActionMenuState() (bool, image.Point) { return tb.showAction, tb.actionPos }
+
+func (tb *TopBar) AddCueMenuState() (bool, image.Point) { return tb.showAddCue, tb.addCuePos }
+
 func (tb *TopBar) CloseAddCueMenu() {
 	tb.CloseMenus()
 }
 
 func (tb *TopBar) CloseMenus() {
 	tb.setAllFalse()
+}
+
+func (tb *TopBar) request(command topBarCommand) {
+	for _, pending := range tb.commands {
+		if pending == command {
+			return
+		}
+	}
+	tb.commands = append(tb.commands, command)
+}
+
+func (tb *TopBar) take(command topBarCommand) bool {
+	for index, pending := range tb.commands {
+		if pending == command {
+			tb.commands = append(tb.commands[:index], tb.commands[index+1:]...)
+			return true
+		}
+	}
+	return false
 }
 
 func (tb *TopBar) HasKeyboardFocus(gtx layout.Context) bool {
@@ -146,7 +172,7 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, set
 	}
 	if tb.btnPage.Clicked(gtx) {
 		tb.setAllFalse()
-		tb.pageRequested = true
+		tb.request(topBarCommandPage)
 	}
 	if tb.btnFile.Clicked(gtx) {
 		wasOpen := tb.showFile
@@ -157,7 +183,7 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, set
 		tb.RequestEmergencyStop()
 	}
 	if tb.btnBlackout.Clicked(gtx) {
-		tb.blackoutRequest = true
+		tb.request(topBarCommandBlackout)
 	}
 	var actionSize image.Point
 	var addCueSize image.Point
@@ -237,22 +263,20 @@ func (tb *TopBar) ConfirmEmergencyStop() bool {
 		return false
 	}
 	tb.eStopConfirming = false
-	tb.eStopRequest = true
+	tb.request(topBarCommandEmergencyStop)
 	return true
 }
 
 func (tb *TopBar) CancelEmergencyStop() { tb.eStopConfirming = false }
 
 func (tb *TopBar) TakeEmergencyStopRequest() bool {
-	requested := tb.eStopRequest
-	tb.eStopRequest = false
-	return requested
+	return tb.take(topBarCommandEmergencyStop)
 }
 
 func (tb *TopBar) SetEmergencyResetting(resetting bool) {
 	tb.eStopResetting = resetting
 	if resetting {
-		tb.eStopRequest = false
+		tb.take(topBarCommandEmergencyStop)
 		tb.eStopConfirming = false
 	}
 }
@@ -312,19 +336,19 @@ func (tb *TopBar) LayoutFileMenu(th *material.Theme, gtx layout.Context) layout.
 	}
 	defer op.Offset(tb.filePos).Push(gtx.Ops).Pop()
 	if tb.btnNew.Clicked(gtx) {
-		tb.newRequested = true
+		tb.request(topBarCommandNew)
 		tb.setAllFalse()
 	}
 	if tb.btnLoad.Clicked(gtx) {
-		tb.loadRequested = true
+		tb.request(topBarCommandLoad)
 		tb.setAllFalse()
 	}
 	if tb.btnSave.Clicked(gtx) {
-		tb.saveRequested = true
+		tb.request(topBarCommandSave)
 		tb.setAllFalse()
 	}
 	if tb.btnSaveAs.Clicked(gtx) {
-		tb.saveAsRequest = true
+		tb.request(topBarCommandSaveAs)
 		tb.setAllFalse()
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
@@ -336,57 +360,45 @@ func (tb *TopBar) LayoutFileMenu(th *material.Theme, gtx layout.Context) layout.
 }
 
 func (tb *TopBar) TakeNewRequest() bool {
-	requested := tb.newRequested
-	tb.newRequested = false
-	return requested
+	return tb.take(topBarCommandNew)
 }
 
 func (tb *TopBar) RequestNew() {
 	tb.setAllFalse()
-	tb.newRequested = true
+	tb.request(topBarCommandNew)
 }
 
 func (tb *TopBar) TakeLoadRequest() bool {
-	requested := tb.loadRequested
-	tb.loadRequested = false
-	return requested
+	return tb.take(topBarCommandLoad)
 }
 
 func (tb *TopBar) RequestLoad() {
 	tb.setAllFalse()
-	tb.loadRequested = true
+	tb.request(topBarCommandLoad)
 }
 
 func (tb *TopBar) TakeSaveRequest() bool {
-	requested := tb.saveRequested
-	tb.saveRequested = false
-	return requested
+	return tb.take(topBarCommandSave)
 }
 
 func (tb *TopBar) RequestSave() {
 	tb.setAllFalse()
-	tb.saveRequested = true
+	tb.request(topBarCommandSave)
 }
 
 func (tb *TopBar) TakeSaveAsRequest() bool {
-	requested := tb.saveAsRequest
-	tb.saveAsRequest = false
-	return requested
+	return tb.take(topBarCommandSaveAs)
 }
 
 func (tb *TopBar) RequestSaveAs() {
 	tb.setAllFalse()
-	tb.saveAsRequest = true
+	tb.request(topBarCommandSaveAs)
 }
 
 func (tb *TopBar) TakePageRequest() bool {
-	requested := tb.pageRequested
-	tb.pageRequested = false
-	return requested
+	return tb.take(topBarCommandPage)
 }
 
 func (tb *TopBar) TakeBlackoutRequest() bool {
-	requested := tb.blackoutRequest
-	tb.blackoutRequest = false
-	return requested
+	return tb.take(topBarCommandBlackout)
 }

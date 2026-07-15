@@ -9,20 +9,17 @@ import (
 	"github.com/syspoe/cusus/ui/input"
 )
 
-// TODO(macro): TBContext is a catch-all controller: top-bar menu widgets, clipboard/move
-// modes, delete/group modals, and the entire CueEditUI plus host deps (PickFile/waveform/
-// preview). Split menu actions, modal dialogs, and editor hosting; stop reading/writing
-// TopBar unexported menu flags from here so TopBar owns its open-state API.
-type TBContext struct {
-	TopBar *TopBar
-
+type cueEditorHost struct {
 	PickFile       func(kind string, extensions []string, selected func(path string))
 	ProjectFiles   func(kind string) []ProjectFile
 	LoadWaveform   func(source string, completed func(samples []float32, sampleRate int, durationMs int64, err error))
 	TogglePreview  func(cue show.Cue) (bool, error)
 	StopPreview    func()
 	ProblemsForCue func(show.Cue) []show.CueProblem
+	cueEditUI      CueEditUI
+}
 
+type cueMenuController struct {
 	btnCueTypeSound         widget.Clickable
 	btnCueTypeVideo         widget.Clickable
 	btnCueTypeImage         widget.Clickable
@@ -39,19 +36,28 @@ type TBContext struct {
 	btnCreateGroup          widget.Clickable
 	btnRenameGroup          widget.Clickable
 	btnUngroupCue           widget.Clickable
-	btnConfirmDelete        widget.Clickable
-	btnCancelDelete         widget.Clickable
-	btnConfirmGroup         widget.Clickable
-	btnCancelGroup          widget.Clickable
+	copiedCue               *show.Cue
+	moveCueActive           bool
+}
 
-	copiedCue     *show.Cue
-	moveCueActive bool
-	confirmDelete bool
-	groupDialog   string
-	groupName     *input.Text
-	modal         modalLayer
+type cueDialogController struct {
+	btnConfirmDelete widget.Clickable
+	btnCancelDelete  widget.Clickable
+	btnConfirmGroup  widget.Clickable
+	btnCancelGroup   widget.Clickable
+	confirmDelete    bool
+	groupDialog      string
+	groupName        *input.Text
+	modal            modalLayer
+}
 
-	cueEditUI CueEditUI
+// TBContext composes independent menu, dialog, and cue-editor hosts around the
+// top bar's public menu-state API.
+type TBContext struct {
+	TopBar *TopBar
+	cueEditorHost
+	cueMenuController
+	cueDialogController
 }
 
 func (ctx *TBContext) openCueEditor(cue show.Cue, isNew bool) {
@@ -62,7 +68,7 @@ func (ctx *TBContext) openCueEditor(cue show.Cue, isNew bool) {
 	ctx.cueEditUI.timeline.reset()
 	ctx.cueEditUI.isNew = isNew
 	ctx.cueEditUI.show = true
-	ctx.TopBar.setAllFalse()
+	ctx.TopBar.CloseMenus()
 }
 
 // EditSelectedCue opens a working copy of the selected cue.
@@ -101,10 +107,7 @@ func (ctx *TBContext) EditSelectedCueAt(manager *show.ShowManager, field string)
 	return true
 }
 
-// TODO(micro): name says CueEditorOpen but also true for group dialog; rename or split predicates.
-func (ctx *TBContext) CueEditorOpen() bool {
-	return ctx.cueEditUI.show || ctx.groupDialog != ""
-}
+func (ctx *TBContext) EditorOpen() bool { return ctx.cueEditUI.show }
 
 func (ctx *TBContext) DeleteConfirmationOpen() bool {
 	return ctx.confirmDelete
@@ -112,31 +115,28 @@ func (ctx *TBContext) DeleteConfirmationOpen() bool {
 
 func (ctx *TBContext) GroupDialogOpen() bool { return ctx.groupDialog != "" }
 
-// TODO(micro): Remove the bool result or handle it at call sites; every caller currently discards success/failure.
-func (ctx *TBContext) openGroupDialog(manager *show.ShowManager, mode string) bool {
+func (ctx *TBContext) openGroupDialog(manager *show.ShowManager, mode string) {
 	if !manager.HasSelectedCue() {
-		return false
+		return
 	}
 	value := fmt.Sprintf("Group %d", len(manager.Groups())+1)
 	if mode == "rename" {
 		group, ok := manager.SelectedGroup()
 		if !ok {
-			return false
+			return
 		}
 		value = group.Title
 	}
-	ctx.TopBar.setAllFalse()
+	ctx.TopBar.CloseMenus()
 	ctx.moveCueActive = false
 	ctx.groupDialog = mode
 	ctx.groupName = input.NewText("Group name", value)
 	ctx.groupName.Focus()
-	return true
 }
 
-// TODO(micro): Remove the bool result or handle it at call sites; every caller currently discards whether anything changed.
-func (ctx *TBContext) confirmGroupDialog(manager *show.ShowManager) bool {
+func (ctx *TBContext) confirmGroupDialog(manager *show.ShowManager) {
 	if ctx.groupDialog == "" || ctx.groupName == nil {
-		return false
+		return
 	}
 	var changed bool
 	if ctx.groupDialog == "create" {
@@ -147,7 +147,6 @@ func (ctx *TBContext) confirmGroupDialog(manager *show.ShowManager) bool {
 	if changed {
 		ctx.groupDialog, ctx.groupName = "", nil
 	}
-	return changed
 }
 
 func (ctx *TBContext) cancelGroupDialog() {
@@ -158,7 +157,7 @@ func (ctx *TBContext) RequestDeleteCue(manager *show.ShowManager) bool {
 	if !manager.HasSelectedCue() {
 		return false
 	}
-	ctx.TopBar.setAllFalse()
+	ctx.TopBar.CloseMenus()
 	ctx.moveCueActive = false
 	ctx.confirmDelete = true
 	return true
@@ -183,7 +182,7 @@ func (ctx *TBContext) CopySelectedCue(manager *show.ShowManager) bool {
 	}
 	clone := show.CloneCue(cue)
 	ctx.copiedCue = &clone
-	ctx.TopBar.setAllFalse()
+	ctx.TopBar.CloseMenus()
 	return true
 }
 
@@ -191,12 +190,12 @@ func (ctx *TBContext) PasteCueBeforeSelected(manager *show.ShowManager) bool {
 	if ctx.copiedCue == nil {
 		return false
 	}
-	ctx.TopBar.setAllFalse()
+	ctx.TopBar.CloseMenus()
 	return manager.PasteCueBeforeSelected(*ctx.copiedCue)
 }
 
 func (ctx *TBContext) DuplicateSelectedCue(manager *show.ShowManager) bool {
-	ctx.TopBar.setAllFalse()
+	ctx.TopBar.CloseMenus()
 	return manager.DuplicateSelectedCue()
 }
 
@@ -204,7 +203,7 @@ func (ctx *TBContext) StartMoveCue(manager *show.ShowManager) bool {
 	if !manager.HasSelectedCue() {
 		return false
 	}
-	ctx.TopBar.setAllFalse()
+	ctx.TopBar.CloseMenus()
 	ctx.moveCueActive = true
 	return true
 }

@@ -39,7 +39,7 @@ func (a *App) handleCueListShortcuts(gtx layout.Context) {
 		topBar.HandleEmergencyStopConfirmationKeys(gtx)
 		return
 	}
-	if a.UI.ShowSettings || tbCtx.CueEditorOpen() {
+	if a.UI.ShowSettings || tbCtx.EditorOpen() || tbCtx.GroupDialogOpen() {
 		return
 	}
 	if topBar.AddCueMenuOpen() || topBar.ActionMenuOpen() || topBar.FileMenuOpen() {
