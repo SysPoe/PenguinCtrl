@@ -106,13 +106,13 @@ func timecodeProblems(markers []TimecodeMarker, cues []Cue) []CueProblem {
 			problems = append(problems, staticBlocker(codePrefix+"time.negative", prefix+"Time cannot be negative", "timecode", "Set marker time to zero or greater"))
 		}
 		var nested []CueProblem
-		switch marker.Type {
-		case CueTypeMediaControl:
-			nested = mediaControlProblems(marker.Action.MediaControl, cues)
-		case CueTypeOutputControl:
-			nested = outputControlProblems(marker.Action.OutputControl)
-		case CueTypeRemote:
-			nested = remoteProblems(marker.Action.Remote)
+		switch marker.Action.Kind() {
+		case TimecodeActionMediaControl:
+			nested = mediaControlProblems(marker.Action.MediaControl(), cues)
+		case TimecodeActionOutputControl:
+			nested = outputControlProblems(marker.Action.OutputControl())
+		case TimecodeActionRemote:
+			nested = remoteProblems(marker.Action.Remote())
 		default:
 			problems = append(problems, staticBlocker(codePrefix+"action.unsupported", prefix+"Unsupported action", "timecode", "Choose media, output, or remote control"))
 		}

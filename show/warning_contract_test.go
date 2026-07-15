@@ -31,8 +31,8 @@ func TestStaticProblemsHaveStableExplicitContracts(t *testing.T) {
 func TestNestedTimecodeProblemsUseKindCodesNotFormattedTime(t *testing.T) {
 	cue := validSound("1", "track.wav")
 	cue.Play.Sound.Timecode = []TimecodeMarker{
-		{TimeMs: 100, Type: CueTypeMediaControl, Action: CuePlay{}},
-		{TimeMs: 200, Type: CueTypeMediaControl, Action: CuePlay{}},
+		{TimeMs: 100, Action: NewTimecodeMediaAction(nil)},
+		{TimeMs: 200, Action: NewTimecodeMediaAction(nil)},
 	}
 	var nested []CueProblem
 	for _, problem := range CueProblems(cue, []Cue{cue}) {

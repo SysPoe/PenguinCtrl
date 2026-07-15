@@ -10,10 +10,10 @@ import (
 func TestTimecodeTimelineModelOwnsAndNormalizesMarkerDocument(t *testing.T) {
 	level := -6.0
 	markers := []show.TimecodeMarker{
-		{TimeMs: 200, Type: show.CueTypeMediaControl, Action: show.CuePlay{MediaControl: &show.MediaControlPlay{
+		{TimeMs: 200, Action: show.NewTimecodeMediaAction(&show.MediaControlPlay{
 			Target: show.MediaTarget{Kind: show.MediaTargetCue}, LevelDB: &level,
-		}}},
-		{TimeMs: -25, Type: show.CueTypeRemote, Action: show.NewRemoteCue().Play},
+		})},
+		{TimeMs: -25, Action: show.NewTimecodeRemoteAction(show.NewRemoteCue().Play.Remote)},
 	}
 	var model timecodeTimelineModel
 	model.reset(markers)
@@ -21,12 +21,12 @@ func TestTimecodeTimelineModelOwnsAndNormalizesMarkerDocument(t *testing.T) {
 	if got := []int64{model.markers[0].TimeMs, model.markers[1].TimeMs}; !reflect.DeepEqual(got, []int64{0, 200}) {
 		t.Fatalf("normalized times = %v, want [0 200]", got)
 	}
-	media := model.markers[1].Action.MediaControl
+	media := model.markers[1].Action.MediaControl()
 	if media == nil || media.Target.Kind != show.MediaTargetCurrentTrack {
 		t.Fatalf("normalized media target = %+v", media)
 	}
 	level = -30
-	markers[0].Action.MediaControl.LevelDB = &level
+	markers[0].Action.MediaControl().LevelDB = &level
 	if got := *media.LevelDB; got != -6 {
 		t.Fatalf("model retained caller-owned nested pointer: level = %v", got)
 	}
@@ -120,16 +120,16 @@ func TestTimecodeTimelineModelAddPasteAndBounds(t *testing.T) {
 func TestTimecodeTimelineModelActionMutations(t *testing.T) {
 	var model timecodeTimelineModel
 	model.reset([]show.TimecodeMarker{newTimecodeMarker(100)})
-	if !model.setActionType(0, 1) || model.markers[0].Type != show.CueTypeOutputControl {
+	if !model.setActionType(0, 1) || model.markers[0].Action.Kind() != show.TimecodeActionOutputControl {
 		t.Fatalf("action type mutation = %+v", model.markers[0])
 	}
-	if !model.undo() || model.markers[0].Type != show.CueTypeMediaControl {
+	if !model.undo() || model.markers[0].Action.Kind() != show.TimecodeActionMediaControl {
 		t.Fatalf("action type undo = %+v", model.markers[0])
 	}
 	if !model.setActionDuration(0, -500) {
 		t.Fatal("media action duration mutation rejected")
 	}
-	if got := model.markers[0].Action.MediaControl.FadeMs; got != 0 {
+	if got := model.markers[0].Action.MediaControl().FadeMs; got != 0 {
 		t.Fatalf("clamped action duration = %d", got)
 	}
 	if model.setMarkerTime(-1, 10) || model.deleteAt(4) || model.setActionType(3, 2) {

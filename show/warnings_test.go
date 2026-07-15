@@ -85,7 +85,7 @@ func TestIntegrityDurationAndAcknowledgementFingerprint(t *testing.T) {
 	cue.Play.Video = &VideoPlay{}
 	cue.Play.Sound.ClipStartMs = 900
 	cue.Play.Sound.FadeInMs = 500
-	cue.Play.Sound.Timecode = []TimecodeMarker{{TimeMs: 950, Type: CueTypeRemote, Action: CuePlay{Remote: &RemotePlay{}}}, {TimeMs: 950, Type: CueTypeOutputControl, Action: CuePlay{OutputControl: &OutputControlPlay{}}}}
+	cue.Play.Sound.Timecode = []TimecodeMarker{{TimeMs: 950, Action: NewTimecodeRemoteAction(&RemotePlay{})}, {TimeMs: 950, Action: NewTimecodeOutputAction(&OutputControlPlay{})}}
 	settings := config.Defaults()
 	problems := CueProblemsWithContext(cue, []Cue{cue}, WarningContext{Settings: settings, KnownDurationMs: 1000})
 	for _, code := range []string{"cue.payload.integrity", "media.fade.beyond-duration"} {

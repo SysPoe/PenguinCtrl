@@ -100,12 +100,12 @@ func (ctx *CueEditUI) timecodeEditorRows(th *material.Theme) []cueEditFormRow {
 		}),
 	)
 
-	switch marker.Type {
-	case show.CueTypeMediaControl:
-		if marker.Action.MediaControl == nil {
-			marker.Action.MediaControl = defaultTimecodeMediaControl()
+	switch marker.Action.Kind() {
+	case show.TimecodeActionMediaControl:
+		if marker.Action.MediaControl() == nil {
+			marker.Action = show.NewTimecodeMediaAction(defaultTimecodeMediaControl())
 		}
-		play := marker.Action.MediaControl
+		play := marker.Action.MediaControl()
 		play.Target = show.MediaTarget{Kind: show.MediaTargetCurrentTrack}
 		rows = append(rows, mediaControlActionRow(th, fields.mediaControl, play, markerMediaControlFormLabels.action, func() {
 			if mediaControlActionUsesLevel(play.Action) && play.LevelDB == nil {
@@ -118,17 +118,17 @@ func (ctx *CueEditUI) timecodeEditorRows(th *material.Theme) []cueEditFormRow {
 			}
 		}))
 		rows = append(rows, mediaControlDetailRows(th, fields.mediaControl, play, markerMediaControlFormLabels, true)...)
-	case show.CueTypeOutputControl:
-		if marker.Action.OutputControl == nil {
-			marker.Action = show.NewOutputControlCue().Play
+	case show.TimecodeActionOutputControl:
+		if marker.Action.OutputControl() == nil {
+			marker.Action = show.NewTimecodeOutputAction(show.NewOutputControlCue().Play.OutputControl)
 		}
-		play := marker.Action.OutputControl
+		play := marker.Action.OutputControl()
 		rows = append(rows, outputControlFormRows(th, fields.outputControl, play, markerOutputControlFormLabels, true)...)
-	case show.CueTypeRemote:
-		if marker.Action.Remote == nil {
-			marker.Action = show.NewRemoteCue().Play
+	case show.TimecodeActionRemote:
+		if marker.Action.Remote() == nil {
+			marker.Action = show.NewTimecodeRemoteAction(show.NewRemoteCue().Play.Remote)
 		}
-		play := marker.Action.Remote
+		play := marker.Action.Remote()
 		rows = append(rows, remoteFormRows(th, fields.remote, play, markerRemoteFormLabels)...)
 	}
 	rows = append(rows, cueEditFormRow{layout: func(gtx layout.Context) layout.Dimensions {
@@ -244,20 +244,20 @@ func (ctx *CueEditUI) drawActionDurationBars(gtx layout.Context, size image.Poin
 }
 
 func timecodeActionLabel(m show.TimecodeMarker) string {
-	switch m.Type {
-	case show.CueTypeMediaControl:
-		if m.Action.MediaControl != nil && int(m.Action.MediaControl.Action) >= 0 && int(m.Action.MediaControl.Action) < len(mediaControlActionLabels) {
-			return "Track · " + mediaControlActionLabels[m.Action.MediaControl.Action]
+	switch m.Action.Kind() {
+	case show.TimecodeActionMediaControl:
+		if play := m.Action.MediaControl(); play != nil && int(play.Action) >= 0 && int(play.Action) < len(mediaControlActionLabels) {
+			return "Track · " + mediaControlActionLabels[play.Action]
 		}
 		return "Current track"
-	case show.CueTypeOutputControl:
-		if m.Action.OutputControl != nil && int(m.Action.OutputControl.Action) >= 0 && int(m.Action.OutputControl.Action) < len(outputControlActionLabels) {
-			return "Output · " + outputControlActionLabels[m.Action.OutputControl.Action]
+	case show.TimecodeActionOutputControl:
+		if play := m.Action.OutputControl(); play != nil && int(play.Action) >= 0 && int(play.Action) < len(outputControlActionLabels) {
+			return "Output · " + outputControlActionLabels[play.Action]
 		}
 		return "Output control"
-	case show.CueTypeRemote:
-		if m.Action.Remote != nil && int(m.Action.Remote.Action) >= 0 && int(m.Action.Remote.Action) < len(remoteActionLabels) {
-			return "Remote · " + remoteActionLabels[m.Action.Remote.Action]
+	case show.TimecodeActionRemote:
+		if play := m.Action.Remote(); play != nil && int(play.Action) >= 0 && int(play.Action) < len(remoteActionLabels) {
+			return "Remote · " + remoteActionLabels[play.Action]
 		}
 		return "Remote"
 	default:

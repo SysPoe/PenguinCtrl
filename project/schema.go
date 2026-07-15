@@ -206,8 +206,8 @@ func cueMediaTargets(cue show.Cue) []show.MediaTarget {
 		}(),
 	} {
 		for _, marker := range markers {
-			if marker.Action.MediaControl != nil {
-				targets = append(targets, marker.Action.MediaControl.Target)
+			if play := marker.Action.MediaControl(); play != nil {
+				targets = append(targets, play.Target)
 			}
 		}
 	}

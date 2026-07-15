@@ -143,22 +143,22 @@ type timecodeMarkerInputs struct {
 }
 
 func newTimecodeMarkerInputs(marker show.TimecodeMarker) timecodeMarkerInputs {
-	media := marker.Action.MediaControl
+	media := marker.Action.MediaControl()
 	if media == nil {
 		media = defaultTimecodeMediaControl()
 	}
-	output := marker.Action.OutputControl
+	output := marker.Action.OutputControl()
 	if output == nil {
 		output = show.NewOutputControlCue().Play.OutputControl
 	}
-	remote := marker.Action.Remote
+	remote := marker.Action.Remote()
 	if remote == nil {
 		remote = show.NewRemoteCue().Play.Remote
 	}
 	return timecodeMarkerInputs{
 		time:          input.NewInteger("Time MS", int(marker.TimeMs)),
 		disabled:      input.NewCheckbox("Disabled", marker.Disabled),
-		actionType:    newEnumDropdown(timecodeActionLabels, timecodeActionIndex(marker.Type)),
+		actionType:    newEnumDropdown(timecodeActionLabels, timecodeActionIndex(marker.Action.Kind())),
 		delete:        new(widget.Clickable),
 		mediaControl:  newCueMediaControlInputs(media),
 		outputControl: newCueOutputControlInputs(output),

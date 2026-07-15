@@ -38,6 +38,9 @@ func cloneValue(value reflect.Value) reflect.Value {
 	if !value.IsValid() {
 		return reflect.Value{}
 	}
+	if value.Type() == reflect.TypeFor[TimecodeAction]() {
+		return reflect.ValueOf(value.Interface().(TimecodeAction).clone())
+	}
 	switch value.Kind() {
 	case reflect.Interface:
 		if value.IsNil() {

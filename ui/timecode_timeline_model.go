@@ -214,7 +214,7 @@ func (m *timecodeTimelineModel) setMarkerTime(index int, timeMs int64) bool {
 }
 
 func (m *timecodeTimelineModel) setActionType(index, selected int) bool {
-	if index < 0 || index >= len(m.markers) || selected == timecodeActionIndex(m.markers[index].Type) {
+	if index < 0 || index >= len(m.markers) || selected == timecodeActionIndex(m.markers[index].Action.Kind()) {
 		return false
 	}
 	m.checkpoint()
@@ -245,8 +245,8 @@ func normalizeTimecodeMarkers(markers *[]show.TimecodeMarker) bool {
 			marker.TimeMs = 0
 			changed = true
 		}
-		if marker.Type == show.CueTypeMediaControl && marker.Action.MediaControl != nil && marker.Action.MediaControl.Target.Kind != show.MediaTargetCurrentTrack {
-			marker.Action.MediaControl.Target = show.MediaTarget{Kind: show.MediaTargetCurrentTrack}
+		if play := marker.Action.MediaControl(); play != nil && play.Target.Kind != show.MediaTargetCurrentTrack {
+			play.Target = show.MediaTarget{Kind: show.MediaTargetCurrentTrack}
 			changed = true
 		}
 	}
@@ -262,21 +262,25 @@ func sortTimecodeMarkers(markers *[]show.TimecodeMarker) bool {
 }
 
 func markerActionDuration(marker *show.TimecodeMarker) *int64 {
-	if marker == nil || marker.Type != show.CueTypeMediaControl || marker.Action.MediaControl == nil {
+	if marker == nil {
 		return nil
 	}
-	switch marker.Action.MediaControl.Action {
+	play := marker.Action.MediaControl()
+	if play == nil {
+		return nil
+	}
+	switch play.Action {
 	case show.MediaControlFadeTo, show.MediaControlFadeOut, show.MediaControlStop, show.MediaControlSetVolume:
-		return &marker.Action.MediaControl.FadeMs
+		return &play.FadeMs
 	}
 	return nil
 }
 
-func timecodeActionIndex(cueType show.CueType) int {
-	switch cueType {
-	case show.CueTypeOutputControl:
+func timecodeActionIndex(kind show.TimecodeActionKind) int {
+	switch kind {
+	case show.TimecodeActionOutputControl:
 		return 1
-	case show.CueTypeRemote:
+	case show.TimecodeActionRemote:
 		return 2
 	default:
 		return 0
@@ -297,49 +301,25 @@ func defaultTimecodeMediaControl() *show.MediaControlPlay {
 func newTimecodeMarker(at int64) show.TimecodeMarker {
 	return show.TimecodeMarker{
 		TimeMs: max(int64(0), at),
-		Type:   show.CueTypeMediaControl,
-		Action: show.CuePlay{MediaControl: defaultTimecodeMediaControl()},
+		Action: show.NewTimecodeMediaAction(defaultTimecodeMediaControl()),
 	}
 }
 
 func setTimecodeActionType(marker *show.TimecodeMarker, selected int) {
 	switch selected {
 	case 1:
-		marker.Type = show.CueTypeOutputControl
-		marker.Action = show.NewOutputControlCue().Play
+		marker.Action = show.NewTimecodeOutputAction(show.NewOutputControlCue().Play.OutputControl)
 	case 2:
-		marker.Type = show.CueTypeRemote
-		marker.Action = show.NewRemoteCue().Play
+		marker.Action = show.NewTimecodeRemoteAction(show.NewRemoteCue().Play.Remote)
 	default:
-		marker.Type = show.CueTypeMediaControl
-		marker.Action = show.CuePlay{MediaControl: defaultTimecodeMediaControl()}
+		marker.Action = show.NewTimecodeMediaAction(defaultTimecodeMediaControl())
 	}
 }
 
 func cloneTimecodeMarkers(markers []show.TimecodeMarker) []show.TimecodeMarker {
-	cloned := append([]show.TimecodeMarker(nil), markers...)
+	cloned := make([]show.TimecodeMarker, len(markers))
 	for index := range cloned {
-		if value := markers[index].Action.MediaControl; value != nil {
-			copy := *value
-			if value.LevelDB != nil {
-				level := *value.LevelDB
-				copy.LevelDB = &level
-			}
-			if value.SeekToMs != nil {
-				seek := *value.SeekToMs
-				copy.SeekToMs = &seek
-			}
-			cloned[index].Action.MediaControl = &copy
-		}
-		if value := markers[index].Action.OutputControl; value != nil {
-			copy := *value
-			cloned[index].Action.OutputControl = &copy
-		}
-		if value := markers[index].Action.Remote; value != nil {
-			copy := *value
-			copy.Values = append([]show.RemoteValue(nil), value.Values...)
-			cloned[index].Action.Remote = &copy
-		}
+		cloned[index] = markers[index].Clone()
 	}
 	return cloned
 }

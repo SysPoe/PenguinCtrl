@@ -6,14 +6,14 @@ func TestManagerReadAPIsReturnDeepCopies(t *testing.T) {
 	manager := NewShowManager()
 	cue := NewSoundCue()
 	cue.Tags = []string{"original"}
-	cue.Play.Sound.Timecode = []TimecodeMarker{{TimeMs: 100, Action: CuePlay{Wait: &WaitPlay{DurationMs: 25}}}}
+	cue.Play.Sound.Timecode = []TimecodeMarker{{TimeMs: 100, Action: NewTimecodeRemoteAction(&RemotePlay{Values: []RemoteValue{{Value: "25"}}})}}
 	manager.AddCue(cue)
 	manager.SelectCue(0)
 
 	mutate := func(copy *Cue) {
 		copy.Tags[0] = "changed"
 		copy.Play.Sound.File = "changed.wav"
-		copy.Play.Sound.Timecode[0].Action.Wait.DurationMs = 999
+		copy.Play.Sound.Timecode[0].Action.Remote().Values[0].Value = "999"
 	}
 
 	mutate(manager.GetCue(0))
@@ -35,7 +35,7 @@ func TestManagerReadAPIsReturnDeepCopies(t *testing.T) {
 	mutate(&byID)
 
 	stored := manager.ShowSnapshot().Cues[0]
-	if stored.Tags[0] != "original" || stored.Play.Sound.File != "" || stored.Play.Sound.Timecode[0].Action.Wait.DurationMs != 25 {
+	if stored.Tags[0] != "original" || stored.Play.Sound.File != "" || stored.Play.Sound.Timecode[0].Action.Remote().Values[0].Value != "25" {
 		t.Fatalf("read API mutated manager state: %#v", stored)
 	}
 }

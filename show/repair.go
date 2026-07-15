@@ -118,8 +118,8 @@ func repairCueMediaTargets(cue *Cue, ids map[CueID]struct{}, groups map[GroupID]
 	}
 	for _, markers := range cueTimecodeMarkerSets(cue) {
 		for index := range markers {
-			if markers[index].Action.MediaControl != nil {
-				changed = repairMediaTarget(&markers[index].Action.MediaControl.Target, ids, groups) || changed
+			if play := markers[index].Action.MediaControl(); play != nil {
+				changed = repairMediaTarget(&play.Target, ids, groups) || changed
 			}
 		}
 	}
