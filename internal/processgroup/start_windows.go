@@ -3,6 +3,7 @@
 package processgroup
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"sync"
@@ -32,8 +33,7 @@ func Start(cmd *exec.Cmd) error {
 			uint32(unsafe.Sizeof(info)),
 		); result == 0 {
 			appJob.err = err
-			// TODO(micro): Explicitly handle or discard CloseHandle's error on the failed initialization path.
-			windows.CloseHandle(appJob.handle)
+			appJob.err = errors.Join(appJob.err, windows.CloseHandle(appJob.handle))
 			appJob.handle = 0
 		}
 	})
@@ -46,8 +46,7 @@ func Start(cmd *exec.Cmd) error {
 	process, err := windows.OpenProcess(windows.PROCESS_SET_QUOTA|windows.PROCESS_TERMINATE, false, uint32(cmd.Process.Pid))
 	if err == nil {
 		err = windows.AssignProcessToJobObject(appJob.handle, process)
-		// TODO(micro): Do not discard a process-handle close failure; combine it with err or explicitly mark it best effort.
-		windows.CloseHandle(process)
+		err = errors.Join(err, windows.CloseHandle(process))
 	}
 	if err != nil {
 		_ = cmd.Process.Kill()

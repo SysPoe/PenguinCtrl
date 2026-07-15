@@ -6,9 +6,16 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/syspoe/cusus/internal/processgroup"
+)
+
+const (
+	supervisorInitialBackoff = 250 * time.Millisecond
+	supervisorResetWindow    = 30 * time.Second
+	supervisorMaximumBackoff = 5 * time.Second
 )
 
 // TODO(macro): Supervisor policy (default child path with hard-coded
@@ -25,11 +32,13 @@ func main() {
 			log.Print(err)
 			return
 		}
-		// TODO(micro): hard-coded "cusus.exe" breaks non-Windows builds; pick GOOS-appropriate name or require -app
-		*appPath = filepath.Join(filepath.Dir(executable), "cusus.exe")
+		name := "cusus"
+		if runtime.GOOS == "windows" {
+			name += ".exe"
+		}
+		*appPath = filepath.Join(filepath.Dir(executable), name)
 	}
-	// TODO(micro): name initial backoff (250ms), reset window (30s), and cap (5s) as constants
-	backoff := 250 * time.Millisecond
+	backoff := supervisorInitialBackoff
 	for {
 		started := time.Now()
 		command := processgroup.CommandContext(context.Background(), *appPath)
@@ -44,10 +53,10 @@ func main() {
 		}
 		log.Printf("CuSus exited unexpectedly: %v; restarting safe and silent in %s", err, backoff)
 		time.Sleep(backoff)
-		if time.Since(started) > 30*time.Second {
-			backoff = 250 * time.Millisecond
+		if time.Since(started) > supervisorResetWindow {
+			backoff = supervisorInitialBackoff
 		} else {
-			backoff = min(5*time.Second, backoff*2)
+			backoff = min(supervisorMaximumBackoff, backoff*2)
 		}
 	}
 }

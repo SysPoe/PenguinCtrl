@@ -4,5 +4,5 @@ package main
 
 type powerKeeper struct{}
 
-func startPowerKeeper() *powerKeeper { return &powerKeeper{} }
-func (*powerKeeper) Close()          {}
+func startPowerKeeper(func(error)) *powerKeeper { return &powerKeeper{} }
+func (*powerKeeper) Close()                     {}

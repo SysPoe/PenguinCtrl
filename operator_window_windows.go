@@ -3,6 +3,8 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"unsafe"
 
 	"gioui.org/app"
@@ -23,14 +25,19 @@ func operatorViewHandle(event any) uintptr {
 	return 0
 }
 
-func applyOperatorPlacement(handle uintptr, placement config.WindowPlacement) {
+func applyOperatorPlacement(handle uintptr, placement config.WindowPlacement) error {
 	if handle == 0 {
-		return
+		return errors.New("operator window handle is unavailable")
+	}
+	if placement.Width <= 0 || placement.Height <= 0 {
+		return fmt.Errorf("invalid operator window size %dx%d", placement.Width, placement.Height)
 	}
 	const noActivate = 0x0010
-	// TODO(micro): Check SetWindowPos's return value so failed operator-window restoration is not reported as success.
-	// TODO(micro): Ignoring SetWindowPos last-error; failed placement is silent. Also no validation that Width/Height > 0.
-	operatorSetWindowPos.Call(handle, 0, uintptr(placement.X), uintptr(placement.Y), uintptr(placement.Width), uintptr(placement.Height), noActivate)
+	ok, _, callErr := operatorSetWindowPos.Call(handle, 0, uintptr(placement.X), uintptr(placement.Y), uintptr(placement.Width), uintptr(placement.Height), noActivate)
+	if ok == 0 {
+		return fmt.Errorf("restore operator window placement: %w", callErr)
+	}
+	return nil
 }
 
 func operatorWindowPlacement(handle uintptr) (config.WindowPlacement, bool) {

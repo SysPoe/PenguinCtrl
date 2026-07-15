@@ -109,7 +109,9 @@ func (a *App) run(window *app.Window) error {
 	defer healthMonitor.Close()
 	defer a.Timecode.Close()
 	defer a.Redundancy.Close()
-	power := startPowerKeeper()
+	power := startPowerKeeper(func(err error) {
+		operatorEvents.Add(operatorlog.ShowStopping, "Power management", "Windows could not keep the show computer awake: "+err.Error(), show.CueID{}, "")
+	})
 	defer power.Close()
 	preflightService, err := newPreflightService()
 	if err != nil {
@@ -404,7 +406,9 @@ func (a *App) run(window *app.Window) error {
 		case ui.DocumentActionOpen:
 			loadShow()
 		case ui.DocumentActionClose:
-			closeInterceptor.AllowAndClose()
+			if err := closeInterceptor.AllowAndClose(); err != nil {
+				operatorEvents.Add(operatorlog.Recoverable, "Close protection", err.Error(), show.CueID{}, "")
+			}
 		}
 	}
 
@@ -436,7 +440,9 @@ func (a *App) run(window *app.Window) error {
 			dirty := showDigest(snapshot) != lastSavedDigest
 			documentMu.RUnlock()
 			if documentGuard.Request(ui.DocumentActionClose, dirty) {
-				closeInterceptor.AllowAndClose()
+				if err := closeInterceptor.AllowAndClose(); err != nil {
+					operatorEvents.Add(operatorlog.Recoverable, "Close protection", err.Error(), show.CueID{}, "")
+				}
 			}
 		default:
 		}
@@ -480,7 +486,11 @@ func (a *App) run(window *app.Window) error {
 				if !operatorPlacementApplied {
 					operatorPlacementApplied = true
 					placement := settingsStore.Snapshot().OperatorWindow
-					tasks.Go("operator-window-placement", func(context.Context) { applyOperatorPlacement(handle, placement) })
+					tasks.Go("operator-window-placement", func(context.Context) {
+						if err := applyOperatorPlacement(handle, placement); err != nil {
+							operatorEvents.Add(operatorlog.Recoverable, "Operator window", err.Error(), show.CueID{}, "")
+						}
+					})
 				}
 			}
 

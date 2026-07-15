@@ -3,7 +3,7 @@
 package main
 
 import (
-	"errors"
+	"fmt"
 	"sync/atomic"
 
 	"gioui.org/app"
@@ -20,6 +20,7 @@ var (
 	procCallWindowProcW  = user32.NewProc("CallWindowProcW")
 	procPostMessageW     = user32.NewProc("PostMessageW")
 	procSetWindowLongPtr = user32.NewProc("SetWindowLongPtrW")
+	procSetLastError     = windows.NewLazySystemDLL("kernel32.dll").NewProc("SetLastError")
 )
 
 // windowCloseInterceptor subclasses the Gio window procedure so WM_CLOSE can
@@ -49,23 +50,27 @@ func (g *windowCloseInterceptor) HandleEvent(event any, request func()) error {
 		result, _, _ := procCallWindowProcW.Call(g.original, hwnd, uintptr(message), wParam, lParam)
 		return result
 	})
+	_, _, _ = procSetLastError.Call(0)
 	original, _, callErr := procSetWindowLongPtr.Call(g.hwnd, gwlpWndProc, g.callback)
-	// TODO(micro): original==0 is also a legitimate prior WndProc on some windows; use GetLastError after SetLastError(0) rather than treating 0 as always-failure.
-	if original == 0 {
+	if original == 0 && callErr != windows.ERROR_SUCCESS {
 		g.hwnd = 0
-		return errors.New("could not install the Windows close interceptor: " + callErr.Error())
+		return fmt.Errorf("install Windows close interceptor: %w", callErr)
 	}
 	g.original = original
 	return nil
 }
 
-func (g *windowCloseInterceptor) AllowAndClose() {
+func (g *windowCloseInterceptor) AllowAndClose() error {
 	if g.hwnd == 0 {
-		return
+		return nil
 	}
 	g.allow.Store(true)
-	// TODO(micro): Check PostMessageW's return value so a failed close request can be retried or reported.
-	procPostMessageW.Call(g.hwnd, wmClose, 0, 0)
+	ok, _, callErr := procPostMessageW.Call(g.hwnd, wmClose, 0, 0)
+	if ok == 0 {
+		g.allow.Store(false)
+		return fmt.Errorf("post Windows close request: %w", callErr)
+	}
+	return nil
 }
 
 func (g *windowCloseInterceptor) ResetRequest() {

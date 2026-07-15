@@ -2,6 +2,7 @@
 package crashreport
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,8 @@ import (
 	"sync"
 	"time"
 )
+
+const retainedCrashLogCount = 10
 
 // TODO(macro): Package-level mutable state makes crash reporting a hidden
 // process singleton (directory, fatal file) that every caller must configure
@@ -50,9 +53,7 @@ func InstallFatalOutput() error {
 		return err
 	}
 	if err := debug.SetCrashOutput(file, debug.CrashOptions{}); err != nil {
-		// TODO(micro): Preserve or explicitly discard the close error instead of calling Close unchecked on this failure path.
-		file.Close()
-		return err
+		return errors.Join(err, file.Close())
 	}
 	state.fatalFile, state.fatalPath = file, path
 	return nil
@@ -112,8 +113,7 @@ func Write(component string, value any, stack []byte) error {
 	if closeErr := file.Close(); err == nil {
 		err = closeErr
 	}
-	// TODO(micro): name the retained crash-log count (10) as a package constant
-	prune(directory, 10)
+	prune(directory, retainedCrashLogCount)
 	return err
 }
 

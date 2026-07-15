@@ -7,5 +7,5 @@ package main
 type windowCloseInterceptor struct{}
 
 func (*windowCloseInterceptor) HandleEvent(any, func()) error { return nil }
-func (*windowCloseInterceptor) AllowAndClose()                {}
+func (*windowCloseInterceptor) AllowAndClose() error          { return nil }
 func (*windowCloseInterceptor) ResetRequest()                 {}

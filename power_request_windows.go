@@ -11,9 +11,10 @@ import (
 )
 
 const (
-	esContinuous      = 0x80000000
-	esSystemRequired  = 0x00000001
-	esDisplayRequired = 0x00000002
+	esContinuous          = 0x80000000
+	esSystemRequired      = 0x00000001
+	esDisplayRequired     = 0x00000002
+	powerReassertInterval = 30 * time.Second
 )
 
 var procSetThreadExecutionState = windows.NewLazySystemDLL("kernel32.dll").NewProc("SetThreadExecutionState")
@@ -23,23 +24,24 @@ type powerKeeper struct {
 	wg   sync.WaitGroup
 }
 
-func startPowerKeeper() *powerKeeper {
+func startPowerKeeper(report func(error)) *powerKeeper {
 	keeper := &powerKeeper{done: make(chan struct{})}
 	keeper.wg.Add(1)
 	go func() {
 		defer keeper.wg.Done()
 		runtime.LockOSThread()
 		defer runtime.UnlockOSThread()
-		// TODO(micro): 30s re-assert interval is magic; name a const. Also ignore Call() last-error — failed ES requests leave sleep enabled silently.
-		ticker := time.NewTicker(30 * time.Second)
+		ticker := time.NewTicker(powerReassertInterval)
 		defer ticker.Stop()
 		for {
-			// TODO(micro): Check SetThreadExecutionState results; a zero return means the show-safety power request was not applied.
-			procSetThreadExecutionState.Call(esContinuous | esSystemRequired | esDisplayRequired)
+			if result, _, callErr := procSetThreadExecutionState.Call(esContinuous | esSystemRequired | esDisplayRequired); result == 0 && report != nil {
+				report(callErr)
+			}
 			select {
 			case <-keeper.done:
-				// TODO(micro): Check or explicitly discard the error when restoring the default execution state.
-				procSetThreadExecutionState.Call(esContinuous)
+				if result, _, callErr := procSetThreadExecutionState.Call(esContinuous); result == 0 && report != nil {
+					report(callErr)
+				}
 				return
 			case <-ticker.C:
 			}
