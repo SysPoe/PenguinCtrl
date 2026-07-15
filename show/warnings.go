@@ -2,8 +2,6 @@ package show
 
 import (
 	"math"
-
-	"github.com/syspoe/cusus/config"
 )
 
 type ProblemSeverity int
@@ -40,23 +38,8 @@ type CueProblem struct {
 	Field       string
 }
 
-// TODO(macro): Split static document validation from runtime/preflight gates —
-// WarningContext mixes settings, media probe state, and live instance matches
-// into the show package, so cue domain validation depends on playback/config
-// snapshots rather than a pure show model.
-type WarningContext struct {
-	Settings           config.Settings
-	KnownDurationMs    int64
-	MediaProbeError    string
-	TrackMediaCheck    bool
-	MediaCheckPending  bool
-	MediaChecked       bool
-	ActiveMediaMatches int
-	HasRuntimeState    bool
-}
-
-// CueProblems returns static problems that can be determined from a cue and
-// cue list. Use CueProblemsWithContext at GO/preflight boundaries.
+// CueProblems returns static problems determined solely from the cue document.
+// Runtime readiness and settings-resolved policy live in package preflight.
 func CueProblems(cue Cue, cues []Cue) []CueProblem {
 	static := cueStaticProblems(cue, cues)
 	problems := make([]CueProblem, 0, len(static)+4)
@@ -96,18 +79,6 @@ func cueLevelProblems(cue Cue) []CueProblem {
 	return nil
 }
 
-// CueProblemsWithContext resolves templates and validates settings-dependent
-// behavior against the same snapshot used to trigger playback.
-func CueProblemsWithContext(cue Cue, cues []Cue, context WarningContext) []CueProblem {
-	problems := CueProblems(cue, cues)
-	problems = append(problems, resolvedMediaProblems(cue, context)...)
-	problems = append(problems, resolvedRemoteProblems(cue, context.Settings)...)
-	problems = append(problems, resolvedOutputProblems(cue, context.Settings)...)
-	problems = append(problems, durationProblems(cue, context.KnownDurationMs)...)
-	problems = append(problems, runtimeTargetProblems(cue, context)...)
-	return uniqueProblems(problems)
-}
-
 // CueWarnings is retained for callers that only need actionable strings.
 func CueWarnings(cue Cue, cues []Cue) []string {
 	problems := CueProblems(cue, cues)
@@ -116,6 +87,20 @@ func CueWarnings(cue Cue, cues []Cue) []string {
 		warnings = append(warnings, problem.Message)
 	}
 	return warnings
+}
+
+func uniqueProblems(input []CueProblem) []CueProblem {
+	seen := map[string]struct{}{}
+	result := make([]CueProblem, 0, len(input))
+	for _, problem := range input {
+		key := problem.Code + "|" + problem.Message
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		result = append(result, problem)
+	}
+	return result
 }
 
 func cueStaticProblems(cue Cue, cues []Cue) []CueProblem {

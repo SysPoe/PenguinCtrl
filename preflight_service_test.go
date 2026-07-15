@@ -38,7 +38,7 @@ func TestSignedPreflightGateRejectsStaleShow(t *testing.T) {
 	deadline := time.Now().Add(3 * time.Second)
 	for {
 		checks := service.Request(current, settings, "", "", nil, func(cue show.Cue) []show.CueProblem {
-			return show.CueProblemsWithContext(cue, current.Cues, show.WarningContext{Settings: settings})
+			return preflight.CueProblemsWithContext(cue, current.Cues, preflight.WarningContext{Settings: settings})
 		})
 		if len(checks) == 0 || checks[0].Code != "preflight.pending" {
 			break
@@ -72,7 +72,7 @@ func TestSignedPreflightScopesCueBlockersToReachablePlayChain(t *testing.T) {
 	deadline := time.Now().Add(3 * time.Second)
 	for {
 		checks := service.Request(current, settings, "", "", nil, func(cue show.Cue) []show.CueProblem {
-			return show.CueProblemsWithContext(cue, current.Cues, show.WarningContext{Settings: settings})
+			return preflight.CueProblemsWithContext(cue, current.Cues, preflight.WarningContext{Settings: settings})
 		})
 		if len(checks) == 0 || checks[0].Code != "preflight.pending" {
 			break
@@ -93,7 +93,7 @@ func TestSignedPreflightScopesCueBlockersToReachablePlayChain(t *testing.T) {
 	deadline = time.Now().Add(3 * time.Second)
 	for {
 		checks := service.Request(current, settings, "", "", nil, func(cue show.Cue) []show.CueProblem {
-			return show.CueProblemsWithContext(cue, current.Cues, show.WarningContext{Settings: settings})
+			return preflight.CueProblemsWithContext(cue, current.Cues, preflight.WarningContext{Settings: settings})
 		})
 		if len(checks) == 0 || checks[0].Code != "preflight.pending" {
 			break

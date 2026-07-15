@@ -25,7 +25,7 @@ const (
 func Assemble(current show.Show, settings config.Settings, audioWarning, videoWarning string, health []remote.TargetHealth, problemsForCue func(show.Cue) []show.CueProblem) []Check {
 	if problemsForCue == nil {
 		problemsForCue = func(cue show.Cue) []show.CueProblem {
-			return show.CueProblemsWithContext(cue, current.Cues, show.WarningContext{Settings: settings})
+			return CueProblemsWithContext(cue, current.Cues, WarningContext{Settings: settings})
 		}
 	}
 	checks := cueChecks(current.Cues, settings, problemsForCue)
@@ -50,14 +50,14 @@ func cueChecks(cues []show.Cue, settings config.Settings, problemsForCue func(sh
 				checks = append(checks, Check{
 					Severity: operatorlog.ShowStopping, Code: problem.Code, Source: "Media readiness",
 					Message: problem.Message, Consequence: problem.Consequence, Fix: problem.Fix, Field: problem.Field,
-					CueID: cue.ID, CueNumber: cue.CueNumber, Fingerprint: show.ProblemFingerprint(cue, problem, settings),
+					CueID: cue.ID, CueNumber: cue.CueNumber, Fingerprint: ProblemFingerprint(cue, problem, settings),
 				})
 				continue
 			}
 			checks = append(checks, Check{
 				Severity: problemSeverity(problem.Severity), Code: problem.Code, Source: "Cue configuration",
 				Message: problem.Message, Consequence: problem.Consequence, Fix: problem.Fix, Field: problem.Field,
-				CueID: cue.ID, CueNumber: cue.CueNumber, Fingerprint: show.ProblemFingerprint(cue, problem, settings),
+				CueID: cue.ID, CueNumber: cue.CueNumber, Fingerprint: ProblemFingerprint(cue, problem, settings),
 			})
 		}
 	}

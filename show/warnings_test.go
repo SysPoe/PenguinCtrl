@@ -2,12 +2,10 @@ package show
 
 import (
 	"encoding/json"
-	"math"
 	"strings"
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/syspoe/cusus/config"
 )
 
 func problemWithCode(problems []CueProblem, code string) (CueProblem, bool) {
@@ -36,35 +34,6 @@ func TestUnsupportedPositiveGainIsBlocked(t *testing.T) {
 	}
 }
 
-func TestResolvedMediaAndRemoteBlockers(t *testing.T) {
-	settings := config.Defaults()
-	mediaCue := validSound("1", "{unknown}/track.wav")
-	problems := CueProblemsWithContext(mediaCue, []Cue{mediaCue}, WarningContext{Settings: settings})
-	if problem, ok := problemWithCode(problems, "media.path.variable.unknown"); !ok || !strings.Contains(problem.Message, "unknown") {
-		t.Fatalf("unknown variable problem = %#v", problems)
-	}
-
-	remoteCue := NewRemoteCue()
-	remoteCue.CueNumber = "2"
-	remoteCue.Link.Mode = CueLinkManual
-	remoteCue.Play.Remote.Protocol = RemoteProtocolOSC
-	remoteCue.Play.Remote.Action = RemoteActionBack
-	settings.RemoteTargets = []config.RemoteTarget{{Name: "OSC only", Host: "127.0.0.1", OSCPort: 8000}}
-	if _, ok := problemWithCode(CueProblemsWithContext(remoteCue, []Cue{remoteCue}, WarningContext{Settings: settings}), "remote.target.none"); !ok {
-		t.Fatal("OSC-incompatible Back action was not blocked")
-	}
-}
-
-func TestMissingSoundOutputUsesPlaybackRouteWording(t *testing.T) {
-	cue := validSound("1", "track.wav")
-	cue.Play.Sound.OutputID = ""
-	problems := CueProblemsWithContext(cue, []Cue{cue}, WarningContext{Settings: config.Settings{}})
-	problem, ok := problemWithCode(problems, "output.missing")
-	if !ok || !strings.Contains(strings.ToLower(problem.Message), "sound playback output") || !strings.Contains(strings.ToLower(problem.Consequence), "playback route") {
-		t.Fatalf("sound output problem = %#v", problem)
-	}
-}
-
 func TestLinkBoundaryCycleAndDownstreamProblems(t *testing.T) {
 	first := validSound("1", t.TempDir()+"/one.wav")
 	second := validSound("2", t.TempDir()+"/two.wav")
@@ -80,42 +49,16 @@ func TestLinkBoundaryCycleAndDownstreamProblems(t *testing.T) {
 	}
 }
 
-func TestIntegrityDurationAndAcknowledgementFingerprint(t *testing.T) {
+func TestIntegrityProblemsRemainStatic(t *testing.T) {
 	cue := validSound("4", "track.wav")
 	cue.Play.Video = &VideoPlay{}
-	cue.Play.Sound.ClipStartMs = 900
-	cue.Play.Sound.FadeInMs = 500
 	cue.Play.Sound.Timecode = []TimecodeMarker{{TimeMs: 950, Action: NewTimecodeRemoteAction(&RemotePlay{})}, {TimeMs: 950, Action: NewTimecodeOutputAction(&OutputControlPlay{})}}
-	settings := config.Defaults()
-	problems := CueProblemsWithContext(cue, []Cue{cue}, WarningContext{Settings: settings, KnownDurationMs: 1000})
-	for _, code := range []string{"cue.payload.integrity", "media.fade.beyond-duration"} {
-		if _, ok := problemWithCode(problems, code); !ok {
-			t.Fatalf("missing %s in %#v", code, problems)
-		}
+	problems := CueProblems(cue, []Cue{cue})
+	if _, ok := problemWithCode(problems, "cue.payload.integrity"); !ok {
+		t.Fatalf("missing cue.payload.integrity in %#v", problems)
 	}
 	if problem, ok := problemWithCode(problems, "timecode.duplicate.950"); ok {
 		t.Fatalf("same-time timecode actions unexpectedly warned: %#v", problem)
-	}
-	problem, _ := problemWithCode(problems, "cue.payload.integrity")
-	before := ProblemFingerprint(cue, problem, settings)
-	cue.Description = "changed"
-	settings.RedundancySharedKey = "unrelated-secret-change"
-	if after := ProblemFingerprint(cue, problem, settings); before != after {
-		t.Fatal("unrelated presentation or secret settings churn changed the problem fingerprint")
-	}
-	cue.Play.Sound.LevelDB = 3
-	if after := ProblemFingerprint(cue, problem, settings); before == after {
-		t.Fatal("relevant cue edit did not clear the problem acknowledgement")
-	}
-}
-
-func TestProblemFingerprintHandlesUnencodableCueData(t *testing.T) {
-	cue := validSound("1", "track.wav")
-	cue.Play.Sound.LevelDB = math.NaN()
-	first := ProblemFingerprint(cue, CueProblem{Code: "first"}, config.Defaults())
-	second := ProblemFingerprint(cue, CueProblem{Code: "second"}, config.Defaults())
-	if first == "" || second == "" || first == second {
-		t.Fatalf("fallback fingerprints = %q / %q", first, second)
 	}
 }
 

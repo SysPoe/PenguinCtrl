@@ -1,16 +1,82 @@
-package show
+package preflight
 
 import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/syspoe/cusus/config"
+	"github.com/syspoe/cusus/internal/mediapath"
+	"github.com/syspoe/cusus/show"
 )
+
+type WarningContext struct {
+	Settings           config.Settings
+	KnownDurationMs    int64
+	MediaProbeError    string
+	TrackMediaCheck    bool
+	MediaCheckPending  bool
+	MediaChecked       bool
+	ActiveMediaMatches int
+	HasRuntimeState    bool
+}
+
+// Local aliases keep the policy implementation readable while its public API
+// remains explicitly expressed in show-domain types.
+type (
+	Cue            = show.Cue
+	CueProblem     = show.CueProblem
+	CueID          = show.CueID
+	GroupID        = show.GroupID
+	CueType        = show.CueType
+	CueTiming      = show.CueTiming
+	CuePlay        = show.CuePlay
+	CueLink        = show.CueLink
+	TimecodeMarker = show.TimecodeMarker
+)
+
+const (
+	ProblemState   = show.ProblemState
+	ProblemCaution = show.ProblemCaution
+	ProblemBlocker = show.ProblemBlocker
+
+	CueTypeSound         = show.CueTypeSound
+	CueTypeVideo         = show.CueTypeVideo
+	CueTypeImage         = show.CueTypeImage
+	CueTypeRemote        = show.CueTypeRemote
+	CueTypeWait          = show.CueTypeWait
+	CueTypeMediaControl  = show.CueTypeMediaControl
+	CueTypeOutputControl = show.CueTypeOutputControl
+
+	RemoteProtocolAuto   = show.RemoteProtocolAuto
+	RemoteProtocolOSC    = show.RemoteProtocolOSC
+	RemoteProtocolERC    = show.RemoteProtocolERC
+	RemoteActionBack     = show.RemoteActionBack
+	RemoteActionActivate = show.RemoteActionActivate
+	RemoteActionCustom   = show.RemoteActionCustom
+	RemoteActionLevel    = show.RemoteActionLevel
+	RemoteActionGoto     = show.RemoteActionGoto
+	RemoteValueInt       = show.RemoteValueInt
+	RemoteValueFloat     = show.RemoteValueFloat
+	RemoteValueBool      = show.RemoteValueBool
+)
+
+// CueProblemsWithContext combines pure document validation with one immutable
+// runtime/settings snapshot at GO or preflight boundaries.
+func CueProblemsWithContext(cue show.Cue, cues []show.Cue, context WarningContext) []show.CueProblem {
+	problems := show.CueProblems(cue, cues)
+	problems = append(problems, resolvedMediaProblems(cue, context)...)
+	problems = append(problems, resolvedRemoteProblems(cue, context.Settings)...)
+	problems = append(problems, resolvedOutputProblems(cue, context.Settings)...)
+	problems = append(problems, durationProblems(cue, context.KnownDurationMs)...)
+	problems = append(problems, runtimeTargetProblems(cue, context)...)
+	return uniqueProblems(problems)
+}
 
 func resolvedMediaProblems(cue Cue, context WarningContext) []CueProblem {
 	var source string
@@ -37,7 +103,7 @@ func resolvedMediaProblems(cue Cue, context WarningContext) []CueProblem {
 	if unknown := unresolvedVariables(resolved); len(unknown) > 0 {
 		return []CueProblem{{Code: "media.path.variable.unknown", Severity: ProblemBlocker, Message: "Unknown media variable: " + strings.Join(unknown, ", "), Consequence: "The media path cannot be resolved.", Fix: "Define the variable in Settings or edit the path", Field: "media.file"}}
 	}
-	if problems := mediaFileProblems(resolved); len(problems) > 0 {
+	if problems := resolvedMediaFileProblems(resolved); len(problems) > 0 {
 		return problems
 	}
 	if strings.TrimSpace(context.MediaProbeError) != "" {
@@ -50,6 +116,20 @@ func resolvedMediaProblems(cue Cue, context WarningContext) []CueProblem {
 		return []CueProblem{{Code: "media.check.not-run", Severity: ProblemState, Message: "Media has not been preflighted yet", Consequence: "Readiness is not yet known.", Fix: "Wait for preflight to finish", Field: "media.file"}}
 	}
 	return nil
+}
+
+func resolvedMediaFileProblems(source string) []show.CueProblem {
+	local, err := mediapath.Local(source)
+	if err == nil && !filepath.IsAbs(local) {
+		_, err = filepath.Abs(local)
+	}
+	if err == nil {
+		return nil
+	}
+	return []show.CueProblem{{
+		Code: "media.file.invalid", Severity: show.ProblemBlocker, Message: "Invalid media file",
+		Consequence: "This cue cannot reliably produce the programmed result.", Fix: "Choose a valid media path", Field: "media.file",
+	}}
 }
 
 var unresolvedVariablePattern = regexp.MustCompile(`\{([^{}]+)\}`)
@@ -67,10 +147,8 @@ func unresolvedVariables(value string) []string {
 	return result
 }
 
-// TODO(macro): Move settings-resolved remote/output policy out of show —
-// resolvedRemoteProblems / resolvedOutputProblems import config and encode
-// transport/success rules that belong with remote/output subsystems, not the
-// cue document package.
+// resolvedRemoteProblems evaluates settings-resolved transport policy at the
+// runtime/preflight boundary, outside the cue document package.
 func resolvedRemoteProblems(cue Cue, settings config.Settings) []CueProblem {
 	if cue.Type != CueTypeRemote || cue.Play.Remote == nil {
 		return nil
@@ -243,6 +321,11 @@ func runtimeTargetProblems(cue Cue, context WarningContext) []CueProblem {
 		return []CueProblem{{Code: "media.target.no-active-match", Severity: ProblemCaution, Message: "No active media currently matches this target", Consequence: "Triggering now will have no immediate effect.", Fix: "Start the target media or review the target", Field: "media.target"}}
 	}
 	return nil
+}
+
+func waitKindUsesMediaTarget(kind show.WaitKind) bool {
+	return kind == show.WaitMediaStart || kind == show.WaitMediaEnd || kind == show.WaitFadeInComplete ||
+		kind == show.WaitFadeOutComplete || kind == show.WaitInstanceStopped
 }
 
 func uniqueProblems(input []CueProblem) []CueProblem {
