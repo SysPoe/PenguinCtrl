@@ -8,10 +8,9 @@ import (
 // CloneShow returns a deep copy suitable for archive preparation or editing.
 func CloneShow(current Show) Show {
 	clone := Show{
-		Title:                current.Title,
-		Cues:                 deepClone(current.Cues),
-		Extensions:           cloneExtensions(current.Extensions),
-		AcknowledgedProblems: cloneAcknowledgements(current.AcknowledgedProblems),
+		Title:      current.Title,
+		Cues:       deepClone(current.Cues),
+		Extensions: cloneExtensions(current.Extensions),
 	}
 	return clone
 }

@@ -66,14 +66,6 @@ func TestRedundancyFingerprintUsesContentNotMachineLocalPath(t *testing.T) {
 	if first.Show != second.Show {
 		t.Fatalf("machine-local extracted paths changed logical show digest: %s != %s", first.Show, second.Show)
 	}
-	secondShow.AcknowledgedProblems = map[string]bool{"operator-local-warning": true}
-	acknowledged, err := redundancy.BuildFingerprint(secondShow, settings, []project.File{{Source: secondPath, Hash: contentHash, Kind: "audio"}}, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if second.Show != acknowledged.Show {
-		t.Fatal("operator-local warning acknowledgement changed production show identity")
-	}
 }
 
 func TestRedundancyRoutingFingerprintChangesWithOutputMapping(t *testing.T) {

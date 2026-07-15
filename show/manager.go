@@ -11,10 +11,11 @@ type CueGroup struct {
 }
 
 type ShowManager struct {
-	mu        sync.RWMutex
-	show      Show
-	selection cueSelection
-	onChange  func()
+	mu                   sync.RWMutex
+	show                 Show
+	selection            cueSelection
+	acknowledgedProblems map[string]bool
+	onChange             func()
 }
 
 func NewShowManager() *ShowManager {
@@ -279,7 +280,7 @@ func (sm *ShowManager) Snapshot() []Cue {
 func (sm *ShowManager) ShowSnapshot() Show {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
-	return Show{Title: sm.show.Title, Cues: cloneCues(sm.show.Cues), AcknowledgedProblems: cloneAcknowledgements(sm.show.AcknowledgedProblems), Extensions: cloneExtensions(sm.show.Extensions)}
+	return CloneShow(sm.show)
 }
 
 // ReplaceShow atomically replaces the current show after loading a project.
@@ -288,6 +289,7 @@ func (sm *ShowManager) ReplaceShow(loaded Show) {
 	RepairShowData(&loaded)
 	sm.mu.Lock()
 	sm.show = loaded
+	sm.acknowledgedProblems = nil
 	if len(sm.show.Cues) == 0 {
 		sm.selection.index = -1
 	} else {

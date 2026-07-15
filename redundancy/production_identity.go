@@ -42,7 +42,6 @@ type mediaIdentity struct {
 func productionIdentity(current show.Show, settings config.Settings, files []project.File) (show.Show, string, bool, error) {
 	available := mediaIndex(files)
 	logical := current
-	logical.AcknowledgedProblems = nil
 	logical.Cues = make([]show.Cue, len(current.Cues))
 	identities := make(map[mediaIdentity]struct{})
 	ready := true

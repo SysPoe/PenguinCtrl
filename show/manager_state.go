@@ -4,30 +4,17 @@ import (
 	"strings"
 )
 
-func cloneAcknowledgements(input map[string]bool) map[string]bool {
-	if len(input) == 0 {
-		return nil
-	}
-	result := make(map[string]bool, len(input))
-	for key, value := range input {
-		if value {
-			result[key] = true
-		}
-	}
-	return result
-}
-
 func (sm *ShowManager) AcknowledgeProblem(fingerprint string) bool {
 	fingerprint = strings.TrimSpace(fingerprint)
 	if fingerprint == "" {
 		return false
 	}
 	sm.mu.Lock()
-	if sm.show.AcknowledgedProblems == nil {
-		sm.show.AcknowledgedProblems = map[string]bool{}
+	if sm.acknowledgedProblems == nil {
+		sm.acknowledgedProblems = map[string]bool{}
 	}
-	changed := !sm.show.AcknowledgedProblems[fingerprint]
-	sm.show.AcknowledgedProblems[fingerprint] = true
+	changed := !sm.acknowledgedProblems[fingerprint]
+	sm.acknowledgedProblems[fingerprint] = true
 	sm.mu.Unlock()
 	if changed {
 		sm.changed()
@@ -39,7 +26,7 @@ func (sm *ShowManager) ProblemAcknowledged(fingerprint string) bool {
 	fingerprint = strings.TrimSpace(fingerprint)
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
-	return sm.show.AcknowledgedProblems[fingerprint]
+	return sm.acknowledgedProblems[fingerprint]
 }
 
 func cloneCues(cues []Cue) []Cue {

@@ -1,6 +1,10 @@
 package show
 
-import "testing"
+import (
+	"bytes"
+	"encoding/json"
+	"testing"
+)
 
 func TestManagerReadAPIsReturnDeepCopies(t *testing.T) {
 	manager := NewShowManager()
@@ -36,18 +40,16 @@ func TestManagerReadAPIsReturnDeepCopies(t *testing.T) {
 }
 
 func TestAcknowledgementCopiesCanonicalizeAndLookupsTrim(t *testing.T) {
-	current := Show{AcknowledgedProblems: map[string]bool{"accepted": true, "ignored": false}}
-	clone := CloneShow(current)
-	if !clone.AcknowledgedProblems["accepted"] {
-		t.Fatal("true acknowledgement was not cloned")
-	}
-	if _, exists := clone.AcknowledgedProblems["ignored"]; exists {
-		t.Fatal("false acknowledgement was retained")
-	}
-
 	manager := NewShowManager()
-	manager.ReplaceShow(clone)
+	manager.AcknowledgeProblem("accepted")
 	if !manager.ProblemAcknowledged("  accepted  ") {
 		t.Fatal("trimmed acknowledgement lookup failed")
+	}
+	encoded, err := json.Marshal(manager.ShowSnapshot())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(encoded, []byte("acknowledgedProblems")) {
+		t.Fatalf("operator acknowledgement leaked into show document: %s", encoded)
 	}
 }

@@ -66,9 +66,6 @@ func normalizeShowSchema(current *show.Show, version int) {
 	if current.Cues == nil {
 		current.Cues = []show.Cue{}
 	}
-	if current.AcknowledgedProblems == nil {
-		current.AcknowledgedProblems = map[string]bool{}
-	}
 	if current.Extensions == nil {
 		current.Extensions = map[string]json.RawMessage{}
 	}
