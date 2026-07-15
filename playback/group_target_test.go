@@ -9,12 +9,11 @@ import (
 func TestMatchingInstancesByCueGroup(t *testing.T) {
 	groupID := show.NewGroupID()
 	otherGroupID := show.NewGroupID()
-	engine := &Engine{instances: map[string]*Instance{
-		"first":  {ID: "first", GroupID: groupID, MediaType: "audio"},
-		"second": {ID: "second", GroupID: groupID, MediaType: "video"},
-		"other":  {ID: "other", GroupID: otherGroupID, MediaType: "audio"},
-		"none":   {ID: "none", MediaType: "audio"},
-	}}
+	engine := &Engine{instances: newInstanceRegistry()}
+	engine.instances.register(&Instance{ID: "first", GroupID: groupID, MediaType: "audio"})
+	engine.instances.register(&Instance{ID: "second", GroupID: groupID, MediaType: "video"})
+	engine.instances.register(&Instance{ID: "other", GroupID: otherGroupID, MediaType: "audio"})
+	engine.instances.register(&Instance{ID: "none", MediaType: "audio"})
 
 	matches := engine.matchingInstances(show.MediaTarget{Kind: show.MediaTargetGroup, GroupID: groupID})
 	if len(matches) != 2 {

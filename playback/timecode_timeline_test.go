@@ -32,10 +32,10 @@ func TestMediaMarkerDispatchPreservesParentCueRunAndIsAudited(t *testing.T) {
 	parentRun, _ := engine.beginCueRun(cue.ID)
 	instanceID := "parent-timecode"
 	engine.mu.Lock()
-	engine.instances[instanceID] = &Instance{
+	engine.instances.register(&Instance{
 		ID: instanceID, CueID: cue.ID, run: parentRun,
 		MediaType: "image", OutputID: "main",
-	}
+	})
 	engine.mu.Unlock()
 	events := engine.outputs.subscribe("main")
 
@@ -51,7 +51,7 @@ func TestMediaMarkerDispatchPreservesParentCueRunAndIsAudited(t *testing.T) {
 	}
 
 	engine.mu.RLock()
-	instanceActive := engine.instances[instanceID] != nil
+	instanceActive := engine.instances.has(instanceID)
 	engine.mu.RUnlock()
 	if !engine.cueRunCurrent(parentRun) || parentRun.ctx.Err() != nil || !instanceActive {
 		t.Fatalf("marker replaced parent run: current=%v context=%v instance=%v", engine.cueRunCurrent(parentRun), parentRun.ctx.Err(), instanceActive)
@@ -86,10 +86,10 @@ func TestMediaMarkerUsesPreflightAdmissionWithoutStoppingParent(t *testing.T) {
 	parentRun, _ := engine.beginCueRun(cue.ID)
 	instanceID := "blocked-parent-timecode"
 	engine.mu.Lock()
-	engine.instances[instanceID] = &Instance{
+	engine.instances.register(&Instance{
 		ID: instanceID, CueID: cue.ID, run: parentRun,
 		MediaType: "image", OutputID: "main",
-	}
+	})
 	engine.mu.Unlock()
 	events := engine.outputs.subscribe("main")
 
@@ -108,7 +108,7 @@ func TestMediaMarkerUsesPreflightAdmissionWithoutStoppingParent(t *testing.T) {
 	}
 drained:
 	engine.mu.RLock()
-	instanceActive := engine.instances[instanceID] != nil
+	instanceActive := engine.instances.has(instanceID)
 	engine.mu.RUnlock()
 	if !engine.cueRunCurrent(parentRun) || parentRun.ctx.Err() != nil || !instanceActive {
 		t.Fatalf("blocked marker disturbed parent run: current=%v context=%v instance=%v", engine.cueRunCurrent(parentRun), parentRun.ctx.Err(), instanceActive)
@@ -130,7 +130,7 @@ func TestMediaMarkersUseConfiguredExternalTimeline(t *testing.T) {
 	engine.SetTimeline(timeline)
 	instanceID := "external-timecode"
 	engine.mu.Lock()
-	engine.instances[instanceID] = &Instance{ID: instanceID, run: cueRunToken{ctx: engine.runCtx}}
+	engine.instances.register(&Instance{ID: instanceID, run: cueRunToken{ctx: engine.runCtx}})
 	engine.mu.Unlock()
 	cue := show.Cue{ID: show.NewCueID(), Type: show.CueTypeImage, Play: show.CuePlay{Image: &show.ImagePlay{Timecode: []show.TimecodeMarker{{
 		TimeMs: 250, Type: show.CueTypeOutputControl, Action: show.CuePlay{OutputControl: &show.OutputControlPlay{Action: show.OutputControlBlackout}},

@@ -44,12 +44,12 @@ func TestMediaTimelineStartsOnBackendReport(t *testing.T) {
 
 func addPresentedVisual(engine *Engine, id string, layer uint64, fadeOutMs int64) {
 	engine.mu.Lock()
-	engine.instances[id] = &Instance{
+	engine.instances.register(&Instance{
 		ID: id, CueID: show.NewCueID(), MediaType: "video", OutputID: "main",
 		LayerOrder: layer, FadeOutMs: fadeOutMs, BackendStarted: true,
 		Presented: true, StartedAt: time.Now(), PositionAt: time.Now(),
 		run: cueRunToken{ctx: context.Background()}, LoadState: "playing",
-	}
+	})
 	engine.mu.Unlock()
 }
 
@@ -62,7 +62,7 @@ func TestSingleLayerPresentedVisualFadesAndStopsPreviousVisual(t *testing.T) {
 	addPresentedVisual(engine, "old", 1, 30)
 	addPresentedVisual(engine, "new", 2, 0)
 	engine.mu.Lock()
-	engine.instances["new"].Presented = false
+	engine.instances.get("new").Presented = false
 	engine.mu.Unlock()
 
 	engine.HandleOutputReport("new", "presented")
@@ -95,10 +95,10 @@ func TestSingleLayerDoesNotReplaceBeforeFirstPresentedFrame(t *testing.T) {
 	engine := NewEngine(show.NewShowManager(), settings)
 	addPresentedVisual(engine, "old", 1, 0)
 	engine.mu.Lock()
-	engine.instances["new"] = &Instance{
+	engine.instances.register(&Instance{
 		ID: "new", CueID: show.NewCueID(), MediaType: "video", OutputID: "main",
 		LayerOrder: 2, BackendStarted: true, LoadState: "playing",
-	}
+	})
 	engine.mu.Unlock()
 
 	if got := len(engine.ActiveInstances()); got != 2 {
@@ -125,7 +125,7 @@ func TestMultiLayerOutputKeepsPresentedVisuals(t *testing.T) {
 	addPresentedVisual(engine, "old", 1, 0)
 	addPresentedVisual(engine, "new", 2, 0)
 	engine.mu.Lock()
-	engine.instances["new"].Presented = false
+	engine.instances.get("new").Presented = false
 	engine.mu.Unlock()
 
 	engine.HandleOutputReport("new", "presented")

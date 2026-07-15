@@ -54,7 +54,7 @@ func reduceInstanceLifecycle(instance *Instance, report outputReport, now time.T
 func (e *Engine) HandleOutputReport(instanceID, reportText string) {
 	report := outputReport(reportText)
 	e.mu.Lock()
-	instance := e.instances[instanceID]
+	instance := e.instances.get(instanceID)
 	if instance == nil {
 		e.mu.Unlock()
 		return
@@ -63,7 +63,7 @@ func (e *Engine) HandleOutputReport(instanceID, reportText string) {
 		e.mu.Unlock()
 		return
 	} else if retire {
-		delete(e.instances, instanceID)
+		e.instances.retire(instanceID)
 	}
 	snapshot := *instance
 	e.mu.Unlock()

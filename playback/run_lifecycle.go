@@ -81,14 +81,7 @@ func (r *cueRunTable) reset() {
 func (e *Engine) beginCueRun(cueID show.CueID) (cueRunToken, []Instance) {
 	e.mu.Lock()
 	run := e.runs.begin(e.runCtx, cueID)
-	stopped := make([]Instance, 0)
-	for id, instance := range e.instances {
-		if instance.CueID != cueID {
-			continue
-		}
-		stopped = append(stopped, *instance)
-		delete(e.instances, id)
-	}
+	stopped := e.instances.removeCue(cueID)
 	e.mu.Unlock()
 	return run, stopped
 }

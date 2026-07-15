@@ -23,16 +23,16 @@ func (e *Engine) replaceSingleLayerVisual(presented Instance) {
 
 	e.mu.Lock()
 	var newest *Instance
-	for _, candidate := range e.instances {
+	e.instances.visit(func(candidate *Instance) {
 		if candidate.Preview || !candidate.Presented || candidate.OutputID != presented.OutputID || !visualInstance(candidate) {
-			continue
+			return
 		}
 		if newest == nil || candidate.LayerOrder > newest.LayerOrder ||
 			(candidate.LayerOrder == newest.LayerOrder && candidate.StartedAt.After(newest.StartedAt)) ||
 			(candidate.LayerOrder == newest.LayerOrder && candidate.StartedAt.Equal(newest.StartedAt) && candidate.ID > newest.ID) {
 			newest = candidate
 		}
-	}
+	})
 	if newest == nil {
 		e.mu.Unlock()
 		return
@@ -40,10 +40,10 @@ func (e *Engine) replaceSingleLayerVisual(presented Instance) {
 
 	now := time.Now()
 	outgoing := make([]Instance, 0)
-	for _, candidate := range e.instances {
+	e.instances.visit(func(candidate *Instance) {
 		if candidate.ID == newest.ID || candidate.Preview || !candidate.Presented || candidate.OutputID != presented.OutputID ||
 			!visualInstance(candidate) || candidate.ReplacementScheduled {
-			continue
+			return
 		}
 		materializeInstance(candidate, now)
 		candidate.ReplacementScheduled = true
@@ -53,7 +53,7 @@ func (e *Engine) replaceSingleLayerVisual(presented Instance) {
 		// TODO(micro): use shared silenceFloorDB const instead of bare -80
 		startInstanceFade(candidate, -80, max(int64(0), candidate.FadeOutMs), now)
 		outgoing = append(outgoing, *candidate)
-	}
+	})
 	e.mu.Unlock()
 
 	for _, instance := range outgoing {
@@ -84,7 +84,7 @@ func (e *Engine) HandleOutputError(instanceID string, err error) {
 		return
 	}
 	e.mu.RLock()
-	instance := e.instances[instanceID]
+	instance := e.instances.get(instanceID)
 	if instance == nil {
 		e.mu.RUnlock()
 		// Output workers can finish after a stop/removal has already retired the
@@ -105,7 +105,7 @@ func (e *Engine) HandleOutputWarning(instanceID string, err error) {
 		return
 	}
 	e.mu.RLock()
-	instance := e.instances[instanceID]
+	instance := e.instances.get(instanceID)
 	if instance == nil {
 		e.mu.RUnlock()
 		log.Add(operatorlog.Recoverable, "FFmpeg / media output", err.Error(), show.CueID{}, "")
@@ -126,7 +126,7 @@ func (e *Engine) HandleOutputDuration(instanceID string, durationMs int64) {
 		return
 	}
 	e.mu.Lock()
-	instance := e.instances[instanceID]
+	instance := e.instances.get(instanceID)
 	if instance == nil {
 		e.mu.Unlock()
 		return
@@ -163,17 +163,7 @@ func (e *Engine) Subscribe(outputID string) (<-chan Event, func()) {
 func (e *Engine) OutputSnapshot(outputID string) ([]Event, uint64) {
 	sequence := e.outputs.currentSequence()
 	e.mu.RLock()
-	now := time.Now()
-	instances := make([]Instance, 0)
-	for _, instance := range e.instances {
-		if instance.OutputID != outputID {
-			continue
-		}
-		// TODO(micro): rename copy (shadows builtin copy)
-		copy := *instance
-		materializeInstance(&copy, now)
-		instances = append(instances, copy)
-	}
+	instances := e.instances.matching(show.MediaTarget{Kind: show.MediaTargetOutput, OutputID: outputID}, time.Now())
 	visual, hasVisual := e.outputVisuals[outputID]
 	window, hasWindow := e.outputWindows[outputID]
 	e.mu.RUnlock()
@@ -194,15 +184,7 @@ func (e *Engine) OutputResyncCount() uint64 { return e.outputs.resyncCount() }
 func (e *Engine) ActiveInstances() []Instance {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	result := make([]Instance, 0, len(e.instances))
-	now := time.Now()
-	for _, instance := range e.instances {
-		// TODO(micro): rename copy (shadows builtin copy)
-		copy := *instance
-		materializeInstance(&copy, now)
-		result = append(result, copy)
-	}
-	return result
+	return e.instances.snapshots(time.Now(), nil)
 }
 
 func (e *Engine) ActiveExecutions() []CueExecution {

@@ -39,10 +39,10 @@ func TestPreviewTogglePausesAndResumesSameSession(t *testing.T) {
 	previewID := show.NewCueID()
 	engine.preview.begin(previewID)
 	engine.mu.Lock()
-	engine.instances["preview"] = &Instance{
+	engine.instances.register(&Instance{
 		ID: "preview", CueID: previewID, Preview: true, MediaType: "audio", OutputID: "main",
 		run: cueRunToken{ctx: engine.runCtx},
-	}
+	})
 	engine.mu.Unlock()
 	cue := show.NewSoundCue()
 
@@ -51,7 +51,7 @@ func TestPreviewTogglePausesAndResumesSameSession(t *testing.T) {
 	}
 	_, pausedState := engine.preview.snapshot()
 	engine.mu.RLock()
-	pausedInstance := engine.instances["preview"].Paused
+	pausedInstance := engine.instances.get("preview").Paused
 	engine.mu.RUnlock()
 	if !pausedState || !pausedInstance {
 		t.Fatalf("paused preview state = session %v instance %v", pausedState, pausedInstance)
@@ -62,7 +62,7 @@ func TestPreviewTogglePausesAndResumesSameSession(t *testing.T) {
 	}
 	_, pausedState = engine.preview.snapshot()
 	engine.mu.RLock()
-	pausedInstance = engine.instances["preview"].Paused
+	pausedInstance = engine.instances.get("preview").Paused
 	engine.mu.RUnlock()
 	if pausedState || pausedInstance {
 		t.Fatalf("resumed preview state = session paused %v instance paused %v", pausedState, pausedInstance)
@@ -88,10 +88,10 @@ func TestStopPreviewClearsSessionAndStopsOwnedInstance(t *testing.T) {
 	previewID := show.NewCueID()
 	engine.preview.begin(previewID)
 	engine.mu.Lock()
-	engine.instances["preview"] = &Instance{
+	engine.instances.register(&Instance{
 		ID: "preview", CueID: previewID, Preview: true, MediaType: "audio", OutputID: "main",
 		run: cueRunToken{ctx: engine.runCtx},
-	}
+	})
 	engine.mu.Unlock()
 
 	engine.StopPreview()

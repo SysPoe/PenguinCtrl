@@ -83,7 +83,7 @@ func (e *Engine) startMedia(next command) error {
 		instance.DurationMs = e.durations[cue.ID]
 	}
 	instance.FadeInComplete = instance.FadeInMs <= 0
-	e.instances[instance.ID] = instance
+	e.instances.register(instance)
 	if instance.DurationMs > 0 {
 		e.durations[instance.CueID] = instance.DurationMs
 	}
@@ -99,7 +99,7 @@ func (e *Engine) scheduleTimecode(instanceID string, cue show.Cue, cueIndex int)
 	sort.SliceStable(markers, func(i, j int) bool { return markers[i].TimeMs < markers[j].TimeMs })
 	e.mu.RLock()
 	timeline := e.timeline
-	parent := e.instances[instanceID]
+	parent := e.instances.get(instanceID)
 	parentRun := cueRunToken{}
 	if parent != nil {
 		parentRun = parent.run
@@ -178,15 +178,12 @@ func cueDisplayNumber(cue show.Cue) string {
 	return "cue " + cue.CueNumber
 }
 
-// TODO(macro): Instance lifecycle ownership is fragmented: beginCueRun deletes
-// instances (scheduler), startMedia registers them (media), scheduleInstanceLifecycle
-// arms fade/end timers (media), and HandleOutputReport retires them and fires links
-// (output). Concentrate live-instance state transitions in one InstanceRegistry/
-// LifecycleController so timer generations, end links, and stop-all cannot diverge
-// across four files.
+// TODO(macro): Move automatic fade/end timer orchestration and link dispatch
+// into a LifecycleController. instanceRegistry now owns collection transitions
+// and lifecycle identity, but Engine still coordinates the delayed effects.
 func (e *Engine) scheduleInstanceLifecycle(instanceID string) {
 	e.mu.Lock()
-	instance := e.instances[instanceID]
+	instance := e.instances.get(instanceID)
 	if instance == nil || !instance.BackendStarted || instance.DurationMs <= 0 || instance.EndScheduled {
 		e.mu.Unlock()
 		return
@@ -209,7 +206,7 @@ func (e *Engine) scheduleInstanceLifecycle(instanceID string) {
 			}
 			e.outputs.publish(Event{Action: "control", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID}, Control: "fade-out", FadeMs: fadeMs})
 			e.mu.Lock()
-			if active := e.instances[instance.ID]; active != nil && active.LifecycleGeneration == generation && !active.Paused {
+			if active := e.instances.get(instance.ID); active != nil && active.LifecycleGeneration == generation && !active.Paused {
 				materializeInstance(active, time.Now())
 				// TODO(micro): extract const silenceFloorDB = -80; same magic used in executeMediaControl and replaceSingleLayerVisual
 				startInstanceFade(active, -80, fadeMs, time.Now())
@@ -263,7 +260,7 @@ func (e *Engine) executeMediaControl(cue show.Cue, runCtx context.Context) error
 	now := time.Now()
 	reschedule := make([]string, 0, len(instances))
 	for _, matched := range instances {
-		instance := e.instances[matched.ID]
+		instance := e.instances.get(matched.ID)
 		if instance == nil {
 			continue
 		}
@@ -389,14 +386,14 @@ func (e *Engine) freezeImagesForOutput(outputID string) {
 	e.mu.Lock()
 	now := time.Now()
 	changed := false
-	for _, instance := range e.instances {
+	e.instances.visit(func(instance *Instance) {
 		if instance.OutputID != outputID || instance.MediaType != "image" || instance.PositionAt.IsZero() {
-			continue
+			return
 		}
 		materializeInstance(instance, now)
 		instance.PositionAt = time.Time{}
 		changed = true
-	}
+	})
 	e.mu.Unlock()
 	if changed {
 		e.signalState()

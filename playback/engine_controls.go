@@ -97,47 +97,14 @@ func (e *Engine) EndInstance(instanceID string) {
 	e.HandleOutputReport(instance.ID, "ended")
 }
 
-// TODO(micro): filter under e.mu.RLock over e.instances; ActiveInstances copies+materializes every instance before filtering
 func (e *Engine) matchingInstances(target show.MediaTarget) []Instance {
-	all := e.ActiveInstances()
-	result := make([]Instance, 0, len(all))
-	for _, instance := range all {
-		matches := false
-		switch target.Kind {
-		case show.MediaTargetCue:
-			matches = instance.CueID == target.CueID
-		case show.MediaTargetGroup:
-			matches = instance.GroupID != (show.GroupID{}) && instance.GroupID == target.GroupID
-		case show.MediaTargetInstance:
-			matches = instance.ID == target.InstanceID
-		case show.MediaTargetAllAudio:
-			// TODO(micro): media type strings "audio"/"video"/"image" are free text; share package consts with media/player
-			matches = instance.MediaType == "audio"
-		case show.MediaTargetAllVideo:
-			matches = instance.MediaType == "video" || instance.MediaType == "image"
-		case show.MediaTargetAllMedia:
-			matches = true
-		case show.MediaTargetOutput:
-			matches = instance.OutputID == target.OutputID
-		}
-		if matches {
-			result = append(result, instance)
-		}
-	}
-	return result
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.instances.matching(target, time.Now())
 }
 
-// TODO(micro): replace with matchingInstances(MediaTarget{Kind: MediaTargetOutput, OutputID: outputID}); body is a duplicate filter
 func (e *Engine) instancesForOutput(outputID string) []Instance {
-	all := e.ActiveInstances()
-	// TODO(micro): pre-size with len(all) cap to avoid growth from zero-capacity slice
-	result := make([]Instance, 0)
-	for _, instance := range all {
-		if instance.OutputID == outputID {
-			result = append(result, instance)
-		}
-	}
-	return result
+	return e.matchingInstances(show.MediaTarget{Kind: show.MediaTargetOutput, OutputID: outputID})
 }
 
 func (e *Engine) OutputIDs() []string {
@@ -263,33 +230,28 @@ func (e *Engine) changed() {
 	}
 }
 
-// TODO(micro): scan e.instances under RLock instead of allocating a full ActiveInstances copy
 func (e *Engine) hasMediaType(mediaType string) bool {
-	for _, instance := range e.ActiveInstances() {
-		if instance.MediaType == mediaType {
-			return true
-		}
-	}
-	return false
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.instances.hasMediaType(mediaType)
 }
 
 func (e *Engine) instanceCount() int {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	return len(e.instances)
+	return e.instances.count()
 }
 
 func (e *Engine) hasInstance(id string) bool {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	return e.instances[id] != nil
+	return e.instances.has(id)
 }
 
 func (e *Engine) lifecycleCurrent(id string, generation uint64) bool {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
-	instance := e.instances[id]
-	return instance != nil && instance.LifecycleGeneration == generation && !instance.Paused
+	return e.instances.lifecycleCurrent(id, generation)
 }
 
 func materializeInstance(instance *Instance, now time.Time) {
