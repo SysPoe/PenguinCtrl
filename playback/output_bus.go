@@ -60,7 +60,8 @@ func (b *outputBus) unsubscribe(outputID string, ch chan Event) {
 	b.mu.Unlock()
 }
 
-func (b *outputBus) publish(event Event) {
+func (b *outputBus) publish(payload outputEvent) {
+	event := payload.compatibilityEvent()
 	event.Sequence = b.sequence.Add(1)
 	b.mu.RLock()
 	defer b.mu.RUnlock()
@@ -84,7 +85,7 @@ func (b *outputBus) publish(event Event) {
 				b.onResync(event.OutputID, event.Sequence, cap(ch))
 			}
 			select {
-			case ch <- Event{Action: "resync", OutputID: event.OutputID, Sequence: event.Sequence}:
+			case ch <- Event{Kind: OutputEventResync, Action: string(OutputEventResync), OutputID: event.OutputID, Sequence: event.Sequence}:
 			default:
 				// A concurrent consumer/publisher can only make this full with a
 				// newer event; that newer sequence will drive reconciliation.

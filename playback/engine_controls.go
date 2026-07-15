@@ -30,7 +30,7 @@ func (e *Engine) StopAll() {
 	// authoritative state. Always addressing every output means repeated presses
 	// can still close those real players even when ActiveInstances is empty.
 	for _, outputID := range e.OutputIDs() {
-		e.outputs.publish(Event{Action: "control", OutputID: outputID, Control: "stop-all"})
+		e.outputs.publish(mediaControlOutputEvent{outputID: outputID, command: mediaCommandStopAll})
 	}
 	for _, instance := range instances {
 		e.HandleOutputReport(instance.ID, "stopped")
@@ -41,11 +41,12 @@ func (e *Engine) StopAll() {
 // It is deliberately independent from cue selection and keyboard focus.
 func (e *Engine) BlackoutAll() {
 	for _, outputID := range e.OutputIDs() {
-		event := Event{Action: "output", OutputID: outputID, Control: "blackout"}
+		payload := outputControlOutputEvent{outputID: outputID, command: outputCommandBlackout}
+		event := payload.compatibilityEvent()
 		e.mu.Lock()
 		e.outputVisuals[outputID] = event
 		e.mu.Unlock()
-		e.outputs.publish(event)
+		e.outputs.publish(payload)
 	}
 	if log := e.operatorLogStore(); log != nil {
 		log.Diagnostic("Operator action", "Emergency blackout asserted on all outputs", nil)
@@ -93,7 +94,7 @@ func (e *Engine) EndInstance(instanceID string) {
 		return
 	}
 	instance := instances[0]
-	e.outputs.publish(Event{Action: "control", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID}, Control: "stop"})
+	e.outputs.publish(mediaControlOutputEvent{outputID: instance.OutputID, instanceIDs: []string{instance.ID}, command: mediaCommandStop})
 	e.HandleOutputReport(instance.ID, "ended")
 }
 
@@ -172,7 +173,7 @@ func (e *Engine) recordOperatorError(severity operatorlog.Severity, source strin
 		log.Add(severity, source, err.Error(), cueID, cueNumber)
 	}
 	for _, outputID := range e.OutputIDs() {
-		e.outputs.publish(Event{Action: "error", OutputID: outputID, Error: err.Error()})
+		e.outputs.publish(errorOutputEvent{outputID: outputID, err: err.Error()})
 	}
 	e.changed()
 }
@@ -277,16 +278,22 @@ func startInstanceFade(instance *Instance, targetDB float64, durationMs int64, n
 	instance.FadeStartedAt = now
 }
 
-func mediaControlName(action show.MediaControlAction) string {
-	names := [...]string{"fade-to", "fade-out", "stop", "pause", "resume", "seek", "set-volume", "mute", "unmute"}
+func mediaControlName(action show.MediaControlAction) mediaCommand {
+	names := [...]mediaCommand{
+		mediaCommandFadeTo, mediaCommandFadeOut, mediaCommandStop, mediaCommandPause, mediaCommandResume,
+		mediaCommandSeek, mediaCommandSetVolume, mediaCommandMute, mediaCommandUnmute,
+	}
 	if action < 0 || int(action) >= len(names) {
 		return ""
 	}
 	return names[action]
 }
 
-func outputControlName(action show.OutputControlAction) string {
-	names := [...]string{"blackout", "clear", "test-pattern", "identify", "reopen", "fullscreen", "exit-fullscreen"}
+func outputControlName(action show.OutputControlAction) outputCommand {
+	names := [...]outputCommand{
+		outputCommandBlackout, outputCommandClear, outputCommandTestPattern, outputCommandIdentify,
+		outputCommandReopen, outputCommandFullscreen, outputCommandExitFullscreen,
+	}
 	if action < 0 || int(action) >= len(names) {
 		return ""
 	}

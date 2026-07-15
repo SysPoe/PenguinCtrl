@@ -40,7 +40,7 @@ func TestEngineCallbacksCanBeReplacedConcurrently(t *testing.T) {
 		defer workers.Done()
 		for range 1000 {
 			engine.changed()
-			engine.outputs.publish(Event{Action: "control", OutputID: "main"})
+			engine.outputs.publish(mediaControlOutputEvent{outputID: "main", command: mediaCommandStop})
 		}
 	}()
 	workers.Wait()

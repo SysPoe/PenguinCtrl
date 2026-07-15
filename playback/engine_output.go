@@ -56,9 +56,9 @@ func (e *Engine) replaceSingleLayerVisual(presented Instance) {
 
 	for _, instance := range outgoing {
 		fadeMs := max(int64(0), instance.FadeOutMs)
-		e.outputs.publish(Event{
-			Action: "control", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID},
-			Control: "fade-out", FadeMs: fadeMs,
+		e.outputs.publish(mediaControlOutputEvent{
+			outputID: instance.OutputID, instanceIDs: []string{instance.ID},
+			command: mediaCommandFadeOut, fadeMs: fadeMs,
 		})
 		e.lifecycle.dispatchLink(instance, linkFadeOut)
 		if fadeMs == 0 {
@@ -165,7 +165,13 @@ func (e *Engine) OutputSnapshot(outputID string) ([]Event, uint64) {
 	visual, hasVisual := e.outputVisuals[outputID]
 	window, hasWindow := e.outputWindows[outputID]
 	e.mu.RUnlock()
-	events := []Event{{Action: "sync", OutputID: outputID, Instances: instances, Sequence: sequence}}
+	snapshots := make([]MediaSnapshot, 0, len(instances))
+	for _, instance := range instances {
+		snapshots = append(snapshots, snapshotMedia(instance))
+	}
+	syncEvent := syncOutputEvent{outputID: outputID, instances: snapshots}.compatibilityEvent()
+	syncEvent.Sequence = sequence
+	events := []Event{syncEvent}
 	if hasVisual {
 		visual.Sequence = sequence
 		events = append(events, visual)

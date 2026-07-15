@@ -88,7 +88,7 @@ func (e *Engine) startMedia(next command) error {
 	}
 	snapshot := *instance
 	e.mu.Unlock()
-	e.outputs.publish(Event{Action: "play", OutputID: snapshot.OutputID, Instance: &snapshot})
+	e.outputs.publish(playOutputEvent{outputID: snapshot.OutputID, instance: snapshotMedia(snapshot)})
 	e.signalState()
 	return nil
 }
@@ -207,7 +207,10 @@ func (e *Engine) executeMediaControl(cue show.Cue, runCtx context.Context) error
 	}
 	control := mediaControlName(play.Action)
 	for outputID, ids := range idsByOutput {
-		e.outputs.publish(Event{Action: "control", OutputID: outputID, InstanceIDs: ids, Control: control, FadeMs: play.FadeMs, LevelDB: play.LevelDB, PositionMs: play.SeekToMs, Curve: play.Curve})
+		e.outputs.publish(mediaControlOutputEvent{
+			outputID: outputID, instanceIDs: ids, command: control, fadeMs: play.FadeMs,
+			levelDB: play.LevelDB, positionMs: play.SeekToMs, curve: play.Curve,
+		})
 	}
 
 	e.mu.Lock()
@@ -299,7 +302,11 @@ func (e *Engine) executeOutputControl(cue show.Cue, runCtx context.Context) erro
 	}
 	outputID := resolveOutput(play.OutputID, settings, cue.CueNumber)
 	control := outputControlName(play.Action)
-	event := Event{Action: "output", OutputID: outputID, Control: control, FadeOutMs: max(int64(0), play.FadeOutMs), FadeInMs: max(int64(0), play.FadeInMs), Message: play.Message}
+	payload := outputControlOutputEvent{
+		outputID: outputID, command: control, fadeOutMs: max(int64(0), play.FadeOutMs),
+		fadeInMs: max(int64(0), play.FadeInMs), message: play.Message,
+	}
+	event := payload.compatibilityEvent()
 	e.mu.Lock()
 	switch play.Action {
 	case show.OutputControlBlackout, show.OutputControlClear, show.OutputControlTestPattern, show.OutputControlIdentify:
@@ -308,7 +315,7 @@ func (e *Engine) executeOutputControl(cue show.Cue, runCtx context.Context) erro
 		e.outputWindows[outputID] = event
 	}
 	e.mu.Unlock()
-	e.outputs.publish(event)
+	e.outputs.publish(payload)
 	if play.Action == show.OutputControlBlackout {
 		e.goOwned(func() {
 			if !waitContext(runCtx, time.Duration(max(int64(0), play.FadeOutMs))*time.Millisecond) {

@@ -69,9 +69,9 @@ func (c *lifecycleController) schedule(instanceID string) {
 			if !waitContext(schedule.instance.run.ctx, schedule.fadeAfter) || !c.current(schedule.instance.ID, schedule.generation) {
 				return
 			}
-			c.outputs.publish(Event{
-				Action: "control", OutputID: schedule.instance.OutputID, InstanceIDs: []string{schedule.instance.ID},
-				Control: "fade-out", FadeMs: schedule.fadeFor,
+			c.outputs.publish(mediaControlOutputEvent{
+				outputID: schedule.instance.OutputID, instanceIDs: []string{schedule.instance.ID},
+				command: mediaCommandFadeOut, fadeMs: schedule.fadeFor,
 			})
 			c.mu.Lock()
 			if active := c.instances.get(schedule.instance.ID); active != nil && active.LifecycleGeneration == schedule.generation && !active.Paused {
@@ -126,7 +126,7 @@ func (c *lifecycleController) handleOutputReport(instanceID string, report outpu
 	case outputReportFadeOutStart:
 		c.dispatchLink(snapshot, linkFadeOut)
 	case outputReportEnded, outputReportStopped:
-		c.outputs.publish(Event{Action: "remove", OutputID: snapshot.OutputID, InstanceIDs: []string{snapshot.ID}})
+		c.outputs.publish(removeOutputEvent{outputID: snapshot.OutputID, instanceIDs: []string{snapshot.ID}})
 		c.dispatchLink(snapshot, linkEnd)
 		finalization := runCompleted
 		if snapshot.Link.Mode == show.CueLinkManual {
