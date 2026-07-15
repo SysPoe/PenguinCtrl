@@ -53,9 +53,9 @@ func (s *Store) ExportSupportBundle(destination, settingsPath, crashDirectory st
 	if s.showID != nil {
 		manifest.ShowID = s.showID()
 	}
-	logPath := s.logPath
 	events := append([]Event(nil), s.events...)
 	s.mu.RUnlock()
+	logPath := s.log.Path()
 
 	if err := writeSupportJSON(archive, "manifest.json", manifest); err != nil {
 		return err

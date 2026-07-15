@@ -2,11 +2,7 @@ package operatorlog
 
 import (
 	"bytes"
-	"encoding/json"
 	"io"
-	"os"
-	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,8 +13,6 @@ import (
 
 const (
 	eventMemoryCapacity = 1000
-	eventLogMaxBytes    = 5 * 1024 * 1024
-	eventLogGenerations = 4
 )
 
 type Severity int
@@ -66,22 +60,15 @@ type Event struct {
 
 func (e Event) Acknowledged() bool { return !e.AcknowledgedAt.IsZero() }
 
-// TODO(macro): Store fuses three sinks—UI ring buffer, diagnostic-only JSONL
-// (appendDiagnostic never enters events), and rotated durable logs—behind one
-// type with dual locks. Split operator-facing Event history from a diagnostic
-// log writer so acknowledgement/snapshot APIs stop sharing lifecycle with
-// console capture and disk rotation policy.
 type Store struct {
 	mu        sync.RWMutex
-	logMu     sync.Mutex
 	events    []Event
 	onChange  func()
-	logPath   string
+	log       durableLog
 	sessionID string
 	buildID   string
 	showID    func() string
 	sequence  uint64
-	logError  error
 }
 
 func NewStore() *Store { return &Store{sessionID: uuid.NewString()} }
@@ -93,9 +80,7 @@ func (s *Store) SetContext(buildID string, showID func() string) {
 }
 
 func (s *Store) SetLogPath(path string) {
-	s.mu.Lock()
-	s.logPath = strings.TrimSpace(path)
-	s.mu.Unlock()
+	s.log.SetPath(path)
 }
 
 func (s *Store) SetOnChange(callback func()) {
@@ -116,11 +101,8 @@ func (s *Store) AddDetails(severity Severity, source, message string, cueID show
 		s.events = append([]Event(nil), s.events[len(s.events)-eventMemoryCapacity:]...)
 	}
 	callback := s.onChange
-	logPath := s.logPath
 	s.mu.Unlock()
-	if logPath != "" {
-		s.persist(logPath, event)
-	}
+	s.persist(event)
 	if callback != nil {
 		callback()
 	}
@@ -155,11 +137,8 @@ func (w *eventWriter) Write(p []byte) (int, error) {
 func (s *Store) appendDiagnostic(source, message string, details map[string]any) {
 	s.mu.Lock()
 	event := s.newEventLocked(Info, source, message, show.CueID{}, "", details)
-	logPath := s.logPath
 	s.mu.Unlock()
-	if logPath != "" {
-		s.persist(logPath, event)
-	}
+	s.persist(event)
 }
 
 func (s *Store) newEventLocked(severity Severity, source, message string, cueID show.CueID, cueNumber string, details map[string]any) Event {
@@ -174,15 +153,12 @@ func (s *Store) newEventLocked(severity Severity, source, message string, cueID 
 	}
 }
 
-func (s *Store) persist(path string, event Event) {
-	s.logMu.Lock()
-	err := appendEventLog(path, event)
-	s.logMu.Unlock()
+func (s *Store) persist(event Event) {
+	err := s.log.Append(event)
 	if err == nil {
 		return
 	}
 	s.mu.Lock()
-	s.logError = err
 	callback := s.onChange
 	s.mu.Unlock()
 	if callback != nil {
@@ -192,42 +168,7 @@ func (s *Store) persist(path string, event Event) {
 
 // LogError reports the most recent failure to append the durable operator log.
 func (s *Store) LogError() error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.logError
-}
-
-func appendEventLog(path string, event Event) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	if info, err := os.Stat(path); err == nil && info.Size() >= eventLogMaxBytes {
-		if err := rotateEventLogs(path, eventLogGenerations); err != nil {
-			return err
-		}
-	}
-	raw, err := json.Marshal(event)
-	if err != nil {
-		return err
-	}
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	_, err = file.Write(append(raw, '\n'))
-	return err
-}
-
-func rotateEventLogs(path string, generations int) error {
-	_ = os.Remove(path + "." + strconv.Itoa(generations))
-	for generation := generations - 1; generation >= 1; generation-- {
-		from, to := path+"."+strconv.Itoa(generation), path+"."+strconv.Itoa(generation+1)
-		if err := os.Rename(from, to); err != nil && !os.IsNotExist(err) {
-			return err
-		}
-	}
-	return os.Rename(path, path+".1")
+	return s.log.Error()
 }
 
 func (s *Store) Snapshot() []Event {
