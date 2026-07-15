@@ -1,7 +1,6 @@
 package playback
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/syspoe/cusus/config"
@@ -131,7 +130,7 @@ func (e *Engine) HandleOutputDuration(instanceID string, durationMs int64) {
 		return
 	}
 	instance.DurationMs = durationMs
-	e.durations[instance.CueID] = durationMs
+	e.mediaCatalog.recordDuration(instance.CueID, durationMs)
 	started := instance.BackendStarted
 	if started {
 		instance.EndScheduled = false
@@ -205,13 +204,7 @@ func (e *Engine) ActiveExecutions() []CueExecution {
 }
 
 func (e *Engine) KnownDurations() map[show.CueID]int64 {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	result := make(map[show.CueID]int64, len(e.durations))
-	for cueID, duration := range e.durations {
-		result[cueID] = duration
-	}
-	return result
+	return e.mediaCatalog.knownDurations()
 }
 
 // CueProblems evaluates a cue against the exact settings, duration cache, and
@@ -224,22 +217,12 @@ func (e *Engine) KnownDurations() map[show.CueID]int64 {
 func (e *Engine) CueProblems(cue show.Cue) []show.CueProblem {
 	settings := e.settings.Snapshot()
 	source, start, end, configured, _ := durationDetails(cue, settings)
-	// TODO(micro): use shared durationCacheKey helper; duplicates fmt in RefreshDurations/startMedia
-	key := fmt.Sprintf("%d|%s|%d|%d|%d", cue.Type, source, start, end, configured)
-	e.mu.RLock()
-	duration, probeError := int64(0), ""
-	if e.durationKeys[cue.ID] == key {
-		duration = e.durations[cue.ID]
-		probeError = e.durationErrors[cue.ID]
+	key := durationCacheKey(cue.Type, source, start, end, configured)
+	metadata := e.mediaCatalog.warning(cue.ID, key)
+	context := show.WarningContext{
+		Settings: settings, KnownDurationMs: metadata.durationMs, MediaProbeError: metadata.probeError,
+		TrackMediaCheck: metadata.trackValidation, MediaCheckPending: metadata.validationPending, MediaChecked: metadata.validationChecked,
 	}
-	if e.mediaValidated[cue.ID] == key && e.mediaErrors[cue.ID] != "" {
-		probeError = e.mediaErrors[cue.ID]
-	}
-	mediaPending := e.mediaPending[cue.ID] == key
-	mediaChecked := e.mediaValidated[cue.ID] == key
-	trackMediaCheck := e.mediaValidator != nil
-	e.mu.RUnlock()
-	context := show.WarningContext{Settings: settings, KnownDurationMs: duration, MediaProbeError: probeError, TrackMediaCheck: trackMediaCheck, MediaCheckPending: mediaPending, MediaChecked: mediaChecked}
 	if cue.Type == show.CueTypeMediaControl && cue.Play.MediaControl != nil {
 		context.HasRuntimeState = true
 		context.ActiveMediaMatches = len(e.matchingInstances(cue.Play.MediaControl.Target))

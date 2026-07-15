@@ -2,7 +2,6 @@ package playback
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -105,12 +104,8 @@ func TestStartMediaUsesKnownDurationForCueFadeOut(t *testing.T) {
 	cue.Play.Sound.FadeOutMs = 5000
 	settings := engine.settings.Snapshot()
 	source, start, end, configured, _ := durationDetails(cue, settings)
-	key := fmt.Sprintf("%d|%s|%d|%d|%d", cue.Type, source, start, end, configured)
-
-	engine.mu.Lock()
-	engine.durationKeys[cue.ID] = key
-	engine.durations[cue.ID] = 12000
-	engine.mu.Unlock()
+	key := durationCacheKey(cue.Type, source, start, end, configured)
+	engine.mediaCatalog.recordKeyedDuration(cue.ID, key, 12000)
 
 	if err := engine.startMedia(command{cue: cue, run: cueRunToken{ctx: context.Background()}}); err != nil {
 		t.Fatal(err)

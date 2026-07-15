@@ -15,14 +15,14 @@ func TestMediaProbesAreSerialized(t *testing.T) {
 		t.Fatal(err)
 	}
 	engine := NewEngine(show.NewShowManager(), settings)
-	if !engine.acquireMediaProbe() {
+	if !engine.mediaCatalog.acquireProbe() {
 		t.Fatal("first probe slot was unavailable")
 	}
 	acquired := make(chan struct{})
 	go func() {
-		if engine.acquireMediaProbe() {
+		if engine.mediaCatalog.acquireProbe() {
 			close(acquired)
-			engine.releaseMediaProbe()
+			engine.mediaCatalog.releaseProbe()
 		}
 	}()
 	select {
@@ -30,7 +30,7 @@ func TestMediaProbesAreSerialized(t *testing.T) {
 		t.Fatal("second media probe ran concurrently")
 	case <-time.After(20 * time.Millisecond):
 	}
-	engine.releaseMediaProbe()
+	engine.mediaCatalog.releaseProbe()
 	select {
 	case <-acquired:
 	case <-time.After(time.Second):

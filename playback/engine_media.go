@@ -67,8 +67,7 @@ func (e *Engine) startMedia(next command) error {
 	}
 	instance.PositionMs = max(0, instance.ClipStartMs)
 	durationSource, durationStartMs, durationEndMs, configuredDurationMs, _ := durationDetails(cue, settings)
-	// TODO(micro): use shared durationCacheKey helper; duplicates fmt in RefreshDurations/CueProblems
-	durationKey := fmt.Sprintf("%d|%s|%d|%d|%d", cue.Type, durationSource, durationStartMs, durationEndMs, configuredDurationMs)
+	durationKey := durationCacheKey(cue.Type, durationSource, durationStartMs, durationEndMs, configuredDurationMs)
 	e.mu.Lock()
 	if next.run.id != 0 {
 		if !e.runs.current(next.run) || next.run.ctx.Err() != nil {
@@ -79,13 +78,13 @@ func (e *Engine) startMedia(next command) error {
 	// Duration probing normally finishes while the show is idle. Reuse that
 	// cue-specific result so an automatic fade-out can be scheduled as soon as
 	// the backend starts instead of waiting for a second probe during playback.
-	if instance.DurationMs <= 0 && e.durationKeys[cue.ID] == durationKey {
-		instance.DurationMs = e.durations[cue.ID]
+	if instance.DurationMs <= 0 {
+		instance.DurationMs = e.mediaCatalog.duration(cue.ID, durationKey)
 	}
 	instance.FadeInComplete = instance.FadeInMs <= 0
 	e.instances.register(instance)
 	if instance.DurationMs > 0 {
-		e.durations[instance.CueID] = instance.DurationMs
+		e.mediaCatalog.recordDuration(instance.CueID, instance.DurationMs)
 	}
 	snapshot := *instance
 	e.mu.Unlock()
