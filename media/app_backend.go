@@ -7,7 +7,6 @@ import (
 )
 
 // Backend is the media-output surface used by the application.
-// TODO(micro): Backend.Close has no error return while EmergencyReset does; align Close() error handling with EmergencyResetter for consistent failure reporting
 type Backend interface {
 	AudioDevices() ([]AudioDevice, error)
 	AudioDeviceWarning() string
@@ -18,7 +17,7 @@ type Backend interface {
 	RefreshVideoOutputStatus()
 	EnsureOutputs([]string)
 	SyncOutputs([]string)
-	Close()
+	Close() error
 }
 
 // EmergencyResetter is implemented by media backends that can tear down and

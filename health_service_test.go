@@ -59,7 +59,7 @@ func (b *healthBackendStub) VideoOutputWarning() string { return "" }
 func (b *healthBackendStub) RefreshVideoOutputStatus()  {}
 func (b *healthBackendStub) EnsureOutputs([]string)     {}
 func (b *healthBackendStub) SyncOutputs([]string)       {}
-func (b *healthBackendStub) Close()                     {}
+func (b *healthBackendStub) Close() error               { return nil }
 
 func TestHealthComponentsExposeIdentityRecoveryAndAction(t *testing.T) {
 	store, err := config.Open(filepath.Join(t.TempDir(), "settings.json"))

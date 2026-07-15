@@ -51,16 +51,17 @@ func (m *Manager) EnsureOutputs(outputIDs []string) { m.outputs.ensure(outputIDs
 
 func (m *Manager) SyncOutputs(outputIDs []string) { m.outputs.sync(outputIDs) }
 
-func (m *Manager) Close() {
+func (m *Manager) Close() error {
 	m.lifecycleMu.Lock()
 	defer m.lifecycleMu.Unlock()
 	if m.closed {
-		return
+		return nil
 	}
 	m.closed = true
 	m.topology.close()
 	m.outputs.close()
 	m.runtime.close()
+	return nil
 }
 
 // EmergencyReset force-closes every decoder and hardware-audio source, creates

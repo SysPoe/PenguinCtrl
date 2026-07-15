@@ -5,6 +5,7 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"log"
 	"sync"
 	"time"
 
@@ -151,12 +152,12 @@ func (p *Player) discoverDuration(ctx context.Context) {
 	instance := p.instance
 	closed := p.closed
 	p.mu.RUnlock()
-	// TODO(micro): duration discovery silently returns on probe error; at least log or report failure when DurationMs stays 0 for operator diagnostics.
-	if closed || instance.DurationMs > 0 || (instance.MediaType != "audio" && instance.MediaType != "video") {
+	if closed || instance.DurationMs > 0 || (instance.MediaType != playback.MediaTypeAudio && instance.MediaType != playback.MediaTypeVideo) {
 		return
 	}
 	mediaDurationMs, err := ProbeDurationMsContext(ctx, p.settings.Snapshot().FFmpegPath, instance.Source)
 	if err != nil {
+		log.Printf("probe duration for %q: %v", instance.Source, err)
 		return
 	}
 	durationMs := mediaDurationMs - max(0, instance.ClipStartMs)

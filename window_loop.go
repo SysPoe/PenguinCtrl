@@ -286,7 +286,9 @@ func (s *windowSession) run() error {
 			}
 			playbackEngine.Close()
 			a.Playback.Remote.Close()
-			mediaManager.Close()
+			if err := mediaManager.Close(); err != nil {
+				operatorEvents.Diagnostic("Media shutdown", err.Error(), nil)
+			}
 			return e.Err
 
 		case app.ConfigEvent:
