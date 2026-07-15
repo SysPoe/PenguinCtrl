@@ -19,14 +19,14 @@ import (
 )
 
 // Builder assembles pure readiness checks for a service refresh.
-type Builder func(show.Show, config.Settings, string, string, []remote.TargetHealth, func(show.Cue) []show.CueProblem) []operatorlog.PreflightCheck
+type Builder func(show.Show, config.Settings, string, string, []remote.TargetHealth, func(show.Cue) []show.CueProblem) []Check
 
 type snapshot struct {
 	key        [sha256.Size]byte
 	showDigest [sha256.Size]byte
 	signature  [sha256.Size]byte
 	generated  time.Time
-	checks     []operatorlog.PreflightCheck
+	checks     []Check
 	signError  string
 }
 
@@ -68,7 +68,7 @@ func (s *Service) Close() { s.cancel(); s.wg.Wait() }
 
 // Request returns the current checks or a fail-closed pending check while a
 // changed show/environment snapshot is rebuilt.
-func (s *Service) Request(showState show.Show, settings config.Settings, audioWarning, videoWarning string, health []remote.TargetHealth, problems func(show.Cue) []show.CueProblem) []operatorlog.PreflightCheck {
+func (s *Service) Request(showState show.Show, settings config.Settings, audioWarning, videoWarning string, health []remote.TargetHealth, problems func(show.Cue) []show.CueProblem) []Check {
 	showDigest, err := showState.Digest()
 	if err != nil {
 		return encodingFailure("show", err)
@@ -87,7 +87,7 @@ func (s *Service) Request(showState show.Show, settings config.Settings, audioWa
 	s.mu.Lock()
 	s.key = key
 	if s.latest.key == key && time.Since(s.latest.generated) < s.refreshInterval {
-		checks := append([]operatorlog.PreflightCheck(nil), s.latest.checks...)
+		checks := append([]Check(nil), s.latest.checks...)
 		s.mu.Unlock()
 		return checks
 	}
@@ -97,12 +97,12 @@ func (s *Service) Request(showState show.Show, settings config.Settings, audioWa
 		go s.compute(key, showDigest, showState, settings, audioWarning, videoWarning, health, problems)
 	}
 	if s.latest.key == key {
-		checks := append([]operatorlog.PreflightCheck(nil), s.latest.checks...)
+		checks := append([]Check(nil), s.latest.checks...)
 		s.mu.Unlock()
 		return checks
 	}
 	s.mu.Unlock()
-	return []operatorlog.PreflightCheck{{Severity: operatorlog.ShowStopping, Code: "preflight.pending", Source: "Preflight", Message: "Preflight is computing a signed result for the current show"}}
+	return []Check{{Severity: operatorlog.ShowStopping, Code: "preflight.pending", Source: "Preflight", Message: "Preflight is computing a signed result for the current show"}}
 }
 
 func (s *Service) compute(key, showDigest [sha256.Size]byte, showState show.Show, settings config.Settings, audioWarning, videoWarning string, health []remote.TargetHealth, problems func(show.Cue) []show.CueProblem) {
@@ -151,7 +151,7 @@ func (s *Service) Gate(current show.Show, selected show.Cue) error {
 	return nil
 }
 
-func checkApplies(check operatorlog.PreflightCheck, reachable map[show.CueID]struct{}) bool {
+func checkApplies(check Check, reachable map[show.CueID]struct{}) bool {
 	if check.CueID != (show.CueID{}) {
 		_, ok := reachable[check.CueID]
 		return ok
@@ -181,8 +181,8 @@ func (s *Service) sign(current snapshot) ([sha256.Size]byte, error) {
 	return signature, nil
 }
 
-func encodingFailure(subject string, err error) []operatorlog.PreflightCheck {
-	return []operatorlog.PreflightCheck{{
+func encodingFailure(subject string, err error) []Check {
+	return []Check{{
 		Severity: operatorlog.ShowStopping,
 		Code:     "preflight.encode.failed",
 		Source:   "Preflight",

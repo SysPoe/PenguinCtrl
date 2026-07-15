@@ -64,25 +64,6 @@ type Event struct {
 	AcknowledgedAt time.Time      `json:"acknowledgedAt,omitempty"`
 }
 
-// TODO(macro): PreflightCheck is not an operator-log concern—Store never
-// persists or acknowledges it—yet preflight, health, document, and UI packages
-// all import operatorlog just for this DTO. Move it to a preflight (or shared
-// readiness) package so operatorlog stays event/store scoped.
-type PreflightCheck struct {
-	Severity     Severity
-	Code         string
-	Source       string
-	Message      string
-	Consequence  string
-	Fix          string
-	Field        string
-	CueID        show.CueID
-	CueNumber    string
-	AffectedCues []show.CueID
-	Fingerprint  string
-	Acknowledged bool
-}
-
 func (e Event) Acknowledged() bool { return !e.AcknowledgedAt.IsZero() }
 
 // TODO(macro): Store fuses three sinks—UI ring buffer, diagnostic-only JSONL

@@ -13,6 +13,7 @@ import (
 	"gioui.org/widget/material"
 	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/palette"
+	"github.com/syspoe/cusus/preflight"
 	"github.com/syspoe/cusus/utils"
 )
 
@@ -88,7 +89,7 @@ func operatorSeverityColor(severity operatorlog.Severity) color.NRGBA {
 	}
 }
 
-func preflightCount(checks []operatorlog.PreflightCheck) string {
+func preflightCount(checks []preflight.Check) string {
 	// TODO(micro): active-count loop duplicates preflightRequiresAttention predicate; extract shared active-check helper.
 	active := 0
 	for _, check := range checks {
@@ -105,7 +106,7 @@ func preflightCount(checks []operatorlog.PreflightCheck) string {
 	return fmt.Sprintf("%d ITEMS", active)
 }
 
-func preflightRequiresAttention(checks []operatorlog.PreflightCheck) bool {
+func preflightRequiresAttention(checks []preflight.Check) bool {
 	for _, check := range checks {
 		if !check.Acknowledged && check.Severity >= operatorlog.Warning {
 			return true
@@ -114,7 +115,7 @@ func preflightRequiresAttention(checks []operatorlog.PreflightCheck) bool {
 	return false
 }
 
-func preflightSummary(checks []operatorlog.PreflightCheck) string {
+func preflightSummary(checks []preflight.Check) string {
 	counts := [5]int{}
 	for _, check := range checks {
 		if check.Acknowledged {
@@ -154,7 +155,7 @@ func preflightSeverityLabel(severity operatorlog.Severity) string {
 	}
 }
 
-func preflightColor(checks []operatorlog.PreflightCheck) color.NRGBA {
+func preflightColor(checks []preflight.Check) color.NRGBA {
 	highest := operatorlog.Warning
 	for _, check := range checks {
 		if check.Acknowledged {

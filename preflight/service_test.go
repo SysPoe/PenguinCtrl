@@ -6,13 +6,12 @@ import (
 	"time"
 
 	"github.com/syspoe/cusus/config"
-	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/remote"
 	"github.com/syspoe/cusus/show"
 )
 
 func TestServiceSignsCurrentChecksAndRejectsStaleShow(t *testing.T) {
-	service, err := NewService(time.Minute, func(current show.Show, _ config.Settings, _, _ string, _ []remote.TargetHealth, _ func(show.Cue) []show.CueProblem) []operatorlog.PreflightCheck {
+	service, err := NewService(time.Minute, func(current show.Show, _ config.Settings, _, _ string, _ []remote.TargetHealth, _ func(show.Cue) []show.CueProblem) []Check {
 		return nil
 	})
 	if err != nil {

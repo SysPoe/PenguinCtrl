@@ -6,6 +6,7 @@ import (
 
 	"github.com/syspoe/cusus/config"
 	"github.com/syspoe/cusus/operatorlog"
+	"github.com/syspoe/cusus/preflight"
 	"github.com/syspoe/cusus/show"
 )
 
@@ -49,7 +50,7 @@ func TestBuildPreflightScopesRouteFailuresToAffectedCueTypesAndStages(t *testing
 	settings.VideoOutputs = append(settings.VideoOutputs, config.VideoOutput{Stage: "foh"})
 
 	checks := buildPreflight([]show.Cue{sound, mainVideo, fohImage}, settings, "The selected playback audio device is disconnected.", `Stage "main" is assigned to a disconnected display.`)
-	var audio, video operatorlog.PreflightCheck
+	var audio, video preflight.Check
 	for _, check := range checks {
 		switch check.Source {
 		case "Audio output":

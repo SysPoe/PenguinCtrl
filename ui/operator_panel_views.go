@@ -12,6 +12,7 @@ import (
 	"gioui.org/widget/material"
 	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/palette"
+	"github.com/syspoe/cusus/preflight"
 	"github.com/syspoe/cusus/show"
 )
 
@@ -70,7 +71,7 @@ func (p *OperatorPanel) layoutBlocker(th *material.Theme, gtx layout.Context, ev
 	})
 }
 
-func (p *OperatorPanel) layoutHeader(th *material.Theme, gtx layout.Context, checks []operatorlog.PreflightCheck) layout.Dimensions {
+func (p *OperatorPanel) layoutHeader(th *material.Theme, gtx layout.Context, checks []preflight.Check) layout.Dimensions {
 	title := "PREFLIGHT SUMMARY"
 	if p.showLog {
 		title = "Log"
@@ -119,7 +120,7 @@ func (p *OperatorPanel) layoutEvents(th *material.Theme, gtx layout.Context, eve
 	})
 }
 
-func (p *OperatorPanel) layoutPreflight(th *material.Theme, gtx layout.Context, checks []operatorlog.PreflightCheck, navigate func(cueID show.CueID, edit bool, field string), acknowledge func(fingerprint string)) layout.Dimensions {
+func (p *OperatorPanel) layoutPreflight(th *material.Theme, gtx layout.Context, checks []preflight.Check, navigate func(cueID show.CueID, edit bool, field string), acknowledge func(fingerprint string)) layout.Dimensions {
 	checks = filterPreflight(checks, p.preflightFilter)
 	if len(checks) == 0 {
 		return operatorEventCard(th, gtx, palette.Success, "READY FOR PERFORMANCE", "No preflight problems found", "Cue files, settings, and configured outputs passed the available checks.", false)
@@ -193,12 +194,12 @@ func preflightFilterLabel(filter int) string {
 		return "FILTER · ALL"
 	}
 }
-func filterPreflight(checks []operatorlog.PreflightCheck, filter int) []operatorlog.PreflightCheck {
+func filterPreflight(checks []preflight.Check, filter int) []preflight.Check {
 	if filter == 0 {
 		return checks
 	}
 	// TODO(micro): pre-size with len(checks) cap to avoid growth from zero-capacity slice.
-	result := make([]operatorlog.PreflightCheck, 0)
+	result := make([]preflight.Check, 0)
 	for _, check := range checks {
 		if (filter == 1 && (check.Severity == operatorlog.ShowStopping || check.Severity == operatorlog.CueFailure)) || (filter == 2 && check.Severity == operatorlog.Warning) {
 			result = append(result, check)
@@ -207,9 +208,9 @@ func filterPreflight(checks []operatorlog.PreflightCheck, filter int) []operator
 	return result
 }
 
-func navigableChecks(checks []operatorlog.PreflightCheck) []operatorlog.PreflightCheck {
+func navigableChecks(checks []preflight.Check) []preflight.Check {
 	// TODO(micro): pre-size with len(checks) cap to avoid growth from zero-capacity slice.
-	result := make([]operatorlog.PreflightCheck, 0)
+	result := make([]preflight.Check, 0)
 	for _, check := range checks {
 		if check.Acknowledged {
 			continue

@@ -19,7 +19,7 @@ const (
 )
 
 func newPreflightService() (*preflight.Service, error) {
-	return preflight.NewService(readinessRefreshInterval, func(showState show.Show, settings config.Settings, audioWarning, videoWarning string, health []remote.TargetHealth, problems func(show.Cue) []show.CueProblem) []operatorlog.PreflightCheck {
+	return preflight.NewService(readinessRefreshInterval, func(showState show.Show, settings config.Settings, audioWarning, videoWarning string, health []remote.TargetHealth, problems func(show.Cue) []show.CueProblem) []preflight.Check {
 		checks := buildPreflightWithProblems(showState.Cues, settings, audioWarning, videoWarning, problems)
 		checks = append(checks, diskPreflight(showState.Cues, settings)...)
 		checks = append(checks, remoteHealthPreflight(showState.Cues, settings, health)...)
@@ -27,7 +27,7 @@ func newPreflightService() (*preflight.Service, error) {
 	})
 }
 
-func diskPreflight(cues []show.Cue, settings config.Settings) []operatorlog.PreflightCheck {
+func diskPreflight(cues []show.Cue, settings config.Settings) []preflight.Check {
 	cacheRoot, err := os.UserCacheDir()
 	if err != nil {
 		return diskCaution(err.Error())
@@ -62,11 +62,11 @@ func diskPreflight(cues []show.Cue, settings config.Settings) []operatorlog.Pref
 	return nil
 }
 
-func diskCaution(message string) []operatorlog.PreflightCheck {
-	return []operatorlog.PreflightCheck{{Severity: operatorlog.Warning, Source: "Disk / cache", Message: message, Fingerprint: "disk:" + message}}
+func diskCaution(message string) []preflight.Check {
+	return []preflight.Check{{Severity: operatorlog.Warning, Source: "Disk / cache", Message: message, Fingerprint: "disk:" + message}}
 }
 
-func remoteHealthPreflight(cues []show.Cue, settings config.Settings, health []remote.TargetHealth) []operatorlog.PreflightCheck {
+func remoteHealthPreflight(cues []show.Cue, settings config.Settings, health []remote.TargetHealth) []preflight.Check {
 	var affected []show.CueID
 	for _, cue := range cues {
 		if cue.Type == show.CueTypeRemote {
@@ -80,7 +80,7 @@ func remoteHealthPreflight(cues []show.Cue, settings config.Settings, health []r
 	for _, target := range health {
 		byName[target.Name] = target
 	}
-	var checks []operatorlog.PreflightCheck
+	var checks []preflight.Check
 	for _, target := range settings.RemoteTargets {
 		if target.HealthPort <= 0 {
 			continue
@@ -91,9 +91,9 @@ func remoteHealthPreflight(cues []show.Cue, settings config.Settings, health []r
 		}
 		state, ok := byName[name]
 		if !ok || !state.Known {
-			checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.ShowStopping, Source: "Remote health", Message: name + " has not completed a health probe", AffectedCues: affected})
+			checks = append(checks, preflight.Check{Severity: operatorlog.ShowStopping, Source: "Remote health", Message: name + " has not completed a health probe", AffectedCues: affected})
 		} else if !state.Reachable {
-			checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.ShowStopping, Source: "Remote health", Message: name + " is unreachable: " + state.LastError, AffectedCues: affected})
+			checks = append(checks, preflight.Check{Severity: operatorlog.ShowStopping, Source: "Remote health", Message: name + " is unreachable: " + state.LastError, AffectedCues: affected})
 		}
 	}
 	return checks

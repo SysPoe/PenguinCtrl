@@ -12,6 +12,7 @@ import (
 	"github.com/syspoe/cusus/media"
 	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/playback"
+	"github.com/syspoe/cusus/preflight"
 	"github.com/syspoe/cusus/project"
 	"github.com/syspoe/cusus/redundancy"
 	"github.com/syspoe/cusus/timecode"
@@ -249,8 +250,8 @@ func diskHealth(settings config.Settings) health.Component {
 	return component
 }
 
-func healthPreflightChecks(snapshot health.Snapshot) []operatorlog.PreflightCheck {
-	var result []operatorlog.PreflightCheck
+func healthPreflightChecks(snapshot health.Snapshot) []preflight.Check {
+	var result []preflight.Check
 	for _, component := range snapshot.Components {
 		if component.State == health.Normal {
 			continue
@@ -264,7 +265,7 @@ func healthPreflightChecks(snapshot health.Snapshot) []operatorlog.PreflightChec
 		if callback, ok := component.Details["lastSuccessfulCallback"].(time.Time); ok && !callback.IsZero() {
 			message += "; last callback " + callback.Format(time.RFC3339Nano)
 		}
-		result = append(result, operatorlog.PreflightCheck{
+		result = append(result, preflight.Check{
 			Severity: severity, Code: "health." + component.Kind + "." + component.ID,
 			Source: "Health · " + component.Name, Message: message,
 			Consequence: "The component is not in its normal show-ready state", Fix: component.Action,

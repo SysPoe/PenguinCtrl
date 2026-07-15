@@ -11,6 +11,7 @@ import (
 	"gioui.org/widget/material"
 	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/palette"
+	"github.com/syspoe/cusus/preflight"
 )
 
 func TestOperatorStatusPresentation(t *testing.T) {
@@ -72,7 +73,7 @@ func TestOperatorEventListFillsViewportWidth(t *testing.T) {
 }
 
 func TestPreflightPresentationDoesNotCallChecksFailures(t *testing.T) {
-	checks := []operatorlog.PreflightCheck{
+	checks := []preflight.Check{
 		{Severity: operatorlog.ShowStopping},
 		{Severity: operatorlog.CueFailure},
 		{Severity: operatorlog.Recoverable},
@@ -89,7 +90,7 @@ func TestPreflightPresentationDoesNotCallChecksFailures(t *testing.T) {
 }
 
 func TestBlockerFilterIncludesCueFailures(t *testing.T) {
-	checks := []operatorlog.PreflightCheck{
+	checks := []preflight.Check{
 		{Severity: operatorlog.ShowStopping},
 		{Severity: operatorlog.CueFailure},
 		{Severity: operatorlog.Recoverable},
@@ -110,7 +111,7 @@ func TestInvalidWarningIconIsReportedAsUnavailable(t *testing.T) {
 
 func TestInformationalPreflightIsReadyWithoutAttention(t *testing.T) {
 	// TODO(micro): Give checks capacity two because the test appends one known element below.
-	checks := []operatorlog.PreflightCheck{{Severity: operatorlog.Info}}
+	checks := []preflight.Check{{Severity: operatorlog.Info}}
 	if got := preflightCount(checks); got != "READY" {
 		t.Fatalf("preflight count = %q, want READY", got)
 	}
@@ -118,7 +119,7 @@ func TestInformationalPreflightIsReadyWithoutAttention(t *testing.T) {
 		t.Fatal("informational preflight requires attention")
 	}
 
-	checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.Warning})
+	checks = append(checks, preflight.Check{Severity: operatorlog.Warning})
 	if got := preflightCount(checks); got != "1 ITEM" {
 		t.Fatalf("preflight count = %q, want 1 ITEM", got)
 	}

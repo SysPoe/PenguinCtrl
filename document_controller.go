@@ -13,6 +13,7 @@ import (
 
 	"github.com/syspoe/cusus/config"
 	"github.com/syspoe/cusus/operatorlog"
+	"github.com/syspoe/cusus/preflight"
 	"github.com/syspoe/cusus/project"
 	"github.com/syspoe/cusus/show"
 )
@@ -66,16 +67,16 @@ func documentName(path string) string {
 // checks), preflight_service (disk/remote/HMAC gate), and health_service (runtime components).
 // Collapse into one preflight domain package with a single assembler so GO-blocking policy is
 // not assembled ad-hoc in three package-main files.
-func buildPreflight(cues []show.Cue, settings config.Settings, audioWarning, videoWarning string) []operatorlog.PreflightCheck {
+func buildPreflight(cues []show.Cue, settings config.Settings, audioWarning, videoWarning string) []preflight.Check {
 	return buildPreflightWithProblems(cues, settings, audioWarning, videoWarning, func(cue show.Cue) []show.CueProblem {
 		return show.CueProblemsWithContext(cue, cues, show.WarningContext{Settings: settings})
 	})
 }
 
-func buildPreflightWithProblems(cues []show.Cue, settings config.Settings, audioWarning, videoWarning string, problemsForCue func(show.Cue) []show.CueProblem) []operatorlog.PreflightCheck {
-	checks := make([]operatorlog.PreflightCheck, 0)
+func buildPreflightWithProblems(cues []show.Cue, settings config.Settings, audioWarning, videoWarning string, problemsForCue func(show.Cue) []show.CueProblem) []preflight.Check {
+	checks := make([]preflight.Check, 0)
 	if len(cues) == 0 {
-		checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.Warning, Source: "Show", Message: "The show contains no cues"})
+		checks = append(checks, preflight.Check{Severity: operatorlog.Warning, Source: "Show", Message: "The show contains no cues"})
 	}
 	var mediaCueIDs, remoteCueIDs []show.CueID
 	for _, cue := range cues {
@@ -91,14 +92,14 @@ func buildPreflightWithProblems(cues []show.Cue, settings config.Settings, audio
 				if problem.Code != "media.check.pending" && problem.Code != "media.check.not-run" {
 					continue
 				}
-				checks = append(checks, operatorlog.PreflightCheck{
+				checks = append(checks, preflight.Check{
 					Severity: operatorlog.ShowStopping, Code: problem.Code, Source: "Media readiness",
 					Message: problem.Message, Consequence: problem.Consequence, Fix: problem.Fix, Field: problem.Field,
 					CueID: cue.ID, CueNumber: cue.CueNumber, Fingerprint: show.ProblemFingerprint(cue, problem, settings),
 				})
 				continue
 			}
-			checks = append(checks, operatorlog.PreflightCheck{
+			checks = append(checks, preflight.Check{
 				Severity: preflightProblemSeverity(problem.Severity), Code: problem.Code, Source: "Cue configuration",
 				Message: problem.Message, Consequence: problem.Consequence, Fix: problem.Fix, Field: problem.Field,
 				CueID: cue.ID, CueNumber: cue.CueNumber, Fingerprint: show.ProblemFingerprint(cue, problem, settings),
@@ -107,21 +108,21 @@ func buildPreflightWithProblems(cues []show.Cue, settings config.Settings, audio
 	}
 	if len(mediaCueIDs) > 0 {
 		if _, err := findExecutable(settings.FFmpegPath); err != nil {
-			checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.ShowStopping, Source: "FFmpeg", Message: err.Error(), AffectedCues: mediaCueIDs})
+			checks = append(checks, preflight.Check{Severity: operatorlog.ShowStopping, Source: "FFmpeg", Message: err.Error(), AffectedCues: mediaCueIDs})
 		}
 		probe := ffprobeExecutable(settings.FFmpegPath)
 		if _, err := findExecutable(probe); err != nil {
-			checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.ShowStopping, Source: "FFprobe", Message: err.Error(), AffectedCues: mediaCueIDs})
+			checks = append(checks, preflight.Check{Severity: operatorlog.ShowStopping, Source: "FFprobe", Message: err.Error(), AffectedCues: mediaCueIDs})
 		}
 	}
 	if len(remoteCueIDs) > 0 && len(settings.RemoteTargets) == 0 {
-		checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.ShowStopping, Source: "Network / remote control", Message: "Remote cues exist but no remote targets are configured", AffectedCues: remoteCueIDs})
+		checks = append(checks, preflight.Check{Severity: operatorlog.ShowStopping, Source: "Network / remote control", Message: "Remote cues exist but no remote targets are configured", AffectedCues: remoteCueIDs})
 	}
 	if affected := audioWarningAffectedCues(cues, audioWarning); len(affected) > 0 {
-		checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.ShowStopping, Source: "Audio output", Message: audioWarning, AffectedCues: affected})
+		checks = append(checks, preflight.Check{Severity: operatorlog.ShowStopping, Source: "Audio output", Message: audioWarning, AffectedCues: affected})
 	}
 	if affected := videoWarningAffectedCues(cues, settings, videoWarning); len(affected) > 0 {
-		checks = append(checks, operatorlog.PreflightCheck{Severity: operatorlog.ShowStopping, Source: "Video output", Message: videoWarning, AffectedCues: affected})
+		checks = append(checks, preflight.Check{Severity: operatorlog.ShowStopping, Source: "Video output", Message: videoWarning, AffectedCues: affected})
 	}
 	return checks
 }

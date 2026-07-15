@@ -14,6 +14,7 @@ import (
 	"gioui.org/widget/material"
 	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/palette"
+	"github.com/syspoe/cusus/preflight"
 	"github.com/syspoe/cusus/show"
 )
 
@@ -60,7 +61,7 @@ func (p *OperatorPanel) SetHealth(status string) {
 	p.healthStatus = strings.ToUpper(strings.TrimSpace(status))
 }
 
-func (p *OperatorPanel) LayoutBar(th *material.Theme, gtx layout.Context, store *operatorlog.Store, checks []operatorlog.PreflightCheck) layout.Dimensions {
+func (p *OperatorPanel) LayoutBar(th *material.Theme, gtx layout.Context, store *operatorlog.Store, checks []preflight.Check) layout.Dimensions {
 	latest, active := store.LatestUnacknowledged()
 	if active && latest.Severity == operatorlog.CueFailure && strings.HasPrefix(latest.Source, "Operator GO") && latest.ID != p.blockerID {
 		p.blockerID, p.showBlocker = latest.ID, true
@@ -137,7 +138,7 @@ func operatorStatusPresentation(status, healthStatus string) (color.NRGBA, strin
 	return palette.Success, "CLEAR", ""
 }
 
-func (p *OperatorPanel) LayoutOverlay(th *material.Theme, gtx layout.Context, store *operatorlog.Store, checks []operatorlog.PreflightCheck, navigate func(cueID show.CueID, edit bool, field string), acknowledge func(fingerprint string), openSettings func(), skip func()) layout.Dimensions {
+func (p *OperatorPanel) LayoutOverlay(th *material.Theme, gtx layout.Context, store *operatorlog.Store, checks []preflight.Check, navigate func(cueID show.CueID, edit bool, field string), acknowledge func(fingerprint string), openSettings func(), skip func()) layout.Dimensions {
 	// A zero-value widget.List scrolls horizontally. Both operator views are
 	// stacked card lists, so explicitly keep their shared list vertical.
 	p.list.Axis = layout.Vertical
