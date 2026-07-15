@@ -61,18 +61,3 @@ func (e *Engine) PreloadCandidates(limit int) []PreloadSpec {
 	}
 	return result
 }
-
-// PreloadInstances is a deprecated compatibility adapter for media consumers
-// migrating to PreloadSpec. New code should use PreloadCandidates directly.
-func (e *Engine) PreloadInstances(limit int) []Instance {
-	specs := e.PreloadCandidates(limit)
-	instances := make([]Instance, 0, len(specs))
-	for _, spec := range specs {
-		instances = append(instances, Instance{
-			CueID: spec.CueID, CueNumber: spec.CueNumber, MediaType: spec.MediaType,
-			Source: spec.Source, OutputID: spec.OutputID, ClipStartMs: spec.ClipStartMs,
-			ClipEndMs: spec.ClipEndMs, Preview: spec.Preview,
-		})
-	}
-	return instances
-}

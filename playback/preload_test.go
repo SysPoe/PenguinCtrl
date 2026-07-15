@@ -33,8 +33,4 @@ func TestPreloadCandidatesFollowSelectionAndSkipNonMedia(t *testing.T) {
 		candidates[1].MediaType != "video" || candidates[1].Source != "second.mp4" {
 		t.Fatalf("preload descriptors = %#v", candidates)
 	}
-	instances := engine.PreloadInstances(2)
-	if len(instances) != 2 || instances[0].Source != candidates[0].Source || instances[0].ID != "" || instances[0].BackendStarted {
-		t.Fatalf("compatibility preload instances = %#v", instances)
-	}
 }

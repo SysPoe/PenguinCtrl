@@ -33,5 +33,5 @@ type EmergencyResetter interface {
 type Host interface {
 	Backend
 	EmergencyResetter
-	Prewarm([]playback.Instance)
+	Prewarm([]playback.PreloadSpec)
 }

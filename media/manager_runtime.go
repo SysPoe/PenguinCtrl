@@ -28,12 +28,17 @@ func newMediaRuntime(settings *config.Store) (*mediaRuntime, error) {
 	return &mediaRuntime{settings: settings, audio: audio, decoder: NewFFmpegBackend(settings, audio)}, err
 }
 
-func (runtime *mediaRuntime) prewarm(instances []playback.Instance) {
-	requests := make([]PlaybackRequest, 0, len(instances))
-	for _, instance := range instances {
+func (runtime *mediaRuntime) prewarm(specs []playback.PreloadSpec) {
+	requests := make([]PlaybackRequest, 0, len(specs))
+	for _, spec := range specs {
+		instance := playback.Instance{
+			CueID: spec.CueID, CueNumber: spec.CueNumber, MediaType: spec.MediaType,
+			Source: spec.Source, OutputID: spec.OutputID, ClipStartMs: spec.ClipStartMs,
+			ClipEndMs: spec.ClipEndMs, Preview: spec.Preview,
+		}
 		requests = append(requests, PlaybackRequest{
 			Instance: instance,
-			Position: time.Duration(max(int64(0), instance.ClipStartMs)) * time.Millisecond,
+			Position: time.Duration(max(int64(0), spec.ClipStartMs)) * time.Millisecond,
 		})
 	}
 	runtime.mu.RLock()

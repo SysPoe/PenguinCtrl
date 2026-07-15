@@ -31,7 +31,7 @@ func NewManager(engine *playback.Engine, settings *config.Store) *Manager {
 	return &Manager{runtime: runtime, topology: topology, outputs: outputs}
 }
 
-func (m *Manager) Prewarm(instances []playback.Instance) { m.runtime.prewarm(instances) }
+func (m *Manager) Prewarm(specs []playback.PreloadSpec) { m.runtime.prewarm(specs) }
 
 func (m *Manager) AudioDevices() ([]AudioDevice, error) { return m.topology.audioDevicesSnapshot() }
 
