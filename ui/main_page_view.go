@@ -372,7 +372,7 @@ func Main(
 												)
 											}),
 											// Description / live playback progress
-											makeDescriptionProgressCell(th, descriptionLabel(cue.Description), progress, cueTypeCol, weights[3]),
+											makeProgressCell(th, descriptionLabel(cue.Description), progress, cueTypeCol, weights[3], text.Start),
 											// TODO(micro): obsolete "// TODO Action" comment; remove or implement the missing action column.
 											// TODO Action
 											// Duration

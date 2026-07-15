@@ -37,6 +37,12 @@ func (s *Slider) AddEventListener(listener func(value float64)) {
 	s.eventListeners = append(s.eventListeners, listener)
 }
 
+// Focused reports whether the slider currently owns keyboard focus.
+func (s *Slider) Focused(gtx layout.Context) bool { return gtx.Focused(&s.slider) }
+
+// Dragging reports whether a pointer drag is actively changing the slider.
+func (s *Slider) Dragging() bool { return s.slider.Dragging() }
+
 func (s *Slider) notifyEventListeners() {
 	for _, listener := range s.eventListeners {
 		listener(s.Value)
