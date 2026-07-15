@@ -12,6 +12,11 @@ import (
 	"github.com/syspoe/cusus/ui/input"
 )
 
+type cueEditFormRow struct {
+	label  string
+	layout func(gtx layout.Context) layout.Dimensions
+}
+
 func (ctx *CueEditUI) renderForm(th *material.Theme, rows []cueEditFormRow) layout.FlexChild {
 	return layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(16)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {

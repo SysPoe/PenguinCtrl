@@ -273,3 +273,47 @@ func newCueEditPageState(cue show.Cue) cueEditPageState {
 
 	return state
 }
+
+func (ctx *CueEditUI) ensurePageInputs() {
+	if ctx.page.initialized && ctx.page.cueID == ctx.cue.ID {
+		return
+	}
+
+	ctx.ensureCuePlay()
+	normalizeCueEditModel(&ctx.cue)
+	ctx.tabs.active = tabGeneral
+	ctx.page = newCueEditPageState(ctx.cue)
+}
+
+func (ctx *CueEditUI) ensureCuePlay() {
+	switch ctx.cue.Type {
+	case show.CueTypeSound:
+		if ctx.cue.Play.Sound == nil {
+			ctx.cue.Play.Sound = show.NewSoundCue().Play.Sound
+		}
+	case show.CueTypeVideo:
+		if ctx.cue.Play.Video == nil {
+			ctx.cue.Play.Video = show.NewVideoCue().Play.Video
+		}
+	case show.CueTypeImage:
+		if ctx.cue.Play.Image == nil {
+			ctx.cue.Play.Image = show.NewImageCue().Play.Image
+		}
+	case show.CueTypeRemote:
+		if ctx.cue.Play.Remote == nil {
+			ctx.cue.Play.Remote = show.NewRemoteCue().Play.Remote
+		}
+	case show.CueTypeWait:
+		if ctx.cue.Play.Wait == nil {
+			ctx.cue.Play.Wait = show.NewWaitCue().Play.Wait
+		}
+	case show.CueTypeMediaControl:
+		if ctx.cue.Play.MediaControl == nil {
+			ctx.cue.Play.MediaControl = show.NewMediaControlCue().Play.MediaControl
+		}
+	case show.CueTypeOutputControl:
+		if ctx.cue.Play.OutputControl == nil {
+			ctx.cue.Play.OutputControl = show.NewOutputControlCue().Play.OutputControl
+		}
+	}
+}
