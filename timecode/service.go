@@ -1,74 +1,58 @@
 package timecode
 
 import (
-	"context"
 	"sync"
 )
 
-// Service owns optional external input listeners while exposing one stable
-// coordinator to the playback engine and hardware adapters.
-// TODO(macro): Service only starts the OSC UDP listener; LTC/MTC remain bare
-// Coordinator.Ingest* APIs with no listener lifecycle here. Either host all
-// selected Source adapters under Service.Configure (matching the comment) or
-// drop the Service layer and let callers own per-source adapters explicitly.
+// Service owns the selected OSC, LTC, or MTC input lifecycle while exposing one
+// stable coordinator to the playback engine. LTC and MTC decoder integrations
+// feed the stable adapters returned by LTCAdapter and MTCAdapter.
 type Service struct {
 	configureMu sync.Mutex
-	mu          sync.Mutex
+	mu          sync.RWMutex
 	coordinator *Coordinator
-	cancel      context.CancelFunc
-	wg          sync.WaitGroup
+	inputs      *inputRegistry
 	closed      bool
-	lastError   error
 }
 
 func NewService(config Config, listenAddress string) *Service {
-	service := &Service{coordinator: New(config)}
+	coordinator := New(config)
+	service := &Service{coordinator: coordinator, inputs: newInputRegistry(coordinator)}
 	service.Configure(config, listenAddress)
 	return service
 }
 
 func (s *Service) Coordinator() *Coordinator { return s.coordinator }
 
+func (s *Service) LTCAdapter() *LTCAdapter { return s.inputs.ltc }
+
+func (s *Service) MTCAdapter() *MTCAdapter { return s.inputs.mtc }
+
 func (s *Service) Configure(config Config, listenAddress string) {
 	s.configureMu.Lock()
 	defer s.configureMu.Unlock()
 
 	s.mu.Lock()
-	if s.cancel != nil {
-		s.cancel()
+	if s.closed {
+		s.mu.Unlock()
+		return
 	}
 	s.mu.Unlock()
-	s.wg.Wait()
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return
-	}
+	s.inputs.Close()
 	s.coordinator.Configure(config)
-	s.lastError = nil
-	if config.Source != SourceOSC {
-		s.cancel = nil
-		return
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	s.cancel = cancel
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		err := ListenOSC(ctx, listenAddress, s.coordinator)
-		s.mu.Lock()
-		if ctx.Err() == nil {
-			s.lastError = err
-		}
-		s.mu.Unlock()
-	}()
+	s.inputs.Start(normalizeConfig(config).Source, listenAddress)
 }
 
 func (s *Service) LastError() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.lastError
+	return s.inputs.LastError()
+}
+
+func (s *Service) Status() ServiceStatus {
+	s.mu.RLock()
+	closed := s.closed
+	s.mu.RUnlock()
+	return ServiceStatus{Selected: s.coordinator.Status().Source, Closed: closed, Inputs: s.inputs.Statuses()}
 }
 
 func (s *Service) Close() {
@@ -81,9 +65,6 @@ func (s *Service) Close() {
 		return
 	}
 	s.closed = true
-	if s.cancel != nil {
-		s.cancel()
-	}
 	s.mu.Unlock()
-	s.wg.Wait()
+	s.inputs.Close()
 }
