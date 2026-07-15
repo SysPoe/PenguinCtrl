@@ -25,6 +25,7 @@ import (
 	"github.com/syspoe/cusus/playback"
 	"github.com/syspoe/cusus/project"
 	"github.com/syspoe/cusus/redundancy"
+	"github.com/syspoe/cusus/remote"
 	"github.com/syspoe/cusus/show"
 	"github.com/syspoe/cusus/support"
 	"github.com/syspoe/cusus/timecode"
@@ -38,6 +39,7 @@ import (
 type App struct {
 	Show          *show.ShowManager
 	Playback      *playback.Engine
+	Remote        *remote.Dispatcher
 	Media         media.Host
 	Settings      *config.Store
 	OperatorLog   *operatorlog.Store
@@ -143,7 +145,8 @@ func newApp(reporter *crashreport.Reporter) (*App, error) {
 		return hex.EncodeToString(digest[:8])
 	})
 	log.SetOutput(operatorEvents.Writer("Runtime"))
-	engine := playback.NewEngine(showManager, settings)
+	remotePort := remote.NewDispatcher(settings)
+	engine := playback.NewEngineWithRemote(showManager, settings, remotePort)
 	timecodeInput := timecode.NewService(timecodeConfig(settings.Snapshot()), settings.Snapshot().TimecodeListenAddress)
 	engine.SetTimeline(timecodeInput.Coordinator())
 	timecodeInput.Coordinator().SetOnDiscontinuity(func(gap time.Duration) {
@@ -166,6 +169,7 @@ func newApp(reporter *crashreport.Reporter) (*App, error) {
 	application := &App{
 		Show:          showManager,
 		Playback:      engine,
+		Remote:        remotePort,
 		Media:         mediaBackend,
 		Settings:      settings,
 		OperatorLog:   operatorEvents,

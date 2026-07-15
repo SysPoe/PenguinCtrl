@@ -433,6 +433,7 @@ func (a *App) run(window *app.Window) error {
 			a.Timecode.Close()
 			a.Redundancy.Close()
 			playbackEngine.Close()
+			a.Remote.Close()
 			mediaManager.Close()
 			return e.Err
 
