@@ -2,7 +2,6 @@ package project
 
 import (
 	"bufio"
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -18,30 +17,45 @@ import (
 )
 
 const (
-	journalVersion  = 1
+	journalVersion  = 2
 	maxJournalBytes = 8 << 20
 	maxRecordBytes  = 4 << 20
 )
 
-// TODO(macro): Decide whether recovery owns full show documents or deltas —
-// EditJournal appends entire show.Show blobs (including media absolute paths and
-// acknowledgements) for every dirty mark, mixing crash recovery with document
-// persistence and exploding size as shows grow.
-// RecoveryRecord is a flushed show-state generation. Dirty records are
-// recoverable; clean records prove that the same state reached its document.
-type RecoveryRecord struct {
-	Version      int       `json:"version"`
-	WrittenAt    time.Time `json:"writtenAt"`
-	DocumentPath string    `json:"documentPath,omitempty"`
-	Digest       string    `json:"digest"`
-	Dirty        bool      `json:"dirty"`
-	Show         show.Show `json:"show"`
+type RecoveryRecordKind string
+
+const RecoveryRecordFullShowSnapshot RecoveryRecordKind = "full-show-snapshot"
+
+type RecoveryState string
+
+const (
+	RecoveryStateDirty RecoveryState = "dirty"
+	RecoveryStateSaved RecoveryState = "saved"
+)
+
+// RecoverySnapshot is a complete show generation. Recovery deliberately uses
+// bounded full snapshots rather than deltas so every valid dirty record can be
+// restored independently after a torn append or journal compaction.
+type RecoverySnapshot struct {
+	Show show.Show `json:"show"`
 }
 
-// TODO(macro): EditJournal digests/shows independently of package-main showDigest
-// and document dirty tracking in window_loop. Own dirty identity and recovery in
-// one document-session type so journal, save path, and UI dirty chrome cannot
-// disagree on what "saved" means.
+// RecoveryRecord is a flushed full-snapshot generation. Kind, State, and
+// Snapshot are the durable version-2 contract. Show and Dirty are populated as
+// compatibility views for callers of the version-1 API and are not serialized.
+type RecoveryRecord struct {
+	Version      int                `json:"version"`
+	Kind         RecoveryRecordKind `json:"kind"`
+	State        RecoveryState      `json:"state"`
+	WrittenAt    time.Time          `json:"writtenAt"`
+	DocumentPath string             `json:"documentPath,omitempty"`
+	Digest       string             `json:"digest"`
+	Snapshot     RecoverySnapshot   `json:"snapshot"`
+
+	Dirty bool      `json:"-"`
+	Show  show.Show `json:"-"`
+}
+
 type EditJournal struct {
 	mu   sync.Mutex
 	path string
@@ -72,14 +86,14 @@ func (j *EditJournal) Recover() (RecoveryRecord, bool, error) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
 	record, found, err := readLastJournalRecord(j.path)
-	if err != nil || !found || !record.Dirty {
+	if err != nil || !found || record.State != RecoveryStateDirty {
 		return record, false, err
 	}
-	digest, digestErr := showStateDigest(record.Show)
+	digest, digestErr := showDigestHex(record.Snapshot.Show)
 	if digestErr != nil {
 		return RecoveryRecord{}, false, fmt.Errorf("digest recovered show: %w", digestErr)
 	}
-	if record.Version != journalVersion || record.Digest != digest {
+	if record.Version != journalVersion || record.Kind != RecoveryRecordFullShowSnapshot || record.State != RecoveryStateDirty || record.Digest != digest {
 		return RecoveryRecord{}, false, errors.New("edit journal recovery record failed validation")
 	}
 	return record, true, nil
@@ -88,15 +102,20 @@ func (j *EditJournal) Recover() (RecoveryRecord, bool, error) {
 func (j *EditJournal) append(current show.Show, documentPath string, dirty bool) error {
 	j.mu.Lock()
 	defer j.mu.Unlock()
-	digest, err := showStateDigest(current)
+	digest, err := showDigestHex(current)
 	if err != nil {
 		return fmt.Errorf("digest edit journal show: %w", err)
 	}
-	record := RecoveryRecord{
-		Version: journalVersion, WrittenAt: time.Now().UTC(), DocumentPath: documentPath,
-		Digest: digest, Dirty: dirty, Show: current,
+	state := RecoveryStateSaved
+	if dirty {
+		state = RecoveryStateDirty
 	}
-	raw, err := json.Marshal(record)
+	record := RecoveryRecord{
+		Version: journalVersion, Kind: RecoveryRecordFullShowSnapshot, State: state,
+		WrittenAt: time.Now().UTC(), DocumentPath: documentPath, Digest: digest,
+		Snapshot: RecoverySnapshot{Show: current}, Dirty: dirty, Show: current,
+	}
+	raw, err := encodeRecoveryRecord(record)
 	if err != nil {
 		return fmt.Errorf("encode edit journal: %w", err)
 	}
@@ -143,8 +162,8 @@ func readLastJournalRecord(path string) (RecoveryRecord, bool, error) {
 			return RecoveryRecord{}, false, errors.New("edit journal contains an oversized record")
 		}
 		if len(line) > 0 {
-			var candidate RecoveryRecord
-			if err := json.Unmarshal(line, &candidate); err != nil {
+			candidate, err := decodeRecoveryRecord(line)
+			if err != nil {
 				if readErr == io.EOF { // Ignore only a torn final append.
 					break
 				}
@@ -162,11 +181,82 @@ func readLastJournalRecord(path string) (RecoveryRecord, bool, error) {
 	return last, found, nil
 }
 
-func showStateDigest(current show.Show) (string, error) {
-	raw, err := json.Marshal(current)
+type storedRecoveryRecord struct {
+	Version      int                `json:"version"`
+	Kind         RecoveryRecordKind `json:"kind"`
+	State        RecoveryState      `json:"state"`
+	WrittenAt    time.Time          `json:"writtenAt"`
+	DocumentPath string             `json:"documentPath,omitempty"`
+	Digest       string             `json:"digest"`
+	Snapshot     RecoverySnapshot   `json:"snapshot"`
+}
+
+type legacyRecoveryRecord struct {
+	Version      int       `json:"version"`
+	WrittenAt    time.Time `json:"writtenAt"`
+	DocumentPath string    `json:"documentPath,omitempty"`
+	Digest       string    `json:"digest"`
+	Dirty        bool      `json:"dirty"`
+	Show         show.Show `json:"show"`
+}
+
+func encodeRecoveryRecord(record RecoveryRecord) ([]byte, error) {
+	return json.Marshal(storedRecoveryRecord{
+		Version: record.Version, Kind: record.Kind, State: record.State,
+		WrittenAt: record.WrittenAt, DocumentPath: record.DocumentPath,
+		Digest: record.Digest, Snapshot: record.Snapshot,
+	})
+}
+
+func decodeRecoveryRecord(raw []byte) (RecoveryRecord, error) {
+	var envelope struct {
+		Version int `json:"version"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return RecoveryRecord{}, err
+	}
+	switch envelope.Version {
+	case 1:
+		var legacy legacyRecoveryRecord
+		if err := json.Unmarshal(raw, &legacy); err != nil {
+			return RecoveryRecord{}, err
+		}
+		state := RecoveryStateSaved
+		if legacy.Dirty {
+			state = RecoveryStateDirty
+		}
+		return RecoveryRecord{
+			Version: journalVersion, Kind: RecoveryRecordFullShowSnapshot, State: state,
+			WrittenAt: legacy.WrittenAt, DocumentPath: legacy.DocumentPath,
+			Digest: legacy.Digest, Snapshot: RecoverySnapshot{Show: legacy.Show},
+			Dirty: legacy.Dirty, Show: legacy.Show,
+		}, nil
+	case journalVersion:
+		var stored storedRecoveryRecord
+		if err := json.Unmarshal(raw, &stored); err != nil {
+			return RecoveryRecord{}, err
+		}
+		if stored.Kind != RecoveryRecordFullShowSnapshot {
+			return RecoveryRecord{}, fmt.Errorf("unsupported edit journal record kind %q", stored.Kind)
+		}
+		if stored.State != RecoveryStateDirty && stored.State != RecoveryStateSaved {
+			return RecoveryRecord{}, fmt.Errorf("unsupported edit journal state %q", stored.State)
+		}
+		return RecoveryRecord{
+			Version: stored.Version, Kind: stored.Kind, State: stored.State,
+			WrittenAt: stored.WrittenAt, DocumentPath: stored.DocumentPath,
+			Digest: stored.Digest, Snapshot: stored.Snapshot,
+			Dirty: stored.State == RecoveryStateDirty, Show: stored.Snapshot.Show,
+		}, nil
+	default:
+		return RecoveryRecord{}, fmt.Errorf("unsupported edit journal version %d", envelope.Version)
+	}
+}
+
+func showDigestHex(current show.Show) (string, error) {
+	digest, err := current.Digest()
 	if err != nil {
 		return "", err
 	}
-	digest := sha256.Sum256(raw)
 	return hex.EncodeToString(digest[:]), nil
 }
