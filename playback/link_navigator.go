@@ -40,7 +40,7 @@ func (port showAccessCueSelection) deselectCue() {
 }
 
 type linkNavigationHost interface {
-	goOwned(func()) bool
+	goOwned(func())
 	startExecution(command, string, int64) string
 	finishExecution(string)
 	enqueueCommand(show.Cue, int, commandIntent, string, blockerPolicy) error

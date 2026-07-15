@@ -6,6 +6,13 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
+// Media type values are shared by playback snapshots and media backends.
+const (
+	MediaTypeAudio = "audio"
+	MediaTypeVideo = "video"
+	MediaTypeImage = "image"
+)
+
 // Instance is a detached public snapshot of one live media item. Engine
 // lifecycle bookkeeping lives separately in liveInstance.
 type Instance struct {

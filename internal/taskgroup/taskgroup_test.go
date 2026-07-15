@@ -56,3 +56,28 @@ func TestConcurrencyIsBounded(t *testing.T) {
 		t.Fatalf("maximum concurrency = %d", maximum.Load())
 	}
 }
+
+func TestUnboundedGroupStartsAllAcceptedTasks(t *testing.T) {
+	group := NewUnbounded(context.Background(), nil)
+	started := make(chan struct{}, 8)
+	release := make(chan struct{})
+	for range 8 {
+		if !group.Go("unbounded", func(context.Context) {
+			started <- struct{}{}
+			<-release
+		}) {
+			t.Fatal("task was rejected before close")
+		}
+	}
+	for range 8 {
+		select {
+		case <-started:
+		case <-time.After(time.Second):
+			t.Fatal("unbounded group serialized accepted work")
+		}
+	}
+	close(release)
+	if err := group.Close(time.Second); err != nil {
+		t.Fatal(err)
+	}
+}

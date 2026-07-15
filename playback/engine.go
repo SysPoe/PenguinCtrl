@@ -3,12 +3,12 @@ package playback
 import (
 	"context"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/syspoe/cusus/config"
 	"github.com/syspoe/cusus/cuevars"
+	"github.com/syspoe/cusus/internal/taskgroup"
 	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/remote"
 	"github.com/syspoe/cusus/show"
@@ -43,9 +43,7 @@ type Engine struct {
 	ctx                      context.Context
 	cancel                   context.CancelFunc
 	done                     chan struct{}
-	workerMu                 sync.Mutex
-	workers                  sync.WaitGroup
-	closing                  bool
+	workers                  *taskgroup.Group
 	outputs                  *outputCoordinator
 	runtime                  *runtimeState
 	scheduler                *commandCoordinator
@@ -87,6 +85,7 @@ func NewEngineWithRemote(showAccess ShowAccess, settings SettingsAccess, remoteP
 		safety: newSafetyLatch(), admission: &admissionGates{}, preview: &previewSession{},
 		mediaCatalog: newMediaCatalog(ctx), stateEvent: make(chan struct{}, 1),
 	}
+	engine.workers = taskgroup.NewUnbounded(ctx, nil)
 	engine.outputs = newOutputCoordinator(engine.runtime)
 	engine.scheduler = newCommandCoordinator(engine)
 	engine.lifecycle = newLifecycleController(engine, engine.runtime, engine.outputs)
@@ -106,30 +105,18 @@ func (e *Engine) Start() { go e.scheduler.run() }
 func (e *Engine) Close() {
 	e.cancel()
 	<-e.done
-	e.workerMu.Lock()
-	e.closing = true
-	e.workerMu.Unlock()
-	e.workers.Wait()
+	_ = e.workers.Close(0)
 	if e.closeCompatibilityRemote != nil {
 		e.closeCompatibilityRemote()
 	}
 }
 
-// TODO(micro): Remove the bool result or make callers handle it; every current caller discards the shutdown rejection signal.
-// TODO(micro): goOwned pattern is duplicated with media.Player / taskgroup; share one owned-worker helper
-func (e *Engine) goOwned(work func()) bool {
-	e.workerMu.Lock()
-	if e.closing {
-		e.workerMu.Unlock()
-		return false
+func (e *Engine) goOwned(work func()) {
+	// Rejection means shutdown already owns the lifecycle; late work must not
+	// outlive Close and requires no caller-specific fallback.
+	if !e.workers.Go("playback worker", func(context.Context) { work() }) {
+		return
 	}
-	e.workers.Add(1)
-	e.workerMu.Unlock()
-	go func() {
-		defer e.workers.Done()
-		work()
-	}()
-	return true
 }
 
 func (e *Engine) RemoteHealth() []remote.TargetHealth { return e.remoteHealth.Health() }

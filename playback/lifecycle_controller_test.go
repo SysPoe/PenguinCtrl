@@ -15,9 +15,8 @@ type lifecycleHostStub struct {
 	signals       int
 }
 
-func (h *lifecycleHostStub) goOwned(work func()) bool {
+func (h *lifecycleHostStub) goOwned(work func()) {
 	work()
-	return true
 }
 
 func (h *lifecycleHostStub) scheduleLink(_ show.Cue, _ int, _ int64, moment linkMoment, _ context.Context) {

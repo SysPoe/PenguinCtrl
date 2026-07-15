@@ -31,9 +31,8 @@ type linkNavigationHostStub struct {
 	errors   []error
 }
 
-func (*linkNavigationHostStub) goOwned(work func()) bool {
+func (*linkNavigationHostStub) goOwned(work func()) {
 	work()
-	return true
 }
 
 func (*linkNavigationHostStub) startExecution(command, string, int64) string { return "execution" }

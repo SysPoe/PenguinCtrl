@@ -7,7 +7,9 @@ import (
 	"os/exec"
 )
 
-// TODO(micro): delete this no-value wrapper and call exec.CommandContext directly
+// CommandContext is retained as a compatibility constructor for callers that
+// pair commands with this package's supervised Start and output helpers.
+// Deprecated: use exec.CommandContext when migrating an existing caller.
 func CommandContext(ctx context.Context, name string, args ...string) *exec.Cmd {
 	return exec.CommandContext(ctx, name, args...)
 }

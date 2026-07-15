@@ -9,7 +9,7 @@ import (
 )
 
 func visualInstance(instance *liveInstance) bool {
-	return instance != nil && (instance.MediaType == "video" || instance.MediaType == "image")
+	return instance != nil && (instance.MediaType == MediaTypeVideo || instance.MediaType == MediaTypeImage)
 }
 
 // replaceSingleLayerVisual performs a guarded handoff after the incoming
@@ -90,10 +90,9 @@ func (e *Engine) HandleOutputError(instanceID string, err error) {
 		// recording them here can create an unbounded operator-log flood.
 		return
 	}
-	// TODO(micro): rename copy (shadows builtin copy)
-	copy := *instance
+	snapshot := *instance
 	e.runtime.mu.RUnlock()
-	e.recordCueError(show.Cue{ID: copy.CueID, CueNumber: copy.CueNumber}, "FFmpeg / media output", err)
+	e.recordCueError(show.Cue{ID: snapshot.CueID, CueNumber: snapshot.CueNumber}, "FFmpeg / media output", err)
 	e.HandleOutputReport(instanceID, "stopped")
 }
 
@@ -109,10 +108,9 @@ func (e *Engine) HandleOutputWarning(instanceID string, err error) {
 		log.Add(operatorlog.Recoverable, "FFmpeg / media output", err.Error(), show.CueID{}, "")
 		return
 	}
-	// TODO(micro): rename copy (shadows builtin copy); use snapshot or inst
-	copy := *instance
+	snapshot := *instance
 	e.runtime.mu.RUnlock()
-	log.Add(operatorlog.Recoverable, "FFmpeg / media output", err.Error(), copy.CueID, copy.CueNumber)
+	log.Add(operatorlog.Recoverable, "FFmpeg / media output", err.Error(), snapshot.CueID, snapshot.CueNumber)
 	e.changed()
 }
 

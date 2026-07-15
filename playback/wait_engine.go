@@ -51,9 +51,9 @@ func (waits *waitEngine) satisfied(wait show.WaitPlay) bool {
 	case show.WaitMediaEnd, show.WaitInstanceStopped, show.WaitFadeOutComplete:
 		return len(instances) == 0
 	case show.WaitAllAudioStopped:
-		return !e.hasMediaType("audio")
+		return !e.hasMediaType(MediaTypeAudio)
 	case show.WaitAllVideoStopped:
-		return !e.hasMediaType("video")
+		return !e.hasMediaType(MediaTypeVideo)
 	case show.WaitAllMediaStopped:
 		return e.instanceCount() == 0
 	case show.WaitFadeInComplete:

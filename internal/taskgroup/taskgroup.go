@@ -37,6 +37,16 @@ func New(parent context.Context, concurrency int, reporter *crashreport.Reporter
 	return &Group{ctx: ctx, cancel: cancel, slots: make(chan struct{}, concurrency), report: reporter}
 }
 
+// NewUnbounded creates a group without a concurrency limit. It is intended for
+// lightweight lifecycle workers whose owner previously used a plain WaitGroup.
+func NewUnbounded(parent context.Context, reporter *crashreport.Reporter) *Group {
+	if parent == nil {
+		parent = context.Background()
+	}
+	ctx, cancel := context.WithCancel(parent)
+	return &Group{ctx: ctx, cancel: cancel, report: reporter}
+}
+
 // Context is cancelled when the group closes.
 func (g *Group) Context() context.Context { return g.ctx }
 
@@ -52,11 +62,13 @@ func (g *Group) Go(name string, work func(context.Context)) bool {
 	g.mu.Unlock()
 	go func() {
 		defer g.wg.Done()
-		select {
-		case g.slots <- struct{}{}:
-			defer func() { <-g.slots }()
-		case <-g.ctx.Done():
-			return
+		if g.slots != nil {
+			select {
+			case g.slots <- struct{}{}:
+				defer func() { <-g.slots }()
+			case <-g.ctx.Done():
+				return
+			}
 		}
 		if g.report == nil {
 			work(g.ctx)

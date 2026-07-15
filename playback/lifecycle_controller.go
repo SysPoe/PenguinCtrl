@@ -10,7 +10,7 @@ import (
 const silenceFloorDB = -80.0
 
 type lifecycleHost interface {
-	goOwned(func()) bool
+	goOwned(func())
 	scheduleLink(show.Cue, int, int64, linkMoment, context.Context)
 	scheduleTimecode(string, show.Cue, int)
 	replaceSingleLayerVisual(liveInstance)

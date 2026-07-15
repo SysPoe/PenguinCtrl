@@ -69,10 +69,9 @@ func (r *instanceRegistry) matching(target show.MediaTarget, now time.Time) []In
 		case show.MediaTargetInstance:
 			return instance.ID == target.InstanceID
 		case show.MediaTargetAllAudio:
-			// TODO(micro): share media type constants with media/player instead of free-text values.
-			return instance.MediaType == "audio"
+			return instance.MediaType == MediaTypeAudio
 		case show.MediaTargetAllVideo:
-			return instance.MediaType == "video" || instance.MediaType == "image"
+			return instance.MediaType == MediaTypeVideo || instance.MediaType == MediaTypeImage
 		case show.MediaTargetAllMedia:
 			return true
 		case show.MediaTargetOutput:

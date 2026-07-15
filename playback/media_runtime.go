@@ -41,18 +41,18 @@ func (runtime *cueMediaRuntime) start(next command) error {
 		if cue.Play.Sound == nil {
 			return errors.New("sound cue has no media settings")
 		}
-		applyTimedMedia(&instance.Instance, "audio", cue.Play.Sound.MediaClip, settings, cue.CueNumber)
+		applyTimedMedia(&instance.Instance, MediaTypeAudio, cue.Play.Sound.MediaClip, settings, cue.CueNumber)
 	case show.CueTypeVideo:
 		if cue.Play.Video == nil {
 			return errors.New("video cue has no media settings")
 		}
-		applyTimedMedia(&instance.Instance, "video", cue.Play.Video.MediaClip, settings, cue.CueNumber)
+		applyTimedMedia(&instance.Instance, MediaTypeVideo, cue.Play.Video.MediaClip, settings, cue.CueNumber)
 	case show.CueTypeImage:
 		if cue.Play.Image == nil {
 			return errors.New("image cue has no media settings")
 		}
 		play := cue.Play.Image
-		instance.MediaType, instance.Source = "image", cuevars.Resolve(play.File, settings, cue.CueNumber)
+		instance.MediaType, instance.Source = MediaTypeImage, cuevars.Resolve(play.File, settings, cue.CueNumber)
 		instance.OutputID = resolveOutput(play.OutputID, settings, cue.CueNumber)
 		instance.FadeInMs, instance.FadeOutMs, instance.DurationMs = play.FadeInMs, play.FadeOutMs, play.DurationMs
 	}
@@ -99,7 +99,7 @@ func (runtime *cueMediaRuntime) freezeImages(outputID string) {
 	now := time.Now()
 	changed := false
 	e.runtime.instances.visit(func(instance *liveInstance) {
-		if instance.OutputID != outputID || instance.MediaType != "image" || instance.positionAt.IsZero() {
+		if instance.OutputID != outputID || instance.MediaType != MediaTypeImage || instance.positionAt.IsZero() {
 			return
 		}
 		materializeLiveInstance(instance, now)
