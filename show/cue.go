@@ -6,10 +6,10 @@ import (
 	"github.com/google/uuid"
 )
 
-// TODO(macro): Make cue kind a single source of truth — Type and the CuePlay
-// optional-field union can disagree (repair/warnings exist because of this), so
-// either encode play as a typed sum or derive Type from the payload and stop
-// persisting both.
+// Cue keeps the historical type-and-play JSON shape for archive compatibility.
+// Constructors and ShowManager mutations canonicalize that wire representation
+// through RepairCueData, so runtime cues always contain exactly one payload arm
+// matching Type.
 type Cue struct {
 	ID          CueID   `json:"id"`
 	CueNumber   string  `json:"cueNumber"`
@@ -55,15 +55,9 @@ const (
 	CueTypeOutputControl
 )
 
-// TODO(macro): Replace Type plus this optional-pointer bag with a validated
-// tagged payload (or one central visitor). "Exactly one" is only a convention,
-// so each cue type addition must currently update parallel switches throughout
-// playback, validation, editing, repair, and archive code without compiler help.
-// Exactly one of these should be non-empty.
-// TODO(macro): Replace the multi-pointer CuePlay bag with an explicit sum type
-// (or sealed interface) so clone/repair/warnings/archive cannot leave multiple
-// payloads populated or the wrong one for Type.
-// Exactly one of these should be non-empty
+// CuePlay is the archive-compatible tagged payload. Exactly one field is
+// populated in canonical runtime data; Type and ForType are the central access
+// layer used by construction, repair, warnings, cloning, and persistence.
 type CuePlay struct {
 	Sound         *SoundPlay         `json:"sound,omitempty"`
 	Video         *VideoPlay         `json:"video,omitempty"`

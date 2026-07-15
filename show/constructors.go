@@ -5,7 +5,7 @@ import (
 )
 
 func NewCue(cueType CueType, description string, play CuePlay) Cue {
-	return Cue{
+	cue := Cue{
 		ID:          NewCueID(),
 		Description: description,
 		Type:        cueType,
@@ -17,6 +17,8 @@ func NewCue(cueType CueType, description string, play CuePlay) Cue {
 			},
 		},
 	}
+	RepairCueData(&cue)
+	return cue
 }
 
 func NewSoundCue() Cue {

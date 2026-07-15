@@ -34,6 +34,16 @@ func TestTypedCueConstructorsCreateCanonicalPayloads(t *testing.T) {
 	}
 }
 
+func TestNewCueCanonicalizesMismatchedPayload(t *testing.T) {
+	cue := NewCue(CueTypeSound, "mismatched", CuePlay{Video: &VideoPlay{}})
+	if cue.Type != CueTypeSound || cue.Play.Sound == nil {
+		t.Fatalf("NewCue did not preserve requested type with a canonical payload: %#v", cue)
+	}
+	if _, ok := cue.Play.Type(); !ok {
+		t.Fatalf("NewCue retained a non-canonical payload: %#v", cue.Play)
+	}
+}
+
 func TestTypedCueDefaultsMatchPayloadRepair(t *testing.T) {
 	for _, newCue := range []func() Cue{
 		NewSoundCue, NewVideoCue, NewImageCue, NewRemoteCue, NewWaitCue,

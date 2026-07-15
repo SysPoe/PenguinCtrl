@@ -7,7 +7,9 @@ func validCueType(cueType CueType) bool {
 	return cueType >= CueTypeSound && cueType <= CueTypeOutputControl
 }
 
-func soleCuePlayType(play CuePlay) (CueType, bool) {
+// Type reports the sole populated payload type. The boolean is false when the
+// payload is empty or has multiple populated arms.
+func (play CuePlay) Type() (CueType, bool) {
 	found, count := CueTypeSound, 0
 	for cueType := CueTypeSound; cueType <= CueTypeOutputControl; cueType++ {
 		if cuePlayHasType(play, cueType) {
@@ -16,6 +18,8 @@ func soleCuePlayType(play CuePlay) (CueType, bool) {
 	}
 	return found, count == 1
 }
+
+func soleCuePlayType(play CuePlay) (CueType, bool) { return play.Type() }
 
 func cuePlayHasType(play CuePlay, cueType CueType) bool {
 	switch cueType {
@@ -43,7 +47,8 @@ func cuePlayContainsOnly(play CuePlay, cueType CueType) bool {
 	return ok && detected == cueType
 }
 
-func cuePlayForType(play CuePlay, cueType CueType) (CuePlay, bool) {
+// ForType returns a payload containing only the requested arm.
+func (play CuePlay) ForType(cueType CueType) (CuePlay, bool) {
 	switch cueType {
 	case CueTypeSound:
 		return CuePlay{Sound: play.Sound}, play.Sound != nil
@@ -62,4 +67,8 @@ func cuePlayForType(play CuePlay, cueType CueType) (CuePlay, bool) {
 	default:
 		return CuePlay{}, false
 	}
+}
+
+func cuePlayForType(play CuePlay, cueType CueType) (CuePlay, bool) {
+	return play.ForType(cueType)
 }
