@@ -8,7 +8,7 @@ import (
 )
 
 func TestCloseCancelsAndWaitsForOwnedTasks(t *testing.T) {
-	group := New(context.Background(), 1)
+	group := New(context.Background(), 1, nil)
 	started := make(chan struct{})
 	exited := make(chan struct{})
 	if !group.Go("worker", func(ctx context.Context) { close(started); <-ctx.Done(); close(exited) }) {
@@ -29,7 +29,7 @@ func TestCloseCancelsAndWaitsForOwnedTasks(t *testing.T) {
 }
 
 func TestConcurrencyIsBounded(t *testing.T) {
-	group := New(context.Background(), 2)
+	group := New(context.Background(), 2, nil)
 	var active, maximum atomic.Int32
 	release := make(chan struct{})
 	for range 8 {

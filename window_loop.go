@@ -61,7 +61,7 @@ func (a *App) run(window *app.Window) error {
 	expl := explorer.NewExplorer(window)
 	uiActions := make(chan func(), 16)
 	// TODO(micro): Task concurrency 4 and 3s Close timeout are magic; name consts (also duplicated on DestroyEvent Close).
-	tasks := taskgroup.New(context.Background(), 4)
+	tasks := taskgroup.New(context.Background(), 4, a.CrashReporter)
 	defer func() {
 		if err := tasks.Close(3 * time.Second); err != nil {
 			operatorEvents.Diagnostic("Shutdown", err.Error(), nil)

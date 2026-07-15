@@ -42,6 +42,7 @@ type App struct {
 	Journal       *project.EditJournal
 	Timecode      *timecode.Service
 	Redundancy    *redundancy.Service
+	CrashReporter *crashreport.Reporter
 	Recovered     bool
 	RecoveredPath string
 	UI            UIState
@@ -61,26 +62,27 @@ type UIState struct {
 func main() { os.Exit(runMain()) }
 
 func runMain() (exitCode int) {
+	reporter := crashreport.New("")
 	defer func() {
 		if value := recover(); value != nil {
-			_ = crashreport.Write("main", value, debug.Stack())
+			_ = reporter.Write("main", value, debug.Stack())
 			log.Printf("fatal panic: %v", value)
 			exitCode = 2
 		}
 	}()
-	application, err := newApp()
+	application, err := newApp(reporter)
 	if err != nil {
 		log.Print(err)
 		return 1
 	}
-	if err := crashreport.InstallFatalOutput(); err != nil {
+	if err := reporter.InstallFatalOutput(); err != nil {
 		log.Printf("install fatal crash output: %v", err)
 		return 1
 	}
 	cleanExit := false
-	defer func() { crashreport.CloseFatalOutput(cleanExit) }()
+	defer func() { reporter.CloseFatalOutput(cleanExit) }()
 	runResult := make(chan error, 1)
-	crashreport.Go("operator-window", func() {
+	reporter.Go("operator-window", func() {
 		placement := application.Settings.Snapshot().OperatorWindow
 		window := new(app.Window)
 		window.Option(
@@ -110,12 +112,12 @@ func runMain() (exitCode int) {
 // stop-all, settings fan-out reconfigure, support-bundle paths, UI provider adapters). Keep
 // construction/wiring here; move handoff and "STOP before takeover" rules into redundancy or a
 // dedicated app/settings policy type so SettingsPage only receives domain ports.
-func newApp() (*App, error) {
+func newApp(reporter *crashreport.Reporter) (*App, error) {
 	settings, err := config.Open("")
 	if err != nil {
 		return nil, err
 	}
-	crashreport.SetDirectory(filepath.Join(filepath.Dir(settings.Path()), "crashes"))
+	reporter.SetDirectory(filepath.Join(filepath.Dir(settings.Path()), "crashes"))
 	showManager := show.NewShowManager()
 	journal, err := project.OpenEditJournal(filepath.Join(filepath.Dir(settings.Path()), "show-recovery.jsonl"))
 	if err != nil {
@@ -167,6 +169,7 @@ func newApp() (*App, error) {
 		Journal:       journal,
 		Timecode:      timecodeInput,
 		Redundancy:    spare,
+		CrashReporter: reporter,
 		Recovered:     hasRecovery,
 		RecoveredPath: recovered.DocumentPath,
 		UI: UIState{

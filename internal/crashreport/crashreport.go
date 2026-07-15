@@ -14,34 +14,35 @@ import (
 
 const retainedCrashLogCount = 10
 
-// TODO(macro): Package-level mutable state makes crash reporting a hidden
-// process singleton (directory, fatal file) that every caller must configure
-// globally. Prefer an explicit Reporter value constructed at process start and
-// passed/injected so tests and secondary binaries do not race on shared state.
-var state struct {
-	sync.RWMutex
+// Reporter owns crash output for one process composition root.
+type Reporter struct {
+	mu        sync.RWMutex
 	directory string
 	fatalFile *os.File
 	fatalPath string
 }
 
-// SetDirectory selects where crash reports are retained.
-func SetDirectory(directory string) {
-	state.Lock()
-	state.directory = directory
-	state.Unlock()
+// New constructs a reporter that writes to directory, or the OS temporary
+// directory when directory is empty.
+func New(directory string) *Reporter { return &Reporter{directory: directory} }
+
+// SetDirectory changes where future crash reports are retained.
+func (r *Reporter) SetDirectory(directory string) {
+	r.mu.Lock()
+	r.directory = directory
+	r.mu.Unlock()
 }
 
 // InstallFatalOutput asks the Go runtime to duplicate every unrecovered panic
 // and fatal throw, including those from arbitrary goroutines, into a durable
 // session crash file before the process terminates.
-func InstallFatalOutput() error {
-	state.Lock()
-	defer state.Unlock()
-	if state.fatalFile != nil {
+func (r *Reporter) InstallFatalOutput() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.fatalFile != nil {
 		return nil
 	}
-	directory := state.directory
+	directory := r.directory
 	if directory == "" {
 		directory = os.TempDir()
 	}
@@ -56,16 +57,16 @@ func InstallFatalOutput() error {
 	if err := debug.SetCrashOutput(file, debug.CrashOptions{}); err != nil {
 		return errors.Join(err, file.Close())
 	}
-	state.fatalFile, state.fatalPath = file, path
+	r.fatalFile, r.fatalPath = file, path
 	return nil
 }
 
 // CloseFatalOutput detaches the runtime crash sink and removes it after a clean exit.
-func CloseFatalOutput(clean bool) {
-	state.Lock()
-	file, path := state.fatalFile, state.fatalPath
-	state.fatalFile, state.fatalPath = nil, ""
-	state.Unlock()
+func (r *Reporter) CloseFatalOutput(clean bool) {
+	r.mu.Lock()
+	file, path := r.fatalFile, r.fatalPath
+	r.fatalFile, r.fatalPath = nil, ""
+	r.mu.Unlock()
 	if file == nil {
 		return
 	}
@@ -80,16 +81,16 @@ func CloseFatalOutput(clean bool) {
 // Go starts owned background work with a durable panic report. Re-panicking is
 // deliberate: the external supervisor must restart into a known silent state
 // instead of allowing a partially failed show-control process to continue.
-func Go(name string, work func()) {
-	go Run(name, work)
+func (r *Reporter) Go(name string, work func()) {
+	go r.Run(name, work)
 }
 
 // Run executes owned work with durable panic reporting on the current
 // goroutine. Re-panicking lets the external supervisor restore a known state.
-func Run(name string, work func()) {
+func (r *Reporter) Run(name string, work func()) {
 	defer func() {
 		if value := recover(); value != nil {
-			_ = Write(name, value, debug.Stack())
+			_ = r.Write(name, value, debug.Stack())
 			panic(value)
 		}
 	}()
@@ -97,10 +98,10 @@ func Run(name string, work func()) {
 }
 
 // Write persists one named panic and stack trace.
-func Write(component string, value any, stack []byte) error {
-	state.RLock()
-	directory := state.directory
-	state.RUnlock()
+func (r *Reporter) Write(component string, value any, stack []byte) error {
+	r.mu.RLock()
+	directory := r.directory
+	r.mu.RUnlock()
 	if directory == "" {
 		directory = os.TempDir()
 	}

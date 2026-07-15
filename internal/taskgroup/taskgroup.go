@@ -22,10 +22,11 @@ type Group struct {
 	mu     sync.Mutex
 	closed bool
 	wg     sync.WaitGroup
+	report *crashreport.Reporter
 }
 
 // New creates a group with bounded task concurrency.
-func New(parent context.Context, concurrency int) *Group {
+func New(parent context.Context, concurrency int, reporter *crashreport.Reporter) *Group {
 	if parent == nil {
 		parent = context.Background()
 	}
@@ -33,7 +34,7 @@ func New(parent context.Context, concurrency int) *Group {
 		concurrency = 1
 	}
 	ctx, cancel := context.WithCancel(parent)
-	return &Group{ctx: ctx, cancel: cancel, slots: make(chan struct{}, concurrency)}
+	return &Group{ctx: ctx, cancel: cancel, slots: make(chan struct{}, concurrency), report: reporter}
 }
 
 // Context is cancelled when the group closes.
@@ -57,7 +58,11 @@ func (g *Group) Go(name string, work func(context.Context)) bool {
 		case <-g.ctx.Done():
 			return
 		}
-		crashreport.Run(name, func() { work(g.ctx) })
+		if g.report == nil {
+			work(g.ctx)
+			return
+		}
+		g.report.Run(name, func() { work(g.ctx) })
 	}()
 	return true
 }
