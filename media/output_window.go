@@ -1,7 +1,6 @@
 package media
 
 import (
-	"image"
 	"log"
 	"sync"
 	"time"
@@ -14,6 +13,7 @@ import (
 	"gioui.org/op/paint"
 	"gioui.org/unit"
 	"gioui.org/widget"
+	"gioui.org/widget/material"
 	"github.com/syspoe/cusus/config"
 	"github.com/syspoe/cusus/palette"
 	"github.com/syspoe/cusus/playback"
@@ -23,7 +23,8 @@ type outputWindow struct {
 	id              string
 	controller      *outputController
 	window          *app.Window
-	players         map[string]*Player
+	session         stageSession
+	theme           *material.Theme
 	clickable       widget.Clickable
 	fullscreen      bool
 	blackout        bool
@@ -36,9 +37,7 @@ type outputWindow struct {
 	routed          bool
 	displayMissing  bool
 	lastGeometry    [4]int
-	heldFrame       image.Image
 	routeMu         sync.Mutex
-	lastSequence    uint64
 	geometryUpdates chan [4]int
 }
 
@@ -88,9 +87,7 @@ func (o *outputWindow) run() {
 		switch event := event.(type) {
 		case app.DestroyEvent:
 			log.Printf("media output %q closed: %v", o.id, event.Err)
-			for _, player := range o.players {
-				player.Close(false)
-			}
+			o.session.closePlayers(false)
 			return
 		case app.ViewEvent:
 			if handle := platformViewHandle(event); handle != 0 {
@@ -115,7 +112,7 @@ func (o *outputWindow) run() {
 			for {
 				select {
 				case mediaEvent := <-pending:
-					o.handleEvent(mediaEvent)
+					o.session.handleEvent(mediaEvent)
 				default:
 					break pendingLoop
 				}

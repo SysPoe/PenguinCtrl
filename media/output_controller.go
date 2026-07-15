@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"gioui.org/app"
+	"gioui.org/widget/material"
 	"github.com/syspoe/cusus/config"
 	"github.com/syspoe/cusus/playback"
 )
@@ -75,7 +76,8 @@ func (controller *outputController) ensureOutput(outputID string) {
 		controller.mu.Unlock()
 		return
 	}
-	output := &outputWindow{id: outputID, controller: controller, window: new(app.Window), players: map[string]*Player{}}
+	output := &outputWindow{id: outputID, controller: controller, window: new(app.Window), theme: material.NewTheme()}
+	output.session = newStageSession(output)
 	controller.windows[outputID] = output
 	controller.mu.Unlock()
 	go output.run()
