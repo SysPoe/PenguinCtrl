@@ -84,14 +84,12 @@ func SaveAtPathWithProgress(path string, current show.Show, ffmpegPath string, p
 	return manifest, nil
 }
 
-// TODO(macro): Keep archive-relative media refs distinct from runtime absolute
-// paths — Save rewrites cue File fields to media/... and Load rewrites them to
-// cache-absolute paths on the same show.Show type, so the domain model cannot
-// tell portable document paths from machine-local playback paths.
 // SaveWithProgress writes a portable .cusus ZIP archive and reports each asset
 // before it is prepared. Video containers supported by the playback engine are
 // bundled unchanged so saving a show does not require a lengthy offline encode.
-// Audio and images retain the normalized Opus/WebP archive representation.
+// Audio and images retain the normalized Opus/WebP archive representation. The
+// returned Manifest owns portable references; ProjectSession owns hydration to
+// runtime paths through the shared asset-reference traversal.
 func SaveWithProgress(dst io.Writer, current show.Show, ffmpegPath string, progress func(SaveProgress)) (Manifest, error) {
 	manifest := Manifest{Format: Format, Version: Version, Show: show.CloneShow(current)}
 	normalizeShowSchema(&manifest.Show, Version)
@@ -105,53 +103,35 @@ func SaveWithProgress(dst io.Writer, current show.Show, ffmpegPath string, progr
 	assets := map[string]pendingAsset{}
 	usedAssetPaths := map[string]struct{}{}
 
-	// TODO(macro): Ask the show domain for a cue's portable assets through one
-	// asset-enumeration contract. This archive-layer cue-type switch duplicates
-	// domain knowledge and can silently omit assets when a media cue type evolves.
-	for i := range manifest.Show.Cues {
-		cue := &manifest.Show.Cues[i]
-		var source, kind string
-		var replace func(string)
-		switch cue.Type {
-		case show.CueTypeSound:
-			if cue.Play.Sound != nil {
-				source, kind = cue.Play.Sound.File, "audio"
-				replace = func(path string) { cue.Play.Sound.File = path }
-			}
-		case show.CueTypeVideo:
-			if cue.Play.Video != nil {
-				source, kind = cue.Play.Video.File, "video"
-				replace = func(path string) { cue.Play.Video.File = path }
-			}
-		case show.CueTypeImage:
-			if cue.Play.Image != nil {
-				source, kind = cue.Play.Image.File, "image"
-				replace = func(path string) { cue.Play.Image.File = path }
-			}
-		}
-		if strings.TrimSpace(source) == "" || replace == nil {
-			continue
+	err := visitShowAssetReferences(&manifest.Show, func(reference showAssetReference) error {
+		source := reference.Path()
+		if strings.TrimSpace(source) == "" {
+			return nil
 		}
 		path, err := LocalPath(source)
 		if err != nil {
-			return Manifest{}, fmt.Errorf("cue %q: %w", cue.CueNumber, err)
+			return fmt.Errorf("cue %q: %w", reference.CueNumber, err)
 		}
 		hash, err := HashFile(path)
 		if err != nil {
-			return Manifest{}, fmt.Errorf("cue %q: %w", cue.CueNumber, err)
+			return fmt.Errorf("cue %q: %w", reference.CueNumber, err)
 		}
-		key := kind + ":" + hash
+		key := reference.Kind + ":" + hash
 		pending, ok := assets[key]
 		if !ok {
-			ext, format := archiveAssetFormat(kind, path)
-			id := hash[:archiveHashPrefixLength] + "-" + kind
+			ext, format := archiveAssetFormat(reference.Kind, path)
+			id := hash[:archiveHashPrefixLength] + "-" + reference.Kind
 			pending = pendingAsset{asset: Asset{
-				ID: id, Name: filepath.Base(path), Kind: kind,
+				ID: id, Name: filepath.Base(path), Kind: reference.Kind,
 				Path: uniqueAssetPath(path, ext, usedAssetPaths), SourceSHA256: hash, Format: format,
 			}, source: path}
 			assets[key] = pending
 		}
-		replace(pending.asset.Path)
+		reference.SetPath(pending.asset.Path)
+		return nil
+	})
+	if err != nil {
+		return Manifest{}, err
 	}
 
 	zw := zip.NewWriter(dst)

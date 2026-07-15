@@ -86,29 +86,14 @@ func isHexString(value string) bool {
 }
 
 func validateShowAssetReferences(current show.Show, assets map[string]Asset) error {
-	for _, cue := range current.Cues {
-		var source string
-		switch cue.Type {
-		case show.CueTypeSound:
-			if cue.Play.Sound != nil {
-				source = cue.Play.Sound.File
-			}
-		case show.CueTypeVideo:
-			if cue.Play.Video != nil {
-				source = cue.Play.Video.File
-			}
-		case show.CueTypeImage:
-			if cue.Play.Image != nil {
-				source = cue.Play.Image.File
-			}
-		}
-		source = filepath.ToSlash(strings.TrimSpace(source))
+	return visitShowAssetReferences(&current, func(reference showAssetReference) error {
+		source := reference.PortablePath()
 		if source == "" {
-			continue
+			return nil
 		}
 		if _, ok := assets[source]; !ok {
-			return fmt.Errorf("cue %q references undeclared archive asset %q", cue.CueNumber, source)
+			return fmt.Errorf("cue %q references undeclared archive asset %q", reference.CueNumber, source)
 		}
-	}
-	return nil
+		return nil
+	})
 }
