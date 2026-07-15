@@ -76,12 +76,12 @@ func TestTypedCueConstructorsKeepOperationalDefaults(t *testing.T) {
 	}
 	for _, cue := range all[:3] {
 		play, ok := cuePlayForType(cue.Play, cue.Type)
-		if !ok || mediaOutputID(play, cue.Type) != "{defaultMediaOutput}" {
+		if !ok || mediaOutputID(play, cue.Type) != "" {
 			t.Fatalf("media constructor defaults = type %v, play %#v", cue.Type, cue.Play)
 		}
 	}
 	remote := NewRemoteCue().Play.Remote
-	if remote == nil || remote.Protocol != RemoteProtocolAuto || remote.Action != RemoteActionGoto || remote.Playback != "{defaultPlayback}" || remote.CueNumber != "{cueNumber}" {
+	if remote == nil || remote.Protocol != RemoteProtocolAuto || remote.Action != RemoteActionGoto || remote.Playback != "" || remote.CueNumber != "" {
 		t.Fatalf("remote constructor defaults = %#v", remote)
 	}
 	wait := NewWaitCue().Play.Wait

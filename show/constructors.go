@@ -2,13 +2,8 @@ package show
 
 import (
 	"fmt"
-
-	"github.com/syspoe/cusus/palette"
 )
 
-// TODO(macro): Keep constructors domain-pure — default Color pulls UI palette
-// and media constructors bake template tokens like {defaultMediaOutput} into the
-// model, coupling show creation to presentation and config substitution policy.
 func NewCue(cueType CueType, description string, play CuePlay) Cue {
 	return Cue{
 		ID:          NewCueID(),
@@ -21,7 +16,6 @@ func NewCue(cueType CueType, description string, play CuePlay) Cue {
 				Kind: CueTargetNext,
 			},
 		},
-		Color: palette.WithAlpha(palette.Accent, 0),
 	}
 }
 
@@ -67,11 +61,11 @@ func newDefaultCue(cueType CueType) Cue {
 func defaultCuePlay(cueType CueType) CuePlay {
 	switch cueType {
 	case CueTypeVideo:
-		return CuePlay{Video: &VideoPlay{MediaClip: MediaClip{OutputID: "{defaultMediaOutput}"}}}
+		return CuePlay{Video: &VideoPlay{}}
 	case CueTypeImage:
-		return CuePlay{Image: &ImagePlay{OutputID: "{defaultMediaOutput}"}}
+		return CuePlay{Image: &ImagePlay{}}
 	case CueTypeRemote:
-		return CuePlay{Remote: &RemotePlay{Protocol: RemoteProtocolAuto, Action: RemoteActionGoto, Playback: "{defaultPlayback}", CueNumber: "{cueNumber}"}}
+		return CuePlay{Remote: &RemotePlay{Protocol: RemoteProtocolAuto, Action: RemoteActionGoto}}
 	case CueTypeWait:
 		return CuePlay{Wait: &WaitPlay{Kind: WaitDuration, DurationMs: 1000, Target: CueTarget{Kind: CueTargetNone}, Media: MediaTarget{Kind: MediaTargetAllMedia}}}
 	case CueTypeMediaControl:
@@ -79,6 +73,6 @@ func defaultCuePlay(cueType CueType) CuePlay {
 	case CueTypeOutputControl:
 		return CuePlay{OutputControl: &OutputControlPlay{Action: OutputControlTestPattern}}
 	default:
-		return CuePlay{Sound: &SoundPlay{MediaClip: MediaClip{OutputID: "{defaultMediaOutput}"}}}
+		return CuePlay{Sound: &SoundPlay{}}
 	}
 }

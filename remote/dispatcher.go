@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -183,6 +184,12 @@ func resolvePlay(play show.RemotePlay, settings config.Settings, cueNumber strin
 	play.Custom = config.Resolve(play.Custom, settings, cueNumber)
 	for i := range play.Values {
 		play.Values[i].Value = config.Resolve(play.Values[i].Value, settings, cueNumber)
+	}
+	if strings.TrimSpace(play.Playback) == "" {
+		play.Playback = settings.DefaultPlayback
+	}
+	if strings.TrimSpace(play.CueNumber) == "" {
+		play.CueNumber = cueNumber
 	}
 	return play
 }

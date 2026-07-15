@@ -19,6 +19,14 @@ type staticSettings struct{ value config.Settings }
 
 func (s staticSettings) Snapshot() config.Settings { return s.value }
 
+func TestResolvePlayUsesDefaultsForBlankDomainFields(t *testing.T) {
+	settings := config.Defaults()
+	resolved := resolvePlay(show.RemotePlay{}, settings, "12.5")
+	if resolved.Playback != settings.DefaultPlayback || resolved.CueNumber != "12.5" {
+		t.Fatalf("resolved defaults = playback %q, cue %q", resolved.Playback, resolved.CueNumber)
+	}
+}
+
 type concurrentSender struct {
 	delay    time.Duration
 	failHost string
