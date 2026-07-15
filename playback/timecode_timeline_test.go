@@ -2,6 +2,8 @@ package playback
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +13,108 @@ import (
 type timelineStub struct {
 	base    time.Duration
 	targets chan time.Duration
+}
+
+func TestMediaMarkerDispatchPreservesParentCueRunAndIsAudited(t *testing.T) {
+	engine := newLifecycleTestEngine(t)
+	engine.Start()
+	defer engine.Close()
+
+	cue := show.Cue{
+		ID: show.NewCueID(), CueNumber: "12", Type: show.CueTypeImage,
+		Play: show.CuePlay{Image: &show.ImagePlay{Timecode: []show.TimecodeMarker{{
+			Type: show.CueTypeOutputControl,
+			Action: show.CuePlay{OutputControl: &show.OutputControlPlay{
+				Action: show.OutputControlBlackout, OutputID: "main",
+			}},
+		}}}},
+	}
+	parentCtx, parentRunID, _ := engine.beginCueRun(cue.ID)
+	instanceID := "parent-timecode"
+	engine.mu.Lock()
+	engine.instances[instanceID] = &Instance{
+		ID: instanceID, CueID: cue.ID, RunID: parentRunID, RunContext: parentCtx,
+		MediaType: "image", OutputID: "main",
+	}
+	engine.mu.Unlock()
+	events := engine.hub.subscribe("main")
+
+	engine.scheduleTimecode(instanceID, cue, 0, parentCtx)
+
+	select {
+	case event := <-events:
+		if event.Action != "output" || event.Control != "blackout" {
+			t.Fatalf("marker event = %#v", event)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timecode marker was not dispatched")
+	}
+
+	engine.mu.RLock()
+	parentRun, active := engine.cueRuns[cue.ID]
+	instanceActive := engine.instances[instanceID] != nil
+	engine.mu.RUnlock()
+	if !active || parentRun.id != parentRunID || parentCtx.Err() != nil || !instanceActive {
+		t.Fatalf("marker replaced parent run: active=%v run=%d want=%d context=%v instance=%v", active, parentRun.id, parentRunID, parentCtx.Err(), instanceActive)
+	}
+
+	eventually(t, time.Second, func() bool {
+		history := engine.CommandHistory()
+		return len(history) == 1 && history[0].Sequence > 0 &&
+			!history[0].AcceptedAt.IsZero() && !history[0].DispatchedAt.IsZero() && !history[0].CompletedAt.IsZero()
+	})
+	history := engine.CommandHistory()
+	if history[0].Origin != "Timecode at 00:00.000" || history[0].CueID != cue.ID {
+		t.Fatalf("marker command history = %#v", history[0])
+	}
+}
+
+func TestMediaMarkerUsesPreflightAdmissionWithoutStoppingParent(t *testing.T) {
+	engine := newLifecycleTestEngine(t)
+	engine.Start()
+	defer engine.Close()
+	engine.SetPreflightGate(func(show.Cue) error { return errors.New("marker preflight blocked") })
+
+	cue := show.Cue{
+		ID: show.NewCueID(), Type: show.CueTypeImage,
+		Play: show.CuePlay{Image: &show.ImagePlay{Timecode: []show.TimecodeMarker{{
+			Type: show.CueTypeOutputControl,
+			Action: show.CuePlay{OutputControl: &show.OutputControlPlay{
+				Action: show.OutputControlBlackout, OutputID: "main",
+			}},
+		}}}},
+	}
+	parentCtx, parentRunID, _ := engine.beginCueRun(cue.ID)
+	instanceID := "blocked-parent-timecode"
+	engine.mu.Lock()
+	engine.instances[instanceID] = &Instance{
+		ID: instanceID, CueID: cue.ID, RunID: parentRunID, RunContext: parentCtx,
+		MediaType: "image", OutputID: "main",
+	}
+	engine.mu.Unlock()
+	events := engine.hub.subscribe("main")
+
+	engine.scheduleTimecode(instanceID, cue, 0, parentCtx)
+
+	eventually(t, time.Second, func() bool { return strings.Contains(engine.LastError(), "marker preflight blocked") })
+	for {
+		select {
+		case event := <-events:
+			if event.Action == "output" {
+				t.Fatalf("blocked marker reached output: %#v", event)
+			}
+		default:
+			goto drained
+		}
+	}
+drained:
+	engine.mu.RLock()
+	parentRun, active := engine.cueRuns[cue.ID]
+	instanceActive := engine.instances[instanceID] != nil
+	engine.mu.RUnlock()
+	if !active || parentRun.id != parentRunID || parentCtx.Err() != nil || !instanceActive {
+		t.Fatalf("blocked marker disturbed parent run: active=%v run=%d want=%d context=%v instance=%v", active, parentRun.id, parentRunID, parentCtx.Err(), instanceActive)
+	}
 }
 
 func (t *timelineStub) Enabled() bool           { return true }

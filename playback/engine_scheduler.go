@@ -126,6 +126,51 @@ func (e *Engine) enqueue(cue show.Cue, index int, origin string) error {
 }
 
 func (e *Engine) enqueueCommand(cue show.Cue, index int, preview bool, origin string, override bool) error {
+	if err := e.admitCommand(cue, preview, origin, override); err != nil {
+		return err
+	}
+	runCtx, runID, stopped := e.beginCueRun(cue.ID)
+	for _, instance := range stopped {
+		e.hub.publish(Event{Action: "control", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID}, Control: "stop"})
+		e.hub.publish(Event{Action: "remove", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID}})
+	}
+	if len(stopped) > 0 {
+		e.signalState()
+	}
+	err := e.enqueueAcceptedCommand(command{
+		cue: cue, index: index, ctx: runCtx, runID: runID, preview: preview,
+		origin: origin, ownsRun: true,
+	})
+	if err != nil {
+		e.finishCueRun(cue.ID, runID, true)
+		if !preview {
+			e.recordCueError(cue, origin, err)
+		}
+	}
+	return err
+}
+
+// enqueueEmbeddedCommand admits a timecode action as a child of its live media
+// cue. It deliberately reuses the parent's context and run ID instead of calling
+// beginCueRun, which would cancel the media instance that owns the marker.
+func (e *Engine) enqueueEmbeddedCommand(cue show.Cue, index int, origin string, runCtx context.Context, runID uint64) error {
+	if runCtx == nil || runCtx.Err() != nil || !e.cueRunCurrent(cue.ID, runID) {
+		return context.Canceled
+	}
+	if err := e.admitCommand(cue, false, origin, false); err != nil {
+		return err
+	}
+	err := e.enqueueAcceptedCommand(command{
+		cue: cue, index: index, ctx: runCtx, runID: runID,
+		origin: origin, ownsRun: false,
+	})
+	if err != nil {
+		e.recordCueError(cue, origin, err)
+	}
+	return err
+}
+
+func (e *Engine) admitCommand(cue show.Cue, preview bool, origin string, override bool) error {
 	if e.safetyLatched.Load() {
 		err := errors.New("playback safety latch is active: " + e.SafetyLatchReason())
 		if !preview {
@@ -170,38 +215,25 @@ func (e *Engine) enqueueCommand(cue show.Cue, index int, preview bool, origin st
 			log.Add(operatorlog.Warning, origin+" · caution", strings.Join(cautions, "; "), cue.ID, cue.CueNumber)
 		}
 	}
-	runCtx, runID, stopped := e.beginCueRun(cue.ID)
-	for _, instance := range stopped {
-		e.hub.publish(Event{Action: "control", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID}, Control: "stop"})
-		e.hub.publish(Event{Action: "remove", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID}})
-	}
-	if len(stopped) > 0 {
-		e.signalState()
-	}
+	return nil
+}
+
+func (e *Engine) enqueueAcceptedCommand(next command) error {
 	e.enqueueMu.Lock()
 	sequence := e.nextCommandSequence + 1
 	acceptedAt := time.Now()
+	next.sequence, next.acceptedAt = sequence, acceptedAt
 	select {
-	case e.commands <- command{cue: cue, index: index, ctx: runCtx, runID: runID, preview: preview, origin: origin, sequence: sequence, acceptedAt: acceptedAt}:
+	case e.commands <- next:
 		e.nextCommandSequence = sequence
 		e.enqueueMu.Unlock()
 		return nil
 	case <-e.ctx.Done():
 		e.enqueueMu.Unlock()
-		e.finishCueRun(cue.ID, runID, true)
-		err := errors.New("playback engine is stopped")
-		if !preview {
-			e.recordCueError(cue, origin, err)
-		}
-		return err
+		return errors.New("playback engine is stopped")
 	default:
 		e.enqueueMu.Unlock()
-		e.finishCueRun(cue.ID, runID, true)
-		err := errors.New("playback command queue is full")
-		if !preview {
-			e.recordCueError(cue, origin, err)
-		}
-		return err
+		return errors.New("playback command queue is full")
 	}
 }
 

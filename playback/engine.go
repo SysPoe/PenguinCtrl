@@ -23,6 +23,7 @@ type command struct {
 	origin     string
 	sequence   uint64
 	acceptedAt time.Time
+	ownsRun    bool
 }
 
 type cueRun struct {

@@ -29,7 +29,7 @@ func (e *Engine) execute(next command) {
 			e.skipDispatch(next.sequence)
 		}
 		e.recordCommand(next, time.Time{}, time.Now())
-		if !keepRun {
+		if next.ownsRun && !keepRun {
 			cancel := next.ctx.Err() != nil || next.cue.Link.Mode == show.CueLinkManual
 			e.finishCueRun(next.cue.ID, next.runID, cancel)
 		}

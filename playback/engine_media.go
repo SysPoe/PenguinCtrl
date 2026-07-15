@@ -95,15 +95,16 @@ func (e *Engine) startMedia(next command) error {
 	return nil
 }
 
-// TODO(macro): Timecode markers synthesize embedded cues and call execute() directly,
-// bypassing the admission path (enqueueCommand gates, sequence numbers, command
-// history). Extract a TimecodeScheduler that enqueues through the same ports as GO
-// so authority/preflight/audit policy cannot be skipped by marker actions.
 func (e *Engine) scheduleTimecode(instanceID string, cue show.Cue, cueIndex int, runCtx context.Context) {
 	markers := mediaTimecode(cue)
 	sort.SliceStable(markers, func(i, j int) bool { return markers[i].TimeMs < markers[j].TimeMs })
 	e.mu.RLock()
 	timeline := e.timeline
+	parent := e.instances[instanceID]
+	parentRunID := uint64(0)
+	if parent != nil {
+		parentRunID = parent.RunID
+	}
 	e.mu.RUnlock()
 	external := timeline != nil && timeline.Enabled()
 	base := time.Duration(0)
@@ -137,7 +138,9 @@ func (e *Engine) scheduleTimecode(instanceID string, cue show.Cue, cueIndex int,
 				ID: cue.ID, CueNumber: cue.CueNumber, Description: cue.Description,
 				Type: marker.Type, Play: action, Link: show.CueLink{Mode: show.CueLinkManual},
 			}
-			e.execute(command{cue: embedded, index: cueIndex, ctx: runCtx, origin: "Timecode at " + formatPlaybackTime(marker.TimeMs)})
+			if err := e.enqueueEmbeddedCommand(embedded, cueIndex, "Timecode at "+formatPlaybackTime(marker.TimeMs), runCtx, parentRunID); err != nil {
+				return
+			}
 		})
 	}
 }
