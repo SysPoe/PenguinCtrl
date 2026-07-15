@@ -34,7 +34,7 @@ func TestTranscodeCacheHitUsesSharedLayout(t *testing.T) {
 	if err := os.WriteFile(want, []byte("cached transcode"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	got, err := transcode(filepath.Join(t.TempDir(), "missing-ffmpeg"), "unused.wav", "audio", hash)
+	got, err := newMediaPreparer(filepath.Join(t.TempDir(), "missing-ffmpeg")).transcode("unused.wav", "audio", hash)
 	if err != nil || got != want {
 		t.Fatalf("transcode cache hit = %q, %v; want %q", got, err, want)
 	}

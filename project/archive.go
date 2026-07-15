@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/syspoe/cusus/internal/atomicfile"
@@ -154,18 +155,19 @@ func SaveWithProgress(dst io.Writer, current show.Show, ffmpegPath string, progr
 	}
 
 	zw := zip.NewWriter(dst)
+	preparer := newMediaPreparer(ffmpegPath)
 	keys := make([]string, 0, len(assets))
 	for key := range assets {
 		keys = append(keys, key)
 	}
 	// Stable ordering keeps archives reproducible for the same inputs.
-	sortStrings(keys)
+	sort.Strings(keys)
 	for index, key := range keys {
 		pending := assets[key]
 		if progress != nil {
 			progress(SaveProgress{Current: index + 1, Total: len(keys), Kind: pending.asset.Kind, Name: pending.asset.Name})
 		}
-		converted, err := prepareAsset(ffmpegPath, pending.source, pending.asset.Kind, pending.asset.Format, pending.asset.SourceSHA256)
+		converted, err := preparer.Prepare(pending.source, pending.asset.Kind, pending.asset.Format, pending.asset.SourceSHA256)
 		if err != nil {
 			return Manifest{}, fmt.Errorf("prepare %s %q: %w", pending.asset.Kind, pending.asset.Name, err)
 		}
@@ -210,25 +212,6 @@ func SaveWithProgress(dst io.Writer, current show.Show, ffmpegPath string, progr
 	return manifest, nil
 }
 
-func archiveAssetFormat(kind, source string) (extension, format string) {
-	switch kind {
-	case "audio":
-		return ".opus", "opus"
-	case "image":
-		return ".webp", "webp"
-	case "video":
-		extension = strings.ToLower(filepath.Ext(source))
-		switch extension {
-		case ".mp4", ".mov", ".mkv", ".webm", ".avi":
-			return extension, strings.TrimPrefix(extension, ".")
-		default:
-			return ".webm", "webm"
-		}
-	default:
-		return "", ""
-	}
-}
-
 func uniqueAssetPath(source, extension string, used map[string]struct{}) string {
 	base := filepath.Base(source)
 	stem := strings.TrimSuffix(base, filepath.Ext(base))
@@ -248,14 +231,4 @@ func uniqueAssetPath(source, extension string, used map[string]struct{}) string 
 		used[key] = struct{}{}
 		return path
 	}
-}
-
-func prepareAsset(ffmpegPath, source, kind, format, sourceHash string) (string, error) {
-	extension := strings.ToLower(filepath.Ext(source))
-	if (kind == "video" && format == strings.TrimPrefix(extension, ".")) ||
-		(kind == "audio" && extension == ".opus") ||
-		(kind == "image" && extension == ".webp") {
-		return source, nil
-	}
-	return transcode(ffmpegPath, source, kind, sourceHash)
 }
