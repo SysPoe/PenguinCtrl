@@ -84,8 +84,15 @@ func (a *App) run(window *app.Window) error {
 	// inside the UI loop and health provider.
 	var documentMu sync.RWMutex
 	var saveMu sync.Mutex
+	digestShow := func(current show.Show) [sha256.Size]byte {
+		digest, err := current.Digest()
+		if err == nil {
+			return digest
+		}
+		return sha256.Sum256([]byte("invalid-show:" + err.Error()))
+	}
 	currentShowPath := a.RecoveredPath
-	lastSavedDigest := showDigest(manager.ShowSnapshot())
+	lastSavedDigest := digestShow(manager.ShowSnapshot())
 	if a.Recovered {
 		lastSavedDigest = [sha256.Size]byte{}
 		operatorPanel.SetStatus("Recovered unsaved show edits · save to confirm recovery")
@@ -102,7 +109,7 @@ func (a *App) run(window *app.Window) error {
 	lastFrameAt := time.Now()
 	healthMonitor := newHealthService(func() []health.Component {
 		documentMu.RLock()
-		path, dirty := currentShowPath, showDigest(manager.ShowSnapshot()) != lastSavedDigest
+		path, dirty := currentShowPath, digestShow(manager.ShowSnapshot()) != lastSavedDigest
 		documentMu.RUnlock()
 		return collectHealthComponents(playbackEngine, mediaManager, a.Timecode, a.Redundancy, settingsStore.Snapshot(), path, dirty)
 	})
@@ -157,7 +164,7 @@ func (a *App) run(window *app.Window) error {
 	manager.SetOnChange(func() {
 		snapshot := manager.ShowSnapshot()
 		documentMu.RLock()
-		path, suppressed, dirty := currentShowPath, suppressJournal, showDigest(snapshot) != lastSavedDigest
+		path, suppressed, dirty := currentShowPath, suppressJournal, digestShow(snapshot) != lastSavedDigest
 		documentMu.RUnlock()
 		if !suppressed && dirty && a.Journal != nil {
 			if err := a.Journal.RecordDirty(snapshot, path); err != nil {
@@ -264,7 +271,7 @@ func (a *App) run(window *app.Window) error {
 				manager.ReplaceShow(manifest.Show)
 				documentMu.Lock()
 				currentShowPath = loadedPath
-				lastSavedDigest = showDigest(manifest.Show)
+				lastSavedDigest = digestShow(manifest.Show)
 				suppressJournal = false
 				documentMu.Unlock()
 				if a.Journal != nil {
@@ -324,7 +331,7 @@ func (a *App) run(window *app.Window) error {
 			}
 			documentMu.Lock()
 			currentShowPath = path
-			lastSavedDigest = showDigest(snapshot)
+			lastSavedDigest = digestShow(snapshot)
 			documentMu.Unlock()
 			if a.Journal != nil {
 				if err := a.Journal.MarkSaved(snapshot, path); err != nil {
@@ -365,7 +372,7 @@ func (a *App) run(window *app.Window) error {
 				return
 			}
 			documentMu.Lock()
-			lastSavedDigest = showDigest(snapshot)
+			lastSavedDigest = digestShow(snapshot)
 			documentMu.Unlock()
 			if a.Journal != nil {
 				if err := a.Journal.MarkSaved(snapshot, path); err != nil {
@@ -391,7 +398,7 @@ func (a *App) run(window *app.Window) error {
 		manager.ReplaceShow(show.Show{})
 		documentMu.Lock()
 		currentShowPath = ""
-		lastSavedDigest = showDigest(show.Show{})
+		lastSavedDigest = digestShow(show.Show{})
 		suppressJournal = false
 		documentMu.Unlock()
 		if a.Journal != nil {
@@ -437,7 +444,7 @@ func (a *App) run(window *app.Window) error {
 		case <-closeRequests:
 			snapshot := manager.ShowSnapshot()
 			documentMu.RLock()
-			dirty := showDigest(snapshot) != lastSavedDigest
+			dirty := digestShow(snapshot) != lastSavedDigest
 			documentMu.RUnlock()
 			if documentGuard.Request(ui.DocumentActionClose, dirty) {
 				if err := closeInterceptor.AllowAndClose(); err != nil {
@@ -451,7 +458,7 @@ func (a *App) run(window *app.Window) error {
 		case app.DestroyEvent:
 			snapshot := manager.ShowSnapshot()
 			documentMu.RLock()
-			path, dirty := currentShowPath, showDigest(snapshot) != lastSavedDigest
+			path, dirty := currentShowPath, digestShow(snapshot) != lastSavedDigest
 			documentMu.RUnlock()
 			if dirty && a.Journal != nil {
 				if err := a.Journal.RecordDirty(snapshot, path); err != nil {
@@ -602,8 +609,7 @@ func (a *App) run(window *app.Window) error {
 			}
 			a.handleCueListShortcuts(gtx)
 			documentMu.RLock()
-			// TODO(micro): Re-clones the full show just for dirty check; reuse showState from above (or lastSavedDigest compare against showDigest(showState)).
-			dirty := showDigest(manager.ShowSnapshot()) != lastSavedDigest
+			dirty := digestShow(showState) != lastSavedDigest
 			documentMu.RUnlock()
 			if !documentGuard.Visible() {
 				if topBar.TakeNewRequest() && documentGuard.Request(ui.DocumentActionNew, dirty) {

@@ -1,8 +1,8 @@
 package main
 
 import (
+	"encoding/hex"
 	"errors"
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -131,9 +131,11 @@ func newApp() (*App, error) {
 	operatorEvents := operatorlog.NewStore()
 	operatorEvents.SetLogPath(filepath.Join(filepath.Dir(settings.Path()), "operator-events.jsonl"))
 	operatorEvents.SetContext(applicationBuildID(), func() string {
-		digest := showDigest(showManager.ShowSnapshot())
-		// TODO(micro): Use hex.EncodeToString here instead of routing fixed bytes through fmt.Sprintf.
-		return fmt.Sprintf("%x", digest[:8])
+		digest, err := showManager.ShowSnapshot().Digest()
+		if err != nil {
+			return "invalid-show"
+		}
+		return hex.EncodeToString(digest[:8])
 	})
 	log.SetOutput(operatorEvents.Writer("Runtime"))
 	engine := playback.NewEngine(showManager, settings)

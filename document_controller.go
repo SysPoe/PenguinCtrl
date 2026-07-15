@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/sha256"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -55,16 +53,6 @@ func documentName(path string) string {
 		return "show.cusus"
 	}
 	return filepath.Base(path)
-}
-
-// TODO(macro): showDigest is a cross-cutting identity helper used by journal dirty checks,
-// preflight cache keys, operator-log context, and recovery — not document-controller scope.
-// Own it on show.Show or project (canonical production digest) so main packages stop re-exporting
-// hashing policy.
-func showDigest(current show.Show) [sha256.Size]byte {
-	// TODO(micro): ignore json.Marshal error; marshal failure yields a hash of nil and silently corrupts digests
-	raw, _ := json.Marshal(current)
-	return sha256.Sum256(raw)
 }
 
 // TODO(macro): Atomic replace/backup save path belongs in project.Save/Publish (archive package

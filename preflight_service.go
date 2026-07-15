@@ -63,11 +63,10 @@ func (s *preflightService) Close() { s.cancel(); s.wg.Wait() }
 
 func (s *preflightService) Request(showState show.Show, settings config.Settings, audioWarning, videoWarning string, health []remote.TargetHealth, problems func(show.Cue) []show.CueProblem) []operatorlog.PreflightCheck {
 	cues := showState.Cues
-	showBytes, err := json.Marshal(showState)
+	showDigest, err := showState.Digest()
 	if err != nil {
 		return preflightEncodingFailure("show", err)
 	}
-	showDigest := sha256.Sum256(showBytes)
 	environment, err := json.Marshal(struct {
 		Settings     config.Settings
 		Audio, Video string
@@ -120,11 +119,10 @@ func (s *preflightService) compute(key, showDigest [sha256.Size]byte, cues []sho
 }
 
 func (s *preflightService) Gate(current show.Show, selected show.Cue) error {
-	raw, err := json.Marshal(current)
+	digest, err := current.Digest()
 	if err != nil {
-		return fmt.Errorf("encode show for preflight gate: %w", err)
+		return fmt.Errorf("compute show identity for preflight gate: %w", err)
 	}
-	digest := sha256.Sum256(raw)
 	s.mu.RLock()
 	snapshot, expected := s.latest, s.key
 	s.mu.RUnlock()
