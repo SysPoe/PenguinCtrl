@@ -16,7 +16,7 @@ type mediaRuntime struct {
 	mu       sync.RWMutex
 	settings *config.Store
 	audio    *AudioSystem
-	decoder  *FFmpegBackend
+	decoder  RuntimeBackend
 	closed   bool
 }
 

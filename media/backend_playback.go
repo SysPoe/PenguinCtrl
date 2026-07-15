@@ -74,8 +74,8 @@ func (s *ffmpegSession) Frame(position time.Duration) image.Image {
 	for s.pending != nil && s.pending.pts <= position+interval/2 {
 		previous := s.current
 		s.current, s.pending = s.pending, nil
-		if previous != nil {
-			s.recycleFrame(previous.image)
+		if previous != nil && previous.image != nil {
+			s.framePool.Put(previous.image)
 		}
 		due++
 		select {
