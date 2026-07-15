@@ -11,7 +11,12 @@ param(
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-$output = [IO.Path]::GetFullPath((Join-Path $root $OutputDirectory))
+$output = if ([IO.Path]::IsPathRooted($OutputDirectory)) {
+    [IO.Path]::GetFullPath($OutputDirectory)
+}
+else {
+    [IO.Path]::GetFullPath((Join-Path $root $OutputDirectory))
+}
 $version = $Version.TrimStart('v')
 $commit = (& git -C $root rev-parse HEAD).Trim()
 $commitTime = [DateTimeOffset]::FromUnixTimeSeconds([int64](& git -C $root show -s --format=%ct HEAD))
