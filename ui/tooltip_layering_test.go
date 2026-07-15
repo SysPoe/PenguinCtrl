@@ -14,9 +14,9 @@ func TestOperatorPanelOverlayVisible(t *testing.T) {
 		want  bool
 	}{
 		{name: "closed"},
-		{name: "blocker", panel: OperatorPanel{showBlocker: true}, want: true},
-		{name: "event log", panel: OperatorPanel{showLog: true}, want: true},
-		{name: "preflight", panel: OperatorPanel{showPreflight: true}, want: true},
+		{name: "blocker", panel: OperatorPanel{blocker: operatorBlocker{visible: true}}, want: true},
+		{name: "event log", panel: OperatorPanel{view: operatorPanelEventLog}, want: true},
+		{name: "preflight", panel: OperatorPanel{view: operatorPanelPreflight}, want: true},
 	}
 
 	for _, test := range tests {

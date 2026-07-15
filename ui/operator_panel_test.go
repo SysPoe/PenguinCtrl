@@ -12,6 +12,7 @@ import (
 	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/palette"
 	"github.com/syspoe/cusus/preflight"
+	"github.com/syspoe/cusus/show"
 )
 
 func TestOperatorStatusPresentation(t *testing.T) {
@@ -38,7 +39,7 @@ func TestOperatorStatusPresentation(t *testing.T) {
 func TestOperatorStatusCanBeAcknowledged(t *testing.T) {
 	var panel OperatorPanel
 	panel.SetStatus("Loaded show.cusus · recovery journal on")
-	panel.ackButton.Click()
+	panel.bar.ackButton.Click()
 
 	gtx := layout.Context{
 		Ops:         new(op.Ops),
@@ -47,14 +48,14 @@ func TestOperatorStatusCanBeAcknowledged(t *testing.T) {
 	}
 	panel.LayoutBar(material.NewTheme(), gtx, operatorlog.NewStore(), nil)
 
-	if panel.status != "" {
-		t.Fatalf("acknowledged status = %q, want empty", panel.status)
+	if panel.bar.status != "" {
+		t.Fatalf("acknowledged status = %q, want empty", panel.bar.status)
 	}
 }
 
 func TestOperatorEventListFillsViewportWidth(t *testing.T) {
 	var panel OperatorPanel
-	panel.list.Axis = layout.Vertical
+	panel.eventLog.list.Axis = layout.Vertical
 	gtx := layout.Context{
 		Ops:         new(op.Ops),
 		Constraints: layout.Constraints{Max: image.Pt(640, 480)},
@@ -66,9 +67,70 @@ func TestOperatorEventListFillsViewportWidth(t *testing.T) {
 		Message:  "player is closed",
 	}}
 
-	dimensions := panel.layoutEvents(material.NewTheme(), gtx, events)
+	dimensions := panel.eventLog.layoutEvents(material.NewTheme(), gtx, events)
 	if dimensions.Size.X != gtx.Constraints.Max.X {
 		t.Fatalf("event list width = %d, want viewport width %d", dimensions.Size.X, gtx.Constraints.Max.X)
+	}
+}
+
+func TestOperatorPanelSwitchesFocusedChildrenWithoutSharingScrollState(t *testing.T) {
+	var panel OperatorPanel
+	panel.eventLog.list.Position.First = 4
+	panel.preflight.list.Position.First = 1
+	store := operatorlog.NewStore()
+
+	panel.bar.logButton.Click()
+	panel.LayoutBar(material.NewTheme(), operatorTestContext(1280, 54), store, nil)
+	if panel.view != operatorPanelEventLog {
+		t.Fatalf("selected view = %v, want event log", panel.view)
+	}
+	panel.bar.preflightButton.Click()
+	panel.LayoutBar(material.NewTheme(), operatorTestContext(1280, 54), store, nil)
+	if panel.view != operatorPanelPreflight {
+		t.Fatalf("selected view = %v, want preflight", panel.view)
+	}
+	if panel.eventLog.list.Position.First != 4 || panel.preflight.list.Position.First != 1 {
+		t.Fatalf("mode switch changed child scroll positions: log=%d preflight=%d", panel.eventLog.list.Position.First, panel.preflight.list.Position.First)
+	}
+	panel.bar.preflightButton.Click()
+	panel.LayoutBar(material.NewTheme(), operatorTestContext(1280, 54), store, nil)
+	if panel.view != operatorPanelClosed {
+		t.Fatalf("second preflight toggle selected %v, want closed", panel.view)
+	}
+}
+
+func TestOperatorPreflightNavigatorOwnsFilterAndNavigationState(t *testing.T) {
+	blockerID, warningID := show.NewCueID(), show.NewCueID()
+	checks := []preflight.Check{
+		{Severity: operatorlog.ShowStopping, CueID: blockerID, Field: "file"},
+		{Severity: operatorlog.Warning, CueID: warningID, Field: "routing"},
+	}
+	var navigator operatorPreflightNavigator
+	navigator.problemIndex = 9
+	navigator.filterButton.Click()
+	if navigator.update(operatorTestContext(640, 480), checks, nil) {
+		t.Fatal("filter update closed preflight")
+	}
+	if navigator.filter != preflightFilterBlockers || navigator.problemIndex != 0 {
+		t.Fatalf("filter state = (%v, %d), want blockers at index zero", navigator.filter, navigator.problemIndex)
+	}
+
+	var gotID show.CueID
+	var gotField string
+	navigator.nextButton.Click()
+	navigator.update(operatorTestContext(640, 480), checks, func(id show.CueID, _ bool, field string) {
+		gotID, gotField = id, field
+	})
+	if gotID != blockerID || gotField != "file" {
+		t.Fatalf("navigation = (%v, %q), want blocker file", gotID, gotField)
+	}
+}
+
+func TestOperatorBlockerPreservesSelectedChild(t *testing.T) {
+	panel := OperatorPanel{view: operatorPanelEventLog, blocker: operatorBlocker{visible: true}}
+	panel.DismissBlocker()
+	if panel.blocker.visible || panel.view != operatorPanelEventLog {
+		t.Fatalf("dismissed blocker state = visible %v, view %v", panel.blocker.visible, panel.view)
 	}
 }
 
@@ -97,7 +159,7 @@ func TestBlockerFilterIncludesCueFailures(t *testing.T) {
 		{Severity: operatorlog.Warning},
 	}
 
-	filtered := filterPreflight(checks, 1)
+	filtered := filterPreflight(checks, preflightFilterBlockers)
 	if len(filtered) != 2 || filtered[0].Severity != operatorlog.ShowStopping || filtered[1].Severity != operatorlog.CueFailure {
 		t.Fatalf("blocker filter = %#v", filtered)
 	}
@@ -125,5 +187,13 @@ func TestInformationalPreflightIsReadyWithoutAttention(t *testing.T) {
 	}
 	if !preflightRequiresAttention(checks) {
 		t.Fatal("warning preflight does not require attention")
+	}
+}
+
+func operatorTestContext(width, height int) layout.Context {
+	return layout.Context{
+		Ops:         new(op.Ops),
+		Constraints: layout.Exact(image.Pt(width, height)),
+		Metric:      unit.Metric{PxPerDp: 1, PxPerSp: 1},
 	}
 }
