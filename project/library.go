@@ -22,13 +22,11 @@ type File struct {
 	Kind   string `json:"kind"`
 }
 
-// Library keeps a content-addressed list of project media. Selecting the same
-// bytes twice returns the original entry rather than adding a duplicate.
-// TODO(macro): Clarify Library vs Manifest.Assets vs show File paths — Library is
-// a session-scoped content-addressed list independent of archive assets and the
-// on-disk cache, so open/save must manually Replace/republish between them. Make
-// the open project a single ProjectSession that owns library, archive path, and
-// cache protection set so asset identity is not re-derived at each boundary.
+// Library keeps a content-addressed list of local media available to the open
+// session. File.Source is always a runtime OS path; portable media/... paths and
+// archive metadata belong to Manifest and are converted by ProjectSession.
+// Selecting the same bytes twice returns the original entry rather than adding
+// a duplicate.
 type Library struct {
 	mu    sync.RWMutex
 	files []File

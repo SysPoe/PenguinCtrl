@@ -32,16 +32,17 @@ func (archive ExtractedArchive) HydrateShow() show.Show {
 }
 
 // Load is the compatibility entry point for callers that expect a hydrated
-// Manifest.Show and a library snapshot in one operation. New session code can
-// use Extract and call HydrateShow explicitly at the runtime boundary.
+// Manifest.Show and a library snapshot in one operation. New code should retain
+// the ProjectSession returned by OpenSession so archive identity, runtime media,
+// and cache protection remain under one owner.
 func Load(path string) (Manifest, []File, error) {
-	archive, err := Extract(path)
+	session, err := OpenSession(path)
 	if err != nil {
 		return Manifest{}, nil, err
 	}
-	manifest := archive.Manifest
-	manifest.Show = archive.HydrateShow()
-	return manifest, archive.Files, nil
+	manifest := session.PortableManifest()
+	manifest.Show = session.RuntimeShow()
+	return manifest, session.MediaFiles(""), nil
 }
 
 // Extract verifies and publishes a .cusus archive while preserving its
