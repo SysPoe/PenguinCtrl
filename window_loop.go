@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"image"
-	"io"
 	"log"
-	"os"
 	"strings"
 	"time"
 
@@ -23,7 +21,6 @@ import (
 	"github.com/syspoe/cusus/internal/taskgroup"
 	"github.com/syspoe/cusus/media"
 	"github.com/syspoe/cusus/operatorlog"
-	"github.com/syspoe/cusus/preflight"
 	"github.com/syspoe/cusus/project"
 	"github.com/syspoe/cusus/show"
 	"github.com/syspoe/cusus/ui"
@@ -84,12 +81,7 @@ func (a *App) run(window *app.Window) error {
 	var documentGuard ui.DocumentGuard
 	var closeInterceptor windowCloseInterceptor
 	closeRequests := make(chan struct{}, 1)
-	var lastAudioOperatorWarning, lastVideoOperatorWarning string
-	var lastRedundancyFingerprintError string
-	var emergencyResetting bool
-	lastMixerUnderruns := map[string]uint64{}
 	var safetyResume widget.Clickable
-	lastFrameAt := time.Now()
 	healthCollectors := newHealthCollectors(
 		playbackEngine, mediaManager, a.Playback.Timecode, a.Playback.Redundancy, settingsStore.Snapshot,
 		func() (string, bool) {
@@ -113,6 +105,18 @@ func (a *App) run(window *app.Window) error {
 	playbackEngine.SetPreflightGate(func(cue show.Cue) error { return preflightService.Gate(manager.ShowSnapshot(), cue) })
 	playbackEngine.SetAuthorityGate(a.Playback.Redundancy.Gate)
 	playbackEngine.SetRemoteAuthorityExecutor(a.Playback.Redundancy.WithAuthority)
+	frameController := newOperatorFrameController(operatorFrameConfig{
+		playback: playbackEngine, media: mediaManager,
+		timecode: a.Playback.Timecode, redundancy: a.Playback.Redundancy,
+		settings: settingsStore, show: manager, library: projectLibrary,
+		events: operatorEvents, panel: operatorPanel, topBar: topBar,
+		audioWarningSettings: audioWarningSettings, safetyResume: &safetyResume,
+		tasks: tasks, postUI: postUI, health: healthMonitor, preflight: preflightService,
+		showAudioSettings: func() {
+			a.UI.ShowSettings = true
+			settingsPage.ShowAudioDevices()
+		},
+	})
 	cacheMaintainer := project.StartCacheMaintainer(
 		func() bool {
 			return len(playbackEngine.ActiveInstances()) > 0 || len(playbackEngine.ActiveExecutions()) > 0
@@ -201,168 +205,13 @@ func (a *App) run(window *app.Window) error {
 		})
 	}
 
-	// TODO(macro): loadShow/saveShow/saveAsShow/performNew embed explorer I/O, temp-file staging,
-	// project.Load/Save, library replace, journal mark, and playback StopAll. These are a
-	// document use-case layer (project package or document controller type), not frame-loop
-	// locals; extract so open/save policy can be tested without Gio explorer/window.
-	loadShow := func() {
-		tasks.Go("open-show", func(ctx context.Context) {
-			file, err := expl.ChooseFile(".cusus")
-			if err != nil {
-				if !errors.Is(err, explorer.ErrUserDecline) {
-					operatorEvents.Add(operatorlog.Recoverable, "Open show", err.Error(), show.CueID{}, "")
-					postUI(ctx, func() { operatorPanel.SetStatus("Open failed: " + err.Error()) })
-				}
-				return
-			}
-			defer func() { _ = file.Close() }()
-			loadedPath := explorerPath(file)
-			tmp, err := os.CreateTemp("", "cusus-open-*.cusus")
-			if err == nil {
-				_, err = io.Copy(tmp, file)
-			}
-			if tmp != nil {
-				err = closeWithError(tmp, err)
-				defer func() { _ = os.Remove(tmp.Name()) }()
-			}
-			if err != nil {
-				operatorEvents.Add(operatorlog.Recoverable, "Open show", err.Error(), show.CueID{}, "")
-				postUI(ctx, func() { operatorPanel.SetStatus("Open failed: " + err.Error()) })
-				return
-			}
-			manifest, files, err := project.Load(tmp.Name())
-			if err != nil {
-				operatorEvents.Add(operatorlog.Recoverable, "Open show", err.Error(), show.CueID{}, "")
-				postUI(ctx, func() { operatorPanel.SetStatus("Open failed: " + err.Error()) })
-				return
-			}
-			postUI(ctx, func() {
-				playbackEngine.StopAll()
-				projectLibrary.Replace(files)
-				document.beginReplace()
-				manager.ReplaceShow(manifest.Show)
-				document.finishReplace(loadedPath, manifest.Show)
-				if a.Document.Journal != nil {
-					if err := a.Document.Journal.MarkSaved(manifest.Show, loadedPath); err != nil {
-						operatorEvents.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
-					}
-				}
-				operatorPanel.SetStatus("Loaded " + documentName(loadedPath) + " · recovery journal on")
-				operatorEvents.Diagnostic("Open show", "Show loaded and verified", map[string]any{"documentPath": loadedPath, "assets": len(files)})
-			})
-		})
-	}
-
-	var saveAsShow func(func(bool))
-	var saveShow func(func(bool))
-
-	saveAsShow = func(done func(bool)) {
-		complete := func(ctx context.Context, success bool) {
-			if done != nil {
-				postUI(ctx, func() { done(success) })
-			}
-		}
-		tasks.Go("save-show-as", func(ctx context.Context) {
-			file, err := expl.CreateFile("show.cusus")
-			if err != nil {
-				if !errors.Is(err, explorer.ErrUserDecline) {
-					operatorEvents.Add(operatorlog.Recoverable, "Save show", err.Error(), show.CueID{}, "")
-					postUI(ctx, func() { operatorPanel.SetStatus("Save failed: " + err.Error()) })
-				}
-				complete(ctx, false)
-				return
-			}
-			path := explorerPath(file)
-			if closeErr := file.Close(); closeErr != nil {
-				operatorEvents.Add(operatorlog.Recoverable, "Save show", closeErr.Error(), show.CueID{}, "")
-				complete(ctx, false)
-				return
-			}
-			if strings.TrimSpace(path) == "" {
-				operatorEvents.Add(operatorlog.Recoverable, "Save show", "file picker did not return a filesystem path", show.CueID{}, "")
-				complete(ctx, false)
-				return
-			}
-			postUI(ctx, func() { operatorPanel.SetStatus("Saving and optimizing bundled media…") })
-			snapshot := manager.ShowSnapshot()
-			var manifest project.Manifest
-			document.serializeSave(func() {
-				manifest, err = project.SaveAtPathWithProgress(path, snapshot, settingsStore.Snapshot().FFmpegPath, func(progress project.SaveProgress) {
-					status := formatSaveProgress(path, progress)
-					postUI(ctx, func() { operatorPanel.SetStatus(status) })
-				})
-			})
-			if err != nil {
-				operatorEvents.Add(operatorlog.Recoverable, "FFmpeg / save show", err.Error(), show.CueID{}, "")
-				postUI(ctx, func() { operatorPanel.SetStatus("Save failed: " + err.Error()) })
-				complete(ctx, false)
-				return
-			}
-			document.markSaved(path, snapshot)
-			if a.Document.Journal != nil {
-				if err := a.Document.Journal.MarkSaved(snapshot, path); err != nil {
-					operatorEvents.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
-				}
-			}
-			postUI(ctx, func() {
-				operatorPanel.SetStatus("Saved " + documentName(path) + " · recovery journal on · " + formatFileCount(len(manifest.Assets)))
-				operatorEvents.Diagnostic("Save show", "Show archive published", map[string]any{"documentPath": path, "assets": len(manifest.Assets)})
-			})
-			complete(ctx, true)
-		})
-	}
-
-	saveShow = func(done func(bool)) {
-		path := document.pathSnapshot()
-		if path == "" {
-			saveAsShow(done)
-			return
-		}
-		tasks.Go("save-show", func(ctx context.Context) {
-			snapshot := manager.ShowSnapshot()
-			postUI(ctx, func() { operatorPanel.SetStatus("Saving " + documentName(path) + "…") })
-			var manifest project.Manifest
-			document.serializeSave(func() {
-				manifest, err = project.SaveAtPathWithProgress(path, snapshot, settingsStore.Snapshot().FFmpegPath, func(progress project.SaveProgress) {
-					status := formatSaveProgress(path, progress)
-					postUI(ctx, func() { operatorPanel.SetStatus(status) })
-				})
-			})
-			if err != nil {
-				operatorEvents.Add(operatorlog.Recoverable, "Save show", err.Error(), show.CueID{}, "")
-				postUI(ctx, func() { operatorPanel.SetStatus("Save failed: " + err.Error()) })
-				if done != nil {
-					postUI(ctx, func() { done(false) })
-				}
-				return
-			}
-			document.markSaved("", snapshot)
-			if a.Document.Journal != nil {
-				if err := a.Document.Journal.MarkSaved(snapshot, path); err != nil {
-					operatorEvents.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
-				}
-			}
-			postUI(ctx, func() {
-				operatorPanel.SetStatus("Saved " + documentName(path) + " · recovery journal on · " + formatFileCount(len(manifest.Assets)))
-				operatorEvents.Diagnostic("Save show", "Show archive published", map[string]any{"documentPath": path, "assets": len(manifest.Assets)})
-			})
-			if done != nil {
-				postUI(ctx, func() { done(true) })
-			}
-		})
-	}
-
-	performNew := func() {
-		playbackEngine.StopAll()
-		projectLibrary.Replace(nil)
-		document.beginReplace()
-		manager.ReplaceShow(show.Show{})
-		document.finishReplace("", show.Show{})
-		if a.Document.Journal != nil {
-			_ = a.Document.Journal.MarkSaved(show.Show{}, "")
-		}
-		operatorPanel.SetStatus("New untitled show · recovery journal on")
-	}
+	documents := newDocumentController(documentControllerConfig{
+		explorer: expl, tasks: tasks, postUI: postUI, manager: manager,
+		playback: playbackEngine, library: projectLibrary, session: document,
+		journal: a.Document.Journal, settings: settingsStore,
+		events: operatorEvents, panel: operatorPanel,
+	})
+	loadShow, saveShow, saveAsShow, performNew := documents.Load, documents.Save, documents.SaveAs, documents.New
 	performDocumentAction := func(action ui.DocumentAction) {
 		switch action {
 		case ui.DocumentActionNew:
@@ -456,103 +305,14 @@ func (a *App) run(window *app.Window) error {
 			}
 
 		case app.FrameEvent:
-			// TODO(macro): FrameEvent owns orchestration policy (clock-gap latch, prewarm,
-			// E-STOP media reset pipeline, audio/video warning edge logging, preflight+health
-			// merge, redundancy fingerprint) interleaved with layout. Split a per-frame
-			// operator controller from pure layout so show-control side effects are not
-			// order-dependent on paint path.
 			now := time.Now()
-			// TODO(micro): 3s clock-gap latch threshold is a magic duration; name a const (e.g. frameClockDiscontinuityGap).
-			if gap := now.Sub(lastFrameAt); gap > 3*time.Second {
-				playbackEngine.LatchClockDiscontinuity(gap)
-			}
-			lastFrameAt = now
 			gtx := app.NewContext(&ops, e)
 			// TODO(micro): 1s frame invalidate cadence is magic; name a const (and consider aligning with main_page refresh).
 			gtx.Execute(op.InvalidateCmd{At: time.Now().Add(time.Second)})
-			// TODO(micro): PreloadCandidates(3) limit is magic; name a prewarmCandidateLimit const.
-			mediaManager.Prewarm(playbackEngine.PreloadCandidates(3))
-			if audioWarningSettings.Clicked(gtx) {
-				a.UI.ShowSettings = true
-				settingsPage.ShowAudioDevices()
-			}
-			if safetyResume.Clicked(gtx) {
-				if emergencyResetting {
-					operatorPanel.SetStatus("E-STOP reset is still running; playback remains latched")
-				} else {
-					a.Playback.Timecode.Coordinator().Acknowledge(true)
-					playbackEngine.AcknowledgeSafetyLatch()
-					operatorPanel.SetStatus("Playback re-armed after operator acknowledgement · press GO when ready")
-				}
-			}
-			if topBar.TakeEmergencyStopRequest() {
-				emergencyResetting = true
-				topBar.SetEmergencyResetting(true)
-				playbackEngine.BeginEmergencyReset()
-				operatorPanel.SetStatus("E-STOP asserted · force-stopping and reinitializing media outputs")
-				operatorEvents.Add(operatorlog.ShowStopping, "E-STOP", "Force-stopping and reinitializing media outputs", show.CueID{}, "")
-				tasks.Go("emergency-media-reset", func(ctx context.Context) {
-					err := mediaManager.EmergencyReset(ctx)
-					postUI(ctx, func() {
-						playbackEngine.CompleteEmergencyReset(err)
-						emergencyResetting = false
-						topBar.SetEmergencyResetting(false)
-						if err != nil {
-							operatorPanel.SetStatus("E-STOP reset failed · playback remains latched")
-							return
-						}
-						mediaManager.SyncOutputs(playbackEngine.OutputIDs())
-						operatorPanel.SetStatus("E-STOP reset complete · media outputs ready")
-						operatorEvents.Add(operatorlog.Info, "E-STOP", "Media outputs reinitialized and playback re-armed", show.CueID{}, "")
-					})
-				})
-			}
-			if topBar.TakeBlackoutRequest() {
-				playbackEngine.BlackoutAll()
-				operatorPanel.SetStatus("BLACKOUT asserted · Ctrl+Shift+B")
-			}
-			audioWarning := mediaManager.AudioDeviceWarning()
-			videoWarning := videoRoutingWarning(mediaManager)
-			if audioWarning != "" && audioWarning != lastAudioOperatorWarning {
-				severity := operatorlog.Warning
-				if len(preflight.AudioWarningAffectedCues(manager.Snapshot(), audioWarning)) > 0 {
-					severity = operatorlog.CueFailure
-				}
-				operatorEvents.Add(severity, "Audio output", audioWarning, show.CueID{}, "")
-			} else if audioWarning == "" && lastAudioOperatorWarning != "" {
-				operatorEvents.Diagnostic("Audio output", "Audio endpoint health restored", nil)
-			}
-			if videoWarning != "" && videoWarning != lastVideoOperatorWarning {
-				severity := operatorlog.Warning
-				if len(preflight.VideoWarningAffectedCues(manager.Snapshot(), settingsStore.Snapshot(), videoWarning)) > 0 {
-					severity = operatorlog.CueFailure
-				}
-				operatorEvents.Add(severity, "Video output", videoWarning, show.CueID{}, "")
-			} else if videoWarning == "" && lastVideoOperatorWarning != "" {
-				operatorEvents.Diagnostic("Video output", "Video output health restored", nil)
-			}
-			for _, metrics := range mediaManager.AudioMixerMetrics() {
-				if previous := lastMixerUnderruns[metrics.EndpointID]; metrics.TotalUnderruns > previous {
-					operatorEvents.Diagnostic("Audio mixer", "Audio underrun count increased", map[string]any{
-						"endpointId": metrics.EndpointID, "underruns": metrics.TotalUnderruns,
-						"activeSources": metrics.ActiveSources, "lastCallback": metrics.LastCallback,
-					})
-				}
-				lastMixerUnderruns[metrics.EndpointID] = metrics.TotalUnderruns
-			}
-			lastAudioOperatorWarning, lastVideoOperatorWarning = audioWarning, videoWarning
-			healthSnapshot := healthMonitor.Snapshot()
-			operatorPanel.SetHealth(operatorHealthState(healthSnapshot).String())
-			showState, settingsState := manager.ShowSnapshot(), settingsStore.Snapshot()
-			preflight := preflightService.Request(showState, settingsState, audioWarning, videoWarning, playbackEngine.RemoteHealth(), playbackEngine.CueProblems)
-			lastRedundancyFingerprintError = updateRedundancyFingerprint(a.Playback.Redundancy, showState, settingsState, projectLibrary.Files(""), redundancyPreflightReady(preflight), lastRedundancyFingerprintError, func(message string) {
-				operatorEvents.Add(operatorlog.ShowStopping, "Warm spare", "Could not calculate the production fingerprint: "+message, show.CueID{}, "")
-			})
-			preflight = append(preflight, healthPreflightChecks(healthSnapshot)...)
-			for i := range preflight {
-				preflight[i].Acknowledged = manager.ProblemAcknowledged(preflight[i].Fingerprint)
-			}
+			preflight := frameController.Update(gtx, now)
+			audioWarning, videoWarning := frameController.Warnings()
 			a.handleCueListShortcuts(gtx)
+			showState := manager.ShowSnapshot()
 			_, dirty, _ := document.status(showState)
 			if !documentGuard.Visible() {
 				if topBar.TakeNewRequest() && documentGuard.Request(ui.DocumentActionNew, dirty) {

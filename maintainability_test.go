@@ -21,25 +21,26 @@ const (
 	maximumMutableGlobals       = 16
 )
 
-// TODO(macro): The strict-file list omits window_loop.go / health_service.go /
-// document_controller.go cohesion problems that still concentrate orchestration in package main.
-// After splitting those god files, add them to formerLargeFiles so they cannot regress.
 var formerLargeFiles = map[string]struct{}{
-	"main.go":                 {},
-	"media/audio.go":          {},
-	"media/backend.go":        {},
-	"media/manager.go":        {},
-	"media/player.go":         {},
-	"playback/engine.go":      {},
-	"project/archive.go":      {},
-	"show/manager.go":         {},
-	"show/warnings.go":        {},
-	"ui/cue_edit_pages.go":    {},
-	"ui/main_page.go":         {},
-	"ui/operator_panel.go":    {},
-	"ui/settings_page.go":     {},
-	"ui/tb_context.go":        {},
-	"ui/timecode_timeline.go": {},
+	"document_controller.go":       {},
+	"health_service.go":            {},
+	"main.go":                      {},
+	"operator_frame_controller.go": {},
+	"window_loop.go":               {},
+	"media/audio.go":               {},
+	"media/backend.go":             {},
+	"media/manager.go":             {},
+	"media/player.go":              {},
+	"playback/engine.go":           {},
+	"project/archive.go":           {},
+	"show/manager.go":              {},
+	"show/warnings.go":             {},
+	"ui/cue_edit_pages.go":         {},
+	"ui/main_page.go":              {},
+	"ui/operator_panel.go":         {},
+	"ui/settings_page.go":          {},
+	"ui/tb_context.go":             {},
+	"ui/timecode_timeline.go":      {},
 }
 
 func TestProductionFilesStayWithinMaintainabilityLimits(t *testing.T) {

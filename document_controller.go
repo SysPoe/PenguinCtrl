@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -9,8 +11,186 @@ import (
 
 	"gioui.org/x/explorer"
 
+	"github.com/syspoe/cusus/config"
+	"github.com/syspoe/cusus/internal/taskgroup"
+	"github.com/syspoe/cusus/operatorlog"
+	"github.com/syspoe/cusus/playback"
 	"github.com/syspoe/cusus/project"
+	"github.com/syspoe/cusus/show"
+	"github.com/syspoe/cusus/ui"
 )
+
+type documentExplorer interface {
+	ChooseFile(...string) (io.ReadCloser, error)
+	CreateFile(string) (io.WriteCloser, error)
+}
+
+type documentControllerConfig struct {
+	explorer documentExplorer
+	tasks    *taskgroup.Group
+	postUI   func(context.Context, func()) bool
+	manager  *show.ShowManager
+	playback *playback.Engine
+	library  *project.Library
+	session  *documentSession
+	journal  *project.EditJournal
+	settings *config.Store
+	events   *operatorlog.Store
+	panel    *ui.OperatorPanel
+}
+
+type documentController struct{ documentControllerConfig }
+
+func newDocumentController(config documentControllerConfig) *documentController {
+	return &documentController{documentControllerConfig: config}
+}
+
+func (c *documentController) Load() {
+	c.tasks.Go("open-show", func(ctx context.Context) {
+		file, err := c.explorer.ChooseFile(".cusus")
+		if err != nil {
+			if !errors.Is(err, explorer.ErrUserDecline) {
+				c.reportFailure(ctx, "Open show", err)
+			}
+			return
+		}
+		defer func() { _ = file.Close() }()
+		loadedPath := explorerPath(file)
+		tmp, err := os.CreateTemp("", "cusus-open-*.cusus")
+		if err == nil {
+			_, err = io.Copy(tmp, file)
+		}
+		if tmp != nil {
+			err = closeWithError(tmp, err)
+			defer func() { _ = os.Remove(tmp.Name()) }()
+		}
+		if err != nil {
+			c.reportFailure(ctx, "Open show", err)
+			return
+		}
+		manifest, files, err := project.Load(tmp.Name())
+		if err != nil {
+			c.reportFailure(ctx, "Open show", err)
+			return
+		}
+		c.postUI(ctx, func() { c.replaceLoaded(loadedPath, manifest.Show, files) })
+	})
+}
+
+func (c *documentController) replaceLoaded(path string, current show.Show, files []project.File) {
+	c.playback.StopAll()
+	c.library.Replace(files)
+	c.session.beginReplace()
+	c.manager.ReplaceShow(current)
+	c.session.finishReplace(path, current)
+	c.markJournalSaved(current, path)
+	c.panel.SetStatus("Loaded " + documentName(path) + " · recovery journal on")
+	c.events.Diagnostic("Open show", "Show loaded and verified", map[string]any{"documentPath": path, "assets": len(files)})
+}
+
+func (c *documentController) SaveAs(done func(bool)) {
+	c.tasks.Go("save-show-as", func(ctx context.Context) {
+		file, err := c.explorer.CreateFile("show.cusus")
+		if err != nil {
+			if !errors.Is(err, explorer.ErrUserDecline) {
+				c.reportFailure(ctx, "Save show", err)
+			}
+			c.complete(ctx, done, false)
+			return
+		}
+		path := explorerPath(file)
+		if err := file.Close(); err != nil {
+			c.events.Add(operatorlog.Recoverable, "Save show", err.Error(), show.CueID{}, "")
+			c.complete(ctx, done, false)
+			return
+		}
+		if strings.TrimSpace(path) == "" {
+			c.events.Add(operatorlog.Recoverable, "Save show", "file picker did not return a filesystem path", show.CueID{}, "")
+			c.complete(ctx, done, false)
+			return
+		}
+		c.saveAt(ctx, path, true, done)
+	})
+}
+
+func (c *documentController) Save(done func(bool)) {
+	path := c.session.pathSnapshot()
+	if path == "" {
+		c.SaveAs(done)
+		return
+	}
+	c.tasks.Go("save-show", func(ctx context.Context) { c.saveAt(ctx, path, false, done) })
+}
+
+func (c *documentController) saveAt(ctx context.Context, path string, updatePath bool, done func(bool)) {
+	if updatePath {
+		c.postUI(ctx, func() { c.panel.SetStatus("Saving and optimizing bundled media…") })
+	} else {
+		c.postUI(ctx, func() { c.panel.SetStatus("Saving " + documentName(path) + "…") })
+	}
+	snapshot := c.manager.ShowSnapshot()
+	var manifest project.Manifest
+	var err error
+	c.session.serializeSave(func() {
+		manifest, err = project.SaveAtPathWithProgress(path, snapshot, c.settings.Snapshot().FFmpegPath, func(progress project.SaveProgress) {
+			status := formatSaveProgress(path, progress)
+			c.postUI(ctx, func() { c.panel.SetStatus(status) })
+		})
+	})
+	if err != nil {
+		source := "Save show"
+		if updatePath {
+			source = "FFmpeg / save show"
+		}
+		c.reportFailure(ctx, source, err)
+		c.complete(ctx, done, false)
+		return
+	}
+	if updatePath {
+		c.session.markSaved(path, snapshot)
+	} else {
+		c.session.markSaved("", snapshot)
+	}
+	c.markJournalSaved(snapshot, path)
+	c.postUI(ctx, func() {
+		c.panel.SetStatus("Saved " + documentName(path) + " · recovery journal on · " + formatFileCount(len(manifest.Assets)))
+		c.events.Diagnostic("Save show", "Show archive published", map[string]any{"documentPath": path, "assets": len(manifest.Assets)})
+	})
+	c.complete(ctx, done, true)
+}
+
+func (c *documentController) New() {
+	c.playback.StopAll()
+	c.library.Replace(nil)
+	c.session.beginReplace()
+	c.manager.ReplaceShow(show.Show{})
+	c.session.finishReplace("", show.Show{})
+	c.markJournalSaved(show.Show{}, "")
+	c.panel.SetStatus("New untitled show · recovery journal on")
+}
+
+func (c *documentController) markJournalSaved(current show.Show, path string) {
+	if c.journal != nil {
+		if err := c.journal.MarkSaved(current, path); err != nil {
+			c.events.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
+		}
+	}
+}
+
+func (c *documentController) reportFailure(ctx context.Context, source string, err error) {
+	c.events.Add(operatorlog.Recoverable, source, err.Error(), show.CueID{}, "")
+	operation := "Save"
+	if strings.HasPrefix(source, "Open") {
+		operation = "Open"
+	}
+	c.postUI(ctx, func() { c.panel.SetStatus(operation + " failed: " + err.Error()) })
+}
+
+func (c *documentController) complete(ctx context.Context, done func(bool), success bool) {
+	if done != nil {
+		c.postUI(ctx, func() { done(success) })
+	}
+}
 
 func closeWithError(closer io.Closer, current error) error {
 	if closeErr := closer.Close(); current == nil {
