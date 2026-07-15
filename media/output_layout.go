@@ -235,7 +235,7 @@ func paintRectOutline(gtx layout.Context, rect image.Rectangle, width int, fill 
 
 // TODO(micro): layoutFrame allocates a throwaway *Player just to call LayoutScaled; extract a free function that paints an image with scaling.
 func layoutFrame(gtx layout.Context, frame image.Image, scaling string) layout.Dimensions {
-	player := &Player{frame: frame}
+	player := &Player{playerPresentationState: playerPresentationState{frame: frame}}
 	return player.LayoutScaled(gtx, scaling)
 }
 

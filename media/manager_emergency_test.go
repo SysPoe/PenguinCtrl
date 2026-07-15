@@ -4,12 +4,13 @@ import (
 	"context"
 	"testing"
 
+	"github.com/syspoe/cusus/internal/taskgroup"
 	"github.com/syspoe/cusus/playback"
 )
 
 func TestOutputWideStopClosesPlayersMissingFromEngineState(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	player := &Player{ctx: ctx, cancel: cancel}
+	workers := taskgroup.NewUnbounded(context.Background(), nil)
+	player := &Player{ctx: workers.Context(), workers: workers}
 	output := &outputWindow{players: map[string]*Player{"orphaned-audio": player}}
 
 	output.applyEvent(playback.Event{Action: "control", Control: "stop-all"})

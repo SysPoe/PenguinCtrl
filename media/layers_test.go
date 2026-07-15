@@ -9,8 +9,8 @@ import (
 
 func TestPlayerLayerOrderBreaksSameTimestampTiesDeterministically(t *testing.T) {
 	started := time.Now()
-	first := &Player{instance: playback.Instance{ID: "z", LayerOrder: 4}, started: started}
-	second := &Player{instance: playback.Instance{ID: "a", LayerOrder: 5}, started: started}
+	first := &Player{instance: playback.Instance{ID: "z", LayerOrder: 4}, playerSessionState: playerSessionState{started: started}}
+	second := &Player{instance: playback.Instance{ID: "a", LayerOrder: 5}, playerSessionState: playerSessionState{started: started}}
 	if !playerLayerLess(first, second) || playerLayerLess(second, first) {
 		t.Fatal("command layer order did not control equal-time composition")
 	}
@@ -21,7 +21,7 @@ func TestPlayerLayerOrderBreaksSameTimestampTiesDeterministically(t *testing.T) 
 }
 
 func TestSingleLayerKeepsPresentedVisualUnderIncomingPlayer(t *testing.T) {
-	old := &Player{instance: playback.Instance{ID: "old", LayerOrder: 1}, presented: true}
+	old := &Player{instance: playback.Instance{ID: "old", LayerOrder: 1}, playerPresentationState: playerPresentationState{presented: true}}
 	incoming := &Player{instance: playback.Instance{ID: "new", LayerOrder: 2}}
 
 	got := playersForLayers([]*Player{old, incoming}, 1)
@@ -32,12 +32,12 @@ func TestSingleLayerKeepsPresentedVisualUnderIncomingPlayer(t *testing.T) {
 
 func TestSingleLayerKeepsOutgoingVisualForReplacementFade(t *testing.T) {
 	old := &Player{
-		instance:      playback.Instance{ID: "old", LayerOrder: 1},
-		presented:     true,
-		visualFadeAt:  time.Now(),
-		visualFadeFor: time.Second,
+		instance: playback.Instance{ID: "old", LayerOrder: 1},
+		playerPresentationState: playerPresentationState{
+			presented: true, visualFadeAt: time.Now(), visualFadeFor: time.Second,
+		},
 	}
-	incoming := &Player{instance: playback.Instance{ID: "new", LayerOrder: 2}, presented: true}
+	incoming := &Player{instance: playback.Instance{ID: "new", LayerOrder: 2}, playerPresentationState: playerPresentationState{presented: true}}
 
 	got := playersForLayers([]*Player{old, incoming}, 1)
 	if len(got) != 2 || got[0] != old || got[1] != incoming {

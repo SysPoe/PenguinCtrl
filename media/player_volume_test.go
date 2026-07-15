@@ -10,8 +10,8 @@ import (
 
 func TestVideoVolumeDoesNotChangeVisualOpacity(t *testing.T) {
 	player := &Player{
-		instance: playback.Instance{MediaType: "video"},
-		volumeDB: -40,
+		instance:           playback.Instance{MediaType: "video"},
+		playerSessionState: playerSessionState{volumeDB: -40},
 	}
 
 	if got := player.visualOpacity(time.Second); got != 1 {
@@ -21,10 +21,11 @@ func TestVideoVolumeDoesNotChangeVisualOpacity(t *testing.T) {
 
 func TestVisualOpacityFadesOutIndependentlyOfAudioVolume(t *testing.T) {
 	player := &Player{
-		instance:      playback.Instance{MediaType: "video"},
-		volumeDB:      -12,
-		visualFadeAt:  time.Now().Add(-500 * time.Millisecond),
-		visualFadeFor: time.Second,
+		instance:           playback.Instance{MediaType: "video"},
+		playerSessionState: playerSessionState{volumeDB: -12},
+		playerPresentationState: playerPresentationState{
+			visualFadeAt: time.Now().Add(-500 * time.Millisecond), visualFadeFor: time.Second,
+		},
 	}
 
 	want := srgbOpacity(0.5)
@@ -35,8 +36,8 @@ func TestVisualOpacityFadesOutIndependentlyOfAudioVolume(t *testing.T) {
 
 func TestImageOpacityUsesLinearLightFade(t *testing.T) {
 	player := &Player{
-		instance: playback.Instance{MediaType: "image", FadeInMs: 2000},
-		volumeDB: -40,
+		instance:           playback.Instance{MediaType: "image", FadeInMs: 2000},
+		playerSessionState: playerSessionState{volumeDB: -40},
 	}
 
 	want := srgbOpacity(0.5)

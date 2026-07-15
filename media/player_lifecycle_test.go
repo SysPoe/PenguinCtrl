@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/syspoe/cusus/internal/taskgroup"
 	"github.com/syspoe/cusus/playback"
 )
 
@@ -93,8 +94,8 @@ func waitForVolume(t *testing.T, session *recordingPlaybackSession, want float64
 }
 
 func TestPlayerCloseCancelsAndJoinsOwnedWork(t *testing.T) {
-	player := &Player{}
-	player.ctx, player.cancel = context.WithCancel(context.Background())
+	workers := taskgroup.NewUnbounded(context.Background(), nil)
+	player := &Player{workers: workers, ctx: workers.Context()}
 	started := make(chan struct{})
 	exited := make(chan struct{})
 	if !player.goOwned(func(ctx context.Context) {

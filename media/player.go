@@ -2,7 +2,6 @@ package media
 
 import (
 	"context"
-	"image"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
@@ -11,16 +10,14 @@ import (
 
 	"gioui.org/app"
 	"github.com/syspoe/cusus/config"
+	"github.com/syspoe/cusus/internal/taskgroup"
 	"github.com/syspoe/cusus/playback"
 	_ "golang.org/x/image/webp"
 )
 
-// TODO(macro): Player owns session lifecycle, shared/private backends, wall/audio
-// clocks, Gio invalidation, visual fades, volume fades, duration discovery, and
-// image loading — a second god object under Manager. Narrow it to presentation
-// state + control fan-out; keep decode/session and offline probe work behind the
-// backend (or helper packages) so pause/seek/visibility do not also mean process
-// ownership.
+// Player coordinates a shared backend session with independent runtime and
+// presentation state. Decoder processes, image loading, and offline analysis
+// remain behind PlaybackBackend and media/analysis.
 type Player struct {
 	instance playback.Instance
 	settings *config.Store
@@ -30,53 +27,30 @@ type Player struct {
 	failure  func(error)
 	backend  PlaybackBackend
 	ctx      context.Context
-	cancel   context.CancelFunc
-	workerMu sync.Mutex
-	workers  sync.WaitGroup
-	closing  bool
+	workers  *taskgroup.Group
 
-	mu            sync.RWMutex
-	frame         image.Image
-	session       PlaybackSession
-	clock         *PlaybackClock
-	position      time.Duration
-	paused        bool
-	closed        bool
-	muted         bool
-	volumeDB      float64
-	volumeFadeID  uint64
-	generation    int
-	started       time.Time
-	decodeVisible bool
-	presented     bool
-	visualFadeAt  time.Time
-	visualFadeFor time.Duration
-	initialFadeIn bool
+	mu sync.RWMutex
+	playerSessionState
+	playerPresentationState
 }
 
 func NewPlayerWithBackend(instance playback.Instance, settings *config.Store, backend PlaybackBackend, window *app.Window, report func(string), duration func(int64), failure func(error)) *Player {
-	ctx, cancel := context.WithCancel(context.Background())
+	workers := taskgroup.NewUnbounded(context.Background(), nil)
 	return &Player{
 		instance: instance, settings: settings, window: window, report: report, duration: duration, failure: failure,
-		backend: backend, volumeDB: instance.LevelDB, decodeVisible: true, ctx: ctx, cancel: cancel,
-		initialFadeIn: instance.FadeInMs > 0 && (instance.MediaType == playback.MediaTypeAudio || instance.MediaType == playback.MediaTypeVideo),
+		backend: backend, ctx: workers.Context(), workers: workers,
+		playerSessionState: playerSessionState{
+			volumeDB: instance.LevelDB, decodeVisible: true,
+			initialFadeIn: instance.FadeInMs > 0 && (instance.MediaType == playback.MediaTypeAudio || instance.MediaType == playback.MediaTypeVideo),
+		},
 	}
 }
 
-// TODO(micro): goOwned pattern is duplicated with playback.Engine / taskgroup; share one owned-worker helper
 func (p *Player) goOwned(work func(context.Context)) bool {
-	p.workerMu.Lock()
-	if p.closing {
-		p.workerMu.Unlock()
+	if p.workers == nil {
 		return false
 	}
-	p.workers.Add(1)
-	p.workerMu.Unlock()
-	go func() {
-		defer p.workers.Done()
-		work(p.ctx)
-	}()
-	return true
+	return p.workers.Go("media player worker", work)
 }
 
 func (p *Player) reportFailure(err error) {

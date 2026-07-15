@@ -129,13 +129,9 @@ func (p *Player) Close(report bool) {
 	p.generation++
 	p.stopSessionLocked()
 	p.mu.Unlock()
-	p.workerMu.Lock()
-	if !p.closing {
-		p.closing = true
-		p.cancel()
+	if p.workers != nil {
+		_ = p.workers.Close(0)
 	}
-	p.workerMu.Unlock()
-	p.workers.Wait()
 	if report {
 		p.report("stopped")
 	}
