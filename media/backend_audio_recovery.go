@@ -42,9 +42,9 @@ func (endpoint *recoveredAudioEndpoint) close() {
 	}
 }
 
-func (endpoint *recoveredAudioEndpoint) bindClock(clock *PlaybackClock) {
+func (endpoint *recoveredAudioEndpoint) bindClock(clock SessionTimeline) {
 	if endpoint != nil && endpoint.player != nil && clock != nil {
-		clock.SetMaster(endpoint.player.RenderedPosition)
+		clock.BindMaster(endpoint.player.RenderedPosition)
 	}
 }
 

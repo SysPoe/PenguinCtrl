@@ -5,13 +5,9 @@ import (
 	"time"
 )
 
-// PlaybackClock is the monotonic timeline shared by audio, video, fades, and
-// playback reporting for one media instance.
-// TODO(macro): Clock ownership is split — Player constructs/starts/pauses it,
-// ffmpegSession.Start and recoverAudio call SetMaster with audio rendered
-// position. Make one owner of the timeline (session or player) and expose a
-// read-only position to the other so master rebinding during audio recovery
-// cannot race player pause/seek generation logic.
+// PlaybackClock is the Player-owned monotonic timeline shared by audio, video,
+// fades, and playback reporting for one media instance. Backends receive only
+// SessionTimeline, so they cannot start, pause, or seek it.
 type PlaybackClock struct {
 	mu       sync.RWMutex
 	now      func() time.Time
@@ -27,8 +23,7 @@ func NewPlaybackClock(position time.Duration) *PlaybackClock {
 }
 
 func newPlaybackClock(position time.Duration, now func() time.Time) *PlaybackClock {
-	// TODO(micro): max(time.Duration(0), position) is repeated in Seek; extract clampNonNegativeDuration helper or use max(0, position) consistently.
-	return &PlaybackClock{now: now, position: max(time.Duration(0), position)}
+	return &PlaybackClock{now: now, position: clampPlaybackPosition(position)}
 }
 
 func (c *PlaybackClock) Start() time.Time {
@@ -38,12 +33,6 @@ func (c *PlaybackClock) Start() time.Time {
 		c.anchor = c.now()
 		c.running = true
 	}
-	return c.anchor
-}
-
-func (c *PlaybackClock) StartedAt() time.Time {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
 	return c.anchor
 }
 
@@ -59,8 +48,7 @@ func (c *PlaybackClock) Pause() time.Duration {
 
 func (c *PlaybackClock) Seek(position time.Duration) {
 	c.mu.Lock()
-	// TODO(micro): same non-negative clamp as constructor; share one helper.
-	c.position = max(time.Duration(0), position)
+	c.position = clampPlaybackPosition(position)
 	c.master = nil
 	if c.running {
 		c.anchor = c.now()
@@ -84,9 +72,9 @@ func (c *PlaybackClock) positionLocked() time.Duration {
 	return c.position
 }
 
-// SetMaster rebases the logical timeline onto a monotonic presentation source.
+// BindMaster rebases the logical timeline onto a monotonic presentation source.
 // Audio uses rendered sample frames; video-only sessions retain the wall clock.
-func (c *PlaybackClock) SetMaster(master func() time.Duration) {
+func (c *PlaybackClock) BindMaster(master func() time.Duration) {
 	if master == nil {
 		return
 	}
@@ -97,6 +85,10 @@ func (c *PlaybackClock) SetMaster(master func() time.Duration) {
 	c.masterAt = master()
 	c.anchor = c.now()
 	c.mu.Unlock()
+}
+
+func clampPlaybackPosition(position time.Duration) time.Duration {
+	return max(time.Duration(0), position)
 }
 
 func (c *PlaybackClock) Running() bool {

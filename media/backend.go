@@ -65,6 +65,13 @@ type PlaybackBackend interface {
 	Open(PlaybackRequest) (PlaybackSession, error)
 }
 
+// SessionTimeline exposes only the position and presentation-master binding a
+// backend needs. Player remains the sole owner of start, pause, and seek.
+type SessionTimeline interface {
+	Position() time.Duration
+	BindMaster(func() time.Duration)
+}
+
 // RuntimeBackend is the application-owned shared decoder runtime. A runtime
 // owns prewarm state and admission budgets across every session it opens, and
 // Close tears down both claimed and cached sessions as one lifecycle.
@@ -76,7 +83,7 @@ type RuntimeBackend interface {
 
 type PlaybackSession interface {
 	Preload(context.Context) error
-	Start(*PlaybackClock) error
+	Start(SessionTimeline) error
 	Frame(time.Duration) image.Image
 	SetVolume(float64)
 	SetMuted(bool)
@@ -359,7 +366,7 @@ type ffmpegSession struct {
 	metrics   PlaybackMetrics
 	muted     bool
 	volume    float64
-	clock     *PlaybackClock
+	clock     SessionTimeline
 	closed    bool
 	done      chan struct{}
 	doneOnce  sync.Once

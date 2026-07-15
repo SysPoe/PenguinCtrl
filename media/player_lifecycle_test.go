@@ -36,11 +36,8 @@ func (*recordingPlaybackSession) State() LoadState                { return LoadR
 func (*recordingPlaybackSession) Metrics() PlaybackMetrics {
 	return PlaybackMetrics{State: LoadPlaying}
 }
-func (s *recordingPlaybackSession) Done() <-chan struct{} { return s.done }
-func (s *recordingPlaybackSession) Start(clock *PlaybackClock) error {
-	clock.Start()
-	return nil
-}
+func (s *recordingPlaybackSession) Done() <-chan struct{}       { return s.done }
+func (s *recordingPlaybackSession) Start(SessionTimeline) error { return nil }
 func (s *recordingPlaybackSession) SetVolume(db float64) {
 	s.mu.Lock()
 	s.volumes = append(s.volumes, db)

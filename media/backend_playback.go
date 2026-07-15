@@ -12,7 +12,7 @@ import (
 	_ "golang.org/x/image/webp"
 )
 
-func (s *ffmpegSession) Start(clock *PlaybackClock) error {
+func (s *ffmpegSession) Start(clock SessionTimeline) error {
 	s.mu.Lock()
 	if s.closed || s.state != LoadReady {
 		state := s.state
@@ -22,12 +22,11 @@ func (s *ffmpegSession) Start(clock *PlaybackClock) error {
 	audio := s.audio.player
 	s.clock = clock
 	s.mu.Unlock()
-	clock.Start()
 	if audio != nil {
 		if err := audio.Start(); err != nil {
 			return s.fail("start audio endpoint", err)
 		}
-		clock.SetMaster(audio.RenderedPosition)
+		clock.BindMaster(audio.RenderedPosition)
 		go s.watchAudioDevice(audio)
 	}
 	s.mu.Lock()

@@ -48,12 +48,14 @@ func (p *Player) restart(position time.Duration) error {
 	}
 	p.session = session
 	p.mu.Unlock()
+	started := clock.Start()
 	if err := session.Start(clock); err != nil {
+		clock.Pause()
 		session.Close()
 		return err
 	}
 	p.mu.Lock()
-	p.started = clock.StartedAt()
+	p.started = started
 	startFadeIn := p.initialFadeIn
 	fadeTargetDB := p.volumeDB
 	if startFadeIn {

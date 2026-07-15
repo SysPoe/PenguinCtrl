@@ -61,14 +61,13 @@ func (session *imageSession) Preload(context.Context) error {
 	return nil
 }
 
-func (session *imageSession) Start(clock *PlaybackClock) error {
+func (session *imageSession) Start(SessionTimeline) error {
 	session.mu.Lock()
 	if session.state != LoadReady {
 		state := session.state
 		session.mu.Unlock()
 		return fmt.Errorf("image is not ready (state %s)", state)
 	}
-	clock.Start()
 	session.state = LoadPlaying
 	session.metrics.State = LoadPlaying
 	session.metrics.StartLatency = time.Since(session.requestedAt)
