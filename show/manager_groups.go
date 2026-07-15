@@ -32,10 +32,10 @@ func (sm *ShowManager) Groups() []CueGroup {
 func (sm *ShowManager) SelectedGroup() (CueGroup, bool) {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
-	if sm.SelectedCueIndex < 0 || sm.SelectedCueIndex >= len(sm.show.Cues) {
+	if sm.selection.index < 0 || sm.selection.index >= len(sm.show.Cues) {
 		return CueGroup{}, false
 	}
-	selected := sm.show.Cues[sm.SelectedCueIndex]
+	selected := sm.show.Cues[sm.selection.index]
 	if selected.GroupID == (GroupID{}) {
 		return CueGroup{}, false
 	}
@@ -54,11 +54,11 @@ func (sm *ShowManager) CreateGroupForSelected(title string) bool {
 		return false
 	}
 	sm.mu.Lock()
-	if sm.SelectedCueIndex < 0 || sm.SelectedCueIndex >= len(sm.show.Cues) {
+	if sm.selection.index < 0 || sm.selection.index >= len(sm.show.Cues) {
 		sm.mu.Unlock()
 		return false
 	}
-	cue := &sm.show.Cues[sm.SelectedCueIndex]
+	cue := &sm.show.Cues[sm.selection.index]
 	if cue.GroupID != (GroupID{}) {
 		sm.mu.Unlock()
 		return false
@@ -75,11 +75,11 @@ func (sm *ShowManager) RenameSelectedGroup(title string) bool {
 		return false
 	}
 	sm.mu.Lock()
-	if sm.SelectedCueIndex < 0 || sm.SelectedCueIndex >= len(sm.show.Cues) {
+	if sm.selection.index < 0 || sm.selection.index >= len(sm.show.Cues) {
 		sm.mu.Unlock()
 		return false
 	}
-	id := sm.show.Cues[sm.SelectedCueIndex].GroupID
+	id := sm.show.Cues[sm.selection.index].GroupID
 	if id == (GroupID{}) {
 		sm.mu.Unlock()
 		return false
@@ -97,7 +97,7 @@ func (sm *ShowManager) RenameSelectedGroup(title string) bool {
 
 func (sm *ShowManager) UngroupSelectedCue() bool {
 	sm.mu.Lock()
-	source := sm.SelectedCueIndex
+	source := sm.selection.index
 	if source < 0 || source >= len(sm.show.Cues) || sm.show.Cues[source].GroupID == (GroupID{}) {
 		sm.mu.Unlock()
 		return false
@@ -119,7 +119,7 @@ func (sm *ShowManager) UngroupSelectedCue() bool {
 
 func (sm *ShowManager) MoveSelectedCueIntoGroup(groupID GroupID, atEnd bool) bool {
 	sm.mu.Lock()
-	source := sm.SelectedCueIndex
+	source := sm.selection.index
 	// TODO(micro): Do not bind last in this first lookup; it is overwritten after the selected cue is removed.
 	first, last, title := groupBounds(sm.show.Cues, groupID)
 	if source < 0 || source >= len(sm.show.Cues) || first < 0 {
@@ -158,7 +158,7 @@ func (sm *ShowManager) MoveSelectedCueAfterGroup(groupID GroupID) bool {
 
 func (sm *ShowManager) moveSelectedOutsideGroup(groupID GroupID, after bool) bool {
 	sm.mu.Lock()
-	source := sm.SelectedCueIndex
+	source := sm.selection.index
 	// TODO(micro): Do not bind last in this first lookup; it is overwritten after the selected cue is removed.
 	first, last, _ := groupBounds(sm.show.Cues, groupID)
 	if source < 0 || source >= len(sm.show.Cues) || first < 0 {
@@ -198,23 +198,5 @@ func groupBounds(cues []Cue, groupID GroupID) (first, last int, title string) {
 
 // insertMovedCue is called with the manager lock held.
 func (sm *ShowManager) insertMovedCue(index int, cue Cue) {
-	sm.show.Cues, sm.SelectedCueIndex = insertCueAt(sm.show.Cues, index, cue)
-}
-
-// TODO(macro): Move change notification next to the manager core — SetOnChange/
-// changed are the mutation bus for the whole ShowManager but live in the groups
-// file, which obscures the package's event boundary.
-func (sm *ShowManager) SetOnChange(callback func()) {
-	sm.mu.Lock()
-	sm.onChange = callback
-	sm.mu.Unlock()
-}
-
-func (sm *ShowManager) changed() {
-	sm.mu.RLock()
-	callback := sm.onChange
-	sm.mu.RUnlock()
-	if callback != nil {
-		callback()
-	}
+	sm.show.Cues, sm.selection.index = insertCueAt(sm.show.Cues, index, cue)
 }

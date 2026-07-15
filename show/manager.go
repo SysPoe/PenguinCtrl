@@ -10,19 +10,18 @@ type CueGroup struct {
 	Count int
 }
 
-// TODO(macro): Separate document ownership from operator selection — SelectedCueIndex
-// is UI focus state co-owned with the show document, so every list mutation must
-// also recompute selection and callers can reach into the field directly.
 type ShowManager struct {
-	mu               sync.RWMutex
-	show             Show
-	SelectedCueIndex int
-	onChange         func()
+	mu        sync.RWMutex
+	show      Show
+	selection cueSelection
+	onChange  func()
 }
 
 func NewShowManager() *ShowManager {
-	return &ShowManager{SelectedCueIndex: -1}
+	return &ShowManager{selection: cueSelection{index: -1}}
 }
+
+type cueSelection struct{ index int }
 
 func (sm *ShowManager) AddCue(cue Cue) {
 	cue = CloneCue(cue)
@@ -39,8 +38,8 @@ func (sm *ShowManager) AddCueAndSelect(cue Cue) int {
 	RepairCueData(&cue)
 	sm.mu.Lock()
 	sm.show.Cues = append(sm.show.Cues, cue)
-	sm.SelectedCueIndex = len(sm.show.Cues) - 1
-	selected := sm.SelectedCueIndex
+	sm.selection.index = len(sm.show.Cues) - 1
+	selected := sm.selection.index
 	sm.mu.Unlock()
 	sm.changed()
 	return selected
@@ -52,8 +51,8 @@ func (sm *ShowManager) InsertCue(index int, cue Cue) {
 	sm.mu.Lock()
 	var insertedAt int
 	sm.show.Cues, insertedAt = insertCueAt(sm.show.Cues, index, cue)
-	if sm.SelectedCueIndex >= insertedAt {
-		sm.SelectedCueIndex++
+	if sm.selection.index >= insertedAt {
+		sm.selection.index++
 	}
 	sm.mu.Unlock()
 	sm.changed()
@@ -81,16 +80,16 @@ func (sm *ShowManager) ReplaceCue(cue Cue) {
 // cue selected.
 func (sm *ShowManager) DeleteSelectedCue() bool {
 	sm.mu.Lock()
-	index := sm.SelectedCueIndex
+	index := sm.selection.index
 	if index < 0 || index >= len(sm.show.Cues) {
 		sm.mu.Unlock()
 		return false
 	}
 	sm.show.Cues = append(sm.show.Cues[:index], sm.show.Cues[index+1:]...)
 	if len(sm.show.Cues) == 0 {
-		sm.SelectedCueIndex = -1
+		sm.selection.index = -1
 	} else if index >= len(sm.show.Cues) {
-		sm.SelectedCueIndex = len(sm.show.Cues) - 1
+		sm.selection.index = len(sm.show.Cues) - 1
 	}
 	sm.mu.Unlock()
 	sm.changed()
@@ -102,7 +101,7 @@ func (sm *ShowManager) DeleteSelectedCue() bool {
 func (sm *ShowManager) MoveSelectedCueBefore(targetIndex int) bool {
 	sm.mu.Lock()
 	count := len(sm.show.Cues)
-	sourceIndex := sm.SelectedCueIndex
+	sourceIndex := sm.selection.index
 	if sourceIndex < 0 || sourceIndex >= count || targetIndex < 0 || targetIndex >= count {
 		sm.mu.Unlock()
 		return false
@@ -140,7 +139,7 @@ func (sm *ShowManager) MoveSelectedCueBefore(targetIndex int) bool {
 func (sm *ShowManager) MoveSelectedCueToEnd() bool {
 	sm.mu.Lock()
 	count := len(sm.show.Cues)
-	index := sm.SelectedCueIndex
+	index := sm.selection.index
 	if index < 0 || index >= count {
 		sm.mu.Unlock()
 		return false
@@ -158,7 +157,7 @@ func (sm *ShowManager) MoveSelectedCueToEnd() bool {
 	cue.GroupID, cue.GroupTitle = GroupID{}, ""
 	sm.show.Cues = append(sm.show.Cues[:index], sm.show.Cues[index+1:]...)
 	sm.show.Cues = append(sm.show.Cues, cue)
-	sm.SelectedCueIndex = len(sm.show.Cues) - 1
+	sm.selection.index = len(sm.show.Cues) - 1
 	sm.mu.Unlock()
 	sm.changed()
 	return true
@@ -168,7 +167,7 @@ func (sm *ShowManager) MoveSelectedCueToEnd() bool {
 // selected cue and selects the duplicate.
 func (sm *ShowManager) DuplicateSelectedCue() bool {
 	sm.mu.Lock()
-	index := sm.SelectedCueIndex
+	index := sm.selection.index
 	if index < 0 || index >= len(sm.show.Cues) {
 		sm.mu.Unlock()
 		return false
@@ -185,7 +184,7 @@ func (sm *ShowManager) DuplicateSelectedCue() bool {
 // PasteCueBeforeSelected inserts an independent copy before the current cue.
 func (sm *ShowManager) PasteCueBeforeSelected(cue Cue) bool {
 	sm.mu.Lock()
-	index := sm.SelectedCueIndex
+	index := sm.selection.index
 	if index < 0 || index >= len(sm.show.Cues) {
 		sm.mu.Unlock()
 		return false
@@ -200,54 +199,17 @@ func (sm *ShowManager) PasteCueBeforeSelected(cue Cue) bool {
 	return true
 }
 
-// TODO(macro): Remove these pointer-shaped compatibility getters in favor of
-// (Cue, bool), []Cue snapshots, and SelectedCueCopy. They return pointers to
-// detached copies, are now used only by compatibility tests, and misleadingly
-// imply that callers can mutate manager-owned state.
-func (sm *ShowManager) GetCue(index int) *Cue {
-	sm.mu.RLock()
-	defer sm.mu.RUnlock()
-	if index < 0 || index >= len(sm.show.Cues) {
-		return nil
-	}
-	clone := CloneCue(sm.show.Cues[index])
-	return &clone
-}
-
-func (sm *ShowManager) GetCueByID(id CueID) *Cue {
-	sm.mu.RLock()
-	defer sm.mu.RUnlock()
-	for i := range sm.show.Cues {
-		if sm.show.Cues[i].ID == id {
-			clone := CloneCue(sm.show.Cues[i])
-			return &clone
-		}
-	}
-	return nil
-}
-
-// TODO(macro): Collapse the read API surface — Cues/Snapshot/ShowSnapshot/
-// SelectedCue/GetCue/GetCueByID/*Copy all return defensive clones with
-// overlapping purposes; pick one snapshot style and make selection-aware reads
-// derive from it so callers cannot depend on pointer-to-slice quirks.
-func (sm *ShowManager) Cues() *[]Cue {
-	sm.mu.RLock()
-	defer sm.mu.RUnlock()
-	clone := cloneCues(sm.show.Cues)
-	return &clone
-}
-
 func (sm *ShowManager) SelectCue(index int) {
 	sm.mu.Lock()
 	if index < 0 || index >= len(sm.show.Cues) {
 		sm.mu.Unlock()
 		return
 	}
-	if sm.SelectedCueIndex == index {
+	if sm.selection.index == index {
 		sm.mu.Unlock()
 		return
 	}
-	sm.SelectedCueIndex = index
+	sm.selection.index = index
 	sm.mu.Unlock()
 	sm.changed()
 }
@@ -255,11 +217,11 @@ func (sm *ShowManager) SelectCue(index int) {
 // DeselectCue clears the current cue-list selection.
 func (sm *ShowManager) DeselectCue() {
 	sm.mu.Lock()
-	if sm.SelectedCueIndex == -1 {
+	if sm.selection.index == -1 {
 		sm.mu.Unlock()
 		return
 	}
-	sm.SelectedCueIndex = -1
+	sm.selection.index = -1
 	sm.mu.Unlock()
 	sm.changed()
 }
@@ -275,7 +237,7 @@ func (sm *ShowManager) MoveSelection(delta int) int {
 		return -1
 	}
 
-	next := sm.SelectedCueIndex
+	next := sm.selection.index
 	if next < 0 || next >= count {
 		if delta < 0 {
 			next = count - 1
@@ -292,8 +254,8 @@ func (sm *ShowManager) MoveSelection(delta int) int {
 		}
 	}
 
-	changed := sm.SelectedCueIndex != next
-	sm.SelectedCueIndex = next
+	changed := sm.selection.index != next
+	sm.selection.index = next
 	sm.mu.Unlock()
 	if changed {
 		sm.changed()
@@ -301,19 +263,10 @@ func (sm *ShowManager) MoveSelection(delta int) int {
 	return next
 }
 
-func (sm *ShowManager) SelectedCue() *Cue {
+func (sm *ShowManager) HasSelectedCue() bool {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
-	if sm.SelectedCueIndex < 0 || sm.SelectedCueIndex >= len(sm.show.Cues) {
-		return nil
-	}
-	clone := CloneCue(sm.show.Cues[sm.SelectedCueIndex])
-	return &clone
-}
-
-func (sm *ShowManager) HasSelectedCue() bool {
-	// TODO(micro): SelectedCue() deep-clones the cue just to test non-nil; check SelectedCueIndex bounds under RLock instead.
-	return sm.SelectedCue() != nil
+	return sm.selection.index >= 0 && sm.selection.index < len(sm.show.Cues)
 }
 
 func (sm *ShowManager) Snapshot() []Cue {
@@ -336,10 +289,25 @@ func (sm *ShowManager) ReplaceShow(loaded Show) {
 	sm.mu.Lock()
 	sm.show = loaded
 	if len(sm.show.Cues) == 0 {
-		sm.SelectedCueIndex = -1
+		sm.selection.index = -1
 	} else {
-		sm.SelectedCueIndex = 0
+		sm.selection.index = 0
 	}
 	sm.mu.Unlock()
 	sm.changed()
+}
+
+func (sm *ShowManager) SetOnChange(callback func()) {
+	sm.mu.Lock()
+	sm.onChange = callback
+	sm.mu.Unlock()
+}
+
+func (sm *ShowManager) changed() {
+	sm.mu.RLock()
+	callback := sm.onChange
+	sm.mu.RUnlock()
+	if callback != nil {
+		callback()
+	}
 }

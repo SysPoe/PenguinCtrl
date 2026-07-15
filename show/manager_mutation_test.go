@@ -18,12 +18,13 @@ func TestInsertCueClampsAndPreservesSelection(t *testing.T) {
 	}
 	manager.SelectCue(0)
 	manager.InsertCue(-10, second)
-	if manager.SelectedCueIndex != 1 || manager.SelectedCue().ID != first.ID {
-		t.Fatalf("selection after clamped insert = %d / %#v", manager.SelectedCueIndex, manager.SelectedCue())
+	selected, selectedIndex, ok := manager.SelectedCueCopy()
+	if !ok || selectedIndex != 1 || selected.ID != first.ID {
+		t.Fatalf("selection after clamped insert = %d / %#v", selectedIndex, selected)
 	}
 	manager.InsertCue(100, testCue("3"))
-	if got := manager.Snapshot(); len(got) != 3 || got[2].CueNumber != "3" || manager.SelectedCueIndex != 1 {
-		t.Fatalf("append-clamped insert = %#v, selection %d", got, manager.SelectedCueIndex)
+	if got := manager.Snapshot(); len(got) != 3 || got[2].CueNumber != "3" || manager.SelectedIndex() != 1 {
+		t.Fatalf("append-clamped insert = %#v, selection %d", got, manager.SelectedIndex())
 	}
 }
 
@@ -37,20 +38,20 @@ func TestDuplicatePasteAndMoveKeepIndependentPayloadsAndSelection(t *testing.T) 
 	if !manager.DuplicateSelectedCue() {
 		t.Fatal("duplicate failed")
 	}
-	duplicate := manager.SelectedCue()
-	if duplicate == nil || duplicate.ID == original.ID || manager.SelectedCueIndex != 1 {
-		t.Fatalf("duplicate selection = %d / %#v", manager.SelectedCueIndex, duplicate)
+	duplicate, _, ok := manager.SelectedCueCopy()
+	if !ok || duplicate.ID == original.ID || manager.SelectedIndex() != 1 {
+		t.Fatalf("duplicate selection = %d / %#v", manager.SelectedIndex(), duplicate)
 	}
 	duplicate.Tags[0] = "mutated"
 	if manager.Snapshot()[0].Tags[0] != "original" {
 		t.Fatal("duplicate shared nested state with source")
 	}
 
-	if !manager.PasteCueBeforeSelected(original) || manager.SelectedCueIndex != 1 {
-		t.Fatalf("paste selection = %d", manager.SelectedCueIndex)
+	if !manager.PasteCueBeforeSelected(original) || manager.SelectedIndex() != 1 {
+		t.Fatalf("paste selection = %d", manager.SelectedIndex())
 	}
-	if !manager.MoveSelectedCueBefore(0) || manager.SelectedCueIndex != 0 {
-		t.Fatalf("move selection = %d", manager.SelectedCueIndex)
+	if !manager.MoveSelectedCueBefore(0) || manager.SelectedIndex() != 0 {
+		t.Fatalf("move selection = %d", manager.SelectedIndex())
 	}
 }
 

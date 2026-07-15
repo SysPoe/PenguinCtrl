@@ -49,10 +49,19 @@ func cloneCues(cues []Cue) []Cue {
 func (sm *ShowManager) SelectedCueCopy() (Cue, int, bool) {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
-	if sm.SelectedCueIndex < 0 || sm.SelectedCueIndex >= len(sm.show.Cues) {
+	if sm.selection.index < 0 || sm.selection.index >= len(sm.show.Cues) {
 		return Cue{}, -1, false
 	}
-	return CloneCue(sm.show.Cues[sm.SelectedCueIndex]), sm.SelectedCueIndex, true
+	return CloneCue(sm.show.Cues[sm.selection.index]), sm.selection.index, true
+}
+
+func (sm *ShowManager) SelectedIndex() int {
+	sm.mu.RLock()
+	defer sm.mu.RUnlock()
+	if sm.selection.index < 0 || sm.selection.index >= len(sm.show.Cues) {
+		return -1
+	}
+	return sm.selection.index
 }
 
 func (sm *ShowManager) CueByIDCopy(id CueID) (Cue, int, bool) {

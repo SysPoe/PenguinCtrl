@@ -99,7 +99,7 @@ func TestRenameAndUngroup(t *testing.T) {
 	if !manager.UngroupSelectedCue() {
 		t.Fatal("ungroup failed")
 	}
-	if cue := manager.SelectedCue(); cue == nil || cue.GroupID != (GroupID{}) || cue.GroupTitle != "" {
+	if cue, _, ok := manager.SelectedCueCopy(); !ok || cue.GroupID != (GroupID{}) || cue.GroupTitle != "" {
 		t.Fatalf("selected cue still grouped: %#v", cue)
 	}
 }

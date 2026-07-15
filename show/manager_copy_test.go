@@ -16,11 +16,6 @@ func TestManagerReadAPIsReturnDeepCopies(t *testing.T) {
 		copy.Play.Sound.Timecode[0].Action.Remote().Values[0].Value = "999"
 	}
 
-	mutate(manager.GetCue(0))
-	mutate(manager.GetCueByID(cue.ID))
-	mutate(manager.SelectedCue())
-	cues := manager.Cues()
-	mutate(&(*cues)[0])
 	snapshot := manager.Snapshot()
 	mutate(&snapshot[0])
 	selected, _, ok := manager.SelectedCueCopy()
