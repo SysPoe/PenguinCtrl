@@ -1,12 +1,7 @@
 package ui
 
 import (
-	"image"
-
-	"gioui.org/io/event"
 	"gioui.org/layout"
-	"gioui.org/op/clip"
-	"gioui.org/op/paint"
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
@@ -31,10 +26,6 @@ const (
 	DocumentChoiceCancel
 )
 
-// TODO(macro): DocumentGuard owns one dirty-save modal while TB dialogs, TopBar
-// E-STOP confirm, and CueEditUI each reimplement the same dimmer/panel shell.
-// Extract a shared Modal primitive and keep DocumentGuard as the dirty-document
-// state machine only (action/choice/saving), not a bespoke layout implementation.
 type DocumentGuard struct {
 	action  DocumentAction
 	saving  bool
@@ -42,7 +33,7 @@ type DocumentGuard struct {
 	save    widget.Clickable
 	discard widget.Clickable
 	cancel  widget.Clickable
-	modal   struct{}
+	modal   modalLayer
 }
 
 // Request returns true when an action can run immediately. Dirty actions are
@@ -111,43 +102,31 @@ func (g *DocumentGuard) Layout(th *material.Theme, gtx layout.Context) layout.Di
 			g.choice = DocumentChoiceCancel
 		}
 	}
-	size := gtx.Constraints.Max
-	// TODO(micro): 0xB8 dimmer alpha and 480/620/10 panel sizes are magic; name modal-dimmer/panel consts.
-	paint.FillShape(gtx.Ops, palette.WithAlpha(palette.Black, 0xB8), clip.Rect{Max: size}.Op())
-	event.Op(gtx.Ops, &g.modal)
-	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		gtx.Constraints.Min = image.Pt(gtx.Dp(unit.Dp(480)), 0)
-		gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(unit.Dp(620)))
-		return layout.Background{}.Layout(gtx,
-			func(gtx layout.Context) layout.Dimensions {
-				paint.FillShape(gtx.Ops, palette.SurfaceRaised, clip.UniformRRect(image.Rectangle{Max: gtx.Constraints.Min}, gtx.Dp(unit.Dp(10))).Op(gtx.Ops))
-				return layout.Dimensions{Size: gtx.Constraints.Min}
-			},
-			func(gtx layout.Context) layout.Dimensions {
-				return layout.UniformInset(unit.Dp(24)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-						layout.Rigid(material.H6(th, "Unsaved show changes").Layout),
+	return g.modal.layout(gtx, modalPanelStyle{
+		minWidth: unit.Dp(480), maxWidth: unit.Dp(620), background: palette.SurfaceRaised, radius: unit.Dp(10),
+	}, func(gtx layout.Context) layout.Dimensions {
+		return layout.UniformInset(unit.Dp(24)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(material.H6(th, "Unsaved show changes").Layout),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Inset{Top: unit.Dp(10), Bottom: unit.Dp(18)}.Layout(gtx, material.Body1(th, "Save changes before replacing the current show?").Layout)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					label := "Save"
+					if g.saving {
+						label = "Saving…"
+					}
+					return layout.Flex{Axis: layout.Horizontal, Spacing: layout.SpaceEnd}.Layout(gtx,
+						layout.Rigid(material.Button(th, &g.cancel, "Cancel").Layout),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return layout.Inset{Top: unit.Dp(10), Bottom: unit.Dp(18)}.Layout(gtx, material.Body1(th, "Save changes before replacing the current show?").Layout)
+							return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, material.Button(th, &g.discard, "Discard").Layout)
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							label := "Save"
-							if g.saving {
-								label = "Saving…"
-							}
-							return layout.Flex{Axis: layout.Horizontal, Spacing: layout.SpaceEnd}.Layout(gtx,
-								layout.Rigid(material.Button(th, &g.cancel, "Cancel").Layout),
-								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, material.Button(th, &g.discard, "Discard").Layout)
-								}),
-								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-									return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, material.Button(th, &g.save, label).Layout)
-								}),
-							)
+							return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, material.Button(th, &g.save, label).Layout)
 						}),
 					)
-				})
-			},
-		)
+				}),
+			)
+		})
 	})
 }

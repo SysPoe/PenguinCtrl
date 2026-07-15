@@ -3,9 +3,6 @@ package ui
 import (
 	"image"
 
-	"gioui.org/io/event"
-	"gioui.org/io/key"
-	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -20,11 +17,9 @@ import (
 const topBarHeight int = 40
 const menuWidth int = 200
 
-// TODO(macro): TopBar mixes menu chrome, file/page request flags, emergency-stop
-// confirmation modal, blackout, and a status sink. Extract E-STOP confirmation as a
-// shared modal (with DocumentGuard/TB dialogs), keep menus as one concern, and replace
-// the Take*/Request* flag bus with a single outbound command channel so hosts aren't
-// polling many booleans.
+// TODO(macro): TopBar mixes menu chrome, file/page request flags, blackout, and a
+// status sink. Keep menus as one concern and replace the Take*/Request* flag bus
+// with a single outbound command channel so hosts aren't polling many booleans.
 type TopBar struct {
 	actionPos image.Point
 	addCuePos image.Point
@@ -57,7 +52,7 @@ type TopBar struct {
 	eStopResetting  bool
 	eStopConfirming bool
 	statusSink      func(string)
-	eStopModal      struct{}
+	eStopModal      modalLayer
 }
 
 func (tb *TopBar) setAllFalse() {
@@ -268,26 +263,7 @@ func (tb *TopBar) HandleEmergencyStopConfirmationKeys(gtx layout.Context) {
 	if !tb.eStopConfirming {
 		return
 	}
-	for {
-		event, ok := gtx.Event(
-			key.Filter{Name: key.NameEscape},
-			key.Filter{Name: key.NameReturn},
-			key.Filter{Name: key.NameEnter},
-		)
-		if !ok {
-			return
-		}
-		keyEvent, ok := event.(key.Event)
-		if !ok || keyEvent.State != key.Press {
-			continue
-		}
-		if keyEvent.Name == key.NameEscape {
-			tb.CancelEmergencyStop()
-		} else {
-			tb.ConfirmEmergencyStop()
-		}
-		return
-	}
+	handleConfirmationKeys(gtx, tb.CancelEmergencyStop, func() { tb.ConfirmEmergencyStop() })
 }
 
 func (tb *TopBar) LayoutEmergencyStopConfirmation(th *material.Theme, gtx layout.Context) layout.Dimensions {
@@ -301,50 +277,24 @@ func (tb *TopBar) LayoutEmergencyStopConfirmation(th *material.Theme, gtx layout
 		tb.CancelEmergencyStop()
 	}
 
-	size := gtx.Constraints.Max
-	// TODO(micro): 0xB8 dimmer alpha and 480/210/10 panel sizes duplicate DocumentGuard magic; share modal chrome consts.
-	paint.FillShape(gtx.Ops, palette.WithAlpha(palette.Black, 0xB8), clip.Rect{Max: size}.Op())
-	hitArea := clip.Rect{Max: size}.Push(gtx.Ops)
-	event.Op(gtx.Ops, &tb.eStopModal)
-	hitArea.Pop()
-	for {
-		_, ok := gtx.Event(pointer.Filter{
-			Target: &tb.eStopModal,
-			Kinds:  pointer.Press | pointer.Release | pointer.Move | pointer.Drag | pointer.Scroll | pointer.Enter | pointer.Leave | pointer.Cancel,
-		})
-		if !ok {
-			break
-		}
-	}
-
-	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		panelWidth := min(gtx.Constraints.Max.X, gtx.Dp(unit.Dp(480)))
-		panelHeight := min(gtx.Constraints.Max.Y, gtx.Dp(unit.Dp(210)))
-		gtx.Constraints.Min = image.Pt(panelWidth, panelHeight)
-		gtx.Constraints.Max = gtx.Constraints.Min
-		return layout.Background{}.Layout(gtx,
-			func(gtx layout.Context) layout.Dimensions {
-				paint.FillShape(gtx.Ops, palette.SurfaceRaised, clip.UniformRRect(image.Rectangle{Max: gtx.Constraints.Min}, gtx.Dp(unit.Dp(10))).Op(gtx.Ops))
-				return layout.Dimensions{Size: gtx.Constraints.Min}
-			},
-			func(gtx layout.Context) layout.Dimensions {
-				return layout.UniformInset(unit.Dp(24)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-						layout.Rigid(material.H6(th, "Confirm E-STOP").Layout),
-						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-							message := "E-STOP force-stops playback and reinitializes all media outputs. Continue?"
-							return layout.Center.Layout(gtx, material.Body1(th, message).Layout)
-						}),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-								makeFlexedBtnWithColor(th, &tb.btnEStopCancel, "Cancel", palette.SurfaceRaised, 1),
-								makeFlexedBtnWithColor(th, &tb.btnEStopConfirm, "Activate E-STOP", palette.Danger, 1),
-							)
-						}),
+	return tb.eStopModal.layout(gtx, modalPanelStyle{
+		width: unit.Dp(480), height: unit.Dp(210), background: palette.SurfaceRaised, radius: unit.Dp(10),
+	}, func(gtx layout.Context) layout.Dimensions {
+		return layout.UniformInset(unit.Dp(24)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(material.H6(th, "Confirm E-STOP").Layout),
+				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+					message := "E-STOP force-stops playback and reinitializes all media outputs. Continue?"
+					return layout.Center.Layout(gtx, material.Body1(th, message).Layout)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+						makeFlexedBtnWithColor(th, &tb.btnEStopCancel, "Cancel", palette.SurfaceRaised, 1),
+						makeFlexedBtnWithColor(th, &tb.btnEStopConfirm, "Activate E-STOP", palette.Danger, 1),
 					)
-				})
-			},
-		)
+				}),
+			)
+		})
 	})
 }
 

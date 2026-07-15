@@ -49,7 +49,7 @@ type TBContext struct {
 	confirmDelete bool
 	groupDialog   string
 	groupName     *input.Text
-	modalTag      struct{}
+	modal         modalLayer
 
 	cueEditUI CueEditUI
 }

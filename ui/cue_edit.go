@@ -4,9 +4,7 @@ import (
 	"image"
 	"strings"
 
-	"gioui.org/io/event"
 	"gioui.org/io/key"
-	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -39,7 +37,7 @@ type CueEditUI struct {
 	btnCancel widget.Clickable
 	btnSave   widget.Clickable
 
-	modalTag struct{}
+	modal    modalLayer
 	page     cueEditPageState
 	tabs     cueEditTabState
 	timeline timecodeTimelineState
@@ -265,60 +263,24 @@ func (ctx *CueEditUI) Layout(th *material.Theme, gtx layout.Context, manager *sh
 		ctx.toggleTimecodePreview()
 	}
 
-	// TODO(micro): margin/padding/borderRadius are all zero — dead math; drop vars or document why reserved.
-	margin := image.Pt(0, 0)
-	widthHeight := image.Pt(gtx.Constraints.Max.X-margin.X*2, gtx.Constraints.Max.Y-margin.Y*2)
+	widthHeight := gtx.Constraints.Max
 	borderWidth := gtx.Dp(unit.Dp(2))
-	borderRadius := gtx.Dp(unit.Dp(0))
-	padding := 0
 
 	// Draw border and background
-	defer op.Offset(image.Pt(
-		margin.X-borderWidth, margin.Y-borderWidth,
-	)).Push(gtx.Ops).Pop()
+	defer op.Offset(image.Pt(-borderWidth, -borderWidth)).Push(gtx.Ops).Pop()
 
-	paint.FillShape(gtx.Ops, th.ContrastBg, clip.RRect{
-		Rect: image.Rectangle{Max: image.Pt(widthHeight.X+borderWidth*2, widthHeight.Y+borderWidth*2)},
-		SE:   borderRadius + borderWidth,
-		SW:   borderRadius + borderWidth,
-		NW:   borderRadius + borderWidth,
-		NE:   borderRadius + borderWidth,
-	}.Op(gtx.Ops))
+	paint.FillShape(gtx.Ops, th.ContrastBg, clip.UniformRRect(
+		image.Rectangle{Max: image.Pt(widthHeight.X+borderWidth*2, widthHeight.Y+borderWidth*2)},
+		borderWidth,
+	).Op(gtx.Ops))
 
-	// Prevent clicks from going through to the underlying UI
-	hitArea := clip.Rect(image.Rectangle{Max: image.Pt(widthHeight.X+borderWidth*2, widthHeight.Y+borderWidth*2)}).Push(gtx.Ops)
-	event.Op(gtx.Ops, &ctx.modalTag)
-	hitArea.Pop()
-	for {
-		_, ok := gtx.Event(pointer.Filter{
-			Target:  &ctx.modalTag,
-			Kinds:   pointer.Press | pointer.Release | pointer.Move | pointer.Drag | pointer.Scroll | pointer.Enter | pointer.Leave | pointer.Cancel,
-			ScrollX: pointer.ScrollRange{Min: -1 << 20, Max: 1 << 20},
-			ScrollY: pointer.ScrollRange{Min: -1 << 20, Max: 1 << 20},
-		})
-		if !ok {
-			break
-		}
-	}
+	ctx.modal.absorbInput(gtx, image.Pt(widthHeight.X+borderWidth*2, widthHeight.Y+borderWidth*2))
 
 	defer op.Offset(image.Pt(borderWidth, borderWidth)).Push(gtx.Ops).Pop()
 
-	paint.FillShape(gtx.Ops, th.Bg, clip.RRect{
-		Rect: image.Rectangle{Max: widthHeight},
-		SE:   borderRadius,
-		SW:   borderRadius,
-		NW:   borderRadius,
-		NE:   borderRadius,
-	}.Op(gtx.Ops))
+	paint.FillShape(gtx.Ops, th.Bg, clip.Rect{Max: widthHeight}.Op())
+	gtx.Constraints = layout.Exact(widthHeight)
 
-	defer op.Offset(image.Pt(padding, padding)).Push(gtx.Ops).Pop()
-	gtx.Constraints.Min.X = widthHeight.X - padding*2
-	gtx.Constraints.Max.X = widthHeight.X - padding*2
-	gtx.Constraints.Min.Y = widthHeight.Y - padding*2
-	gtx.Constraints.Max.Y = widthHeight.Y - padding*2
-
-	// TODO(micro): typo "acutal" → "actual"; comment is noise, can delete.
-	// Return acutal layout
 	return layout.Flex{
 		Axis: layout.Vertical,
 	}.Layout(gtx,
