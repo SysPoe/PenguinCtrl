@@ -88,6 +88,26 @@ func TestPreflightPresentationDoesNotCallChecksFailures(t *testing.T) {
 	}
 }
 
+func TestBlockerFilterIncludesCueFailures(t *testing.T) {
+	checks := []operatorlog.PreflightCheck{
+		{Severity: operatorlog.ShowStopping},
+		{Severity: operatorlog.CueFailure},
+		{Severity: operatorlog.Recoverable},
+		{Severity: operatorlog.Warning},
+	}
+
+	filtered := filterPreflight(checks, 1)
+	if len(filtered) != 2 || filtered[0].Severity != operatorlog.ShowStopping || filtered[1].Severity != operatorlog.CueFailure {
+		t.Fatalf("blocker filter = %#v", filtered)
+	}
+}
+
+func TestInvalidWarningIconIsReportedAsUnavailable(t *testing.T) {
+	if icon := loadIcon("test", []byte("not iconvg")); icon != nil {
+		t.Fatal("invalid icon data produced an icon")
+	}
+}
+
 func TestInformationalPreflightIsReadyWithoutAttention(t *testing.T) {
 	// TODO(micro): Give checks capacity two because the test appends one known element below.
 	checks := []operatorlog.PreflightCheck{{Severity: operatorlog.Info}}

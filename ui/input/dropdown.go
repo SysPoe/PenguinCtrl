@@ -71,7 +71,9 @@ func (d *Dropdown) AddEventListener(listener func(selectedIndex int, selectedVal
 }
 
 func (d *Dropdown) notifyEventListeners() {
-	// TODO(micro): panics when Selected is out of range (e.g. empty Items); guard or use getSelectedLabel-style bounds check.
+	if d.Selected < 0 || d.Selected >= len(d.Items) {
+		return
+	}
 	for _, listener := range d.eventListeners {
 		listener(d.Selected, d.Items[d.Selected])
 	}

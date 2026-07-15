@@ -195,6 +195,9 @@ func layoutWarningBadge(th *material.Theme, gtx layout.Context, clickable *widge
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					gtx.Constraints.Max.X = min(gtx.Constraints.Max.X, gtx.Dp(unit.Dp(16)))
+					if warningIcon == nil {
+						return layout.Dimensions{}
+					}
 					return warningIcon.Layout(gtx, statusColor)
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {

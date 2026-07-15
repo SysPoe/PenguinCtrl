@@ -35,6 +35,7 @@ type CueEditUI struct {
 	togglePreview  func(cue show.Cue) (bool, error)
 	stopPreview    func()
 	problemsForCue func(show.Cue) []show.CueProblem
+	previewError   string
 
 	btnTabGeneral    widget.Clickable
 	btnTabTiming     widget.Clickable
@@ -167,15 +168,13 @@ func (ctx *CueEditUI) drawTopBar(th *material.Theme, gtx layout.Context) layout.
 	})
 }
 
-func (ctx *CueEditUI) drawBottomBar(th *material.Theme, gtx layout.Context, manager *show.ShowManager, saveShortcut bool) layout.FlexChild {
+func (ctx *CueEditUI) drawBottomBar(th *material.Theme, gtx layout.Context, manager *show.ShowManager, saveShortcut, cancelShortcut bool) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-		if ctx.btnCancel.Clicked(gtx) {
+		if ctx.btnCancel.Clicked(gtx) || cancelShortcut {
 			ctx.stopTimecodePreview()
 			ctx.show = false
 			gtx.Execute(key.FocusCmd{})
-		}
-
-		if ctx.btnSave.Clicked(gtx) || saveShortcut {
+		} else if ctx.btnSave.Clicked(gtx) || saveShortcut {
 			ctx.stopTimecodePreview()
 			show.RepairCueData(&ctx.cue)
 			if markers := cueTimecodeMarkers(&ctx.cue); markers != nil {
@@ -212,7 +211,7 @@ func (ctx *CueEditUI) drawProblemBar(th *material.Theme, gtx layout.Context, man
 			actionable = append(actionable, problem)
 		}
 	}
-	if len(actionable) == 0 {
+	if len(actionable) == 0 && ctx.previewError == "" {
 		return layout.Rigid(func(layout.Context) layout.Dimensions { return layout.Dimensions{} })
 	}
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -226,7 +225,11 @@ func (ctx *CueEditUI) drawProblemBar(th *material.Theme, gtx layout.Context, man
 				accent = palette.Warning
 			}
 		}
-		lines := make([]string, 0, len(actionable))
+		lines := make([]string, 0, len(actionable)+1)
+		if ctx.previewError != "" {
+			accent = palette.Danger
+			lines = append(lines, "PREVIEW · "+ctx.previewError)
+		}
 		for _, problem := range actionable {
 			line := problem.Severity.Label() + " · " + problem.Message
 			if problem.Fix != "" {
@@ -255,10 +258,13 @@ func (ctx *CueEditUI) toggleTimecodePreview() {
 		return
 	}
 	playing, err := ctx.togglePreview(ctx.cue)
-	if err == nil {
-		// TODO(micro): preview toggle error is ignored; surface err to operator status/bar.
-		ctx.timeline.previewing = playing
+	if err != nil {
+		ctx.timeline.previewing = false
+		ctx.previewError = err.Error()
+		return
 	}
+	ctx.previewError = ""
+	ctx.timeline.previewing = playing
 }
 
 func (ctx *CueEditUI) stopTimecodePreview() {
@@ -266,9 +272,26 @@ func (ctx *CueEditUI) stopTimecodePreview() {
 		ctx.stopPreview()
 	}
 	ctx.timeline.previewing = false
+	ctx.previewError = ""
 }
 
-func cueEditorShortcuts(gtx layout.Context) (save, preview bool, tabOffset int) {
+func cueEditorShortcut(name key.Name) (save, cancel, preview bool, tabOffset int) {
+	switch name {
+	case key.NameEscape:
+		cancel = true
+	case "S":
+		save = true
+	case key.NameSpace:
+		preview = true
+	case key.NameLeftArrow:
+		tabOffset = -1
+	case key.NameRightArrow:
+		tabOffset = 1
+	}
+	return
+}
+
+func cueEditorShortcuts(gtx layout.Context) (save, cancel, preview bool, tabOffset int) {
 	for {
 		event, ok := gtx.Event(
 			key.Filter{Name: key.NameEscape},
@@ -278,20 +301,14 @@ func cueEditorShortcuts(gtx layout.Context) (save, preview bool, tabOffset int) 
 			key.Filter{Name: key.NameRightArrow, Required: key.ModShortcut},
 		)
 		if !ok {
-			return save, preview, tabOffset
+			return save, cancel, preview, tabOffset
 		}
 		if event, ok := event.(key.Event); ok && event.State == key.Press {
-			switch event.Name {
-			// TODO(micro): default branch treats Escape as save (only S should save); handle Escape separately or filter it out.
-			case key.NameSpace:
-				preview = true
-			case key.NameLeftArrow:
-				tabOffset--
-			case key.NameRightArrow:
-				tabOffset++
-			default:
-				save = true
-			}
+			eventSave, eventCancel, eventPreview, eventOffset := cueEditorShortcut(event.Name)
+			save = save || eventSave
+			cancel = cancel || eventCancel
+			preview = preview || eventPreview
+			tabOffset += eventOffset
 		}
 	}
 }
@@ -331,7 +348,7 @@ func (ctx *CueEditUI) Layout(th *material.Theme, gtx layout.Context, manager *sh
 	if !ctx.show {
 		return layout.Dimensions{}
 	}
-	saveShortcut, previewShortcut, tabOffset := cueEditorShortcuts(gtx)
+	saveShortcut, cancelShortcut, previewShortcut, tabOffset := cueEditorShortcuts(gtx)
 	ctx.moveTab(tabOffset)
 	if previewShortcut && ctx.activeTab == tabTimecode && ctx.cue.Play.Sound != nil {
 		ctx.toggleTimecodePreview()
@@ -397,6 +414,6 @@ func (ctx *CueEditUI) Layout(th *material.Theme, gtx layout.Context, manager *sh
 		ctx.drawTopBar(th, gtx),
 		ctx.drawProblemBar(th, gtx, manager),
 		ctx.drawBody(th, gtx, manager),
-		ctx.drawBottomBar(th, gtx, manager, saveShortcut),
+		ctx.drawBottomBar(th, gtx, manager, saveShortcut, cancelShortcut),
 	)
 }

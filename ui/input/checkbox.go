@@ -5,14 +5,14 @@ import (
 	"gioui.org/layout"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
-	"github.com/syspoe/cusus/palette"
 )
 
 type Checkbox struct {
 	Label   string
 	Checked bool
 
-	checkbox widget.Bool
+	checkbox    widget.Bool
+	lastChecked bool
 
 	eventListeners []func(checked bool)
 }
@@ -24,6 +24,7 @@ func NewCheckbox(label string, checked bool) *Checkbox {
 		checkbox: widget.Bool{
 			Value: checked,
 		},
+		lastChecked: checked,
 	}
 }
 
@@ -37,21 +38,35 @@ func (c *Checkbox) notifyEventListeners() {
 	}
 }
 
-func (c *Checkbox) Layout(th *material.Theme, gtx layout.Context) layout.Dimensions {
-	// TODO(micro): external Checked writes clobber in-progress user toggle when they diverge mid-frame; document ownership or only sync when unfocused
-	if c.checkbox.Value != c.Checked {
+func (c *Checkbox) synchronize() {
+	if c.Checked != c.lastChecked {
 		c.checkbox.Value = c.Checked
+		c.lastChecked = c.Checked
+		return
 	}
+	if c.checkbox.Value != c.lastChecked {
+		c.Checked = c.checkbox.Value
+		c.lastChecked = c.Checked
+		c.notifyEventListeners()
+	}
+}
+
+func (c *Checkbox) Layout(th *material.Theme, gtx layout.Context) layout.Dimensions {
+	// Only synchronize a value that changed through the public model. Keeping the
+	// last synchronized value prevents a queued widget toggle from being replaced
+	// merely because the internal and public values temporarily diverge.
+	c.synchronize()
 
 	previous := c.checkbox.Value
 	checkBox := material.CheckBox(th, &c.checkbox, c.Label)
-	checkBox.Color = palette.TextSoft
-	// TODO(micro): IconColor uses selected surface while Color uses TextSoft — intentional contrast? If not, share one input accent color
-	checkBox.IconColor = selectedInputSurface(th)
+	accent := inputTextColor(th)
+	checkBox.Color = accent
+	checkBox.IconColor = accent
 	dims := inputField(th, gtx, checkBox.Layout)
 
 	if c.checkbox.Value != previous {
 		c.Checked = c.checkbox.Value
+		c.lastChecked = c.Checked
 		c.notifyEventListeners()
 	}
 

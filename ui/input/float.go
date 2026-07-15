@@ -30,7 +30,6 @@ func NewFloat(label string, value float64) *Float {
 	}
 	f.editor.SingleLine = true
 	f.editor.InputHint = key.HintNumeric
-	// TODO(micro): filter allows multiple dots/signs; reject invalid intermediate input or validate on blur only with clearer UX
 	f.editor.Filter = "-0123456789."
 	f.editor.SetText(f.text)
 	return f
@@ -60,12 +59,31 @@ func (f *Float) Layout(th *material.Theme, gtx layout.Context) layout.Dimensions
 	})
 
 	if text := f.editor.Text(); text != previous {
-		f.text = text
-		if value, err := strconv.ParseFloat(text, 64); err == nil && value != f.Value {
-			f.Value = value
-			f.notifyEventListeners()
+		if !f.applyText(text) {
+			f.editor.SetText(previous)
 		}
 	}
 
 	return dims
+}
+
+func validFloatInput(text string) bool {
+	switch text {
+	case "", "-", ".", "-.":
+		return true
+	}
+	_, err := strconv.ParseFloat(text, 64)
+	return err == nil
+}
+
+func (f *Float) applyText(text string) bool {
+	if !validFloatInput(text) {
+		return false
+	}
+	f.text = text
+	if value, err := strconv.ParseFloat(text, 64); err == nil && value != f.Value {
+		f.Value = value
+		f.notifyEventListeners()
+	}
+	return true
 }

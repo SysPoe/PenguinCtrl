@@ -19,6 +19,7 @@ type ColourPicker struct {
 	Value color.NRGBA
 
 	oklch     oklchColor
+	lastValue color.NRGBA
 	lightness *Slider
 	chroma    *Slider
 	hue       *Slider
@@ -36,6 +37,7 @@ func NewColourPicker(label string, value color.NRGBA) *ColourPicker {
 		Label:     label,
 		Value:     value,
 		oklch:     oklch,
+		lastValue: value,
 		lightness: NewSlider("L", 0, 100, oklch.L*100),
 		chroma:    NewSlider("C", 0, 0.4, oklch.C),
 		hue:       NewSlider("H", 0, 360, oklch.H),
@@ -68,8 +70,17 @@ func (c *ColourPicker) updateFromSliders() {
 	next := oklchToNRGBA(c.oklch, uint8(c.alpha.Value+0.5))
 	if next != c.Value {
 		c.Value = next
+		c.lastValue = next
 		c.notifyEventListeners()
 	}
+}
+
+func (c *ColourPicker) syncFromValue() {
+	if c.Value == c.lastValue {
+		return
+	}
+	c.oklch = nrgbaToOKLCH(c.Value)
+	c.lastValue = c.Value
 }
 
 func (c *ColourPicker) syncSliders() {
@@ -79,8 +90,8 @@ func (c *ColourPicker) syncSliders() {
 	c.alpha.Value = float64(c.Value.A)
 }
 
-// TODO(micro): Layout never re-derives oklch from c.Value; external Value assignment won't update sliders until rebuild.
 func (c *ColourPicker) Layout(th *material.Theme, gtx layout.Context) layout.Dimensions {
+	c.syncFromValue()
 	c.syncSliders()
 
 	if c.preview.Clicked(gtx) {

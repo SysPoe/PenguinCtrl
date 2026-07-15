@@ -200,8 +200,7 @@ func filterPreflight(checks []operatorlog.PreflightCheck, filter int) []operator
 	// TODO(micro): pre-size with len(checks) cap to avoid growth from zero-capacity slice.
 	result := make([]operatorlog.PreflightCheck, 0)
 	for _, check := range checks {
-		// TODO(micro): blockers filter omits CueFailure; include it or match preflightSeverityLabel blocker set.
-		if (filter == 1 && check.Severity == operatorlog.ShowStopping) || (filter == 2 && check.Severity == operatorlog.Warning) {
+		if (filter == 1 && (check.Severity == operatorlog.ShowStopping || check.Severity == operatorlog.CueFailure)) || (filter == 2 && check.Severity == operatorlog.Warning) {
 			result = append(result, check)
 		}
 	}

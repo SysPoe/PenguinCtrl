@@ -2,6 +2,7 @@ package ui
 
 import (
 	"image/color"
+	"log"
 
 	"gioui.org/layout"
 	"gioui.org/unit"
@@ -61,8 +62,7 @@ var collapsedCueGroups = map[show.GroupID]bool{}
 var groupHeaderClicks = map[show.GroupID]*widget.Clickable{}
 var groupBeforeClicks = map[show.GroupID]*widget.Clickable{}
 var groupAfterClicks = map[show.GroupID]*widget.Clickable{}
-// TODO(micro): icon construction error is ignored; handle/log failure instead of silent blank icon.
-var warningIcon, _ = widget.NewIcon(icons.AlertWarning)
+var warningIcon = loadIcon("cue warning", icons.AlertWarning)
 var warningTips []warningTipState
 var lastListSelection = -2
 
@@ -71,6 +71,15 @@ type warningTipState struct {
 	text  string
 	area  component.TipArea
 	click widget.Clickable
+}
+
+func loadIcon(name string, data []byte) *widget.Icon {
+	icon, err := widget.NewIcon(data)
+	if err != nil {
+		log.Printf("ui: failed to load %s icon: %v", name, err)
+		return nil
+	}
+	return icon
 }
 
 type cueListRow struct {
