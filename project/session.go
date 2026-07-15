@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"path/filepath"
 	"slices"
+	"sync"
 
 	"github.com/syspoe/cusus/show"
 )
@@ -18,6 +19,8 @@ type ProjectSession struct {
 	runtimeShow    show.Show
 	library        Library
 	protectedPaths []string
+	protectionMu   sync.Mutex
+	releaseCache   func()
 }
 
 // OpenSession verifies an archive and constructs its complete runtime view.
@@ -72,6 +75,25 @@ func (session *ProjectSession) AddMedia(source, kind string) (File, bool, error)
 // ProtectedPaths returns the managed cache objects required by this session.
 func (session *ProjectSession) ProtectedPaths() []string {
 	return slices.Clone(session.protectedPaths)
+}
+
+// Close releases this session's cache protection lease. It is safe to call
+// more than once. Snapshots already returned by the session remain ordinary
+// caller-owned values.
+func (session *ProjectSession) Close() {
+	session.protectionMu.Lock()
+	release := session.releaseCache
+	session.releaseCache = nil
+	session.protectionMu.Unlock()
+	if release != nil {
+		release()
+	}
+}
+
+func (session *ProjectSession) bindCacheProtection(release func()) {
+	session.protectionMu.Lock()
+	session.releaseCache = release
+	session.protectionMu.Unlock()
 }
 
 func cloneManifest(manifest Manifest) Manifest {

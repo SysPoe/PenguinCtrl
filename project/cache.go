@@ -16,32 +16,38 @@ import (
 
 const cacheMaintenanceInterval = 5 * time.Minute
 
-// TODO(macro): CacheMaintainer is a background reaper of published media cache
-// but its protected-path policy is closed over from window_loop via callbacks into
-// show/settings. Push protection policy into the project session (or archive
-// package) so cache lifetime is not orchestrated from the Gio event loop.
 type CacheMaintainer struct {
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
-	errMu  sync.RWMutex
-	err    error
+	cancel    context.CancelFunc
+	wg        sync.WaitGroup
+	errMu     sync.RWMutex
+	err       error
+	active    func() bool
+	protected func() []string
+	limits    func() (quotaBytes, reserveBytes uint64)
+
+	lifecycleMu sync.Mutex
+	sessions    map[*ProjectSession][]string
 }
 
+// StartCacheMaintainer starts cache maintenance with a compatibility callback
+// for paths owned outside ProjectSession. Sessions opened through OpenSession
+// are protected by the maintainer directly and do not need that callback.
 func StartCacheMaintainer(active func() bool, protected func() []string, limits func() (quotaBytes, reserveBytes uint64)) *CacheMaintainer {
 	ctx, cancel := context.WithCancel(context.Background())
-	m := &CacheMaintainer{cancel: cancel}
+	m := &CacheMaintainer{
+		cancel:    cancel,
+		active:    active,
+		protected: protected,
+		limits:    limits,
+		sessions:  make(map[*ProjectSession][]string),
+	}
 	m.wg.Add(1)
 	go func() {
 		defer m.wg.Done()
 		ticker := time.NewTicker(cacheMaintenanceInterval)
 		defer ticker.Stop()
 		for {
-			if !active() {
-				quota, reserve := limits()
-				m.errMu.Lock()
-				m.err = MaintainCache(quota, reserve, protected())
-				m.errMu.Unlock()
-			}
+			_ = m.MaintainNow()
 			select {
 			case <-ctx.Done():
 				return
@@ -53,6 +59,55 @@ func StartCacheMaintainer(active func() bool, protected func() []string, limits 
 }
 
 func (m *CacheMaintainer) Close() { m.cancel(); m.wg.Wait() }
+
+// OpenSession opens an archive and registers its extracted cache object before
+// maintenance can run. Closing the returned session releases that protection.
+func (m *CacheMaintainer) OpenSession(path string) (*ProjectSession, error) {
+	m.lifecycleMu.Lock()
+	defer m.lifecycleMu.Unlock()
+
+	session, err := OpenSession(path)
+	if err != nil {
+		return nil, err
+	}
+	if m.sessions == nil {
+		m.sessions = make(map[*ProjectSession][]string)
+	}
+	m.sessions[session] = session.ProtectedPaths()
+	session.bindCacheProtection(func() {
+		m.lifecycleMu.Lock()
+		delete(m.sessions, session)
+		m.lifecycleMu.Unlock()
+	})
+	return session, nil
+}
+
+// MaintainNow performs one maintenance pass. It is also useful for explicit
+// maintenance at lifecycle boundaries and for deterministic diagnostics.
+func (m *CacheMaintainer) MaintainNow() error {
+	if m.active != nil && m.active() {
+		return nil
+	}
+	m.lifecycleMu.Lock()
+	defer m.lifecycleMu.Unlock()
+
+	var protected []string
+	if m.protected != nil {
+		protected = append(protected, m.protected()...)
+	}
+	for _, paths := range m.sessions {
+		protected = append(protected, paths...)
+	}
+	var quota, reserve uint64
+	if m.limits != nil {
+		quota, reserve = m.limits()
+	}
+	err := MaintainCache(quota, reserve, protected)
+	m.errMu.Lock()
+	m.err = err
+	m.errMu.Unlock()
+	return err
+}
 
 // Err returns the most recent cache-maintenance failure, if any.
 func (m *CacheMaintainer) Err() error {
