@@ -15,10 +15,10 @@ import (
 )
 
 // TODO(macro): engine_media.go is a residual "non-remote cues" file: media start,
-// automatic fade/end timers, embedded timecode re-entry into execute(), media
-// controls, output controls, and wait polling. Split by domain (MediaRuntime,
-// ControlActions, WaitEngine, TimecodeTriggers) so file scope matches cohesion
-// rather than historical extraction from Engine.
+// embedded timecode re-entry into execute(), media controls, output controls,
+// and wait polling. Split by domain (MediaRuntime, ControlActions, WaitEngine,
+// TimecodeTriggers) so file scope matches cohesion rather than historical
+// extraction from Engine.
 func (e *Engine) startMedia(next command) error {
 	cue, cueIndex := next.cue, next.index
 	settings := e.settings.Snapshot()
@@ -178,51 +178,6 @@ func cueDisplayNumber(cue show.Cue) string {
 	return "cue " + cue.CueNumber
 }
 
-// TODO(macro): Move automatic fade/end timer orchestration and link dispatch
-// into a LifecycleController. instanceRegistry now owns collection transitions
-// and lifecycle identity, but Engine still coordinates the delayed effects.
-func (e *Engine) scheduleInstanceLifecycle(instanceID string) {
-	e.mu.Lock()
-	instance := e.instances.get(instanceID)
-	if instance == nil || !instance.BackendStarted || instance.DurationMs <= 0 || instance.EndScheduled {
-		e.mu.Unlock()
-		return
-	}
-	materializeInstance(instance, time.Now())
-	remainingMs := max(int64(0), instance.DurationMs-(instance.PositionMs-instance.ClipStartMs))
-	instance.EndScheduled = true
-	instance.LifecycleGeneration++
-	generation := instance.LifecycleGeneration
-	snapshot := *instance
-	e.mu.Unlock()
-
-	fadeMs := min(max(int64(0), snapshot.FadeOutMs), remainingMs)
-	fadeOutAt := remainingMs - fadeMs
-	if fadeMs > 0 {
-		instance, wait := snapshot, time.Duration(fadeOutAt)*time.Millisecond
-		e.goOwned(func() {
-			if !waitContext(instance.run.ctx, wait) || !e.lifecycleCurrent(instance.ID, generation) {
-				return
-			}
-			e.outputs.publish(Event{Action: "control", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID}, Control: "fade-out", FadeMs: fadeMs})
-			e.mu.Lock()
-			if active := e.instances.get(instance.ID); active != nil && active.LifecycleGeneration == generation && !active.Paused {
-				materializeInstance(active, time.Now())
-				// TODO(micro): extract const silenceFloorDB = -80; same magic used in executeMediaControl and replaceSingleLayerVisual
-				startInstanceFade(active, -80, fadeMs, time.Now())
-			}
-			e.mu.Unlock()
-			e.HandleOutputReport(instance.ID, "fade-out-start")
-		})
-	}
-	id, wait := snapshot.ID, time.Duration(remainingMs)*time.Millisecond
-	e.goOwned(func() {
-		if waitContext(snapshot.run.ctx, wait) && e.lifecycleCurrent(id, generation) {
-			e.HandleOutputReport(id, "ended")
-		}
-	})
-}
-
 func resolveOutput(value string, settings config.Settings, cueNumber string) string {
 	resolved := strings.TrimSpace(config.Resolve(value, settings, cueNumber))
 	if resolved == "" || strings.Contains(resolved, "{") {
@@ -297,12 +252,10 @@ func (e *Engine) executeMediaControl(cue show.Cue, runCtx context.Context) error
 				startInstanceFade(instance, *play.LevelDB, play.FadeMs, now)
 			}
 		case show.MediaControlFadeOut:
-			// TODO(micro): use shared silenceFloorDB const instead of bare -80
-			startInstanceFade(instance, -80, play.FadeMs, now)
+			startInstanceFade(instance, silenceFloorDB, play.FadeMs, now)
 		case show.MediaControlStop:
 			if play.FadeMs > 0 {
-				// TODO(micro): use shared silenceFloorDB const instead of bare -80
-				startInstanceFade(instance, -80, play.FadeMs, now)
+				startInstanceFade(instance, silenceFloorDB, play.FadeMs, now)
 			}
 		case show.MediaControlMute:
 			instance.Muted = true
@@ -316,7 +269,7 @@ func (e *Engine) executeMediaControl(cue show.Cue, runCtx context.Context) error
 	}
 	if play.Action == show.MediaControlFadeOut {
 		for _, instance := range instances {
-			e.scheduleLink(instance.Cue, instance.CueIndex, instance.PostWaitMs, linkFadeOut, instance.run.ctx)
+			e.lifecycle.dispatchLink(instance, linkFadeOut)
 		}
 	}
 	if play.Action == show.MediaControlStop || play.Action == show.MediaControlFadeOut {

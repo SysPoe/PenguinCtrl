@@ -2,8 +2,6 @@ package playback
 
 import (
 	"time"
-
-	"github.com/syspoe/cusus/show"
 )
 
 type outputReport string
@@ -52,43 +50,9 @@ func reduceInstanceLifecycle(instance *Instance, report outputReport, now time.T
 }
 
 func (e *Engine) HandleOutputReport(instanceID, reportText string) {
-	report := outputReport(reportText)
-	e.mu.Lock()
-	instance := e.instances.get(instanceID)
-	if instance == nil {
-		e.mu.Unlock()
-		return
-	}
-	if applied, retire := reduceInstanceLifecycle(instance, report, time.Now()); !applied {
-		e.mu.Unlock()
-		return
-	} else if retire {
-		e.instances.retire(instanceID)
-	}
-	snapshot := *instance
-	e.mu.Unlock()
+	e.lifecycle.handleOutputReport(instanceID, outputReport(reportText))
+}
 
-	switch report {
-	case outputReportStarted:
-		if snapshot.FadeInMs == 0 {
-			e.scheduleLink(snapshot.Cue, snapshot.CueIndex, snapshot.PostWaitMs, linkFadeIn, snapshot.run.ctx)
-		}
-		e.scheduleInstanceLifecycle(snapshot.ID)
-		e.scheduleTimecode(snapshot.ID, snapshot.Cue, snapshot.CueIndex)
-	case outputReportPresented:
-		e.replaceSingleLayerVisual(snapshot)
-	case outputReportFadeInComplete:
-		e.scheduleLink(snapshot.Cue, snapshot.CueIndex, snapshot.PostWaitMs, linkFadeIn, snapshot.run.ctx)
-	case outputReportFadeOutStart:
-		e.scheduleLink(snapshot.Cue, snapshot.CueIndex, snapshot.PostWaitMs, linkFadeOut, snapshot.run.ctx)
-	case outputReportEnded, outputReportStopped:
-		e.outputs.publish(Event{Action: "remove", OutputID: snapshot.OutputID, InstanceIDs: []string{snapshot.ID}})
-		e.scheduleLink(snapshot.Cue, snapshot.CueIndex, snapshot.PostWaitMs, linkEnd, snapshot.run.ctx)
-		finalization := runCompleted
-		if snapshot.Link.Mode == show.CueLinkManual {
-			finalization = runAborted
-		}
-		e.finishCueRun(snapshot.run, finalization)
-	}
-	e.signalState()
+func (e *Engine) scheduleInstanceLifecycle(instanceID string) {
+	e.lifecycle.schedule(instanceID)
 }

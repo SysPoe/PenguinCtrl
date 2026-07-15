@@ -248,12 +248,6 @@ func (e *Engine) hasInstance(id string) bool {
 	return e.instances.has(id)
 }
 
-func (e *Engine) lifecycleCurrent(id string, generation uint64) bool {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	return e.instances.lifecycleCurrent(id, generation)
-}
-
 func materializeInstance(instance *Instance, now time.Time) {
 	if instance.BackendStarted && !instance.Paused && !instance.PositionAt.IsZero() {
 		instance.PositionMs += max(int64(0), now.Sub(instance.PositionAt).Milliseconds())

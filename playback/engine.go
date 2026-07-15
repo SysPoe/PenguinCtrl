@@ -62,6 +62,7 @@ type Engine struct {
 	outputs       *outputBus
 	mu            sync.RWMutex
 	instances     *instanceRegistry
+	lifecycle     *lifecycleController
 	executions    map[string]*CueExecution
 	outputVisuals map[string]Event
 	outputWindows map[string]Event
@@ -98,7 +99,7 @@ type Engine struct {
 func NewEngine(manager *show.ShowManager, settings *config.Store) *Engine {
 	ctx, cancel := context.WithCancel(context.Background())
 	runCtx, runCancel := context.WithCancel(ctx)
-	return &Engine{
+	engine := &Engine{
 		manager: manager, settings: settings, remote: remote.NewDispatcher(settings),
 		commands: make(chan command, 64), ctx: ctx, cancel: cancel, runCtx: runCtx, runCancel: runCancel, done: make(chan struct{}),
 		outputs: newOutputBus(), instances: newInstanceRegistry(), executions: map[string]*CueExecution{}, outputVisuals: map[string]Event{}, outputWindows: map[string]Event{}, durations: map[show.CueID]int64{}, runs: newCueRunTable(), safety: newSafetyLatch(), admission: &admissionGates{}, preview: &previewSession{},
@@ -107,6 +108,8 @@ func NewEngine(manager *show.ShowManager, settings *config.Store) *Engine {
 		mediaProbeSlots: make(chan struct{}, 1),
 		dispatch:        newDispatchSequencer(), audit: newCommandAudit(),
 	}
+	engine.lifecycle = newLifecycleController(engine, &engine.mu, engine.instances, engine.outputs)
+	return engine
 }
 
 func (e *Engine) Start() { go e.run() }

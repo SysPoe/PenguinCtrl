@@ -50,8 +50,7 @@ func (e *Engine) replaceSingleLayerVisual(presented Instance) {
 		candidate.FadeOutStarted = true
 		candidate.EndScheduled = false
 		candidate.LifecycleGeneration++
-		// TODO(micro): use shared silenceFloorDB const instead of bare -80
-		startInstanceFade(candidate, -80, max(int64(0), candidate.FadeOutMs), now)
+		startInstanceFade(candidate, silenceFloorDB, max(int64(0), candidate.FadeOutMs), now)
 		outgoing = append(outgoing, *candidate)
 	})
 	e.mu.Unlock()
@@ -62,7 +61,7 @@ func (e *Engine) replaceSingleLayerVisual(presented Instance) {
 			Action: "control", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID},
 			Control: "fade-out", FadeMs: fadeMs,
 		})
-		e.scheduleLink(instance.Cue, instance.CueIndex, instance.PostWaitMs, linkFadeOut, instance.run.ctx)
+		e.lifecycle.dispatchLink(instance, linkFadeOut)
 		if fadeMs == 0 {
 			e.HandleOutputReport(instance.ID, "ended")
 			continue
