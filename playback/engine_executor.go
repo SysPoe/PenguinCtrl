@@ -23,13 +23,13 @@ func (e *Engine) execute(next command) {
 		return
 	}
 	keepRun, dispatchAdvanced := false, false
-	e.recordCommand(next, time.Time{}, time.Time{})
+	e.audit.accept(next)
 	defer func() {
 		if !dispatchAdvanced {
-			e.skipDispatch(next.sequence)
+			e.dispatch.skip(next.sequence)
 		}
-		e.recordCommand(next, time.Time{}, time.Now())
-		if next.ownsRun && !keepRun {
+		e.audit.completed(next.sequence, time.Now())
+		if next.runOwner == commandOwnsRun && !keepRun {
 			cancel := next.ctx.Err() != nil || next.cue.Link.Mode == show.CueLinkManual
 			e.finishCueRun(next.cue.ID, next.runID, cancel)
 		}
@@ -47,11 +47,11 @@ func (e *Engine) execute(next command) {
 			return
 		}
 	}
-	if !e.awaitDispatch(next.ctx, next.sequence) {
+	if !e.dispatch.await(next.ctx, next.sequence) {
 		return
 	}
 	dispatchedAt := time.Now()
-	e.recordCommand(next, dispatchedAt, time.Time{})
+	e.audit.dispatched(next.sequence, dispatchedAt)
 	e.updateExecution(executionID, "action", cueActionDuration(next.cue))
 	// A Start link is tied to GO reaching the cue, not to completion of the
 	// cue's action. Scheduling it here also keeps links working when the cue's
@@ -59,7 +59,7 @@ func (e *Engine) execute(next command) {
 	e.scheduleLink(next.cue, next.index, next.cue.Timing.PostWaitMs, linkStart, next.ctx)
 	var err error
 	if next.cue.Type == show.CueTypeWait {
-		e.advanceDispatch(next.sequence)
+		e.dispatch.advance(next.sequence)
 		dispatchAdvanced = true
 	}
 	switch next.cue.Type {
@@ -103,7 +103,7 @@ func (e *Engine) execute(next command) {
 		err = fmt.Errorf("unsupported cue type %d", next.cue.Type)
 	}
 	if !dispatchAdvanced {
-		e.advanceDispatch(next.sequence)
+		e.dispatch.advance(next.sequence)
 		dispatchAdvanced = true
 	}
 	if err != nil {
@@ -144,94 +144,8 @@ func remoteDispatchMessage(result remote.DispatchResult, acknowledged bool) stri
 	return "Command sent" + transport + "; UDP delivery is unconfirmed"
 }
 
-func (e *Engine) awaitDispatch(ctx context.Context, sequence uint64) bool {
-	for {
-		e.dispatchMu.Lock()
-		ready := sequence <= e.dispatchNext
-		e.dispatchMu.Unlock()
-		if ready {
-			return ctx.Err() == nil
-		}
-		select {
-		case <-ctx.Done():
-			return false
-		case <-e.dispatchNotify:
-		}
-	}
-}
-
-func (e *Engine) advanceDispatch(sequence uint64) {
-	e.dispatchMu.Lock()
-	if sequence == e.dispatchNext {
-		e.dispatchNext++
-		for {
-			if _, skipped := e.dispatchSkipped[e.dispatchNext]; !skipped {
-				break
-			}
-			delete(e.dispatchSkipped, e.dispatchNext)
-			e.dispatchNext++
-		}
-	}
-	e.dispatchMu.Unlock()
-	e.notifyDispatch()
-}
-
-func (e *Engine) skipDispatch(sequence uint64) {
-	e.dispatchMu.Lock()
-	if sequence >= e.dispatchNext {
-		e.dispatchSkipped[sequence] = struct{}{}
-	}
-	if sequence == e.dispatchNext {
-		for {
-			delete(e.dispatchSkipped, e.dispatchNext)
-			e.dispatchNext++
-			if _, skipped := e.dispatchSkipped[e.dispatchNext]; !skipped {
-				break
-			}
-		}
-	}
-	e.dispatchMu.Unlock()
-	e.notifyDispatch()
-}
-
-func (e *Engine) notifyDispatch() {
-	select {
-	case e.dispatchNotify <- struct{}{}:
-	default:
-	}
-}
-
-func (e *Engine) recordCommand(next command, dispatchedAt, completedAt time.Time) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	for index := range e.commandHistory {
-		if e.commandHistory[index].Sequence != next.sequence {
-			continue
-		}
-		if !dispatchedAt.IsZero() {
-			e.commandHistory[index].DispatchedAt = dispatchedAt
-		}
-		if !completedAt.IsZero() {
-			e.commandHistory[index].CompletedAt = completedAt
-		}
-		return
-	}
-	e.commandHistory = append(e.commandHistory, CommandRecord{
-		Sequence: next.sequence, CueID: next.cue.ID, CueNumber: next.cue.CueNumber,
-		Origin: next.origin, Preview: next.preview, AcceptedAt: next.acceptedAt,
-		DispatchedAt: dispatchedAt, CompletedAt: completedAt,
-	})
-	// TODO(micro): name the 512 command-history cap (const commandHistoryLimit) instead of repeating the magic number thrice
-	if len(e.commandHistory) > 512 {
-		copy(e.commandHistory, e.commandHistory[len(e.commandHistory)-512:])
-		e.commandHistory = e.commandHistory[:512]
-	}
-}
-
 func (e *Engine) CommandHistory() []CommandRecord {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	return append([]CommandRecord(nil), e.commandHistory...)
+	return e.audit.snapshot()
 }
 
 func cueActionDuration(cue show.Cue) int64 {
@@ -256,14 +170,17 @@ func (e *Engine) startExecution(next command, phase string, durationMs int64) st
 
 func (e *Engine) updateExecution(id, phase string, durationMs int64) {
 	e.mu.Lock()
+	changed := false
 	if execution := e.executions[id]; execution != nil {
 		execution.Phase = phase
 		execution.PhaseAt = time.Now()
 		execution.DurationMs = max(int64(0), durationMs)
+		changed = true
 	}
 	e.mu.Unlock()
-	// TODO(micro): only call changed() when the execution existed; current path notifies even for a missing id
-	e.changed()
+	if changed {
+		e.changed()
+	}
 }
 
 func (e *Engine) finishExecution(id string) {

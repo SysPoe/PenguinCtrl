@@ -23,7 +23,7 @@ type command struct {
 	origin     string
 	sequence   uint64
 	acceptedAt time.Time
-	ownsRun    bool
+	runOwner   commandRunOwnership
 }
 
 type cueRun struct {
@@ -100,19 +100,12 @@ type Engine struct {
 	resetPrior          string
 	enqueueMu           sync.Mutex
 	nextCommandSequence uint64
-	// TODO(macro): dispatchNext/Skipped/Notify is an ordered-start sequencer with no
-	// type boundary—logic lives in engine_executor.go while fields sit on Engine.
-	// Extract a DispatchSequencer so execute() awaits a collaborator instead of
-	// inlining barrier primitives into the cue worker.
-	dispatchMu      sync.Mutex
-	dispatchNext    uint64
-	dispatchSkipped map[uint64]struct{}
-	dispatchNotify  chan struct{}
-	commandHistory  []CommandRecord
-	preflightGate   func(show.Cue) error
-	authorityGate   func() error
-	remoteAuthority func(func() error) error
-	timeline        Timeline
+	dispatch            *dispatchSequencer
+	audit               *commandAudit
+	preflightGate       func(show.Cue) error
+	authorityGate       func() error
+	remoteAuthority     func(func() error) error
+	timeline            Timeline
 }
 
 func NewEngine(manager *show.ShowManager, settings *config.Store) *Engine {
@@ -125,7 +118,7 @@ func NewEngine(manager *show.ShowManager, settings *config.Store) *Engine {
 		durationKeys: map[show.CueID]string{}, durationPending: map[show.CueID]string{}, durationErrors: map[show.CueID]string{},
 		mediaValidated: map[show.CueID]string{}, mediaPending: map[show.CueID]string{}, mediaErrors: map[show.CueID]string{}, stateEvent: make(chan struct{}, 1),
 		mediaProbeSlots: make(chan struct{}, 1),
-		dispatchNext:    1, dispatchSkipped: map[uint64]struct{}{}, dispatchNotify: make(chan struct{}, 1),
+		dispatch:        newDispatchSequencer(), audit: newCommandAudit(),
 	}
 }
 

@@ -139,7 +139,7 @@ func (e *Engine) enqueueCommand(cue show.Cue, index int, preview bool, origin st
 	}
 	err := e.enqueueAcceptedCommand(command{
 		cue: cue, index: index, ctx: runCtx, runID: runID, preview: preview,
-		origin: origin, ownsRun: true,
+		origin: origin, runOwner: commandOwnsRun,
 	})
 	if err != nil {
 		e.finishCueRun(cue.ID, runID, true)
@@ -162,7 +162,7 @@ func (e *Engine) enqueueEmbeddedCommand(cue show.Cue, index int, origin string, 
 	}
 	err := e.enqueueAcceptedCommand(command{
 		cue: cue, index: index, ctx: runCtx, runID: runID,
-		origin: origin, ownsRun: false,
+		origin: origin, runOwner: commandSharesRun,
 	})
 	if err != nil {
 		e.recordCueError(cue, origin, err)
