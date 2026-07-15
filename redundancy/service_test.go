@@ -75,11 +75,11 @@ func TestHeartbeatPartitionDoesNotOverrideLiveInterlock(t *testing.T) {
 	waitStatus(t, standby, func(status Status) bool { return status.PeerFresh && status.PeerActive })
 
 	primary.mu.Lock()
-	if primary.conn == nil {
+	if primary.transport == nil {
 		primary.mu.Unlock()
 		t.Fatal("primary heartbeat socket is unavailable")
 	}
-	_ = primary.conn.Close()
+	_ = primary.transport.conn.Close()
 	primary.mu.Unlock()
 	waitStatus(t, standby, func(status Status) bool { return status.PeerSeen && !status.PeerFresh })
 	if err := standby.RequestTakeover(); err == nil || !strings.Contains(err.Error(), "interlock remains owned") {
@@ -127,7 +127,7 @@ func TestInterlockPreventsConcurrentOwners(t *testing.T) {
 
 func TestConfigureStopsWhenExistingInterlockCannotBeReleased(t *testing.T) {
 	oldConfig := Config{Role: RolePrimary, NodeID: "primary"}
-	service := &Service{config: oldConfig, lock: failingInterlock{}, authority: true}
+	service := &Service{config: oldConfig, lock: failingInterlock{}, policy: authorityPolicy{authority: true}}
 	err := service.Configure(Config{Role: RoleOff})
 	if err == nil || !strings.Contains(err.Error(), "release failed") {
 		t.Fatalf("Configure() error = %v", err)
@@ -135,14 +135,18 @@ func TestConfigureStopsWhenExistingInterlockCannotBeReleased(t *testing.T) {
 	if service.config != oldConfig {
 		t.Fatalf("configuration changed after failed release: %+v", service.config)
 	}
-	if !strings.Contains(service.lastError, "release failed") {
-		t.Fatalf("last error = %q", service.lastError)
+	if !strings.Contains(service.policy.lastError, "release failed") {
+		t.Fatalf("last error = %q", service.policy.lastError)
 	}
 }
 
 func TestHeartbeatAuthenticationRejectsMutation(t *testing.T) {
 	message := heartbeat{Version: protocolVersion, NodeID: "primary", Role: RolePrimary, BootID: "boot", Sequence: 1, SentUnixNano: 1, Active: true}
-	message.Signature = signHeartbeat(message, "0123456789abcdef")
+	signature, err := signHeartbeat(message, "0123456789abcdef")
+	if err != nil {
+		t.Fatal(err)
+	}
+	message.Signature = signature
 	if !verifyHeartbeat(message, "0123456789abcdef") {
 		t.Fatal("valid heartbeat signature rejected")
 	}
@@ -193,9 +197,13 @@ func TestStandbySelfFencesIfActivePrimaryHeartbeatAppears(t *testing.T) {
 		t.Fatal(err)
 	}
 	service := &Service{
-		config: config, fingerprint: fingerprint, interlockID: interlockIdentity(path),
-		lock: lock, authority: true, peerSeen: true, lastPeer: time.Now(),
-		peer: heartbeat{NodeID: "primary", Role: RolePrimary, Active: true, Fingerprint: fingerprint, InterlockID: interlockIdentity(path)},
+		config: config, lock: lock,
+		policy: authorityPolicy{
+			role: RoleStandby, nodeID: "standby", peerTimeout: config.PeerTimeout,
+			fingerprint: fingerprint, interlockID: interlockIdentity(path), authority: true,
+			peerSeen: true, lastPeer: time.Now(),
+			peer: heartbeat{NodeID: "primary", Role: RolePrimary, Active: true, Fingerprint: fingerprint, InterlockID: interlockIdentity(path)},
+		},
 	}
 	service.mu.Lock()
 	service.reconcileLocked(time.Now())
