@@ -11,6 +11,7 @@ import (
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"github.com/syspoe/cusus/palette"
+	"github.com/syspoe/cusus/ui/primitives"
 )
 
 type ColourPicker struct {
@@ -125,8 +126,8 @@ func colourSlider(th *material.Theme, slider *Slider) layout.FlexChild {
 				gtx.Constraints.Min.X = gtx.Dp(unit.Dp(40))
 				return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					label := material.Body2(th, slider.Label)
-					label.Color = inputTextColor(th)
-					return layoutStableText(gtx, label.Layout)
+					label.Color = palette.Text
+					return primitives.StableText(gtx, label.Layout)
 				})
 			}),
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {

@@ -130,8 +130,8 @@ func (ctx *CueEditUI) drawBottomBar(th *material.Theme, gtx layout.Context, mana
 			Axis:      layout.Horizontal,
 			Alignment: layout.Middle,
 		}.Layout(gtx,
-			makeFlexedBtnWithColor(th, &ctx.btnCancel, "Cancel", palette.Danger, 1),
-			makeFlexedBtnWithColor(th, &ctx.btnSave, "Save", palette.Success, 1),
+			makeFlexedBtnWithColor(th, &ctx.btnCancel, "Cancel", palette.Danger),
+			makeFlexedBtnWithColor(th, &ctx.btnSave, "Save", palette.Success),
 		)
 	})
 }

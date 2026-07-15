@@ -7,6 +7,7 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"github.com/syspoe/cusus/palette"
 )
 
 const sliderSyncEpsilon = 0.0001
@@ -68,7 +69,7 @@ func (s *Slider) Layout(th *material.Theme, gtx layout.Context) layout.Dimension
 	}
 
 	previous := s.slider.Value
-	dims := inputField(th, gtx, func(gtx layout.Context) layout.Dimensions {
+	dims := inputField(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{
 			Top:    unit.Dp(8),
 			Bottom: unit.Dp(8),
@@ -77,7 +78,7 @@ func (s *Slider) Layout(th *material.Theme, gtx layout.Context) layout.Dimension
 		}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = max(gtx.Constraints.Min.X, gtx.Dp(inputMinWidth))
 			slider := material.Slider(th, &s.slider)
-			slider.Color = selectedInputSurface(th)
+			slider.Color = palette.SurfaceRaised
 			return slider.Layout(gtx)
 		})
 	})

@@ -36,9 +36,9 @@ func layoutCueGroupHeader(state *CueListState, th *material.Theme, gtx layout.Co
 	}
 	if moveCueActive {
 		return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-			makeFlexedBtnWithColor(th, groupClickable(state.groupBeforeClicks, cue.GroupID), "Before "+title, palette.SurfaceRaised, 1),
-			makeFlexedBtnWithColor(th, groupClickable(state.groupHeaderClicks, cue.GroupID), "Into "+title, palette.Primary, 1),
-			makeFlexedBtnWithColor(th, groupClickable(state.groupAfterClicks, cue.GroupID), "After "+title, palette.SurfaceRaised, 1),
+			makeFlexedBtnWithColor(th, groupClickable(state.groupBeforeClicks, cue.GroupID), "Before "+title, palette.SurfaceRaised),
+			makeFlexedBtnWithColor(th, groupClickable(state.groupHeaderClicks, cue.GroupID), "Into "+title, palette.Primary),
+			makeFlexedBtnWithColor(th, groupClickable(state.groupAfterClicks, cue.GroupID), "After "+title, palette.SurfaceRaised),
 		)
 	}
 	clickable := groupClickable(state.groupHeaderClicks, cue.GroupID)

@@ -9,6 +9,8 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"github.com/syspoe/cusus/palette"
+	"github.com/syspoe/cusus/ui/primitives"
 	"github.com/syspoe/cusus/utils"
 )
 
@@ -46,8 +48,6 @@ func NewDropdown(items []DropdownItem, selected int) *Dropdown {
 		Items:       items,
 		Selected:    selected,
 		choicesBtns: make([]widget.Clickable, len(items)),
-		// TODO(micro): expandedBtn is already zero-value; omit this field from the literal.
-		expandedBtn: widget.Clickable{},
 	}
 }
 
@@ -56,15 +56,15 @@ func (d *Dropdown) SetItems(items []DropdownItem, selected int) {
 	if len(d.choicesBtns) != len(items) {
 		d.choicesBtns = make([]widget.Clickable, len(items))
 	}
-	// TODO(micro): when items is empty this assigns selected=0 then immediately overwrites with -1; clamp after the empty check.
+	if len(items) == 0 {
+		d.Selected = -1
+		d.expanded = false
+		return
+	}
 	if selected < 0 || selected >= len(items) {
 		selected = 0
 	}
 	d.Selected = selected
-	if len(items) == 0 {
-		d.Selected = -1
-		d.expanded = false
-	}
 }
 
 func (d *Dropdown) AddEventListener(listener func(selectedIndex int, selectedValue DropdownItem)) {
@@ -89,18 +89,15 @@ func (d *Dropdown) notifyEventListeners() {
 }
 
 func (d *Dropdown) Layout(th *material.Theme, gtx layout.Context) layout.Dimensions {
-	// TODO(micro): regBg and nonSelBg are identical; use one variable.
-	regBg := inputSurface(th)
-	selBg := selectedInputSurface(th)
-	nonSelBg := inputSurface(th)
+	regularBackground := palette.Surface
+	selBg := palette.SurfaceRaised
 
 	if d.expandedBtn.Clicked(gtx) {
 		d.expanded = !d.expanded
 	}
 
 	subs := []layout.FlexChild{
-		// TODO(micro): expanded/collapsed chevron strings have inconsistent spacing ("▼" vs " ▶"); normalize.
-		fixedWidthBtnWithColor(th, &d.expandedBtn, d.getSelectedLabel()+utils.Ter(d.expanded, "▼", " ▶"), inputDefaultWidth, regBg),
+		fixedWidthBtnWithColor(th, &d.expandedBtn, d.getSelectedLabel()+utils.Ter(d.expanded, " ▼", " ▶"), inputDefaultWidth, regularBackground),
 	}
 
 	if d.expanded {
@@ -113,7 +110,7 @@ func (d *Dropdown) Layout(th *material.Theme, gtx layout.Context) layout.Dimensi
 			if d.Selected == i {
 				subs = append(subs, fixedWidthBtnWithColor(th, &d.choicesBtns[i], item.Label, inputDefaultWidth, selBg))
 			} else {
-				subs = append(subs, fixedWidthBtnWithColor(th, &d.choicesBtns[i], item.Label, inputDefaultWidth, nonSelBg))
+				subs = append(subs, fixedWidthBtnWithColor(th, &d.choicesBtns[i], item.Label, inputDefaultWidth, regularBackground))
 			}
 		}
 	}
@@ -130,7 +127,7 @@ func (d *Dropdown) Layout(th *material.Theme, gtx layout.Context) layout.Dimensi
 
 func fixedWidthBtnWithColor(th *material.Theme, wid *widget.Clickable, txt string, width unit.Dp, bgColor color.NRGBA) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-		setFixedWidth(&gtx, width)
+		primitives.SetFixedWidth(&gtx, width)
 		btn := material.ButtonLayout(th, wid)
 		btn.Background = bgColor
 		return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -138,18 +135,10 @@ func fixedWidthBtnWithColor(th *material.Theme, wid *widget.Clickable, txt strin
 				gtx.Constraints.Min.X = gtx.Constraints.Max.X
 				label := material.Body1(th, txt)
 				label.Alignment = text.Middle
-				label.Color = inputTextColor(th)
+				label.Color = palette.Text
 				label.TextSize = unit.Sp(18)
-				return layoutStableText(gtx, label.Layout)
+				return primitives.StableText(gtx, label.Layout)
 			})
 		})
 	})
-}
-
-func setFixedWidth(gtx *layout.Context, width unit.Dp) {
-	widthPx := gtx.Dp(width)
-	widthPx = max(widthPx, gtx.Constraints.Min.X)
-	widthPx = min(widthPx, gtx.Constraints.Max.X)
-	gtx.Constraints.Min.X = widthPx
-	gtx.Constraints.Max.X = widthPx
 }

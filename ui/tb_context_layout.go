@@ -95,15 +95,15 @@ func (ctx *TBContext) Layout(th *material.Theme, gtx layout.Context, manager *sh
 				hasSelection := manager.HasSelectedCue()
 				_, hasGroup := manager.SelectedGroup()
 				return layout.Flex{Axis: layout.Vertical, Alignment: layout.Baseline}.Layout(gtx,
-					makeFixedWidthBtnEnabled(th, &ctx.btnDeleteCue, "Delete Cue", menuWidth, hasSelection),
-					makeFixedWidthBtnEnabled(th, &ctx.btnEditCue, "Edit Cue", menuWidth, hasSelection),
-					makeFixedWidthBtnEnabled(th, &ctx.btnMoveCue, "Move Cue", menuWidth, hasSelection),
-					makeFixedWidthBtnEnabled(th, &ctx.btnDuplicateCue, "Duplicate", menuWidth, hasSelection),
-					makeFixedWidthBtnEnabled(th, &ctx.btnCopyCue, "Copy", menuWidth, hasSelection),
-					makeFixedWidthBtnEnabled(th, &ctx.btnPasteCue, "Paste Before", menuWidth, hasSelection && ctx.copiedCue != nil),
-					makeFixedWidthBtnEnabled(th, &ctx.btnCreateGroup, "Create Group…", menuWidth, hasSelection && !hasGroup),
-					makeFixedWidthBtnEnabled(th, &ctx.btnRenameGroup, "Rename Group…", menuWidth, hasGroup),
-					makeFixedWidthBtnEnabled(th, &ctx.btnUngroupCue, "Remove from Group", menuWidth, hasGroup),
+					makeFixedWidthBtnEnabled(th, &ctx.btnDeleteCue, "Delete Cue", hasSelection),
+					makeFixedWidthBtnEnabled(th, &ctx.btnEditCue, "Edit Cue", hasSelection),
+					makeFixedWidthBtnEnabled(th, &ctx.btnMoveCue, "Move Cue", hasSelection),
+					makeFixedWidthBtnEnabled(th, &ctx.btnDuplicateCue, "Duplicate", hasSelection),
+					makeFixedWidthBtnEnabled(th, &ctx.btnCopyCue, "Copy", hasSelection),
+					makeFixedWidthBtnEnabled(th, &ctx.btnPasteCue, "Paste Before", hasSelection && ctx.copiedCue != nil),
+					makeFixedWidthBtnEnabled(th, &ctx.btnCreateGroup, "Create Group…", hasSelection && !hasGroup),
+					makeFixedWidthBtnEnabled(th, &ctx.btnRenameGroup, "Rename Group…", hasGroup),
+					makeFixedWidthBtnEnabled(th, &ctx.btnUngroupCue, "Remove from Group", hasGroup),
 				)
 			}
 			return layout.Dimensions{}
@@ -116,13 +116,13 @@ func (ctx *TBContext) Layout(th *material.Theme, gtx layout.Context, manager *sh
 					Axis:      layout.Vertical,
 					Alignment: layout.Baseline,
 				}.Layout(gtx,
-					makeFixedWidthBtn(th, &ctx.btnCueTypeSound, "Sound", menuWidth),
-					makeFixedWidthBtn(th, &ctx.btnCueTypeVideo, "Video", menuWidth),
-					makeFixedWidthBtn(th, &ctx.btnCueTypeImage, "Image", menuWidth),
-					makeFixedWidthBtn(th, &ctx.btnCueTypeRemote, "Remote", menuWidth),
-					makeFixedWidthBtn(th, &ctx.btnCueTypeWait, "Wait", menuWidth),
-					makeFixedWidthBtn(th, &ctx.btnCueTypeMediaControl, "Media Control", menuWidth),
-					makeFixedWidthBtn(th, &ctx.btnCueTypeOutputControl, "Output Control", menuWidth),
+					makeFixedWidthBtn(th, &ctx.btnCueTypeSound, "Sound"),
+					makeFixedWidthBtn(th, &ctx.btnCueTypeVideo, "Video"),
+					makeFixedWidthBtn(th, &ctx.btnCueTypeImage, "Image"),
+					makeFixedWidthBtn(th, &ctx.btnCueTypeRemote, "Remote"),
+					makeFixedWidthBtn(th, &ctx.btnCueTypeWait, "Wait"),
+					makeFixedWidthBtn(th, &ctx.btnCueTypeMediaControl, "Media Control"),
+					makeFixedWidthBtn(th, &ctx.btnCueTypeOutputControl, "Output Control"),
 				)
 			}
 			return layout.Dimensions{}

@@ -32,8 +32,8 @@ func (ctx *TBContext) layoutGroupDialog(th *material.Theme, gtx layout.Context, 
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-						makeFlexedBtnWithColor(th, &ctx.btnCancelGroup, "Cancel", palette.SurfaceRaised, 1),
-						makeFlexedBtnWithColor(th, &ctx.btnConfirmGroup, "Save", palette.Primary, 1),
+						makeFlexedBtnWithColor(th, &ctx.btnCancelGroup, "Cancel", palette.SurfaceRaised),
+						makeFlexedBtnWithColor(th, &ctx.btnConfirmGroup, "Save", palette.Primary),
 					)
 				}),
 			)
@@ -78,8 +78,8 @@ func (ctx *TBContext) layoutDeleteConfirmation(th *material.Theme, gtx layout.Co
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-						makeFlexedBtnWithColor(th, &ctx.btnCancelDelete, "Cancel", palette.SurfaceRaised, 1),
-						makeFlexedBtnWithColor(th, &ctx.btnConfirmDelete, "Delete", palette.Danger, 1),
+						makeFlexedBtnWithColor(th, &ctx.btnCancelDelete, "Cancel", palette.SurfaceRaised),
+						makeFlexedBtnWithColor(th, &ctx.btnConfirmDelete, "Delete", palette.Danger),
 					)
 				}),
 			)

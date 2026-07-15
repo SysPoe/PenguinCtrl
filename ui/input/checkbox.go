@@ -1,12 +1,13 @@
-// TODO(micro): Add Go-style documentation for Checkbox and its exported constructor, listener, and layout API.
 package input
 
 import (
 	"gioui.org/layout"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"github.com/syspoe/cusus/palette"
 )
 
+// Checkbox is a themed boolean field with model-binding and event callbacks.
 type Checkbox struct {
 	Label   string
 	Checked bool
@@ -18,6 +19,7 @@ type Checkbox struct {
 	eventListeners []func(checked bool)
 }
 
+// NewCheckbox constructs a checkbox with its public and widget values aligned.
 func NewCheckbox(label string, checked bool) *Checkbox {
 	return &Checkbox{
 		Label:   label,
@@ -29,6 +31,7 @@ func NewCheckbox(label string, checked bool) *Checkbox {
 	}
 }
 
+// AddEventListener appends a callback invoked for user-originated changes.
 func (c *Checkbox) AddEventListener(listener func(checked bool)) {
 	c.eventListeners = append(c.eventListeners, listener)
 }
@@ -60,6 +63,7 @@ func (c *Checkbox) synchronize() {
 	}
 }
 
+// Layout synchronizes the public value and renders the checkbox field.
 func (c *Checkbox) Layout(th *material.Theme, gtx layout.Context) layout.Dimensions {
 	// Only synchronize a value that changed through the public model. Keeping the
 	// last synchronized value prevents a queued widget toggle from being replaced
@@ -68,10 +72,10 @@ func (c *Checkbox) Layout(th *material.Theme, gtx layout.Context) layout.Dimensi
 
 	previous := c.checkbox.Value
 	checkBox := material.CheckBox(th, &c.checkbox, c.Label)
-	accent := inputTextColor(th)
+	accent := palette.Text
 	checkBox.Color = accent
 	checkBox.IconColor = accent
-	dims := inputField(th, gtx, checkBox.Layout)
+	dims := inputField(gtx, checkBox.Layout)
 
 	if c.checkbox.Value != previous {
 		c.Checked = c.checkbox.Value

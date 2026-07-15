@@ -317,7 +317,7 @@ func Main(
 													func(gtx layout.Context) layout.Dimensions {
 														return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 															el := material.Body2(th, cue.CueNumber)
-															el.Color = contrastColor(cueBg)
+															el.Color = palette.ContrastText(cueBg)
 															el.Alignment = text.Middle
 															return layoutTruncatedText(gtx, el)
 														})
@@ -364,7 +364,7 @@ func Main(
 																str = "Unknown"
 															}
 															el := material.Body2(th, str)
-															el.Color = contrastColor(cueTypeCol)
+															el.Color = palette.ContrastText(cueTypeCol)
 															el.Alignment = text.Middle
 															return layoutTruncatedText(gtx, el)
 														})

@@ -21,7 +21,7 @@ func (p *SettingsPage) header(th *material.Theme, gtx layout.Context) layout.Dim
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					label := material.H5(th, "Settings")
-					label.Color = opaqueForeground(th)
+					label.Color = palette.Opaque(th.Fg)
 					return layoutStableText(gtx, label.Layout)
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {

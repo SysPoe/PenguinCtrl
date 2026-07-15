@@ -63,7 +63,7 @@ func (m *editorFieldModel[T]) layout(th *material.Theme, gtx layout.Context, hin
 	previous := m.editor.Text()
 	editor := material.Editor(th, &m.editor, hint)
 	editor.TextSize = editorTextSize
-	dims := editorField(th, gtx, func(gtx layout.Context) layout.Dimensions {
+	dims := editorField(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(editorInset).Layout(gtx, editor.Layout)
 	})
 	if m.focus {

@@ -289,8 +289,8 @@ func (tb *TopBar) LayoutEmergencyStopConfirmation(th *material.Theme, gtx layout
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
-						makeFlexedBtnWithColor(th, &tb.btnEStopCancel, "Cancel", palette.SurfaceRaised, 1),
-						makeFlexedBtnWithColor(th, &tb.btnEStopConfirm, "Activate E-STOP", palette.Danger, 1),
+						makeFlexedBtnWithColor(th, &tb.btnEStopCancel, "Cancel", palette.SurfaceRaised),
+						makeFlexedBtnWithColor(th, &tb.btnEStopConfirm, "Activate E-STOP", palette.Danger),
 					)
 				}),
 			)
@@ -330,10 +330,10 @@ func (tb *TopBar) LayoutFileMenu(th *material.Theme, gtx layout.Context) layout.
 		tb.setAllFalse()
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		makeFixedWidthBtn(th, &tb.btnNew, "New", menuWidth),
-		makeFixedWidthBtn(th, &tb.btnLoad, "Load…", menuWidth),
-		makeFixedWidthBtn(th, &tb.btnSave, "Save", menuWidth),
-		makeFixedWidthBtn(th, &tb.btnSaveAs, "Save As…", menuWidth),
+		makeFixedWidthBtn(th, &tb.btnNew, "New"),
+		makeFixedWidthBtn(th, &tb.btnLoad, "Load…"),
+		makeFixedWidthBtn(th, &tb.btnSave, "Save"),
+		makeFixedWidthBtn(th, &tb.btnSaveAs, "Save As…"),
 	)
 }
 

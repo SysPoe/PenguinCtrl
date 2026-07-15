@@ -6,6 +6,7 @@ import (
 	"gioui.org/layout"
 	"gioui.org/unit"
 	"gioui.org/widget/material"
+	"github.com/syspoe/cusus/palette"
 	"github.com/syspoe/cusus/ui/input"
 )
 
@@ -200,7 +201,7 @@ func settingsSection(th *material.Theme, gtx layout.Context, title string, rows 
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				label := material.H6(th, title)
-				label.Color = opaqueForeground(th)
+				label.Color = palette.Opaque(th.Fg)
 				return layoutStableText(gtx, label.Layout)
 			})
 		}),
