@@ -2,10 +2,10 @@ package show
 
 import (
 	"fmt"
-	"net/url"
 	"path/filepath"
-	"runtime"
 	"strings"
+
+	"github.com/syspoe/cusus/internal/mediapath"
 )
 
 func cueIDCount(id CueID, cues []Cue) int {
@@ -64,26 +64,15 @@ func mediaFileProblems(source string) []CueProblem {
 	return nil
 }
 
-// TODO(macro): Stop dual-owning media path parsing — outputFilePath duplicates
-// project.LocalPath rules (file://, Windows drive strip, abs resolution) inside
-// show validation, so path policy can diverge between archive/library and
-// warnings.
 func outputFilePath(source string) (string, error) {
-	if strings.HasPrefix(strings.ToLower(source), "file:") {
-		parsed, err := url.Parse(source)
-		if err != nil {
-			return "", err
-		}
-		source = parsed.Path
-		if runtime.GOOS == "windows" && len(source) >= 3 && source[0] == '/' && source[2] == ':' {
-			source = source[1:]
-		}
+	local, err := mediapath.Local(source)
+	if err != nil {
+		return "", err
 	}
-	source = filepath.FromSlash(source)
-	if !filepath.IsAbs(source) {
-		return filepath.Abs(source)
+	if !filepath.IsAbs(local) {
+		return filepath.Abs(local)
 	}
-	return source, nil
+	return local, nil
 }
 
 func mediaTimingProblems(clipStartMs, clipEndMs, fadeInMs, fadeOutMs int64) []CueProblem {

@@ -5,13 +5,13 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/syspoe/cusus/internal/mediapath"
 )
 
 // File is a media file currently available to the open project.
@@ -96,26 +96,5 @@ func HashFile(path string) (string, error) {
 
 // LocalPath converts file:// paths returned by native pickers into OS paths.
 func LocalPath(source string) (string, error) {
-	source = strings.TrimSpace(source)
-	if source == "" {
-		return "", fmt.Errorf("media path is empty")
-	}
-	parsed, err := url.Parse(source)
-	if err == nil && strings.EqualFold(parsed.Scheme, "file") {
-		path, err := url.PathUnescape(parsed.Path)
-		if err != nil {
-			return "", fmt.Errorf("decode media URI: %w", err)
-		}
-		if parsed.Host != "" {
-			path = "//" + parsed.Host + path
-		}
-		if runtime.GOOS == "windows" && len(path) >= 3 && path[0] == '/' && path[2] == ':' {
-			path = path[1:]
-		}
-		return filepath.FromSlash(path), nil
-	}
-	if err == nil && parsed.Scheme != "" && len(parsed.Scheme) != 1 {
-		return "", fmt.Errorf("unsupported media URI %q", source)
-	}
-	return filepath.Clean(source), nil
+	return mediapath.Local(source)
 }
