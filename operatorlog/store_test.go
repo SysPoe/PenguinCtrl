@@ -74,8 +74,11 @@ func TestSupportBundleRedactsSettingsAndIncludesIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// TODO(micro): Register a cleanup that reports reader.Close failure through t.Errorf instead of ignoring it.
-	defer reader.Close()
+	t.Cleanup(func() {
+		if err := reader.Close(); err != nil {
+			t.Errorf("close support archive: %v", err)
+		}
+	})
 	files := map[string][]byte{}
 	for _, file := range reader.File {
 		stream, err := file.Open()
@@ -94,5 +97,14 @@ func TestSupportBundleRedactsSettingsAndIncludesIdentity(t *testing.T) {
 	var manifest supportManifest
 	if err := json.Unmarshal(files["manifest.json"], &manifest); err != nil || manifest.BuildID != "build-123" || manifest.ShowID != "show-456" {
 		t.Fatalf("manifest = %+v, %v", manifest, err)
+	}
+}
+
+func TestStoreRecordsDurableLogFailure(t *testing.T) {
+	store := NewStore()
+	store.SetLogPath(t.TempDir())
+	store.Add(Warning, "Test", "cannot append to a directory", show.CueID{}, "")
+	if store.LogError() == nil {
+		t.Fatal("durable log failure was not recorded")
 	}
 }

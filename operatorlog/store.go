@@ -3,16 +3,22 @@ package operatorlog
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/syspoe/cusus/show"
+)
+
+const (
+	eventMemoryCapacity = 1000
+	eventLogMaxBytes    = 5 * 1024 * 1024
+	eventLogGenerations = 4
 )
 
 type Severity int
@@ -94,6 +100,7 @@ type Store struct {
 	buildID   string
 	showID    func() string
 	sequence  uint64
+	logError  error
 }
 
 func NewStore() *Store { return &Store{sessionID: uuid.NewString()} }
@@ -122,30 +129,16 @@ func (s *Store) Add(severity Severity, source, message string, cueID show.CueID,
 
 func (s *Store) AddDetails(severity Severity, source, message string, cueID show.CueID, cueNumber string, details map[string]any) Event {
 	s.mu.Lock()
-	// TODO(micro): share Event construction with appendDiagnostic (sequence/showID/session fields duplicated)
-	s.sequence++
-	showID := ""
-	if s.showID != nil {
-		showID = s.showID()
-	}
-	event := Event{
-		ID: uuid.NewString(), Sequence: s.sequence, Timestamp: time.Now(), SessionID: s.sessionID, BuildID: s.buildID, ShowID: showID, Severity: severity,
-		Source: strings.TrimSpace(source), Message: strings.TrimSpace(message),
-		CueID: cueID, CueNumber: strings.TrimSpace(cueNumber), Details: details,
-	}
+	event := s.newEventLocked(severity, source, message, cueID, cueNumber, details)
 	s.events = append(s.events, event)
-	// TODO(micro): name the in-memory ring capacity (1000) as a constant
-	if len(s.events) > 1000 {
-		s.events = append([]Event(nil), s.events[len(s.events)-1000:]...)
+	if len(s.events) > eventMemoryCapacity {
+		s.events = append([]Event(nil), s.events[len(s.events)-eventMemoryCapacity:]...)
 	}
 	callback := s.onChange
 	logPath := s.logPath
 	s.mu.Unlock()
 	if logPath != "" {
-		s.logMu.Lock()
-		// TODO(micro): Surface or record append failures; silently dropping the durable copy makes this Store look healthier than it is.
-		_ = appendEventLog(logPath, event)
-		s.logMu.Unlock()
+		s.persist(logPath, event)
 	}
 	if callback != nil {
 		callback()
@@ -180,30 +173,55 @@ func (w *eventWriter) Write(p []byte) (int, error) {
 
 func (s *Store) appendDiagnostic(source, message string, details map[string]any) {
 	s.mu.Lock()
+	event := s.newEventLocked(Info, source, message, show.CueID{}, "", details)
+	logPath := s.logPath
+	s.mu.Unlock()
+	if logPath != "" {
+		s.persist(logPath, event)
+	}
+}
+
+func (s *Store) newEventLocked(severity Severity, source, message string, cueID show.CueID, cueNumber string, details map[string]any) Event {
 	s.sequence++
 	showID := ""
 	if s.showID != nil {
 		showID = s.showID()
 	}
-	// TODO(micro): TrimSpace source/message here like AddDetails does for consistency
-	event := Event{ID: uuid.NewString(), Sequence: s.sequence, Timestamp: time.Now(), SessionID: s.sessionID, BuildID: s.buildID, ShowID: showID, Severity: Info, Source: source, Message: message, Details: details}
-	logPath := s.logPath
-	s.mu.Unlock()
-	if logPath != "" {
-		s.logMu.Lock()
-		// TODO(micro): Share one helper with AddDetails that handles append failures instead of discarding this result independently.
-		_ = appendEventLog(logPath, event)
-		s.logMu.Unlock()
+	return Event{
+		ID: uuid.NewString(), Sequence: s.sequence, Timestamp: time.Now(), SessionID: s.sessionID, BuildID: s.buildID, ShowID: showID, Severity: severity,
+		Source: strings.TrimSpace(source), Message: strings.TrimSpace(message), CueID: cueID, CueNumber: strings.TrimSpace(cueNumber), Details: details,
 	}
+}
+
+func (s *Store) persist(path string, event Event) {
+	s.logMu.Lock()
+	err := appendEventLog(path, event)
+	s.logMu.Unlock()
+	if err == nil {
+		return
+	}
+	s.mu.Lock()
+	s.logError = err
+	callback := s.onChange
+	s.mu.Unlock()
+	if callback != nil {
+		callback()
+	}
+}
+
+// LogError reports the most recent failure to append the durable operator log.
+func (s *Store) LogError() error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.logError
 }
 
 func appendEventLog(path string, event Event) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	// TODO(micro): name rotation threshold (5MiB) and generation count (4) as constants; support.go hard-codes the same 4
-	if info, err := os.Stat(path); err == nil && info.Size() >= 5*1024*1024 {
-		if err := rotateEventLogs(path, 4); err != nil {
+	if info, err := os.Stat(path); err == nil && info.Size() >= eventLogMaxBytes {
+		if err := rotateEventLogs(path, eventLogGenerations); err != nil {
 			return err
 		}
 	}
@@ -221,11 +239,9 @@ func appendEventLog(path string, event Event) error {
 }
 
 func rotateEventLogs(path string, generations int) error {
-	// TODO(micro): Use strconv.Itoa for generation suffixes instead of fmt.Sprint in this rotation loop.
-	// TODO(micro): use strconv.Itoa instead of fmt.Sprint for generation suffixes
-	_ = os.Remove(path + "." + fmt.Sprint(generations))
+	_ = os.Remove(path + "." + strconv.Itoa(generations))
 	for generation := generations - 1; generation >= 1; generation-- {
-		from, to := path+"."+fmt.Sprint(generation), path+"."+fmt.Sprint(generation+1)
+		from, to := path+"."+strconv.Itoa(generation), path+"."+strconv.Itoa(generation+1)
 		if err := os.Rename(from, to); err != nil && !os.IsNotExist(err) {
 			return err
 		}

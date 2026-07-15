@@ -68,7 +68,7 @@ func (s *Store) ExportSupportBundle(destination, settingsPath, crashDirectory st
 			return err
 		}
 	}
-	for generation := 0; generation <= 4; generation++ {
+	for generation := 0; generation <= eventLogGenerations; generation++ {
 		path := logPath
 		if generation > 0 {
 			path += fmt.Sprintf(".%d", generation)
@@ -156,18 +156,30 @@ func addRecentCrashReports(archive *zip.Writer, directory string, limit int) err
 	if err != nil {
 		return err
 	}
-	sort.Slice(entries, func(i, j int) bool {
-		// TODO(micro): handle Info() errors - nil left/right panics on ModTime(); also skip non-crash files
-		left, _ := entries[i].Info()
-		right, _ := entries[j].Info()
-		return left.ModTime().After(right.ModTime())
-	})
-	added := 0
+	type crashReport struct {
+		entry os.DirEntry
+		info  os.FileInfo
+	}
+	reports := make([]crashReport, 0, len(entries))
 	for _, entry := range entries {
-		if entry.IsDir() || added >= limit {
+		if entry.IsDir() || !strings.HasPrefix(entry.Name(), "crash-") {
 			continue
 		}
-		if err := addBoundedSupportFile(archive, "crashes/"+filepath.Base(entry.Name()), filepath.Join(directory, entry.Name())); err != nil {
+		info, err := entry.Info()
+		if err != nil {
+			return fmt.Errorf("inspect crash report %q: %w", entry.Name(), err)
+		}
+		reports = append(reports, crashReport{entry: entry, info: info})
+	}
+	sort.Slice(reports, func(i, j int) bool {
+		return reports[i].info.ModTime().After(reports[j].info.ModTime())
+	})
+	added := 0
+	for _, report := range reports {
+		if added >= limit {
+			break
+		}
+		if err := addBoundedSupportFile(archive, "crashes/"+filepath.Base(report.entry.Name()), filepath.Join(directory, report.entry.Name())); err != nil {
 			return err
 		}
 		added++
