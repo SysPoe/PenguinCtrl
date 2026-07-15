@@ -57,9 +57,7 @@ type TBContext struct {
 func (ctx *TBContext) openCueEditor(cue show.Cue, isNew bool) {
 	ctx.cueEditUI.stopTimecodePreview()
 	ctx.cueEditUI.cue = cue
-	ctx.cueEditUI.cType = cue.Type
-	ctx.cueEditUI.activeTab = tabGeneral
-	ctx.cueEditUI.focusFirstInput = true
+	ctx.cueEditUI.tabs.reset(tabGeneral, true)
 	ctx.cueEditUI.page = cueEditPageState{}
 	ctx.cueEditUI.timeline.reset()
 	ctx.cueEditUI.isNew = isNew
@@ -83,23 +81,23 @@ func (ctx *TBContext) EditSelectedCueAt(manager *show.ShowManager, field string)
 	}
 	switch {
 	case strings.HasPrefix(field, "media"):
-		ctx.cueEditUI.activeTab = tabMedia
+		ctx.cueEditUI.tabs.active = tabMedia
 	case strings.HasPrefix(field, "timecode"):
-		ctx.cueEditUI.activeTab = tabTimecode
+		ctx.cueEditUI.tabs.active = tabTimecode
 	case strings.HasPrefix(field, "remote"):
-		ctx.cueEditUI.activeTab = tabRemote
+		ctx.cueEditUI.tabs.active = tabRemote
 	case strings.HasPrefix(field, "wait"):
-		ctx.cueEditUI.activeTab = tabWait
+		ctx.cueEditUI.tabs.active = tabWait
 	case strings.HasPrefix(field, "link"):
-		ctx.cueEditUI.activeTab = tabLink
+		ctx.cueEditUI.tabs.active = tabLink
 	case strings.HasPrefix(field, "output"):
-		ctx.cueEditUI.activeTab = tabOutputCtrl
+		ctx.cueEditUI.tabs.active = tabOutputCtrl
 	case strings.Contains(field, "timing"), strings.Contains(field, "fade"):
-		ctx.cueEditUI.activeTab = tabTiming
+		ctx.cueEditUI.tabs.active = tabTiming
 	default:
-		ctx.cueEditUI.activeTab = tabGeneral
+		ctx.cueEditUI.tabs.active = tabGeneral
 	}
-	ctx.cueEditUI.focusFirstInput = true
+	ctx.cueEditUI.tabs.focusFirstInput = true
 	return true
 }
 

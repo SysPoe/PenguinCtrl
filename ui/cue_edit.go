@@ -19,13 +19,12 @@ import (
 	"github.com/syspoe/cusus/utils"
 )
 
-// TODO(macro): CueEditUI is a multi-file god object (shell, tabs, typed page state,
-// and the full timecode timeline). Carve the timeline into its own component
+// TODO(macro): CueEditUI is a multi-file god object (shell, typed page state, and
+// the full timecode timeline). Carve the timeline into its own component
 // with an explicit cue/media adapter, keep tab forms as pure field binders, and stop
 // hanging waveform/preview/history methods on the editor shell.
 type CueEditUI struct {
 	cue   show.Cue
-	cType show.CueType
 	show  bool
 	isNew bool
 
@@ -37,24 +36,12 @@ type CueEditUI struct {
 	problemsForCue func(show.Cue) []show.CueProblem
 	previewError   string
 
-	btnTabGeneral    widget.Clickable
-	btnTabTiming     widget.Clickable
-	btnTabLink       widget.Clickable
-	btnTabMedia      widget.Clickable
-	btnTabTimecode   widget.Clickable
-	btnTabRemote     widget.Clickable
-	btnTabWait       widget.Clickable
-	btnTabMediaCtrl  widget.Clickable
-	btnTabOutputCtrl widget.Clickable
-
 	btnCancel widget.Clickable
 	btnSave   widget.Clickable
 
-	activeTab       int
-	focusFirstInput bool
-
 	modalTag struct{}
 	page     cueEditPageState
+	tabs     cueEditTabState
 	timeline timecodeTimelineState
 }
 
@@ -62,18 +49,6 @@ type ProjectFile struct {
 	Name string
 	Path string
 }
-
-const (
-	tabGeneral = iota
-	tabTiming
-	tabLink
-	tabMedia
-	tabTimecode
-	tabRemote
-	tabWait
-	tabMediaCtrl
-	tabOutputCtrl
-)
 
 func (ctx *CueEditUI) drawTopBar(th *material.Theme, gtx layout.Context) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -95,68 +70,27 @@ func (ctx *CueEditUI) drawTopBar(th *material.Theme, gtx layout.Context) layout.
 			}}.Op(),
 		)
 
-		sub := []layout.FlexChild{
-			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-				titleText := "Edit Cue"
-				if ctx.isNew {
-					titleText = "Add Cue"
-				}
-				title := stableBody1(th, titleText)
-				title.TextSize = unit.Sp(float32(topBarHeight) * 0.6)
-				return layoutStableText(gtx, title.Layout)
-			}),
-			makeBtnWithColor(th, &ctx.btnTabGeneral, "General", utils.Ter(ctx.activeTab == tabGeneral, colorActive, colorInactive)),
-			makeBtnWithColor(th, &ctx.btnTabTiming, "Timing", utils.Ter(ctx.activeTab == tabTiming, colorActive, colorInactive)),
-			makeBtnWithColor(th, &ctx.btnTabLink, "Link", utils.Ter(ctx.activeTab == tabLink, colorActive, colorInactive)),
-		}
+		sub := []layout.FlexChild{layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+			titleText := "Edit Cue"
+			if ctx.isNew {
+				titleText = "Add Cue"
+			}
+			title := stableBody1(th, titleText)
+			title.TextSize = unit.Sp(float32(topBarHeight) * 0.6)
+			return layoutStableText(gtx, title.Layout)
+		})}
 
-		if ctx.cType == show.CueTypeImage || ctx.cType == show.CueTypeVideo || ctx.cType == show.CueTypeSound {
-			sub = append(sub, makeBtnWithColor(th, &ctx.btnTabMedia, "Media", utils.Ter(ctx.activeTab == tabMedia, colorActive, colorInactive)))
-			sub = append(sub, makeBtnWithColor(th, &ctx.btnTabTimecode, "Timecode", utils.Ter(ctx.activeTab == tabTimecode, colorActive, colorInactive)))
+		tabs := cueEditTabsForCueType(ctx.cue.Type)
+		for _, tab := range tabs {
+			button := ctx.tabs.button(tab.id)
+			sub = append(sub, makeBtnWithColor(th, button, tab.label, utils.Ter(ctx.tabs.active == tab.id, colorActive, colorInactive)))
 		}
-
-		if ctx.cType == show.CueTypeRemote {
-			sub = append(sub, makeBtnWithColor(th, &ctx.btnTabRemote, "Remote", utils.Ter(ctx.activeTab == tabRemote, colorActive, colorInactive)))
-		}
-
-		if ctx.cType == show.CueTypeWait {
-			sub = append(sub, makeBtnWithColor(th, &ctx.btnTabWait, "Wait", utils.Ter(ctx.activeTab == tabWait, colorActive, colorInactive)))
-		}
-
-		if ctx.cType == show.CueTypeMediaControl {
-			sub = append(sub, makeBtnWithColor(th, &ctx.btnTabMediaCtrl, "Media Ctrl", utils.Ter(ctx.activeTab == tabMediaCtrl, colorActive, colorInactive)))
-		}
-
-		if ctx.cType == show.CueTypeOutputControl {
-			sub = append(sub, makeBtnWithColor(th, &ctx.btnTabOutputCtrl, "Output Ctrl", utils.Ter(ctx.activeTab == tabOutputCtrl, colorActive, colorInactive)))
-		}
-
-		if ctx.btnTabGeneral.Clicked(gtx) {
-			ctx.activeTab = tabGeneral
-		}
-		if ctx.btnTabTiming.Clicked(gtx) {
-			ctx.activeTab = tabTiming
-		}
-		if ctx.btnTabLink.Clicked(gtx) {
-			ctx.activeTab = tabLink
-		}
-		if ctx.btnTabMedia.Clicked(gtx) {
-			ctx.activeTab = tabMedia
-		}
-		if ctx.btnTabTimecode.Clicked(gtx) {
-			ctx.activeTab = tabTimecode
-		}
-		if ctx.btnTabRemote.Clicked(gtx) {
-			ctx.activeTab = tabRemote
-		}
-		if ctx.btnTabWait.Clicked(gtx) {
-			ctx.activeTab = tabWait
-		}
-		if ctx.btnTabMediaCtrl.Clicked(gtx) {
-			ctx.activeTab = tabMediaCtrl
-		}
-		if ctx.btnTabOutputCtrl.Clicked(gtx) {
-			ctx.activeTab = tabOutputCtrl
+		// Process every owned button to preserve queued clicks across a cue-type
+		// switch, matching the previous fixed-button implementation.
+		for tab := tabGeneral; tab < cueEditTabCount; tab++ {
+			if ctx.tabs.button(tab).Clicked(gtx) {
+				ctx.tabs.active = tab
+			}
 		}
 
 		return layout.Flex{
@@ -314,34 +248,7 @@ func cueEditorShortcuts(gtx layout.Context) (save, cancel, preview bool, tabOffs
 }
 
 func (ctx *CueEditUI) moveTab(offset int) {
-	if offset == 0 {
-		return
-	}
-	tabs := []int{tabGeneral, tabTiming, tabLink}
-	switch ctx.cType {
-	case show.CueTypeImage, show.CueTypeVideo, show.CueTypeSound:
-		tabs = append(tabs, tabMedia, tabTimecode)
-	case show.CueTypeRemote:
-		tabs = append(tabs, tabRemote)
-	case show.CueTypeWait:
-		tabs = append(tabs, tabWait)
-	case show.CueTypeMediaControl:
-		tabs = append(tabs, tabMediaCtrl)
-	case show.CueTypeOutputControl:
-		tabs = append(tabs, tabOutputCtrl)
-	}
-	for i, tab := range tabs {
-		if tab == ctx.activeTab {
-			next := (i + offset) % len(tabs)
-			if next < 0 {
-				next += len(tabs)
-			}
-			ctx.activeTab = tabs[next]
-			ctx.focusFirstInput = true
-			return
-		}
-	}
-	ctx.activeTab = tabs[0]
+	ctx.tabs.move(ctx.cue.Type, offset)
 }
 
 func (ctx *CueEditUI) Layout(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.Dimensions {
@@ -350,7 +257,7 @@ func (ctx *CueEditUI) Layout(th *material.Theme, gtx layout.Context, manager *sh
 	}
 	saveShortcut, cancelShortcut, previewShortcut, tabOffset := cueEditorShortcuts(gtx)
 	ctx.moveTab(tabOffset)
-	if previewShortcut && ctx.activeTab == tabTimecode && ctx.cue.Play.Sound != nil {
+	if previewShortcut && ctx.tabs.active == tabTimecode && ctx.cue.Play.Sound != nil {
 		ctx.toggleTimecodePreview()
 	}
 

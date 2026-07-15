@@ -8,12 +8,12 @@ import (
 
 func (ctx *CueEditUI) drawBody(th *material.Theme, manager *show.ShowManager) layout.FlexChild {
 	ctx.ensurePageInputs()
-	if ctx.focusFirstInput {
-		ctx.focusActiveTab()
-		ctx.focusFirstInput = false
+	if ctx.tabs.focusFirstInput {
+		ctx.tabs.focus(&ctx.page)
+		ctx.tabs.focusFirstInput = false
 	}
 
-	switch ctx.activeTab {
+	switch ctx.tabs.active {
 	case tabGeneral:
 		return ctx.renderGeneralTab(th)
 	case tabTiming:
@@ -39,35 +39,12 @@ func (ctx *CueEditUI) drawBody(th *material.Theme, manager *show.ShowManager) la
 	})
 }
 
-func (ctx *CueEditUI) focusActiveTab() {
-	switch ctx.activeTab {
-	case tabGeneral:
-		ctx.page.general.cueNumber.Focus()
-	case tabTiming:
-		ctx.page.timing.preWaitMs.Focus()
-	case tabLink:
-		ctx.page.link.mode.Focus()
-	case tabMedia:
-		if ctx.page.media != nil {
-			ctx.page.media.file.Focus()
-		}
-	case tabRemote:
-		ctx.page.remote.protocol.Focus()
-	case tabWait:
-		ctx.page.wait.kind.Focus()
-	case tabMediaCtrl:
-		ctx.page.mediaControl.action.Focus()
-	case tabOutputCtrl:
-		ctx.page.outputControl.action.Focus()
-	}
-}
-
 type cueEditFormRow struct {
 	label  string
 	layout func(gtx layout.Context) layout.Dimensions
 }
 
-// TODO(macro): Enum label catalogs, form-row type, focus routing, and ensureCuePlay/ensurePageInputs share one file with no domain owner. Move labels next to show enums (or a single UI catalog) and keep page routing thin.
+// TODO(macro): Enum label catalogs, form-row type, and ensureCuePlay/ensurePageInputs share one file with no domain owner. Move labels next to show enums (or a single UI catalog) and keep page routing thin.
 var (
 	cueLinkModeLabels = []string{
 		"Manual",
@@ -164,8 +141,7 @@ func (ctx *CueEditUI) ensurePageInputs() {
 
 	ctx.ensureCuePlay()
 	normalizeCueEditModel(&ctx.cue)
-	ctx.cType = ctx.cue.Type
-	ctx.activeTab = tabGeneral
+	ctx.tabs.active = tabGeneral
 	ctx.page = newCueEditPageState(ctx.cue)
 }
 
