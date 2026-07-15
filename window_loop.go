@@ -224,14 +224,16 @@ func (s *windowSession) run() error {
 		return ui.Main(
 			th, gtx, &a.UI.CueList, manager, playbackEngine, operatorEvents,
 			operatorPanel.OverlayVisible() || documentGuard.Visible(),
-			func() { tbCtx.EditSelectedCue(manager) },
-			func(field string) { tbCtx.EditSelectedCueAt(manager, field) },
+			ui.CueListCommandFuncs{
+				EditSelected:    func() { tbCtx.EditSelectedCue(manager) },
+				EditProblem:     func(field string) { tbCtx.EditSelectedCueAt(manager, field) },
+				MoveBefore:      func(index int) { tbCtx.MoveSelectedCueBefore(manager, index) },
+				MoveToEnd:       func() { tbCtx.MoveSelectedCueToEnd(manager) },
+				MoveIntoGroup:   func(groupID show.GroupID) { tbCtx.MoveSelectedCueIntoGroup(manager, groupID) },
+				MoveBeforeGroup: func(groupID show.GroupID) { tbCtx.MoveSelectedCueBeforeGroup(manager, groupID) },
+				MoveAfterGroup:  func(groupID show.GroupID) { tbCtx.MoveSelectedCueAfterGroup(manager, groupID) },
+			},
 			tbCtx.MoveCueActive(),
-			func(index int) { tbCtx.MoveSelectedCueBefore(manager, index) },
-			func() { tbCtx.MoveSelectedCueToEnd(manager) },
-			func(groupID show.GroupID) { tbCtx.MoveSelectedCueIntoGroup(manager, groupID) },
-			func(groupID show.GroupID) { tbCtx.MoveSelectedCueBeforeGroup(manager, groupID) },
-			func(groupID show.GroupID) { tbCtx.MoveSelectedCueAfterGroup(manager, groupID) },
 		)
 	}
 

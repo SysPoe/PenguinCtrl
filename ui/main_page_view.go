@@ -7,7 +7,6 @@ import (
 
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
-	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/text"
@@ -35,11 +34,6 @@ var cueTypeLabels = map[show.CueType]string{
 	show.CueTypeOutputControl: "OutputCtrl",
 }
 
-// TODO(macro): Main is a page-level god layout: engine snapshotting, selection/move/group
-// event handling, header chrome, and per-row cell rendering are one function with a long
-// callback surface (edit/move/group ports plus concrete *ShowManager/*Engine/*Store).
-// Split into a CueList model (state + event handling) and a view that only paints
-// rows/headers, and shrink the move/edit callbacks into a single command interface.
 func Main(
 	th *material.Theme,
 	gtx layout.Context,
@@ -48,141 +42,21 @@ func Main(
 	engine *playback.Engine,
 	operatorEvents *operatorlog.Store,
 	suppressTooltips bool,
-	editSelected func(),
-	editProblem func(field string),
+	commands CueListCommandFuncs,
 	moveCueActive bool,
-	moveBefore func(index int),
-	moveToEnd func(),
-	moveIntoGroup func(groupID show.GroupID),
-	moveBeforeGroup func(groupID show.GroupID),
-	moveAfterGroup func(groupID show.GroupID),
 ) layout.Dimensions {
 	if state == nil {
 		state = new(CueListState)
 	}
-	state.ensureInitialized()
-	cues := manager.Snapshot()
-	rows := state.buildRows(cues)
-	activeByCue := map[show.CueID]playback.Instance{}
-	executionByCue := map[show.CueID]playback.CueExecution{}
-	knownDurations := map[show.CueID]int64{}
-	if engine != nil {
-		for _, instance := range engine.ActiveInstances() {
-			current, exists := activeByCue[instance.CueID]
-			if !exists || instance.StartedAt.After(current.StartedAt) {
-				activeByCue[instance.CueID] = instance
-			}
-		}
-		for _, execution := range engine.ActiveExecutions() {
-			current, exists := executionByCue[execution.CueID]
-			if !exists || execution.StartedAt.After(current.StartedAt) {
-				executionByCue[execution.CueID] = execution
-			}
-		}
-		knownDurations = engine.KnownDurations()
-		if len(activeByCue) > 0 || len(executionByCue) > 0 {
-			gtx.Execute(op.InvalidateCmd{At: time.Now().Add(playbackRefreshInterval)})
-		}
-	}
+	snapshot := updateCueList(gtx, state, manager, engine, commands, moveCueActive, suppressTooltips)
+	cues, rows := snapshot.cues, snapshot.rows
+	activeByCue, executionByCue, knownDurations := snapshot.activeByCue, snapshot.executionByCue, snapshot.knownDurations
+	selectedIndex := snapshot.selectedIndex
 	if len(cues) == 0 {
-		state.lastSelection = -1
 		return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			label := stableBody1(th, "No cues yet - use Add Cue to create one")
 			return layoutStableText(gtx, label.Layout)
 		})
-	}
-
-	state.resizeCueState(len(cues))
-	for i := range state.warningTips {
-		if state.warningTips[i].click.Clicked(gtx) {
-			for cueIndex := range cues {
-				if cues[cueIndex].ID == state.warningTips[i].cueID {
-					manager.SelectCue(cueIndex)
-					problems := show.CueProblems(cues[cueIndex], cues)
-					if engine != nil {
-						problems = engine.CueProblems(cues[cueIndex])
-					}
-					field := ""
-					highest := show.ProblemState
-					for _, problem := range problems {
-						if problem.Severity > highest {
-							highest = problem.Severity
-							field = problem.Field
-						}
-					}
-					if editProblem != nil {
-						editProblem(field)
-					} else if editSelected != nil {
-						editSelected()
-					}
-					break
-				}
-			}
-		}
-	}
-
-	moveHandled := false
-	for _, group := range manager.Groups() {
-		id := group.ID
-		if moveCueActive {
-			if !moveHandled && groupClickable(state.groupBeforeClicks, id).Clicked(gtx) && moveBeforeGroup != nil {
-				moveBeforeGroup(id)
-				moveHandled = true
-			}
-			if !moveHandled && groupClickable(state.groupHeaderClicks, id).Clicked(gtx) && moveIntoGroup != nil {
-				moveIntoGroup(id)
-				moveHandled = true
-			}
-			if !moveHandled && groupClickable(state.groupAfterClicks, id).Clicked(gtx) && moveAfterGroup != nil {
-				moveAfterGroup(id)
-				moveHandled = true
-			}
-		} else if groupClickable(state.groupHeaderClicks, id).Clicked(gtx) {
-			state.collapsedGroups[id] = !state.collapsedGroups[id]
-			rows = state.buildRows(cues)
-		}
-	}
-	for i := range state.rowClicks {
-		for {
-			click, ok := state.rowClicks[i].Update(gtx)
-			if !ok {
-				break
-			}
-			if moveCueActive {
-				if !moveHandled && moveBefore != nil {
-					moveBefore(i)
-					moveHandled = true
-				}
-				continue
-			}
-			manager.SelectCue(i)
-			if click.NumClicks >= 2 && editSelected != nil {
-				editSelected()
-			}
-		}
-	}
-	if moveCueActive && !moveHandled && state.moveToEndClick.Clicked(gtx) && moveToEnd != nil {
-		moveToEnd()
-	}
-
-	_, selectedIndex, hasSelection := manager.SelectedCueCopy()
-	if !hasSelection {
-		selectedIndex = -1
-	}
-	if selectedIndex != state.lastSelection {
-		visibleSelection := -1
-		selectedGroup := show.GroupID{}
-		if selectedIndex >= 0 && selectedIndex < len(cues) {
-			selectedGroup = cues[selectedIndex].GroupID
-		}
-		for index, row := range rows {
-			if row.cueIndex == selectedIndex || (row.collapsed && row.groupID == selectedGroup) {
-				visibleSelection = index
-				break
-			}
-		}
-		state.scrollCueIntoView(visibleSelection)
-		state.lastSelection = selectedIndex
 	}
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
@@ -207,7 +81,7 @@ func Main(
 		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			itemCount := len(rows)
-			if moveCueActive {
+			if snapshot.moveCueActive {
 				itemCount++
 			}
 			return material.List(th, &state.list).Layout(gtx, itemCount, func(gtx layout.Context, index int) layout.Dimensions {
@@ -220,7 +94,7 @@ func Main(
 				children := make([]layout.FlexChild, 0, 3)
 				if row.showHeader {
 					children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return layoutCueGroupHeader(state, th, gtx, cue, manager.Groups(), groupProblemCount(cue.GroupID, cues, engine), moveCueActive)
+						return layoutCueGroupHeader(state, th, gtx, cue, snapshot.groups, groupProblemCount(cue.GroupID, cues, engine), snapshot.moveCueActive)
 					}))
 				}
 				if !row.collapsed {
@@ -304,7 +178,7 @@ func Main(
 													if cueFailed {
 														label, statusColor = "FAIL", palette.Danger
 													}
-													if suppressTooltips {
+													if snapshot.suppressTooltips {
 														hideWarningTooltip(&state.warningTips[cueIndex].area)
 														return layoutWarningBadge(state.warningIcon, th, gtx, &state.warningTips[cueIndex].click, label, statusColor)
 													}
