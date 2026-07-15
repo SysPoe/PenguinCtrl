@@ -32,7 +32,7 @@ func TestOptionalIntegerAcceptsValueAfterBeingCleared(t *testing.T) {
 func TestOptionalIntegerDisplaysZeroValueAsBlank(t *testing.T) {
 	field := NewOptionalInteger("Port", 0)
 
-	if field.text != "" {
-		t.Fatalf("text = %q, want blank", field.text)
+	if field.field.text != "" {
+		t.Fatalf("text = %q, want blank", field.field.text)
 	}
 }

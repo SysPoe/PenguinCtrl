@@ -1,4 +1,3 @@
-// TODO(micro): Add Go-style documentation for Integer and its exported focus/constructor API.
 package input
 
 import (
@@ -6,31 +5,26 @@ import (
 
 	"gioui.org/io/key"
 	"gioui.org/layout"
-	"gioui.org/unit"
-	"gioui.org/widget"
 	"gioui.org/widget/material"
 )
 
+// Integer is a single-line integer input.
 type Integer struct {
 	Label string
 	Hint  string
 	Value int
 
-	editor   widget.Editor
-	text     string
+	field    editorFieldModel[int]
 	optional bool
 	empty    bool
-	focus    bool
-
-	changeListener func(value int)
-	eventListeners []func(value int)
 }
 
+// Focus selects the field contents and requests keyboard focus.
 func (i *Integer) Focus() {
-	i.editor.SetCaret(0, i.editor.Len())
-	i.focus = true
+	i.field.requestFocus()
 }
 
+// NewInteger creates a single-line integer input.
 func NewInteger(label string, value int) *Integer {
 	return newInteger(label, value, false)
 }
@@ -49,33 +43,20 @@ func newInteger(label string, value int, optional bool) *Integer {
 		Label:    label,
 		Hint:     label,
 		Value:    value,
-		text:     text,
+		field:    newEditorFieldModel[int](text, true, key.HintNumeric, "-0123456789"),
 		optional: optional,
 		empty:    optional && value == 0,
 	}
-	i.editor.SingleLine = true
-	i.editor.InputHint = key.HintNumeric
-	i.editor.Filter = "-0123456789"
-	i.editor.SetText(i.text)
 	return i
 }
 
 func (i *Integer) AddEventListener(listener func(value int)) {
-	i.eventListeners = append(i.eventListeners, listener)
+	i.field.addEventListener(listener)
 }
 
 // SetChangeListener replaces the field's single model-binding callback.
 func (i *Integer) SetChangeListener(listener func(value int)) {
-	i.changeListener = listener
-}
-
-func (i *Integer) notifyEventListeners() {
-	if i.changeListener != nil {
-		i.changeListener(i.Value)
-	}
-	for _, listener := range i.eventListeners {
-		listener(i.Value)
-	}
+	i.field.setChangeListener(listener)
 }
 
 func (i *Integer) Layout(th *material.Theme, gtx layout.Context) layout.Dimensions {
@@ -83,38 +64,20 @@ func (i *Integer) Layout(th *material.Theme, gtx layout.Context) layout.Dimensio
 	if i.optional && i.empty {
 		expected = ""
 	}
-	if i.text != expected && !gtx.Focused(&i.editor) {
-		i.text = expected
-		i.editor.SetText(i.text)
-	}
-
-	previous := i.editor.Text()
-	editor := material.Editor(th, &i.editor, i.Hint)
-	// TODO(micro): TextSize Sp(18) and inset Dp(8) are duplicated across Text/Integer/Float/Multiline; name shared editorTextSize/editorInset consts
-	editor.TextSize = unit.Sp(18)
-	dims := editorField(th, gtx, func(gtx layout.Context) layout.Dimensions {
-		return layout.UniformInset(unit.Dp(8)).Layout(gtx, editor.Layout)
-	})
-	if i.focus {
-		gtx.Execute(key.FocusCmd{Tag: &i.editor})
-		i.focus = false
-	}
-
-	if text := i.editor.Text(); text != previous {
+	return i.field.layout(th, gtx, i.Hint, expected, func(text string) bool {
 		i.applyText(text)
-	}
-
-	return dims
+		return true
+	})
 }
 
 func (i *Integer) applyText(text string) {
-	i.text = text
+	i.field.text = text
 	if i.optional && text == "" {
 		changed := !i.empty || i.Value != 0
 		i.empty = true
 		i.Value = 0
 		if changed {
-			i.notifyEventListeners()
+			i.field.notify(i.Value)
 		}
 		return
 	}
@@ -126,6 +89,6 @@ func (i *Integer) applyText(text string) {
 	i.empty = false
 	i.Value = value
 	if changed {
-		i.notifyEventListeners()
+		i.field.notify(i.Value)
 	}
 }
