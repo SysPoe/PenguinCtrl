@@ -9,6 +9,8 @@ import (
 	"github.com/syspoe/cusus/ui"
 )
 
+const cueListPageStep = 10
+
 func (a *App) handleCueListShortcuts(gtx layout.Context) {
 	topBar := &a.UI.TopBar
 	playbackSidebar := &a.UI.PlaybackSidebar
@@ -41,34 +43,16 @@ func (a *App) handleCueListShortcuts(gtx layout.Context) {
 		return
 	}
 	if topBar.AddCueMenuOpen() || topBar.ActionMenuOpen() || topBar.FileMenuOpen() {
-		// TODO(micro): Escape-drain loop is duplicated with MoveCueActive below; extract a one-shot helper (e.g. onEscapePress(gtx, fn)).
-		for {
-			event, ok := gtx.Event(key.Filter{Name: key.NameEscape})
-			if !ok {
-				return
-			}
-			if event, ok := event.(key.Event); ok && event.State == key.Press {
-				topBar.CloseMenus()
-				return
-			}
-		}
+		onEscapePress(gtx, topBar.CloseMenus)
+		return
 	}
 	if tbCtx.DeleteConfirmationOpen() {
 		tbCtx.HandleDeleteConfirmationKeys(gtx, manager)
 		return
 	}
 	if tbCtx.MoveCueActive() {
-		// TODO(micro): Same Escape-drain loop as AddCueMenuOpen/ActionMenuOpen/FileMenuOpen above; share one helper.
-		for {
-			event, ok := gtx.Event(key.Filter{Name: key.NameEscape})
-			if !ok {
-				return
-			}
-			if event, ok := event.(key.Event); ok && event.State == key.Press {
-				tbCtx.CancelMoveCue()
-				return
-			}
-		}
+		onEscapePress(gtx, tbCtx.CancelMoveCue)
+		return
 	}
 
 	for {
@@ -127,11 +111,10 @@ func (a *App) handleCueListShortcuts(gtx layout.Context) {
 			manager.MoveSelection(-1)
 		case key.NameDownArrow:
 			manager.MoveSelection(1)
-		// TODO(micro): Page step ±10 is a magic number; name a constant (e.g. cueListPageStep).
 		case key.NamePageUp:
-			manager.MoveSelection(-10)
+			manager.MoveSelection(-cueListPageStep)
 		case key.NamePageDown:
-			manager.MoveSelection(10)
+			manager.MoveSelection(cueListPageStep)
 		case key.NameHome:
 			manager.SelectCue(0)
 		case key.NameEnd:
@@ -163,6 +146,19 @@ func (a *App) handleCueListShortcuts(gtx layout.Context) {
 			tbCtx.StartMoveCue(manager)
 		case "E":
 			tbCtx.EditSelectedCue(manager)
+		}
+	}
+}
+
+func onEscapePress(gtx layout.Context, action func()) {
+	for {
+		event, ok := gtx.Event(key.Filter{Name: key.NameEscape})
+		if !ok {
+			return
+		}
+		if event, ok := event.(key.Event); ok && event.State == key.Press {
+			action()
+			return
 		}
 	}
 }

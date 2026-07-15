@@ -31,6 +31,13 @@ import (
 	"github.com/syspoe/cusus/ui"
 )
 
+const (
+	operatorWindowShutdownWait   = 2 * time.Second
+	defaultTimecodeJumpTolerance = 500 * time.Millisecond
+	defaultRedundancyHeartbeat   = 500 * time.Millisecond
+	defaultRedundancyPeerTimeout = 2500 * time.Millisecond
+)
+
 type App struct {
 	Document      DocumentServices
 	Playback      PlaybackServices
@@ -113,8 +120,7 @@ func runMain() (exitCode int) {
 			log.Print(err)
 			return 1
 		}
-	// TODO(micro): 2s shutdown wait is a magic deadline; name a const (e.g. operatorWindowShutdownWait).
-	case <-time.After(2 * time.Second):
+	case <-time.After(operatorWindowShutdownWait):
 		log.Print("operator window stopped without a shutdown result")
 		return 1
 	}
@@ -191,12 +197,14 @@ func newApp(reporter *crashreport.Reporter) (*App, error) {
 	authorityControl := redundancy.NewAuthorityControl(spare, hasActivePlayback, application.Playback.Engine.StopAll)
 	settingsPage.SetAudioDeviceProvider(func() ([]ui.AudioDevice, error) {
 		devices, err := application.Playback.Media.AudioDevices()
-		// TODO(micro): On err, still builds result from (likely nil) devices and returns both; prefer early `return nil, err` (same as videoRouting).
+		if err != nil {
+			return nil, err
+		}
 		result := make([]ui.AudioDevice, len(devices))
 		for i, device := range devices {
 			result[i] = ui.AudioDevice{ID: device.ID, Name: device.Name, IsDefault: device.IsDefault}
 		}
-		return result, err
+		return result, nil
 	})
 	configureVideoRoutingSettings(settingsPage, application.Playback.Media)
 	settingsPage.SetOnSaved(func() {
@@ -255,8 +263,7 @@ func newApp(reporter *crashreport.Reporter) (*App, error) {
 func timecodeConfig(settings config.Settings) timecode.Config {
 	return timecode.Config{
 		Source: timecode.Source(settings.TimecodeSource), Policy: timecode.Policy(settings.TimecodePolicy),
-		// TODO(micro): 500ms jump tolerance is a magic duration; name a const (e.g. defaultTimecodeJumpTolerance).
-		FrameRate: settings.TimecodeFrameRate, JumpTolerance: 500 * time.Millisecond,
+		FrameRate: settings.TimecodeFrameRate, JumpTolerance: defaultTimecodeJumpTolerance,
 	}
 }
 
@@ -265,8 +272,7 @@ func redundancyConfig(settings config.Settings) redundancy.Config {
 		Role: redundancy.Role(settings.RedundancyRole), NodeID: settings.RedundancyNodeID,
 		ListenAddress: settings.RedundancyListenAddress, PeerAddress: settings.RedundancyPeerAddress,
 		SharedKey: settings.RedundancySharedKey, InterlockPath: settings.RedundancyInterlockPath,
-		// TODO(micro): 500ms heartbeat / 2500ms peer timeout are magic durations; name shared redundancy timing consts.
-		HeartbeatInterval: 500 * time.Millisecond, PeerTimeout: 2500 * time.Millisecond,
+		HeartbeatInterval: defaultRedundancyHeartbeat, PeerTimeout: defaultRedundancyPeerTimeout,
 	}
 }
 

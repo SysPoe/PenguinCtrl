@@ -26,6 +26,13 @@ import (
 	"github.com/syspoe/cusus/ui"
 )
 
+const (
+	windowTaskConcurrency = 4
+	windowShutdownTimeout = 3 * time.Second
+	frameRefreshInterval  = time.Second
+	compactLayoutWidth    = unit.Dp(850)
+)
+
 func (s *windowSession) run() error {
 	a, window := s.application, s.window
 	topBar := &a.UI.TopBar
@@ -48,10 +55,9 @@ func (s *windowSession) run() error {
 	th := newTheme()
 	expl := explorer.NewExplorer(window)
 	uiActions := make(chan func(), 16)
-	// TODO(micro): Task concurrency 4 and 3s Close timeout are magic; name consts (also duplicated on DestroyEvent Close).
-	tasks := taskgroup.New(context.Background(), 4, a.CrashReporter)
+	tasks := taskgroup.New(context.Background(), windowTaskConcurrency, a.CrashReporter)
 	defer func() {
-		if err := tasks.Close(3 * time.Second); err != nil {
+		if err := tasks.Close(windowShutdownTimeout); err != nil {
 			operatorEvents.Diagnostic("Shutdown", err.Error(), nil)
 		}
 	}()
@@ -114,8 +120,7 @@ func (s *windowSession) run() error {
 		},
 		func() []string {
 			current, settings := manager.ShowSnapshot(), settingsStore.Snapshot()
-			// TODO(micro): Preallocate at least len(current.Cues); most media cues contribute one path.
-			var paths []string
+			paths := make([]string, 0, len(current.Cues))
 			for _, cue := range current.Cues {
 				paths = append(paths, project.ResolvedMediaSources(cue, settings)...)
 			}
@@ -215,6 +220,20 @@ func (s *windowSession) run() error {
 			}
 		}
 	}
+	layoutCueList := func(gtx layout.Context) layout.Dimensions {
+		return ui.Main(
+			th, gtx, &a.UI.CueList, manager, playbackEngine, operatorEvents,
+			operatorPanel.OverlayVisible() || documentGuard.Visible(),
+			func() { tbCtx.EditSelectedCue(manager) },
+			func(field string) { tbCtx.EditSelectedCueAt(manager, field) },
+			tbCtx.MoveCueActive(),
+			func(index int) { tbCtx.MoveSelectedCueBefore(manager, index) },
+			func() { tbCtx.MoveSelectedCueToEnd(manager) },
+			func(groupID show.GroupID) { tbCtx.MoveSelectedCueIntoGroup(manager, groupID) },
+			func(groupID show.GroupID) { tbCtx.MoveSelectedCueBeforeGroup(manager, groupID) },
+			func(groupID show.GroupID) { tbCtx.MoveSelectedCueAfterGroup(manager, groupID) },
+		)
+	}
 
 	for {
 		e := window.Event()
@@ -265,13 +284,6 @@ func (s *windowSession) run() error {
 					operatorEvents.Add(operatorlog.Recoverable, "Operator window", "Could not persist window placement: "+err.Error(), show.CueID{}, "")
 				}
 			}
-			// TODO(micro): tasks/health/timecode/redundancy already deferred Close above; this second Close is redundant on the destroy path.
-			if err := tasks.Close(3 * time.Second); err != nil {
-				operatorEvents.Diagnostic("Shutdown", err.Error(), nil)
-			}
-			healthMonitor.Close()
-			a.Playback.Timecode.Close()
-			a.Playback.Redundancy.Close()
 			playbackEngine.Close()
 			a.Playback.Remote.Close()
 			mediaManager.Close()
@@ -298,8 +310,7 @@ func (s *windowSession) run() error {
 		case app.FrameEvent:
 			now := time.Now()
 			gtx := app.NewContext(&ops, e)
-			// TODO(micro): 1s frame invalidate cadence is magic; name a const (and consider aligning with main_page refresh).
-			gtx.Execute(op.InvalidateCmd{At: time.Now().Add(time.Second)})
+			gtx.Execute(op.InvalidateCmd{At: time.Now().Add(frameRefreshInterval)})
 			preflight := frameController.Update(gtx, now)
 			audioWarning, videoWarning := frameController.Warnings()
 			a.handleCueListShortcuts(gtx)
@@ -338,20 +349,8 @@ func (s *windowSession) run() error {
 							if a.UI.ShowSettings {
 								return settingsPage.Layout(th, gtx)
 							}
-							// TODO(micro): 850 compact-layout breakpoint is magic; name a const. ui.Main callback block is fully duplicated with the wide layout below — extract one shared call.
-							if gtx.Constraints.Max.X < gtx.Dp(unit.Dp(850)) {
-								return ui.Main(
-									th, gtx, &a.UI.CueList, manager, playbackEngine, operatorEvents,
-									operatorPanel.OverlayVisible() || documentGuard.Visible(),
-									func() { tbCtx.EditSelectedCue(manager) },
-									func(field string) { tbCtx.EditSelectedCueAt(manager, field) },
-									tbCtx.MoveCueActive(),
-									func(index int) { tbCtx.MoveSelectedCueBefore(manager, index) },
-									func() { tbCtx.MoveSelectedCueToEnd(manager) },
-									func(groupID show.GroupID) { tbCtx.MoveSelectedCueIntoGroup(manager, groupID) },
-									func(groupID show.GroupID) { tbCtx.MoveSelectedCueBeforeGroup(manager, groupID) },
-									func(groupID show.GroupID) { tbCtx.MoveSelectedCueAfterGroup(manager, groupID) },
-								)
+							if gtx.Constraints.Max.X < gtx.Dp(compactLayoutWidth) {
+								return layoutCueList(gtx)
 							}
 							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -363,18 +362,7 @@ func (s *windowSession) run() error {
 									return layout.Dimensions{Size: image.Pt(width, gtx.Constraints.Max.Y)}
 								}),
 								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-									return ui.Main(
-										th, gtx, &a.UI.CueList, manager, playbackEngine, operatorEvents,
-										operatorPanel.OverlayVisible() || documentGuard.Visible(),
-										func() { tbCtx.EditSelectedCue(manager) },
-										func(field string) { tbCtx.EditSelectedCueAt(manager, field) },
-										tbCtx.MoveCueActive(),
-										func(index int) { tbCtx.MoveSelectedCueBefore(manager, index) },
-										func() { tbCtx.MoveSelectedCueToEnd(manager) },
-										func(groupID show.GroupID) { tbCtx.MoveSelectedCueIntoGroup(manager, groupID) },
-										func(groupID show.GroupID) { tbCtx.MoveSelectedCueBeforeGroup(manager, groupID) },
-										func(groupID show.GroupID) { tbCtx.MoveSelectedCueAfterGroup(manager, groupID) },
-									)
+									return layoutCueList(gtx)
 								}),
 							)
 						}),
