@@ -51,6 +51,7 @@ type App struct {
 
 type UIState struct {
 	TopBar               ui.TopBar
+	CueList              ui.CueListState
 	PlaybackSidebar      ui.PlaybackSidebar
 	TBContext            ui.TBContext
 	SettingsPage         *ui.SettingsPage

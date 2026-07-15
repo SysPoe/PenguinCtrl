@@ -13,20 +13,6 @@ import (
 	"golang.org/x/exp/shiny/materialdesign/icons"
 )
 
-// TODO(macro): Encapsulate the cue-list widgets, selection cache, group maps,
-// and tooltip state in a CueListState owned by UIState. Package globals leak
-// state across window instances and tests, and their lifetime is unrelated to
-// the show document whose cue/group IDs they retain.
-// TODO(macro): Cue-list interaction state lives as package globals (list, clicks, collapse
-// maps, tip widgets, selection cache). Own it on a CueList component so multiple
-// frames/tests don't share mutable UI state and so Main is not a free function over
-// hidden process state.
-var mainList = &widget.List{
-	List: layout.List{
-		Axis: layout.Vertical,
-	},
-}
-
 var weights = []float32{3, 3, 3, 18, 5, 5, 5, 5, 3, 3, 3}
 
 var typeCols = map[show.CueType]color.NRGBA{
@@ -56,15 +42,48 @@ func cueListCellInset() layout.Inset {
 	}
 }
 
-var rowClicks []widget.Clickable = make([]widget.Clickable, 0)
-var moveToEndClick widget.Clickable
-var collapsedCueGroups = map[show.GroupID]bool{}
-var groupHeaderClicks = map[show.GroupID]*widget.Clickable{}
-var groupBeforeClicks = map[show.GroupID]*widget.Clickable{}
-var groupAfterClicks = map[show.GroupID]*widget.Clickable{}
-var warningIcon = loadIcon("cue warning", icons.AlertWarning)
-var warningTips []warningTipState
-var lastListSelection = -2
+// CueListState owns all mutable interaction state for one main-page cue list.
+// Its zero value is ready for use after the first Main call.
+type CueListState struct {
+	initialized bool
+	list        widget.List
+
+	rowClicks      []widget.Clickable
+	moveToEndClick widget.Clickable
+
+	collapsedGroups   map[show.GroupID]bool
+	groupHeaderClicks map[show.GroupID]*widget.Clickable
+	groupBeforeClicks map[show.GroupID]*widget.Clickable
+	groupAfterClicks  map[show.GroupID]*widget.Clickable
+
+	warningIcon *widget.Icon
+	warningTips []warningTipState
+
+	lastSelection int
+}
+
+func (state *CueListState) ensureInitialized() {
+	if state.initialized {
+		return
+	}
+	state.initialized = true
+	state.list.List.Axis = layout.Vertical
+	state.collapsedGroups = make(map[show.GroupID]bool)
+	state.groupHeaderClicks = make(map[show.GroupID]*widget.Clickable)
+	state.groupBeforeClicks = make(map[show.GroupID]*widget.Clickable)
+	state.groupAfterClicks = make(map[show.GroupID]*widget.Clickable)
+	state.warningIcon = loadIcon("cue warning", icons.AlertWarning)
+	state.lastSelection = -2
+}
+
+func (state *CueListState) resizeCueState(count int) {
+	if len(state.rowClicks) != count {
+		state.rowClicks = make([]widget.Clickable, count)
+	}
+	if len(state.warningTips) != count {
+		state.warningTips = make([]warningTipState, count)
+	}
+}
 
 type warningTipState struct {
 	cueID show.CueID
@@ -90,7 +109,7 @@ type cueListRow struct {
 	collapsed   bool
 }
 
-func buildCueListRows(cues []show.Cue) []cueListRow {
+func (state *CueListState) buildRows(cues []show.Cue) []cueListRow {
 	rows := make([]cueListRow, 0, len(cues))
 	for index := 0; index < len(cues); {
 		cue := cues[index]
@@ -103,7 +122,7 @@ func buildCueListRows(cues []show.Cue) []cueListRow {
 		for last+1 < len(cues) && cues[last+1].GroupID == cue.GroupID {
 			last++
 		}
-		collapsed := collapsedCueGroups[cue.GroupID]
+		collapsed := state.collapsedGroups[cue.GroupID]
 		if collapsed {
 			rows = append(rows, cueListRow{cueIndex: index, groupID: cue.GroupID, showHeader: true, lastInGroup: true, collapsed: true})
 		} else {

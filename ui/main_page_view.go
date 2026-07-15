@@ -12,7 +12,6 @@ import (
 	"gioui.org/op/paint"
 	"gioui.org/text"
 	"gioui.org/unit"
-	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/palette"
@@ -28,6 +27,7 @@ import (
 func Main(
 	th *material.Theme,
 	gtx layout.Context,
+	state *CueListState,
 	manager *show.ShowManager,
 	engine *playback.Engine,
 	operatorEvents *operatorlog.Store,
@@ -41,8 +41,12 @@ func Main(
 	moveBeforeGroup func(groupID show.GroupID),
 	moveAfterGroup func(groupID show.GroupID),
 ) layout.Dimensions {
+	if state == nil {
+		state = new(CueListState)
+	}
+	state.ensureInitialized()
 	cues := manager.Snapshot()
-	rows := buildCueListRows(cues)
+	rows := state.buildRows(cues)
 	activeByCue := map[show.CueID]playback.Instance{}
 	executionByCue := map[show.CueID]playback.CueExecution{}
 	knownDurations := map[show.CueID]int64{}
@@ -66,23 +70,18 @@ func Main(
 		}
 	}
 	if len(cues) == 0 {
-		lastListSelection = -1
+		state.lastSelection = -1
 		return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			label := stableBody1(th, "No cues yet - use Add Cue to create one")
 			return layoutStableText(gtx, label.Layout)
 		})
 	}
 
-	if len(rowClicks) != len(cues) {
-		rowClicks = make([]widget.Clickable, len(cues))
-	}
-	if len(warningTips) != len(cues) {
-		warningTips = make([]warningTipState, len(cues))
-	}
-	for i := range warningTips {
-		if warningTips[i].click.Clicked(gtx) {
+	state.resizeCueState(len(cues))
+	for i := range state.warningTips {
+		if state.warningTips[i].click.Clicked(gtx) {
 			for cueIndex := range cues {
-				if cues[cueIndex].ID == warningTips[i].cueID {
+				if cues[cueIndex].ID == state.warningTips[i].cueID {
 					manager.SelectCue(cueIndex)
 					problems := show.CueProblems(cues[cueIndex], cues)
 					if engine != nil {
@@ -111,26 +110,26 @@ func Main(
 	for _, group := range manager.Groups() {
 		id := group.ID
 		if moveCueActive {
-			if !moveHandled && groupClickable(groupBeforeClicks, id).Clicked(gtx) && moveBeforeGroup != nil {
+			if !moveHandled && groupClickable(state.groupBeforeClicks, id).Clicked(gtx) && moveBeforeGroup != nil {
 				moveBeforeGroup(id)
 				moveHandled = true
 			}
-			if !moveHandled && groupClickable(groupHeaderClicks, id).Clicked(gtx) && moveIntoGroup != nil {
+			if !moveHandled && groupClickable(state.groupHeaderClicks, id).Clicked(gtx) && moveIntoGroup != nil {
 				moveIntoGroup(id)
 				moveHandled = true
 			}
-			if !moveHandled && groupClickable(groupAfterClicks, id).Clicked(gtx) && moveAfterGroup != nil {
+			if !moveHandled && groupClickable(state.groupAfterClicks, id).Clicked(gtx) && moveAfterGroup != nil {
 				moveAfterGroup(id)
 				moveHandled = true
 			}
-		} else if groupClickable(groupHeaderClicks, id).Clicked(gtx) {
-			collapsedCueGroups[id] = !collapsedCueGroups[id]
-			rows = buildCueListRows(cues)
+		} else if groupClickable(state.groupHeaderClicks, id).Clicked(gtx) {
+			state.collapsedGroups[id] = !state.collapsedGroups[id]
+			rows = state.buildRows(cues)
 		}
 	}
-	for i := range rowClicks {
+	for i := range state.rowClicks {
 		for {
-			click, ok := rowClicks[i].Update(gtx)
+			click, ok := state.rowClicks[i].Update(gtx)
 			if !ok {
 				break
 			}
@@ -147,7 +146,7 @@ func Main(
 			}
 		}
 	}
-	if moveCueActive && !moveHandled && moveToEndClick.Clicked(gtx) && moveToEnd != nil {
+	if moveCueActive && !moveHandled && state.moveToEndClick.Clicked(gtx) && moveToEnd != nil {
 		moveToEnd()
 		// TODO(micro): Delete this assignment; moveHandled is never read again before the function returns.
 		moveHandled = true
@@ -157,7 +156,7 @@ func Main(
 	if !hasSelection {
 		selectedIndex = -1
 	}
-	if selectedIndex != lastListSelection {
+	if selectedIndex != state.lastSelection {
 		visibleSelection := -1
 		selectedGroup := show.GroupID{}
 		if selectedIndex >= 0 && selectedIndex < len(cues) {
@@ -169,15 +168,15 @@ func Main(
 				break
 			}
 		}
-		scrollCueIntoView(visibleSelection)
-		lastListSelection = selectedIndex
+		state.scrollCueIntoView(visibleSelection)
+		state.lastSelection = selectedIndex
 	}
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			// material.List reserves room for its vertical scrollbar, so reserve the
 			// same width in the header or the header columns won't line up with rows.
-			return layout.Inset{Right: material.List(th, mainList).Width()}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Right: material.List(th, &state.list).Width()}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 					makeFlexedTextHeader(th, "Status", weights[0], text.Middle),
 					makeFlexedTextHeader(th, "Cue #", weights[1], text.Middle),
@@ -198,9 +197,9 @@ func Main(
 			if moveCueActive {
 				itemCount++
 			}
-			return material.List(th, mainList).Layout(gtx, itemCount, func(gtx layout.Context, index int) layout.Dimensions {
+			return material.List(th, &state.list).Layout(gtx, itemCount, func(gtx layout.Context, index int) layout.Dimensions {
 				if index == len(rows) {
-					return layoutMoveCueToEndTarget(th, gtx)
+					return layoutMoveCueToEndTarget(state, th, gtx)
 				}
 				row := rows[index]
 				cueIndex := row.cueIndex
@@ -208,7 +207,7 @@ func Main(
 				children := make([]layout.FlexChild, 0, 3)
 				if row.showHeader {
 					children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return layoutCueGroupHeader(th, gtx, cue, manager.Groups(), groupProblemCount(cue.GroupID, cues, engine), moveCueActive)
+						return layoutCueGroupHeader(state, th, gtx, cue, manager.Groups(), groupProblemCount(cue.GroupID, cues, engine), moveCueActive)
 					}))
 				}
 				if !row.collapsed {
@@ -230,8 +229,8 @@ func Main(
 								warningText = failureText + "\n" + warningText
 							}
 						}
-						if warningTips[cueIndex].cueID != cue.ID || warningTips[cueIndex].text != warningText {
-							warningTips[cueIndex] = warningTipState{cueID: cue.ID, text: warningText}
+						if state.warningTips[cueIndex].cueID != cue.ID || state.warningTips[cueIndex].text != warningText {
+							state.warningTips[cueIndex] = warningTipState{cueID: cue.ID, text: warningText}
 						}
 						instance, active := activeByCue[cue.ID]
 						execution, executing := executionByCue[cue.ID]
@@ -252,16 +251,16 @@ func Main(
 							bg = applyAlpha(palette.WithAlpha(palette.Danger, 95), th.Bg)
 						} else if cueIndex == selectedIndex {
 							bg = selectedColor
-						} else if rowClicks[cueIndex].Hovered() {
+						} else if state.rowClicks[cueIndex].Hovered() {
 							bg = hoverColor
 						}
 						cueBg := applyAlpha(cue.Color, bg)
 
-						if rowClicks[cueIndex].Hovered() {
+						if state.rowClicks[cueIndex].Hovered() {
 							pointer.CursorPointer.Add(gtx.Ops)
 						}
 
-						return rowClicks[cueIndex].Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return state.rowClicks[cueIndex].Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return layout.Background{}.Layout(gtx,
 								func(gtx layout.Context) layout.Dimensions {
 									size := gtx.Constraints.Min
@@ -294,10 +293,10 @@ func Main(
 														label, statusColor = "FAIL", palette.Danger
 													}
 													if suppressTooltips {
-														hideWarningTooltip(&warningTips[cueIndex].area)
-														return layoutWarningBadge(th, gtx, &warningTips[cueIndex].click, label, statusColor)
+														hideWarningTooltip(&state.warningTips[cueIndex].area)
+														return layoutWarningBadge(state.warningIcon, th, gtx, &state.warningTips[cueIndex].click, label, statusColor)
 													}
-													return layoutWarningTooltip(th, gtx, &warningTips[cueIndex].area, &warningTips[cueIndex].click, warningText, label, statusColor)
+													return layoutWarningTooltip(state.warningIcon, th, gtx, &state.warningTips[cueIndex].area, &state.warningTips[cueIndex].click, warningText, label, statusColor)
 												})
 											}),
 											// Cue Number

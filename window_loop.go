@@ -600,7 +600,7 @@ func (a *App) run(window *app.Window) error {
 							// TODO(micro): 850 compact-layout breakpoint is magic; name a const. ui.Main callback block is fully duplicated with the wide layout below — extract one shared call.
 							if gtx.Constraints.Max.X < gtx.Dp(unit.Dp(850)) {
 								return ui.Main(
-									th, gtx, manager, playbackEngine, operatorEvents,
+									th, gtx, &a.UI.CueList, manager, playbackEngine, operatorEvents,
 									operatorPanel.OverlayVisible() || documentGuard.Visible(),
 									func() { tbCtx.EditSelectedCue(manager) },
 									func(field string) { tbCtx.EditSelectedCueAt(manager, field) },
@@ -623,7 +623,7 @@ func (a *App) run(window *app.Window) error {
 								}),
 								layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 									return ui.Main(
-										th, gtx, manager, playbackEngine, operatorEvents,
+										th, gtx, &a.UI.CueList, manager, playbackEngine, operatorEvents,
 										operatorPanel.OverlayVisible() || documentGuard.Visible(),
 										func() { tbCtx.EditSelectedCue(manager) },
 										func(field string) { tbCtx.EditSelectedCueAt(manager, field) },
