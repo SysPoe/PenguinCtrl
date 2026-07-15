@@ -11,37 +11,40 @@ import (
 
 // TODO(micro): gtx is unused across tab renderers; drop the param or use it if layout needs constraints
 func (ctx *CueEditUI) renderGeneralTab(th *material.Theme, gtx layout.Context) layout.FlexChild {
+	fields := &ctx.page.general
 	return ctx.renderForm(th, []cueEditFormRow{
-		textRow(th, "Cue Number", ctx.page.text["cueNumber"], func(value string) { ctx.cue.CueNumber = value }),
-		multilineRow(th, "Description", ctx.page.multiline["description"], func(value string) { ctx.cue.Description = value }),
-		colourRow(th, "Color", ctx.page.colour["color"], func(value color.NRGBA) { ctx.cue.Color = value }),
-		textRow(th, "Tags", ctx.page.text["tags"], func(value string) { ctx.cue.Tags = splitTags(value) }),
-		multilineRow(th, "Notes", ctx.page.multiline["notes"], func(value string) { ctx.cue.Notes = value }),
+		textRow(th, "Cue Number", fields.cueNumber, func(value string) { ctx.cue.CueNumber = value }),
+		multilineRow(th, "Description", fields.description, func(value string) { ctx.cue.Description = value }),
+		colourRow(th, "Color", fields.color, func(value color.NRGBA) { ctx.cue.Color = value }),
+		textRow(th, "Tags", fields.tags, func(value string) { ctx.cue.Tags = splitTags(value) }),
+		multilineRow(th, "Notes", fields.notes, func(value string) { ctx.cue.Notes = value }),
 	})
 }
 
 func (ctx *CueEditUI) renderTimingTab(th *material.Theme, gtx layout.Context) layout.FlexChild {
+	fields := &ctx.page.timing
 	return ctx.renderForm(th, []cueEditFormRow{
-		integerRow(th, "Pre Wait MS", ctx.page.integer["preWaitMs"], func(value int) { ctx.cue.Timing.PreWaitMs = int64(value) }),
-		integerRow(th, "Post Wait MS", ctx.page.integer["postWaitMs"], func(value int) { ctx.cue.Timing.PostWaitMs = int64(value) }),
+		integerRow(th, "Pre Wait MS", fields.preWaitMs, func(value int) { ctx.cue.Timing.PreWaitMs = int64(value) }),
+		integerRow(th, "Post Wait MS", fields.postWaitMs, func(value int) { ctx.cue.Timing.PostWaitMs = int64(value) }),
 	})
 }
 
 func (ctx *CueEditUI) renderLinkTab(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.FlexChild {
+	fields := &ctx.page.link
 	rows := []cueEditFormRow{
-		dropdownRow(th, "Mode", ctx.page.dropdown["linkMode"], func(selected int) {
+		dropdownRow(th, "Mode", fields.mode, func(selected int) {
 			ctx.cue.Link.Mode = show.CueLinkMode(selected)
 			if ctx.cue.Link.Mode != show.CueLinkManual && ctx.cue.Link.Target.Kind == show.CueTargetNone {
 				ctx.cue.Link.Target.Kind = show.CueTargetNext
-				ctx.page.dropdown["linkTargetKind"].Selected = int(show.CueTargetNext)
+				fields.targetKind.Selected = int(show.CueTargetNext)
 			}
 		}),
-		dropdownRow(th, "Target", ctx.page.dropdown["linkTargetKind"], func(selected int) {
+		dropdownRow(th, "Target", fields.targetKind, func(selected int) {
 			ctx.cue.Link.Target.Kind = show.CueTargetKind(selected)
 		}),
 	}
 	if ctx.cue.Link.Target.Kind == show.CueTargetCue {
-		rows = append(rows, ctx.cueTargetDropdownRow(th, "Target Cue", "linkTargetCue", manager, &ctx.cue.Link.Target.CueID))
+		rows = append(rows, ctx.cueTargetDropdownRow(th, "Target Cue", &fields.targetCue, manager, &ctx.cue.Link.Target.CueID))
 	}
 	return ctx.renderForm(th, rows)
 }
@@ -197,15 +200,16 @@ func (ctx *CueEditUI) renderRemoteTab(th *material.Theme, gtx layout.Context) la
 	if play == nil {
 		return ctx.renderForm(th, []cueEditFormRow{staticRow(th, "Remote", "No remote settings for this cue type.")})
 	}
+	fields := ctx.page.remote
 	rows := []cueEditFormRow{
-		dropdownRow(th, "Protocol", ctx.page.dropdown["remoteProtocol"], func(selected int) { play.Protocol = show.RemoteProtocol(selected) }),
-		dropdownRow(th, "Action", ctx.page.dropdown["remoteAction"], func(selected int) { play.Action = show.RemoteAction(selected) }),
-		textRow(th, "Playback", ctx.page.text["remotePlayback"], func(value string) { play.Playback = value }),
-		textRow(th, "Cue Number", ctx.page.text["remoteCueNumber"], func(value string) { play.CueNumber = value }),
-		textRow(th, "Level", ctx.page.text["remoteLevel"], func(value string) { play.Level = value }),
+		dropdownRow(th, "Protocol", fields.protocol, func(selected int) { play.Protocol = show.RemoteProtocol(selected) }),
+		dropdownRow(th, "Action", fields.action, func(selected int) { play.Action = show.RemoteAction(selected) }),
+		textRow(th, "Playback", fields.playback, func(value string) { play.Playback = value }),
+		textRow(th, "Cue Number", fields.cueNumber, func(value string) { play.CueNumber = value }),
+		textRow(th, "Level", fields.level, func(value string) { play.Level = value }),
 	}
 	if play.Action == show.RemoteActionCustom {
-		rows = append(rows, textRow(th, "Custom Command", ctx.page.text["remoteCustom"], func(value string) { play.Custom = value }))
+		rows = append(rows, textRow(th, "Custom Command", fields.custom, func(value string) { play.Custom = value }))
 	}
 	return ctx.renderForm(th, rows)
 }
@@ -215,16 +219,17 @@ func (ctx *CueEditUI) renderWaitTab(th *material.Theme, gtx layout.Context, mana
 	if play == nil {
 		return ctx.renderForm(th, []cueEditFormRow{staticRow(th, "Wait", "No wait settings for this cue type.")})
 	}
+	fields := ctx.page.wait
 
 	rows := []cueEditFormRow{
-		dropdownRow(th, "Kind", ctx.page.dropdown["waitKind"], func(selected int) { play.Kind = show.WaitKind(selected) }),
+		dropdownRow(th, "Kind", fields.kind, func(selected int) { play.Kind = show.WaitKind(selected) }),
 	}
 	if play.Kind == show.WaitDuration {
-		rows = append(rows, integerRow(th, "Duration MS", ctx.page.integer["waitDurationMs"], func(value int) { play.DurationMs = int64(value) }))
+		rows = append(rows, integerRow(th, "Duration MS", fields.durationMs, func(value int) { play.DurationMs = int64(value) }))
 	} else {
 		// TODO(micro): Collapse this nested branch to "else if" to reduce indentation.
 		if waitKindUsesMediaTarget(play.Kind) {
-			rows = ctx.appendMediaTargetRows(rows, th, manager, "waitMedia", &play.Media)
+			rows = ctx.appendMediaTargetRows(rows, th, manager, &fields.target, &play.Media)
 		}
 	}
 	return ctx.renderForm(th, rows)
@@ -235,23 +240,24 @@ func (ctx *CueEditUI) renderMediaCtrlTab(th *material.Theme, gtx layout.Context,
 	if play == nil {
 		return ctx.renderForm(th, []cueEditFormRow{staticRow(th, "Media Control", "No media control settings for this cue type.")})
 	}
+	fields := ctx.page.mediaControl
 
 	rows := []cueEditFormRow{
-		dropdownRow(th, "Action", ctx.page.dropdown["mediaCtrlAction"], func(selected int) {
+		dropdownRow(th, "Action", fields.action, func(selected int) {
 			play.Action = show.MediaControlAction(selected)
-			syncMediaControlOptionals(play, ctx.page)
+			syncMediaControlOptionals(play, fields)
 		}),
 	}
-	rows = ctx.appendMediaTargetRows(rows, th, manager, "mediaCtrl", &play.Target)
+	rows = ctx.appendMediaTargetRows(rows, th, manager, &fields.target, &play.Target)
 	if mediaControlActionUsesLevel(play.Action) {
-		rows = append(rows, floatRow(th, "Level dB", ctx.page.float["mediaCtrlLevelDB"], func(value float64) { play.LevelDB = &value }))
+		rows = append(rows, floatRow(th, "Level dB", fields.levelDB, func(value float64) { play.LevelDB = &value }))
 	}
 	if play.Action == show.MediaControlSeek {
-		rows = append(rows, integerRow(th, "Seek To MS", ctx.page.integer["mediaCtrlSeekToMs"], func(value int) { play.SeekToMs = ptr(int64(value)) }))
+		rows = append(rows, integerRow(th, "Seek To MS", fields.seekToMs, func(value int) { play.SeekToMs = ptr(int64(value)) }))
 	}
 	rows = append(rows,
-		integerRow(th, "Fade MS", ctx.page.integer["mediaCtrlFadeMs"], func(value int) { play.FadeMs = int64(value) }),
-		dropdownRow(th, "Curve", ctx.page.dropdown["mediaCtrlCurve"], func(selected int) { play.Curve = show.FadeCurve(selected) }),
+		integerRow(th, "Fade MS", fields.fadeMs, func(value int) { play.FadeMs = int64(value) }),
+		dropdownRow(th, "Curve", fields.curve, func(selected int) { play.Curve = show.FadeCurve(selected) }),
 	)
 	return ctx.renderForm(th, rows)
 }
@@ -261,11 +267,12 @@ func (ctx *CueEditUI) renderOutputCtrlTab(th *material.Theme, gtx layout.Context
 	if play == nil {
 		return ctx.renderForm(th, []cueEditFormRow{staticRow(th, "Output Control", "No output control settings for this cue type.")})
 	}
+	fields := ctx.page.outputControl
 	return ctx.renderForm(th, []cueEditFormRow{
-		dropdownRow(th, "Action", ctx.page.dropdown["outputCtrlAction"], func(selected int) { play.Action = show.OutputControlAction(selected) }),
-		textRow(th, "Output ID", ctx.page.text["outputCtrlOutputID"], func(value string) { play.OutputID = value }),
-		integerRow(th, "Fade Out MS", ctx.page.integer["outputCtrlFadeOutMs"], func(value int) { play.FadeOutMs = int64(value) }),
-		integerRow(th, "Fade In MS", ctx.page.integer["outputCtrlFadeInMs"], func(value int) { play.FadeInMs = int64(value) }),
-		textRow(th, "Message", ctx.page.text["outputCtrlMessage"], func(value string) { play.Message = value }),
+		dropdownRow(th, "Action", fields.action, func(selected int) { play.Action = show.OutputControlAction(selected) }),
+		textRow(th, "Output ID", fields.outputID, func(value string) { play.OutputID = value }),
+		integerRow(th, "Fade Out MS", fields.fadeOutMs, func(value int) { play.FadeOutMs = int64(value) }),
+		integerRow(th, "Fade In MS", fields.fadeInMs, func(value int) { play.FadeInMs = int64(value) }),
+		textRow(th, "Message", fields.message, func(value string) { play.Message = value }),
 	})
 }

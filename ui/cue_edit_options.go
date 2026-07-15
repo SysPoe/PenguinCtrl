@@ -81,15 +81,15 @@ func mediaControlActionUsesLevel(action show.MediaControlAction) bool {
 		action == show.MediaControlSetVolume
 }
 
-func syncMediaControlOptionals(play *show.MediaControlPlay, state cueEditPageState) {
+func syncMediaControlOptionals(play *show.MediaControlPlay, fields *cueMediaControlInputs) {
 	if mediaControlActionUsesLevel(play.Action) {
-		play.LevelDB = &state.float["mediaCtrlLevelDB"].Value
+		play.LevelDB = &fields.levelDB.Value
 	} else {
 		play.LevelDB = nil
 	}
 
 	if play.Action == show.MediaControlSeek {
-		play.SeekToMs = ptr(int64(state.integer["mediaCtrlSeekToMs"].Value))
+		play.SeekToMs = ptr(int64(fields.seekToMs.Value))
 	} else {
 		play.SeekToMs = nil
 	}

@@ -60,30 +60,30 @@ func textRow(th *material.Theme, label string, field *input.Text, apply func(val
 	}}
 }
 
-func (ctx *CueEditUI) appendMediaTargetRows(rows []cueEditFormRow, th *material.Theme, manager *show.ShowManager, prefix string, target *show.MediaTarget) []cueEditFormRow {
-	rows = append(rows, dropdownRow(th, "Target", ctx.page.dropdown[prefix+"TargetKind"], func(selected int) {
+func (ctx *CueEditUI) appendMediaTargetRows(rows []cueEditFormRow, th *material.Theme, manager *show.ShowManager, fields *cueMediaTargetInputs, target *show.MediaTarget) []cueEditFormRow {
+	rows = append(rows, dropdownRow(th, "Target", fields.kind, func(selected int) {
 		target.Kind = show.MediaTargetKind(selected)
 	}))
 
 	switch target.Kind {
 	case show.MediaTargetCue:
-		rows = append(rows, ctx.cueTargetDropdownRow(th, "Target Cue", prefix+"Cue", manager, &target.CueID))
+		rows = append(rows, ctx.cueTargetDropdownRow(th, "Target Cue", &fields.cue, manager, &target.CueID))
 	case show.MediaTargetInstance:
-		rows = append(rows, textRow(th, "Instance ID", ctx.page.text[prefix+"InstanceID"], func(value string) {
+		rows = append(rows, textRow(th, "Instance ID", fields.instanceID, func(value string) {
 			target.InstanceID = value
 		}))
 	case show.MediaTargetOutput:
-		rows = append(rows, textRow(th, "Output ID", ctx.page.text[prefix+"OutputID"], func(value string) {
+		rows = append(rows, textRow(th, "Output ID", fields.outputID, func(value string) {
 			target.OutputID = value
 		}))
 	case show.MediaTargetGroup:
-		rows = append(rows, ctx.groupTargetDropdownRow(th, "Target Group", prefix+"Group", manager, &target.GroupID))
+		rows = append(rows, ctx.groupTargetDropdownRow(th, "Target Group", &fields.group, manager, &target.GroupID))
 	}
 
 	return rows
 }
 
-func (ctx *CueEditUI) groupTargetDropdownRow(th *material.Theme, label, key string, manager *show.ShowManager, target *show.GroupID) cueEditFormRow {
+func (ctx *CueEditUI) groupTargetDropdownRow(th *material.Theme, label string, field **input.Dropdown, manager *show.ShowManager, target *show.GroupID) cueEditFormRow {
 	items := groupDropdownItems(manager)
 	selected := 0
 	for index, item := range items {
@@ -92,10 +92,10 @@ func (ctx *CueEditUI) groupTargetDropdownRow(th *material.Theme, label, key stri
 			break
 		}
 	}
-	dropdown := ctx.page.dropdown[key]
+	dropdown := *field
 	if dropdown == nil {
 		dropdown = input.NewDropdown(items, selected)
-		ctx.page.dropdown[key] = dropdown
+		*field = dropdown
 	} else {
 		dropdown.SetItems(items, selected)
 	}
@@ -135,8 +135,8 @@ func groupDropdownItems(manager *show.ShowManager) []input.DropdownItem {
 	return items
 }
 
-func (ctx *CueEditUI) cueTargetDropdownRow(th *material.Theme, label, key string, manager *show.ShowManager, target *show.CueID) cueEditFormRow {
-	dropdown := ctx.ensureCueTargetDropdown(key, manager, *target)
+func (ctx *CueEditUI) cueTargetDropdownRow(th *material.Theme, label string, field **input.Dropdown, manager *show.ShowManager, target *show.CueID) cueEditFormRow {
+	dropdown := ctx.ensureCueTargetDropdown(field, manager, *target)
 	return dropdownRow(th, label, dropdown, func(selected int) {
 		if selected < 0 || selected >= len(dropdown.Items) {
 			return
@@ -156,14 +156,14 @@ func (ctx *CueEditUI) cueTargetDropdownRow(th *material.Theme, label, key string
 	})
 }
 
-func (ctx *CueEditUI) ensureCueTargetDropdown(key string, manager *show.ShowManager, selectedCueID show.CueID) *input.Dropdown {
+func (ctx *CueEditUI) ensureCueTargetDropdown(field **input.Dropdown, manager *show.ShowManager, selectedCueID show.CueID) *input.Dropdown {
 	items := cueDropdownItems(manager, ctx.cue.ID)
 	selected := cueDropdownSelectedIndex(items, selectedCueID)
 
-	dropdown := ctx.page.dropdown[key]
+	dropdown := *field
 	if dropdown == nil {
 		dropdown = input.NewDropdown(items, selected)
-		ctx.page.dropdown[key] = dropdown
+		*field = dropdown
 		return dropdown
 	}
 

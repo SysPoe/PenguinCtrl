@@ -42,23 +42,23 @@ func (ctx *CueEditUI) drawBody(th *material.Theme, gtx layout.Context, manager *
 func (ctx *CueEditUI) focusActiveTab() {
 	switch ctx.activeTab {
 	case tabGeneral:
-		ctx.page.text["cueNumber"].Focus()
+		ctx.page.general.cueNumber.Focus()
 	case tabTiming:
-		ctx.page.integer["preWaitMs"].Focus()
+		ctx.page.timing.preWaitMs.Focus()
 	case tabLink:
-		ctx.page.dropdown["linkMode"].Focus()
+		ctx.page.link.mode.Focus()
 	case tabMedia:
 		if ctx.page.media != nil {
 			ctx.page.media.file.Focus()
 		}
 	case tabRemote:
-		ctx.page.dropdown["remoteProtocol"].Focus()
+		ctx.page.remote.protocol.Focus()
 	case tabWait:
-		ctx.page.dropdown["waitKind"].Focus()
+		ctx.page.wait.kind.Focus()
 	case tabMediaCtrl:
-		ctx.page.dropdown["mediaCtrlAction"].Focus()
+		ctx.page.mediaControl.action.Focus()
 	case tabOutputCtrl:
-		ctx.page.dropdown["outputCtrlAction"].Focus()
+		ctx.page.outputControl.action.Focus()
 	}
 }
 

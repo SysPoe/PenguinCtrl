@@ -10,26 +10,96 @@ import (
 	"github.com/syspoe/cusus/ui/input"
 )
 
-// TODO(macro): Replace the parallel string-keyed widget maps with typed
-// per-cue editor models or field descriptors. Misspelled/missing keys and
-// mismatches between initialization, rendering, and apply logic are currently
-// runtime failures that the compiler cannot expose.
-// TODO(macro): Page widgets are string-keyed bags rebuilt by magic keys across tabs, marker rows, and timeline resets. Replace with typed per-tab (or per-field-group) structs so field identity is compile-checked and marker editors don't share a global string namespace with the Media tab.
+// TODO(macro): Timecode marker widgets remain string-keyed because marker rows
+// are rebuilt after sorting, deletion, undo, and action-type changes. Replace
+// these maps with a typed marker-input slice owned by the timeline editor.
 type cueEditPageState struct {
 	initialized bool
 	cueID       show.CueID
 	list        layout.List
 
-	text      map[string]*input.Text
-	multiline map[string]*input.Multiline
-	integer   map[string]*input.Integer
-	float     map[string]*input.Float
-	checkbox  map[string]*input.Checkbox
-	dropdown  map[string]*input.Dropdown
-	colour    map[string]*input.ColourPicker
-	button    map[string]*widget.Clickable
+	text     map[string]*input.Text
+	integer  map[string]*input.Integer
+	float    map[string]*input.Float
+	checkbox map[string]*input.Checkbox
+	dropdown map[string]*input.Dropdown
+	button   map[string]*widget.Clickable
 
-	media *mediaPlayInputs
+	general       cueGeneralInputs
+	timing        cueTimingInputs
+	link          cueLinkInputs
+	media         *mediaPlayInputs
+	remote        *cueRemoteInputs
+	wait          *cueWaitInputs
+	mediaControl  *cueMediaControlInputs
+	outputControl *cueOutputControlInputs
+}
+
+type cueGeneralInputs struct {
+	cueNumber   *input.Text
+	description *input.Multiline
+	color       *input.ColourPicker
+	tags        *input.Text
+	notes       *input.Multiline
+}
+
+type cueTimingInputs struct {
+	preWaitMs  *input.Integer
+	postWaitMs *input.Integer
+}
+
+type cueLinkInputs struct {
+	mode       *input.Dropdown
+	targetKind *input.Dropdown
+	targetCue  *input.Dropdown
+}
+
+type cueRemoteInputs struct {
+	protocol  *input.Dropdown
+	action    *input.Dropdown
+	playback  *input.Text
+	cueNumber *input.Text
+	level     *input.Text
+	custom    *input.Text
+}
+
+type cueMediaTargetInputs struct {
+	kind       *input.Dropdown
+	instanceID *input.Text
+	outputID   *input.Text
+	cue        *input.Dropdown
+	group      *input.Dropdown
+}
+
+func newCueMediaTargetInputs(target show.MediaTarget) cueMediaTargetInputs {
+	return cueMediaTargetInputs{
+		kind:       newEnumDropdown(mediaTargetKindLabels, int(target.Kind)),
+		instanceID: input.NewText("Instance ID", target.InstanceID),
+		outputID:   input.NewText("Output ID", target.OutputID),
+	}
+}
+
+type cueWaitInputs struct {
+	kind       *input.Dropdown
+	durationMs *input.Integer
+	target     cueMediaTargetInputs
+}
+
+type cueMediaControlInputs struct {
+	action   *input.Dropdown
+	target   cueMediaTargetInputs
+	levelDB  *input.Float
+	seekToMs *input.Integer
+	fadeMs   *input.Integer
+	curve    *input.Dropdown
+}
+
+type cueOutputControlInputs struct {
+	action    *input.Dropdown
+	outputID  *input.Text
+	fadeOutMs *input.Integer
+	fadeInMs  *input.Integer
+	message   *input.Text
 }
 
 // mediaPlayInputs is the compile-checked widget model shared by the Media and
@@ -95,48 +165,53 @@ func newCueEditPageState(cue show.Cue) cueEditPageState {
 		cueID:       cue.ID,
 		list:        layout.List{Axis: layout.Vertical},
 		text:        map[string]*input.Text{},
-		multiline:   map[string]*input.Multiline{},
 		integer:     map[string]*input.Integer{},
 		float:       map[string]*input.Float{},
 		checkbox:    map[string]*input.Checkbox{},
 		dropdown:    map[string]*input.Dropdown{},
-		colour:      map[string]*input.ColourPicker{},
 		button:      map[string]*widget.Clickable{},
 	}
 
-	state.text["cueNumber"] = input.NewText("Cue Number", cue.CueNumber)
-	state.multiline["description"] = input.NewMultiline("Description", cue.Description)
-	state.colour["color"] = input.NewColourPicker("Color", cue.Color)
-	state.text["tags"] = input.NewText("Tags", strings.Join(cue.Tags, ", "))
-	state.multiline["notes"] = input.NewMultiline("Notes", cue.Notes)
-
-	state.integer["preWaitMs"] = input.NewInteger("Pre Wait MS", int(cue.Timing.PreWaitMs))
-	state.integer["postWaitMs"] = input.NewInteger("Post Wait MS", int(cue.Timing.PostWaitMs))
-	state.button["timecodeAdd"] = new(widget.Clickable)
+	state.general = cueGeneralInputs{
+		cueNumber:   input.NewText("Cue Number", cue.CueNumber),
+		description: input.NewMultiline("Description", cue.Description),
+		color:       input.NewColourPicker("Color", cue.Color),
+		tags:        input.NewText("Tags", strings.Join(cue.Tags, ", ")),
+		notes:       input.NewMultiline("Notes", cue.Notes),
+	}
+	state.timing = cueTimingInputs{
+		preWaitMs:  input.NewInteger("Pre Wait MS", int(cue.Timing.PreWaitMs)),
+		postWaitMs: input.NewInteger("Post Wait MS", int(cue.Timing.PostWaitMs)),
+	}
+	state.link = cueLinkInputs{
+		mode:       newEnumDropdown(cueLinkModeLabels, int(cue.Link.Mode)),
+		targetKind: newEnumDropdown(cueTargetKindLabels, int(cue.Link.Target.Kind)),
+	}
 	if markers := cueTimecodeMarkers(&cue); markers != nil {
 		for index, marker := range *markers {
 			initTimecodeMarkerInputs(&state, index, marker)
 		}
 	}
 
-	// TODO(micro): remaining general/link/action string field keys are duplicated in tab renderers; migrate them to typed field structs
-	state.dropdown["linkMode"] = newEnumDropdown(cueLinkModeLabels, int(cue.Link.Mode))
-	state.dropdown["linkTargetKind"] = newEnumDropdown(cueTargetKindLabels, int(cue.Link.Target.Kind))
 	state.media = newCueMediaPlayInputs(cue)
 	if cue.Play.Remote != nil {
-		state.dropdown["remoteProtocol"] = newEnumDropdown(remoteProtocolLabels, int(cue.Play.Remote.Protocol))
-		state.dropdown["remoteAction"] = newEnumDropdown(remoteActionLabels, int(cue.Play.Remote.Action))
-		state.text["remotePlayback"] = input.NewText("Playback", cue.Play.Remote.Playback)
-		state.text["remoteCueNumber"] = input.NewText("Cue Number", cue.Play.Remote.CueNumber)
-		state.text["remoteLevel"] = input.NewText("Level", cue.Play.Remote.Level)
-		state.text["remoteCustom"] = input.NewText("Custom Command", cue.Play.Remote.Custom)
+		play := cue.Play.Remote
+		state.remote = &cueRemoteInputs{
+			protocol:  newEnumDropdown(remoteProtocolLabels, int(play.Protocol)),
+			action:    newEnumDropdown(remoteActionLabels, int(play.Action)),
+			playback:  input.NewText("Playback", play.Playback),
+			cueNumber: input.NewText("Cue Number", play.CueNumber),
+			level:     input.NewText("Level", play.Level),
+			custom:    input.NewText("Custom Command", play.Custom),
+		}
 	}
 	if cue.Play.Wait != nil {
-		state.dropdown["waitKind"] = newEnumDropdown(waitKindLabels, int(cue.Play.Wait.Kind))
-		state.integer["waitDurationMs"] = input.NewInteger("Duration MS", int(cue.Play.Wait.DurationMs))
-		state.dropdown["waitMediaTargetKind"] = newEnumDropdown(mediaTargetKindLabels, int(cue.Play.Wait.Media.Kind))
-		state.text["waitMediaInstanceID"] = input.NewText("Instance ID", cue.Play.Wait.Media.InstanceID)
-		state.text["waitMediaOutputID"] = input.NewText("Output ID", cue.Play.Wait.Media.OutputID)
+		play := cue.Play.Wait
+		state.wait = &cueWaitInputs{
+			kind:       newEnumDropdown(waitKindLabels, int(play.Kind)),
+			durationMs: input.NewInteger("Duration MS", int(play.DurationMs)),
+			target:     newCueMediaTargetInputs(play.Media),
+		}
 	}
 	if cue.Play.MediaControl != nil {
 		mediaControl := cue.Play.MediaControl
@@ -149,21 +224,24 @@ func newCueEditPageState(cue show.Cue) cueEditPageState {
 			seekToMs = int(*mediaControl.SeekToMs)
 		}
 
-		state.dropdown["mediaCtrlAction"] = newEnumDropdown(mediaControlActionLabels, int(mediaControl.Action))
-		state.dropdown["mediaCtrlTargetKind"] = newEnumDropdown(mediaTargetKindLabels, int(mediaControl.Target.Kind))
-		state.text["mediaCtrlInstanceID"] = input.NewText("Instance ID", mediaControl.Target.InstanceID)
-		state.text["mediaCtrlOutputID"] = input.NewText("Output ID", mediaControl.Target.OutputID)
-		state.float["mediaCtrlLevelDB"] = input.NewFloat("Level dB", levelDB)
-		state.integer["mediaCtrlSeekToMs"] = input.NewInteger("Seek To MS", seekToMs)
-		state.integer["mediaCtrlFadeMs"] = input.NewInteger("Fade MS", int(mediaControl.FadeMs))
-		state.dropdown["mediaCtrlCurve"] = newEnumDropdown(fadeCurveLabels, int(mediaControl.Curve))
+		state.mediaControl = &cueMediaControlInputs{
+			action:   newEnumDropdown(mediaControlActionLabels, int(mediaControl.Action)),
+			target:   newCueMediaTargetInputs(mediaControl.Target),
+			levelDB:  input.NewFloat("Level dB", levelDB),
+			seekToMs: input.NewInteger("Seek To MS", seekToMs),
+			fadeMs:   input.NewInteger("Fade MS", int(mediaControl.FadeMs)),
+			curve:    newEnumDropdown(fadeCurveLabels, int(mediaControl.Curve)),
+		}
 	}
 	if cue.Play.OutputControl != nil {
-		state.dropdown["outputCtrlAction"] = newEnumDropdown(outputControlActionLabels, int(cue.Play.OutputControl.Action))
-		state.text["outputCtrlOutputID"] = input.NewText("Output ID", cue.Play.OutputControl.OutputID)
-		state.integer["outputCtrlFadeOutMs"] = input.NewInteger("Fade Out MS", int(cue.Play.OutputControl.FadeOutMs))
-		state.integer["outputCtrlFadeInMs"] = input.NewInteger("Fade In MS", int(cue.Play.OutputControl.FadeInMs))
-		state.text["outputCtrlMessage"] = input.NewText("Message", cue.Play.OutputControl.Message)
+		play := cue.Play.OutputControl
+		state.outputControl = &cueOutputControlInputs{
+			action:    newEnumDropdown(outputControlActionLabels, int(play.Action)),
+			outputID:  input.NewText("Output ID", play.OutputID),
+			fadeOutMs: input.NewInteger("Fade Out MS", int(play.FadeOutMs)),
+			fadeInMs:  input.NewInteger("Fade In MS", int(play.FadeInMs)),
+			message:   input.NewText("Message", play.Message),
+		}
 	}
 
 	return state
