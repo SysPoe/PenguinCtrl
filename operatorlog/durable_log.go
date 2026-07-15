@@ -32,6 +32,20 @@ func (l *durableLog) Path() string {
 	return l.path
 }
 
+func (l *durableLog) Paths() []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.path == "" {
+		return nil
+	}
+	paths := make([]string, 0, eventLogGenerations+1)
+	paths = append(paths, l.path)
+	for generation := 1; generation <= eventLogGenerations; generation++ {
+		paths = append(paths, l.path+"."+strconv.Itoa(generation))
+	}
+	return paths
+}
+
 func (l *durableLog) Append(event Event) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()

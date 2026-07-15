@@ -1,4 +1,5 @@
-package operatorlog
+// Package support assembles redacted diagnostic bundles for support handoff.
+package support
 
 import (
 	"archive/zip"
@@ -10,11 +11,16 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/syspoe/cusus/operatorlog"
 )
 
-const supportFileLimit int64 = 5 << 20
+const (
+	supportFileLimit = int64(5 << 20)
+	crashFileLimit   = 5
+)
 
-type supportManifest struct {
+type manifest struct {
 	SchemaVersion int       `json:"schemaVersion"`
 	CreatedAt     time.Time `json:"createdAt"`
 	SessionID     string    `json:"sessionId"`
@@ -23,13 +29,9 @@ type supportManifest struct {
 	EventCount    int       `json:"eventCount"`
 }
 
-// ExportSupportBundle writes bounded operational logs, a redacted settings
-// snapshot, recent crash reports, and an identity manifest to a portable zip.
-// TODO(macro): Support-bundle assembly (settings redaction, crash-dir layout,
-// zip packaging) is a diagnostics/export feature bolted onto Store. Extract a
-// support/diagnostics package that takes a Store snapshot plus explicit
-// settings/crash inputs so operatorlog does not own foreign file formats.
-func (s *Store) ExportSupportBundle(destination, settingsPath, crashDirectory string) error {
+// Export writes bounded logs, redacted settings, recent crash reports, and an
+// identity manifest to a portable ZIP archive.
+func Export(destination string, snapshot operatorlog.DiagnosticSnapshot, settingsPath, crashDirectory string) error {
 	destination = filepath.Clean(destination)
 	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
 		return err
@@ -48,19 +50,11 @@ func (s *Store) ExportSupportBundle(destination, settingsPath, crashDirectory st
 	}()
 
 	archive := zip.NewWriter(temporary)
-	s.mu.RLock()
-	manifest := supportManifest{SchemaVersion: 1, CreatedAt: time.Now(), SessionID: s.sessionID, BuildID: s.buildID, EventCount: len(s.events)}
-	if s.showID != nil {
-		manifest.ShowID = s.showID()
-	}
-	events := append([]Event(nil), s.events...)
-	s.mu.RUnlock()
-	logPath := s.log.Path()
-
-	if err := writeSupportJSON(archive, "manifest.json", manifest); err != nil {
+	metadata := manifest{SchemaVersion: 1, CreatedAt: time.Now(), SessionID: snapshot.SessionID, BuildID: snapshot.BuildID, ShowID: snapshot.ShowID, EventCount: len(snapshot.Events)}
+	if err := writeJSON(archive, "manifest.json", metadata); err != nil {
 		return err
 	}
-	if err := writeSupportJSON(archive, "events/current-session.json", events); err != nil {
+	if err := writeJSON(archive, "events/current-session.json", snapshot.Events); err != nil {
 		return err
 	}
 	if settingsPath != "" {
@@ -68,16 +62,12 @@ func (s *Store) ExportSupportBundle(destination, settingsPath, crashDirectory st
 			return err
 		}
 	}
-	for generation := 0; generation <= eventLogGenerations; generation++ {
-		path := logPath
-		if generation > 0 {
-			path += fmt.Sprintf(".%d", generation)
-		}
-		if err := addBoundedSupportFile(archive, fmt.Sprintf("logs/operator-events.%d.jsonl", generation), path); err != nil && !os.IsNotExist(err) {
+	for index, path := range snapshot.LogPaths {
+		if err := addBoundedFile(archive, fmt.Sprintf("logs/operator-events.%d.jsonl", index), path); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 	}
-	if err := addRecentCrashReports(archive, crashDirectory, 5); err != nil && !os.IsNotExist(err) {
+	if err := addRecentCrashReports(archive, crashDirectory, crashFileLimit); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	if err := archive.Close(); err != nil {
@@ -96,7 +86,7 @@ func (s *Store) ExportSupportBundle(destination, settingsPath, crashDirectory st
 	return nil
 }
 
-func writeSupportJSON(archive *zip.Writer, name string, value any) error {
+func writeJSON(archive *zip.Writer, name string, value any) error {
 	entry, err := archive.Create(name)
 	if err != nil {
 		return err
@@ -115,11 +105,11 @@ func addRedactedSettings(archive *zip.Writer, path string) error {
 	if err := json.Unmarshal(raw, &value); err != nil {
 		return fmt.Errorf("read settings for support bundle: %w", err)
 	}
-	redactSupportValue(value)
-	return writeSupportJSON(archive, "configuration/settings.redacted.json", value)
+	redact(value)
+	return writeJSON(archive, "configuration/settings.redacted.json", value)
 }
 
-func redactSupportValue(value any) {
+func redact(value any) {
 	switch value := value.(type) {
 	case map[string]any:
 		for key, child := range value {
@@ -128,16 +118,16 @@ func redactSupportValue(value any) {
 				value[key] = "[REDACTED]"
 				continue
 			}
-			redactSupportValue(child)
+			redact(child)
 		}
 	case []any:
 		for _, child := range value {
-			redactSupportValue(child)
+			redact(child)
 		}
 	}
 }
 
-func addBoundedSupportFile(archive *zip.Writer, name, path string) error {
+func addBoundedFile(archive *zip.Writer, name, path string) error {
 	file, err := os.Open(path)
 	if err != nil {
 		return err
@@ -171,18 +161,14 @@ func addRecentCrashReports(archive *zip.Writer, directory string, limit int) err
 		}
 		reports = append(reports, crashReport{entry: entry, info: info})
 	}
-	sort.Slice(reports, func(i, j int) bool {
-		return reports[i].info.ModTime().After(reports[j].info.ModTime())
-	})
-	added := 0
-	for _, report := range reports {
-		if added >= limit {
+	sort.Slice(reports, func(i, j int) bool { return reports[i].info.ModTime().After(reports[j].info.ModTime()) })
+	for index, report := range reports {
+		if index >= limit {
 			break
 		}
-		if err := addBoundedSupportFile(archive, "crashes/"+filepath.Base(report.entry.Name()), filepath.Join(directory, report.entry.Name())); err != nil {
+		if err := addBoundedFile(archive, "crashes/"+filepath.Base(report.entry.Name()), filepath.Join(directory, report.entry.Name())); err != nil {
 			return err
 		}
-		added++
 	}
 	return nil
 }

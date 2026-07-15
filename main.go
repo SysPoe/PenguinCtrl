@@ -25,6 +25,7 @@ import (
 	"github.com/syspoe/cusus/project"
 	"github.com/syspoe/cusus/redundancy"
 	"github.com/syspoe/cusus/show"
+	"github.com/syspoe/cusus/support"
 	"github.com/syspoe/cusus/timecode"
 	"github.com/syspoe/cusus/ui"
 )
@@ -209,7 +210,7 @@ func newApp(reporter *crashreport.Reporter) (*App, error) {
 	settingsPage.SetOnSupportBundle(func() (string, error) {
 		directory := filepath.Dir(settings.Path())
 		path := filepath.Join(directory, "support-"+time.Now().Format("20060102-150405.000")+".zip")
-		err := operatorEvents.ExportSupportBundle(path, settings.Path(), filepath.Join(directory, "crashes"))
+		err := support.Export(path, operatorEvents.DiagnosticSnapshot(), settings.Path(), filepath.Join(directory, "crashes"))
 		if err == nil {
 			operatorEvents.Add(operatorlog.Info, "Operator action", "Created redacted support bundle", show.CueID{}, "")
 		}

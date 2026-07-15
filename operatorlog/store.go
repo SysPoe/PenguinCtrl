@@ -171,6 +171,32 @@ func (s *Store) LogError() error {
 	return s.log.Error()
 }
 
+// DiagnosticSnapshot captures the immutable inputs needed for support export.
+type DiagnosticSnapshot struct {
+	SessionID string
+	BuildID   string
+	ShowID    string
+	Events    []Event
+	LogPaths  []string
+}
+
+// DiagnosticSnapshot returns an isolated view of the current event history and
+// durable log locations.
+func (s *Store) DiagnosticSnapshot() DiagnosticSnapshot {
+	s.mu.RLock()
+	snapshot := DiagnosticSnapshot{
+		SessionID: s.sessionID,
+		BuildID:   s.buildID,
+		Events:    append([]Event(nil), s.events...),
+	}
+	if s.showID != nil {
+		snapshot.ShowID = s.showID()
+	}
+	s.mu.RUnlock()
+	snapshot.LogPaths = s.log.Paths()
+	return snapshot
+}
+
 func (s *Store) Snapshot() []Event {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
