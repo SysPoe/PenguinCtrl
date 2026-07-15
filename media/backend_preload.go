@@ -36,8 +36,8 @@ func (s *ffmpegSession) Preload(ctx context.Context) error {
 	}
 	s.info = info
 	bufferBytes := int64(0)
-	if s.request.Instance.MediaType == "video" && info.hasVideo {
-		width, height := decodeSize(info.width, info.height, config.VideoOutputFor(settings, s.request.Instance.OutputID))
+	if s.request.Instance.MediaType == "video" && info.HasVideo {
+		width, height := decodeSize(info.Width, info.Height, config.VideoOutputFor(settings, s.request.Instance.OutputID))
 		bufferBytes = int64(width) * int64(height) * 4 * (decodedFrameBuffer + 2)
 	}
 	if !s.backend.admission.acquire(ctx, s.ctx, bufferBytes) {
@@ -48,11 +48,11 @@ func (s *ffmpegSession) Preload(ctx context.Context) error {
 	s.mu.Unlock()
 	results := make(chan error, 2)
 	components := 0
-	if s.request.Instance.MediaType == "video" && info.hasVideo {
+	if s.request.Instance.MediaType == "video" && info.HasVideo {
 		components++
 		go func() { results <- s.preloadVideo(settings) }()
 	}
-	if (s.request.Instance.MediaType == "audio" || s.request.Instance.MediaType == "video") && info.hasAudio && s.backend.audio != nil {
+	if (s.request.Instance.MediaType == "audio" || s.request.Instance.MediaType == "video") && info.HasAudio && s.backend.audio != nil {
 		components++
 		go func() { results <- s.preloadAudio(settings) }()
 	}
@@ -99,8 +99,8 @@ func (s *ffmpegSession) Preload(ctx context.Context) error {
 }
 
 func (s *ffmpegSession) preloadVideo(settings config.Settings) error {
-	width, height := decodeSize(s.info.width, s.info.height, config.VideoOutputFor(settings, s.request.Instance.OutputID))
-	s.info.width, s.info.height = width, height
+	width, height := decodeSize(s.info.Width, s.info.Height, config.VideoOutputFor(settings, s.request.Instance.OutputID))
+	s.info.Width, s.info.Height = width, height
 	args := mediaInputArgs(s.request.Position, s.request.Instance.ClipEndMs)
 	args = append(args, "-i", s.path, "-map", "0:v:0", "-an")
 	if width > 0 && height > 0 {
@@ -142,8 +142,8 @@ func decodeSize(sourceWidth, sourceHeight int, output config.VideoOutput) (int, 
 
 func (s *ffmpegSession) decodeVideo(cmd *exec.Cmd, reader io.Reader, first chan<- error, stderr *bytes.Buffer) {
 	defer s.component.Done()
-	frameSize := s.info.width * s.info.height * 4
-	interval := s.info.frameInterval()
+	frameSize := s.info.Width * s.info.Height * 4
+	interval := s.info.FrameInterval()
 	var index int64
 	firstSent := false
 	for {
@@ -182,11 +182,11 @@ func (s *ffmpegSession) decodeVideo(cmd *exec.Cmd, reader io.Reader, first chan<
 func (s *ffmpegSession) acquireFrame() *image.RGBA {
 	if pooled := s.framePool.Get(); pooled != nil {
 		frame := pooled.(*image.RGBA)
-		if frame.Rect.Dx() == s.info.width && frame.Rect.Dy() == s.info.height {
+		if frame.Rect.Dx() == s.info.Width && frame.Rect.Dy() == s.info.Height {
 			return frame
 		}
 	}
-	return image.NewRGBA(image.Rect(0, 0, s.info.width, s.info.height))
+	return image.NewRGBA(image.Rect(0, 0, s.info.Width, s.info.Height))
 }
 
 func (s *ffmpegSession) preloadAudio(settings config.Settings) error {

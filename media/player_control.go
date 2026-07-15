@@ -168,10 +168,9 @@ func fadeVolumeDB(startDB, targetDB, progress float64, curve show.FadeCurve) flo
 	}
 	gain := startGain + (targetGain-startGain)*progress
 	if gain <= 0 {
-		// TODO(micro): hard-coded -80 mute floor; share muteFloorDB with dbVolume/setVolume.
-		return -80
+		return muteFloorDB
 	}
-	return max(-80.0, 20*math.Log10(gain))
+	return max(muteFloorDB, 20*math.Log10(gain))
 }
 
 func (p *Player) applyFadeVolume(db float64, fadeID uint64) bool {

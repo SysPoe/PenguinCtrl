@@ -136,8 +136,7 @@ func (p *devicePlayer) UnexpectedStop() bool     { return !p.intentional.Load() 
 func (p *devicePlayer) Underruns() uint64        { return p.underruns.Load() }
 
 func (p *devicePlayer) SetVolume(volume float64) {
-	// TODO(micro): 12.0/20 max gain and -80 mute floor are duplicated with dbVolume; extract shared maxGainLinear / muteFloorDB constants.
-	p.volume.Store(math.Float64bits(max(0, min(math.Pow(10, 12.0/20), volume))))
+	p.volume.Store(math.Float64bits(max(0, min(maxGainLinear, volume))))
 }
 
 func (p *devicePlayer) Close() error {

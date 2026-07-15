@@ -1,25 +1,16 @@
 package media
 
 import (
-	"context"
-	"errors"
-	"fmt"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
 	"math"
-	"net/url"
-	"path/filepath"
-	"runtime"
-	"strconv"
-	"strings"
 	"time"
 
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/paint"
 	"gioui.org/widget"
-	"github.com/syspoe/cusus/internal/processgroup"
 	_ "golang.org/x/image/webp"
 )
 
@@ -155,85 +146,4 @@ func (p *Player) stopSessionLocked() {
 		p.session.Close()
 		p.session = nil
 	}
-}
-
-// TODO(macro): sourcePath, ffprobePath, duration probing, and dbVolume are
-// package-wide media utilities parked in the Gio render file. Move path/probe
-// helpers next to backend_probe (or a mediainfo unit) and gain conversion next
-// to audio so player_render.go only owns frame presentation.
-func sourcePath(source string) (string, error) {
-	if strings.HasPrefix(source, "file:") {
-		parsed, err := url.Parse(source)
-		if err != nil {
-			return "", err
-		}
-		source = parsed.Path
-		if runtime.GOOS == "windows" && len(source) >= 3 && source[0] == '/' && source[2] == ':' {
-			source = source[1:]
-		}
-	}
-	source = filepath.FromSlash(source)
-	if !filepath.IsAbs(source) {
-		absolute, err := filepath.Abs(source)
-		if err != nil {
-			return "", err
-		}
-		source = absolute
-	}
-	return source, nil
-}
-
-// TODO(micro): probeMediaDuration is a thin Background wrapper only used by waveform; call probeMediaDurationContext directly or keep one public entry point.
-func probeMediaDuration(ffmpegPath, source string) (time.Duration, error) {
-	return probeMediaDurationContext(context.Background(), ffmpegPath, source)
-}
-
-func probeMediaDurationContext(parent context.Context, ffmpegPath, source string) (time.Duration, error) {
-	ctx, cancel := context.WithTimeout(parent, mediaProbeTimeout)
-	defer cancel()
-	command := processgroup.CommandContext(ctx, ffprobePath(ffmpegPath), "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", source)
-	output, err := processgroup.Output(command)
-	if err != nil {
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return 0, fmt.Errorf("probe media duration timed out after %s", mediaProbeTimeout)
-		}
-		return 0, fmt.Errorf("probe media duration: %w", err)
-	}
-	seconds, err := strconv.ParseFloat(strings.TrimSpace(string(output)), 64)
-	if err != nil || seconds <= 0 {
-		return 0, fmt.Errorf("invalid media duration %q", strings.TrimSpace(string(output)))
-	}
-	return time.Duration(seconds * float64(time.Second)), nil
-}
-
-func ProbeDurationMs(ffmpegPath, source string) (int64, error) {
-	return ProbeDurationMsContext(context.Background(), ffmpegPath, source)
-}
-
-func ProbeDurationMsContext(ctx context.Context, ffmpegPath, source string) (int64, error) {
-	path, err := sourcePath(source)
-	if err != nil {
-		return 0, err
-	}
-	duration, err := probeMediaDurationContext(ctx, ffmpegPath, path)
-	if err != nil {
-		return 0, err
-	}
-	return duration.Milliseconds(), nil
-}
-
-func ffprobePath(ffmpegPath string) string {
-	if filepath.IsAbs(ffmpegPath) {
-		return filepath.Join(filepath.Dir(ffmpegPath), "ffprobe"+filepath.Ext(ffmpegPath))
-	}
-	return "ffprobe"
-}
-
-func dbVolume(db float64, muted bool) float64 {
-	// TODO(micro): -80 dB mute floor and 12.0/20 max gain are duplicated with devicePlayer.SetVolume; extract shared constants.
-	if muted || db <= -80 {
-		return 0
-	}
-	// TODO(micro): math.Pow(10, 12.0/20) is recomputed every call; precompute maxGainLinear once.
-	return min(math.Pow(10, 12.0/20), math.Pow(10, db/20))
 }

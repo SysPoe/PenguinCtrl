@@ -69,7 +69,7 @@ func (s *ffmpegSession) Frame(position time.Duration) image.Image {
 		default:
 		}
 	}
-	interval := s.info.frameInterval()
+	interval := s.info.FrameInterval()
 	due := 0
 	for s.pending != nil && s.pending.pts <= position+interval/2 {
 		previous := s.current

@@ -19,12 +19,6 @@ import (
 
 const (
 	decodedFrameBuffer        = 2
-	mediaProbeTimeout         = 10 * time.Second
-	maxVideoDimension         = 8192
-	maxVideoPixels            = 7680 * 4320
-	maxVideoFrameRate         = 240
-	maxVideoBitRate           = 500_000_000
-	maxAudioBitRate           = 20_000_000
 	maxDecoderSessions        = 12
 	maxVideoBufferBytes int64 = 512 << 20
 	mediaPreloadTimeout       = 15 * time.Second
