@@ -35,9 +35,9 @@ import (
 // playback stack, operator UI shell) so window_loop and settings callbacks stop reaching through
 // one god object for unrelated concerns.
 type App struct {
-	Show          *show.Manager
+	Show          *show.ShowManager
 	Playback      *playback.Engine
-	Media         media.Backend
+	Media         media.Host
 	Settings      *config.Store
 	OperatorLog   *operatorlog.Store
 	Journal       *project.EditJournal

@@ -1,13 +1,12 @@
 package media
 
-import "context"
+import (
+	"context"
+
+	"github.com/syspoe/cusus/playback"
+)
 
 // Backend is the media-output surface used by the application.
-// TODO(macro): Backend, EmergencyResetter, and the optional video-routing /
-// Prewarm capability asserts used from package main are three partial ports for
-// one subsystem. Publish one intentional media.Host (or composition of ports)
-// covering devices, outputs, emergency reset, routing, and prewarm so main does
-// not type-assert ad-hoc interfaces onto *Manager.
 // TODO(micro): Backend.Close has no error return while EmergencyReset does; align Close() error handling with EmergencyResetter for consistent failure reporting
 type Backend interface {
 	AudioDevices() ([]AudioDevice, error)
@@ -27,4 +26,12 @@ type Backend interface {
 // running.
 type EmergencyResetter interface {
 	EmergencyReset(context.Context) error
+}
+
+// Host is the complete media subsystem surface owned by the application. It
+// keeps optional capability assertions out of show-control orchestration.
+type Host interface {
+	Backend
+	EmergencyResetter
+	Prewarm([]playback.Instance)
 }

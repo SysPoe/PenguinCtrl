@@ -23,7 +23,6 @@ import (
 	"github.com/syspoe/cusus/internal/taskgroup"
 	"github.com/syspoe/cusus/media"
 	"github.com/syspoe/cusus/operatorlog"
-	"github.com/syspoe/cusus/playback"
 	"github.com/syspoe/cusus/preflight"
 	"github.com/syspoe/cusus/project"
 	"github.com/syspoe/cusus/show"
@@ -470,10 +469,8 @@ func (a *App) run(window *app.Window) error {
 			gtx := app.NewContext(&ops, e)
 			// TODO(micro): 1s frame invalidate cadence is magic; name a const (and consider aligning with main_page refresh).
 			gtx.Execute(op.InvalidateCmd{At: time.Now().Add(time.Second)})
-			if warmer, ok := mediaManager.(interface{ Prewarm([]playback.Instance) }); ok {
-				// TODO(micro): PreloadCandidates(3) limit is magic; name a prewarmCandidateLimit const.
-				warmer.Prewarm(playbackEngine.PreloadCandidates(3))
-			}
+			// TODO(micro): PreloadCandidates(3) limit is magic; name a prewarmCandidateLimit const.
+			mediaManager.Prewarm(playbackEngine.PreloadCandidates(3))
 			if audioWarningSettings.Clicked(gtx) {
 				a.UI.ShowSettings = true
 				settingsPage.ShowAudioDevices()
@@ -493,30 +490,21 @@ func (a *App) run(window *app.Window) error {
 				playbackEngine.BeginEmergencyReset()
 				operatorPanel.SetStatus("E-STOP asserted · force-stopping and reinitializing media outputs")
 				operatorEvents.Add(operatorlog.ShowStopping, "E-STOP", "Force-stopping and reinitializing media outputs", show.CueID{}, "")
-				resetter, ok := mediaManager.(media.EmergencyResetter)
-				if !ok {
-					err := errors.New("media backend does not support emergency reset")
-					playbackEngine.CompleteEmergencyReset(err)
-					emergencyResetting = false
-					topBar.SetEmergencyResetting(false)
-					operatorPanel.SetStatus("E-STOP reset failed · " + err.Error())
-				} else {
-					tasks.Go("emergency-media-reset", func(ctx context.Context) {
-						err := resetter.EmergencyReset(ctx)
-						postUI(ctx, func() {
-							playbackEngine.CompleteEmergencyReset(err)
-							emergencyResetting = false
-							topBar.SetEmergencyResetting(false)
-							if err != nil {
-								operatorPanel.SetStatus("E-STOP reset failed · playback remains latched")
-								return
-							}
-							mediaManager.SyncOutputs(playbackEngine.OutputIDs())
-							operatorPanel.SetStatus("E-STOP reset complete · media outputs ready")
-							operatorEvents.Add(operatorlog.Info, "E-STOP", "Media outputs reinitialized and playback re-armed", show.CueID{}, "")
-						})
+				tasks.Go("emergency-media-reset", func(ctx context.Context) {
+					err := mediaManager.EmergencyReset(ctx)
+					postUI(ctx, func() {
+						playbackEngine.CompleteEmergencyReset(err)
+						emergencyResetting = false
+						topBar.SetEmergencyResetting(false)
+						if err != nil {
+							operatorPanel.SetStatus("E-STOP reset failed · playback remains latched")
+							return
+						}
+						mediaManager.SyncOutputs(playbackEngine.OutputIDs())
+						operatorPanel.SetStatus("E-STOP reset complete · media outputs ready")
+						operatorEvents.Add(operatorlog.Info, "E-STOP", "Media outputs reinitialized and playback re-armed", show.CueID{}, "")
 					})
-				}
+				})
 			}
 			if topBar.TakeBlackoutRequest() {
 				playbackEngine.BlackoutAll()
