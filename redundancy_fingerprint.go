@@ -19,13 +19,39 @@ import (
 // (show+media+routing digests) but lives in package main and depends on cueMediaSources from
 // preflight. Move buildRedundancyFingerprint and helpers into package redundancy (or project
 // identity) so warm-spare matching is not owned by the Gio composition root.
-func buildRedundancyFingerprint(current show.Show, settings config.Settings, files []project.File, preflightReady bool) redundancy.Fingerprint {
-	logicalShow, mediaHash, mediaReady := redundancyProductionIdentity(current, settings, files)
-	routingHash := redundancyRoutingDigest(settings)
-	return redundancy.Fingerprint{
-		Show: digestJSON(logicalShow), Media: mediaHash, Routing: routingHash,
-		Ready: preflightReady && mediaReady,
+func buildRedundancyFingerprint(current show.Show, settings config.Settings, files []project.File, preflightReady bool) (redundancy.Fingerprint, error) {
+	logicalShow, mediaHash, mediaReady, err := redundancyProductionIdentity(current, settings, files)
+	if err != nil {
+		return redundancy.Fingerprint{}, err
 	}
+	showHash, err := logicalShow.Digest()
+	if err != nil {
+		return redundancy.Fingerprint{}, err
+	}
+	routingHash, err := redundancyRoutingDigest(settings)
+	if err != nil {
+		return redundancy.Fingerprint{}, err
+	}
+	return redundancy.Fingerprint{
+		Show: hex.EncodeToString(showHash[:]), Media: mediaHash, Routing: routingHash,
+		Ready: preflightReady && mediaReady,
+	}, nil
+}
+
+func updateRedundancyFingerprint(service *redundancy.Service, current show.Show, settings config.Settings, files []project.File, preflightReady bool, previousError string, report func(string)) string {
+	fingerprint, err := buildRedundancyFingerprint(current, settings, files, preflightReady)
+	if err == nil {
+		service.UpdateFingerprint(fingerprint)
+		return ""
+	}
+	service.UpdateFingerprint(redundancy.Fingerprint{})
+	if message := err.Error(); message != previousError {
+		if report != nil {
+			report(message)
+		}
+		return message
+	}
+	return previousError
 }
 
 func redundancyPreflightReady(checks []operatorlog.PreflightCheck) bool {
@@ -42,7 +68,7 @@ type redundancyMediaIdentity struct {
 	Hash string `json:"sha256"`
 }
 
-func redundancyProductionIdentity(current show.Show, settings config.Settings, files []project.File) (show.Show, string, bool) {
+func redundancyProductionIdentity(current show.Show, settings config.Settings, files []project.File) (show.Show, string, bool, error) {
 	available := redundancyMediaIndex(files)
 	logical := current
 	logical.AcknowledgedProblems = nil
@@ -62,14 +88,8 @@ func redundancyProductionIdentity(current show.Show, settings config.Settings, f
 			canonicalizeCueMedia(&logical.Cues[index], identity)
 		}
 	}
-	return logical, redundancyMediaIdentityDigest(identities), ready
-}
-
-// TODO(micro): Remove this unused forwarding helper; all callers use redundancyProductionIdentity directly.
-// TODO(micro): Dead helper — no callers; delete or use instead of calling redundancyProductionIdentity directly.
-func redundancyMediaDigest(cues []show.Cue, settings config.Settings, files []project.File) (string, bool) {
-	_, digest, ready := redundancyProductionIdentity(show.Show{Cues: cues}, settings, files)
-	return digest, ready
+	digest, err := redundancyMediaIdentityDigest(identities)
+	return logical, digest, ready, err
 }
 
 func redundancyMediaIndex(files []project.File) map[string]redundancyMediaIdentity {
@@ -86,7 +106,7 @@ func redundancyMediaIndex(files []project.File) map[string]redundancyMediaIdenti
 	return available
 }
 
-func redundancyMediaIdentityDigest(identities map[redundancyMediaIdentity]struct{}) string {
+func redundancyMediaIdentityDigest(identities map[redundancyMediaIdentity]struct{}) (string, error) {
 	ordered := make([]redundancyMediaIdentity, 0, len(identities))
 	for identity := range identities {
 		ordered = append(ordered, identity)
@@ -118,7 +138,7 @@ func canonicalizeCueMedia(cue *show.Cue, identity redundancyMediaIdentity) {
 	}
 }
 
-func redundancyRoutingDigest(settings config.Settings) string {
+func redundancyRoutingDigest(settings config.Settings) (string, error) {
 	video := append([]config.VideoOutput(nil), settings.VideoOutputs...)
 	sort.Slice(video, func(i, j int) bool { return video[i].Stage < video[j].Stage })
 	remote := append([]config.RemoteTarget(nil), settings.RemoteTargets...)
@@ -159,9 +179,11 @@ func canonicalMediaPath(source string) (string, bool) {
 	return strings.ToLower(filepath.Clean(path)), true
 }
 
-func digestJSON(value any) string {
-	// TODO(micro): Ignoring Marshal error hashes nil/empty input (same class of bug as showDigest); handle or panic on err.
-	raw, _ := json.Marshal(value)
+func digestJSON(value any) (string, error) {
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return "", err
+	}
 	digest := sha256.Sum256(raw)
-	return hex.EncodeToString(digest[:])
+	return hex.EncodeToString(digest[:]), nil
 }

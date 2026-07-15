@@ -103,6 +103,7 @@ func (a *App) run(window *app.Window) error {
 	var closeInterceptor windowCloseInterceptor
 	closeRequests := make(chan struct{}, 1)
 	var lastAudioOperatorWarning, lastVideoOperatorWarning string
+	var lastRedundancyFingerprintError string
 	var emergencyResetting bool
 	lastMixerUnderruns := map[string]uint64{}
 	var safetyResume widget.Clickable
@@ -602,7 +603,9 @@ func (a *App) run(window *app.Window) error {
 			operatorPanel.SetHealth(operatorHealthState(healthSnapshot).String())
 			showState, settingsState := manager.ShowSnapshot(), settingsStore.Snapshot()
 			preflight := preflightService.Request(showState, settingsState, audioWarning, videoWarning, playbackEngine.RemoteHealth(), playbackEngine.CueProblems)
-			a.Redundancy.UpdateFingerprint(buildRedundancyFingerprint(showState, settingsState, projectLibrary.Files(""), redundancyPreflightReady(preflight)))
+			lastRedundancyFingerprintError = updateRedundancyFingerprint(a.Redundancy, showState, settingsState, projectLibrary.Files(""), redundancyPreflightReady(preflight), lastRedundancyFingerprintError, func(message string) {
+				operatorEvents.Add(operatorlog.ShowStopping, "Warm spare", "Could not calculate the production fingerprint: "+message, show.CueID{}, "")
+			})
 			preflight = append(preflight, healthPreflightChecks(healthSnapshot)...)
 			for i := range preflight {
 				preflight[i].Acknowledged = manager.ProblemAcknowledged(preflight[i].Fingerprint)
