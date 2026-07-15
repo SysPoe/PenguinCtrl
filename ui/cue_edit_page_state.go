@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"fmt"
 	"strings"
 
 	"gioui.org/layout"
@@ -10,20 +9,10 @@ import (
 	"github.com/syspoe/cusus/ui/input"
 )
 
-// TODO(macro): Timecode marker widgets remain string-keyed because marker rows
-// are rebuilt after sorting, deletion, undo, and action-type changes. Replace
-// these maps with a typed marker-input slice owned by the timeline editor.
 type cueEditPageState struct {
 	initialized bool
 	cueID       show.CueID
 	list        layout.List
-
-	text     map[string]*input.Text
-	integer  map[string]*input.Integer
-	float    map[string]*input.Float
-	checkbox map[string]*input.Checkbox
-	dropdown map[string]*input.Dropdown
-	button   map[string]*widget.Clickable
 
 	general       cueGeneralInputs
 	timing        cueTimingInputs
@@ -33,6 +22,7 @@ type cueEditPageState struct {
 	wait          *cueWaitInputs
 	mediaControl  *cueMediaControlInputs
 	outputControl *cueOutputControlInputs
+	markers       []timecodeMarkerInputs
 }
 
 type cueGeneralInputs struct {
@@ -61,6 +51,17 @@ type cueRemoteInputs struct {
 	cueNumber *input.Text
 	level     *input.Text
 	custom    *input.Text
+}
+
+func newCueRemoteInputs(play *show.RemotePlay) *cueRemoteInputs {
+	return &cueRemoteInputs{
+		protocol:  newEnumDropdown(remoteProtocolLabels, int(play.Protocol)),
+		action:    newEnumDropdown(remoteActionLabels, int(play.Action)),
+		playback:  input.NewText("Playback", play.Playback),
+		cueNumber: input.NewText("Cue Number", play.CueNumber),
+		level:     input.NewText("Level", play.Level),
+		custom:    input.NewText("Custom Command", play.Custom),
+	}
 }
 
 type cueMediaTargetInputs struct {
@@ -94,12 +95,75 @@ type cueMediaControlInputs struct {
 	curve    *input.Dropdown
 }
 
+func newCueMediaControlInputs(play *show.MediaControlPlay) *cueMediaControlInputs {
+	levelDB := 0.0
+	if play.LevelDB != nil {
+		levelDB = *play.LevelDB
+	}
+	seekToMs := int64(0)
+	if play.SeekToMs != nil {
+		seekToMs = *play.SeekToMs
+	}
+	return &cueMediaControlInputs{
+		action:   newEnumDropdown(mediaControlActionLabels, int(play.Action)),
+		target:   newCueMediaTargetInputs(play.Target),
+		levelDB:  input.NewFloat("Level dB", levelDB),
+		seekToMs: input.NewInteger("Seek To MS", int(seekToMs)),
+		fadeMs:   input.NewInteger("Fade MS", int(play.FadeMs)),
+		curve:    newEnumDropdown(fadeCurveLabels, int(play.Curve)),
+	}
+}
+
 type cueOutputControlInputs struct {
 	action    *input.Dropdown
 	outputID  *input.Text
 	fadeOutMs *input.Integer
 	fadeInMs  *input.Integer
 	message   *input.Text
+}
+
+func newCueOutputControlInputs(play *show.OutputControlPlay) *cueOutputControlInputs {
+	return &cueOutputControlInputs{
+		action:    newEnumDropdown(outputControlActionLabels, int(play.Action)),
+		outputID:  input.NewText("Output ID", play.OutputID),
+		fadeOutMs: input.NewInteger("Fade Out MS", int(play.FadeOutMs)),
+		fadeInMs:  input.NewInteger("Fade In MS", int(play.FadeInMs)),
+		message:   input.NewText("Message", play.Message),
+	}
+}
+
+type timecodeMarkerInputs struct {
+	time          *input.Integer
+	disabled      *input.Checkbox
+	actionType    *input.Dropdown
+	delete        *widget.Clickable
+	mediaControl  *cueMediaControlInputs
+	outputControl *cueOutputControlInputs
+	remote        *cueRemoteInputs
+}
+
+func newTimecodeMarkerInputs(marker show.TimecodeMarker) timecodeMarkerInputs {
+	media := marker.Action.MediaControl
+	if media == nil {
+		media = defaultTimecodeMediaControl()
+	}
+	output := marker.Action.OutputControl
+	if output == nil {
+		output = show.NewOutputControlCue().Play.OutputControl
+	}
+	remote := marker.Action.Remote
+	if remote == nil {
+		remote = show.NewRemoteCue().Play.Remote
+	}
+	return timecodeMarkerInputs{
+		time:          input.NewInteger("Time MS", int(marker.TimeMs)),
+		disabled:      input.NewCheckbox("Disabled", marker.Disabled),
+		actionType:    newEnumDropdown(timecodeActionLabels, timecodeActionIndex(marker.Type)),
+		delete:        new(widget.Clickable),
+		mediaControl:  newCueMediaControlInputs(media),
+		outputControl: newCueOutputControlInputs(output),
+		remote:        newCueRemoteInputs(remote),
+	}
 }
 
 // mediaPlayInputs is the compile-checked widget model shared by the Media and
@@ -164,12 +228,6 @@ func newCueEditPageState(cue show.Cue) cueEditPageState {
 		initialized: true,
 		cueID:       cue.ID,
 		list:        layout.List{Axis: layout.Vertical},
-		text:        map[string]*input.Text{},
-		integer:     map[string]*input.Integer{},
-		float:       map[string]*input.Float{},
-		checkbox:    map[string]*input.Checkbox{},
-		dropdown:    map[string]*input.Dropdown{},
-		button:      map[string]*widget.Clickable{},
 	}
 
 	state.general = cueGeneralInputs{
@@ -188,22 +246,15 @@ func newCueEditPageState(cue show.Cue) cueEditPageState {
 		targetKind: newEnumDropdown(cueTargetKindLabels, int(cue.Link.Target.Kind)),
 	}
 	if markers := cueTimecodeMarkers(&cue); markers != nil {
+		state.markers = make([]timecodeMarkerInputs, len(*markers))
 		for index, marker := range *markers {
-			initTimecodeMarkerInputs(&state, index, marker)
+			state.markers[index] = newTimecodeMarkerInputs(marker)
 		}
 	}
 
 	state.media = newCueMediaPlayInputs(cue)
 	if cue.Play.Remote != nil {
-		play := cue.Play.Remote
-		state.remote = &cueRemoteInputs{
-			protocol:  newEnumDropdown(remoteProtocolLabels, int(play.Protocol)),
-			action:    newEnumDropdown(remoteActionLabels, int(play.Action)),
-			playback:  input.NewText("Playback", play.Playback),
-			cueNumber: input.NewText("Cue Number", play.CueNumber),
-			level:     input.NewText("Level", play.Level),
-			custom:    input.NewText("Custom Command", play.Custom),
-		}
+		state.remote = newCueRemoteInputs(cue.Play.Remote)
 	}
 	if cue.Play.Wait != nil {
 		play := cue.Play.Wait
@@ -214,82 +265,11 @@ func newCueEditPageState(cue show.Cue) cueEditPageState {
 		}
 	}
 	if cue.Play.MediaControl != nil {
-		mediaControl := cue.Play.MediaControl
-		levelDB := 0.0
-		if mediaControl.LevelDB != nil {
-			levelDB = *mediaControl.LevelDB
-		}
-		seekToMs := 0
-		if mediaControl.SeekToMs != nil {
-			seekToMs = int(*mediaControl.SeekToMs)
-		}
-
-		state.mediaControl = &cueMediaControlInputs{
-			action:   newEnumDropdown(mediaControlActionLabels, int(mediaControl.Action)),
-			target:   newCueMediaTargetInputs(mediaControl.Target),
-			levelDB:  input.NewFloat("Level dB", levelDB),
-			seekToMs: input.NewInteger("Seek To MS", seekToMs),
-			fadeMs:   input.NewInteger("Fade MS", int(mediaControl.FadeMs)),
-			curve:    newEnumDropdown(fadeCurveLabels, int(mediaControl.Curve)),
-		}
+		state.mediaControl = newCueMediaControlInputs(cue.Play.MediaControl)
 	}
 	if cue.Play.OutputControl != nil {
-		play := cue.Play.OutputControl
-		state.outputControl = &cueOutputControlInputs{
-			action:    newEnumDropdown(outputControlActionLabels, int(play.Action)),
-			outputID:  input.NewText("Output ID", play.OutputID),
-			fadeOutMs: input.NewInteger("Fade Out MS", int(play.FadeOutMs)),
-			fadeInMs:  input.NewInteger("Fade In MS", int(play.FadeInMs)),
-			message:   input.NewText("Message", play.Message),
-		}
+		state.outputControl = newCueOutputControlInputs(cue.Play.OutputControl)
 	}
 
 	return state
-}
-
-func initTimecodeMarkerInputs(state *cueEditPageState, index int, marker show.TimecodeMarker) {
-	key := fmt.Sprintf("timecode.%d", index)
-	state.integer[key+".time"] = input.NewInteger("Time MS", int(marker.TimeMs))
-	state.checkbox[key+".disabled"] = input.NewCheckbox("Disabled", marker.Disabled)
-	state.dropdown[key+".type"] = newEnumDropdown(timecodeActionLabels, timecodeActionIndex(marker.Type))
-	state.button["timecodeDelete"] = new(widget.Clickable)
-
-	media := marker.Action.MediaControl
-	if media == nil {
-		media = defaultTimecodeMediaControl()
-	}
-	level := 0.0
-	if media.LevelDB != nil {
-		level = *media.LevelDB
-	}
-	seek := int64(0)
-	if media.SeekToMs != nil {
-		seek = *media.SeekToMs
-	}
-	state.dropdown[key+".mediaAction"] = newEnumDropdown(mediaControlActionLabels, int(media.Action))
-	state.float[key+".level"] = input.NewFloat("Level dB", level)
-	state.integer[key+".fade"] = input.NewInteger("Fade MS", int(media.FadeMs))
-	state.integer[key+".seek"] = input.NewInteger("Seek MS", int(seek))
-	state.dropdown[key+".curve"] = newEnumDropdown(fadeCurveLabels, int(media.Curve))
-
-	output := marker.Action.OutputControl
-	if output == nil {
-		output = show.NewOutputControlCue().Play.OutputControl
-	}
-	state.dropdown[key+".outputAction"] = newEnumDropdown(outputControlActionLabels, int(output.Action))
-	state.text[key+".outputID"] = input.NewText("Output ID", output.OutputID)
-	state.integer[key+".fadeOut"] = input.NewInteger("Fade Out MS", int(output.FadeOutMs))
-	state.integer[key+".fadeIn"] = input.NewInteger("Fade In MS", int(output.FadeInMs))
-	state.text[key+".message"] = input.NewText("Message", output.Message)
-
-	remote := marker.Action.Remote
-	if remote == nil {
-		remote = show.NewRemoteCue().Play.Remote
-	}
-	state.dropdown[key+".protocol"] = newEnumDropdown(remoteProtocolLabels, int(remote.Protocol))
-	state.dropdown[key+".remoteAction"] = newEnumDropdown(remoteActionLabels, int(remote.Action))
-	state.text[key+".playback"] = input.NewText("Playback", remote.Playback)
-	state.text[key+".cueNumber"] = input.NewText("Cue Number", remote.CueNumber)
-	state.text[key+".remoteLevel"] = input.NewText("Level", remote.Level)
-	state.text[key+".custom"] = input.NewText("Custom Command", remote.Custom)
 }

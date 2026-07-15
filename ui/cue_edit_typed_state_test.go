@@ -29,8 +29,8 @@ func TestCueEditTypedGeneralTimingAndLinkInputs(t *testing.T) {
 	if state.link.mode.Selected != int(show.CueLinkEndPlay) || state.link.targetKind.Selected != int(show.CueTargetCue) {
 		t.Fatalf("link inputs = %d, %d", state.link.mode.Selected, state.link.targetKind.Selected)
 	}
-	if len(state.text)+len(state.integer)+len(state.float)+len(state.checkbox)+len(state.dropdown)+len(state.button) != 0 {
-		t.Fatal("non-marker cue unexpectedly populated timeline marker maps")
+	if len(state.markers) != 0 {
+		t.Fatal("cue without timecode actions unexpectedly populated marker inputs")
 	}
 }
 

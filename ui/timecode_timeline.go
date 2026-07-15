@@ -504,35 +504,12 @@ func (ctx *CueEditUI) redoTimeline(markers *[]show.TimecodeMarker) bool {
 func (ctx *CueEditUI) resetTimecodeInputs() {
 	markers := cueTimecodeMarkers(&ctx.cue)
 	if markers == nil {
+		ctx.page.markers = nil
 		return
 	}
-	for key := range ctx.page.integer {
-		if strings.HasPrefix(key, "timecode.") {
-			delete(ctx.page.integer, key)
-		}
-	}
-	for key := range ctx.page.checkbox {
-		if strings.HasPrefix(key, "timecode.") {
-			delete(ctx.page.checkbox, key)
-		}
-	}
-	for key := range ctx.page.dropdown {
-		if strings.HasPrefix(key, "timecode.") {
-			delete(ctx.page.dropdown, key)
-		}
-	}
-	for key := range ctx.page.text {
-		if strings.HasPrefix(key, "timecode.") {
-			delete(ctx.page.text, key)
-		}
-	}
-	for key := range ctx.page.float {
-		if strings.HasPrefix(key, "timecode.") {
-			delete(ctx.page.float, key)
-		}
-	}
-	for i, marker := range *markers {
-		initTimecodeMarkerInputs(&ctx.page, i, marker)
+	ctx.page.markers = make([]timecodeMarkerInputs, len(*markers))
+	for index, marker := range *markers {
+		ctx.page.markers[index] = newTimecodeMarkerInputs(marker)
 	}
 }
 

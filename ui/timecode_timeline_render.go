@@ -73,9 +73,6 @@ func (ctx *CueEditUI) drawTimeline(th *material.Theme, gtx layout.Context, marke
 	return layout.Dimensions{Size: size}
 }
 
-// TODO(macro): Marker MediaControl/Remote/OutputControl forms still parallel the
-// cue-type action forms. Share action-form builders so marker and cue coverage
-// stay in lockstep.
 func (ctx *CueEditUI) timecodeEditorRows(th *material.Theme, markers *[]show.TimecodeMarker) []cueEditFormRow {
 	rows := []cueEditFormRow{timecodeSectionRow(th, "Clip and fades")}
 	rows = append(rows, ctx.mediaRangeRows(th, timecodeRangeLabels, true)...)
@@ -88,11 +85,14 @@ func (ctx *CueEditUI) timecodeEditorRows(th *material.Theme, markers *[]show.Tim
 	}
 	index := selected[0]
 	marker := &(*markers)[index]
-	key := fmt.Sprintf("timecode.%d", index)
+	if len(ctx.page.markers) != len(*markers) {
+		ctx.resetTimecodeInputs()
+	}
+	fields := &ctx.page.markers[index]
 	rows = append(rows,
-		integerRow(th, "At", ctx.page.integer[key+".time"], func(v int) { marker.TimeMs = int64(max(0, v)) }),
-		checkboxRow(th, "", ctx.page.checkbox[key+".disabled"], func(v bool) { marker.Disabled = v }),
-		dropdownRow(th, "Action", ctx.page.dropdown[key+".type"], func(selected int) {
+		integerRow(th, "At", fields.time, func(v int) { marker.TimeMs = int64(max(0, v)) }),
+		checkboxRow(th, "", fields.disabled, func(v bool) { marker.Disabled = v }),
+		dropdownRow(th, "Action", fields.actionType, func(selected int) {
 			if selected != timecodeActionIndex(marker.Type) {
 				ctx.timeline.checkpoint(*markers)
 				setTimecodeActionType(marker, selected)
@@ -108,8 +108,7 @@ func (ctx *CueEditUI) timecodeEditorRows(th *material.Theme, markers *[]show.Tim
 		}
 		play := marker.Action.MediaControl
 		play.Target = show.MediaTarget{Kind: show.MediaTargetCurrentTrack}
-		rows = append(rows, dropdownRow(th, "Track action", ctx.page.dropdown[key+".mediaAction"], func(v int) {
-			play.Action = show.MediaControlAction(v)
+		rows = append(rows, mediaControlActionRow(th, fields.mediaControl, play, markerMediaControlFormLabels.action, func() {
 			if mediaControlActionUsesLevel(play.Action) && play.LevelDB == nil {
 				level := 0.0
 				play.LevelDB = &level
@@ -119,52 +118,28 @@ func (ctx *CueEditUI) timecodeEditorRows(th *material.Theme, markers *[]show.Tim
 				play.SeekToMs = &seek
 			}
 		}))
-		if mediaControlActionUsesLevel(play.Action) {
-			rows = append(rows, floatRow(th, "Level dB", ctx.page.float[key+".level"], func(v float64) { play.LevelDB = &v }))
-		}
-		if play.Action == show.MediaControlSeek {
-			rows = append(rows, integerRow(th, "Seek to", ctx.page.integer[key+".seek"], func(v int) { value := int64(max(0, v)); play.SeekToMs = &value }))
-		}
-		rows = append(rows,
-			integerRow(th, "Fade time", ctx.page.integer[key+".fade"], func(v int) { play.FadeMs = int64(max(0, v)) }),
-			dropdownRow(th, "Curve", ctx.page.dropdown[key+".curve"], func(v int) { play.Curve = show.FadeCurve(v) }),
-		)
+		rows = append(rows, mediaControlDetailRows(th, fields.mediaControl, play, markerMediaControlFormLabels, true)...)
 	case show.CueTypeOutputControl:
 		if marker.Action.OutputControl == nil {
 			marker.Action = show.NewOutputControlCue().Play
 		}
 		play := marker.Action.OutputControl
-		rows = append(rows,
-			dropdownRow(th, "Output action", ctx.page.dropdown[key+".outputAction"], func(v int) { play.Action = show.OutputControlAction(v) }),
-			textRow(th, "Output", ctx.page.text[key+".outputID"], func(v string) { play.OutputID = v }),
-			integerRow(th, "Fade out", ctx.page.integer[key+".fadeOut"], func(v int) { play.FadeOutMs = int64(max(0, v)) }),
-			integerRow(th, "Fade in", ctx.page.integer[key+".fadeIn"], func(v int) { play.FadeInMs = int64(max(0, v)) }),
-			textRow(th, "Message", ctx.page.text[key+".message"], func(v string) { play.Message = v }),
-		)
+		rows = append(rows, outputControlFormRows(th, fields.outputControl, play, markerOutputControlFormLabels, true)...)
 	case show.CueTypeRemote:
 		if marker.Action.Remote == nil {
 			marker.Action = show.NewRemoteCue().Play
 		}
 		play := marker.Action.Remote
-		rows = append(rows,
-			dropdownRow(th, "Protocol", ctx.page.dropdown[key+".protocol"], func(v int) { play.Protocol = show.RemoteProtocol(v) }),
-			dropdownRow(th, "Remote action", ctx.page.dropdown[key+".remoteAction"], func(v int) { play.Action = show.RemoteAction(v) }),
-			textRow(th, "Playback", ctx.page.text[key+".playback"], func(v string) { play.Playback = v }),
-			textRow(th, "Cue number", ctx.page.text[key+".cueNumber"], func(v string) { play.CueNumber = v }),
-			textRow(th, "Level", ctx.page.text[key+".remoteLevel"], func(v string) { play.Level = v }),
-		)
-		if play.Action == show.RemoteActionCustom {
-			rows = append(rows, textRow(th, "Command", ctx.page.text[key+".custom"], func(v string) { play.Custom = v }))
-		}
+		rows = append(rows, remoteFormRows(th, fields.remote, play, markerRemoteFormLabels)...)
 	}
 	rows = append(rows, cueEditFormRow{layout: func(gtx layout.Context) layout.Dimensions {
-		if ctx.page.button["timecodeDelete"].Clicked(gtx) {
+		if fields.delete.Clicked(gtx) {
 			ctx.timeline.checkpoint(*markers)
 			*markers = append((*markers)[:index], (*markers)[index+1:]...)
 			ctx.timeline.selected = map[int]bool{}
 			ctx.resetTimecodeInputs()
 		}
-		return layoutCenteredButton(th, gtx, ctx.page.button["timecodeDelete"], "Delete action", palette.Danger)
+		return layoutCenteredButton(th, gtx, fields.delete, "Delete action", palette.Danger)
 	}})
 	return rows
 }

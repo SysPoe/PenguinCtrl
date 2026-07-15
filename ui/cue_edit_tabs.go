@@ -195,23 +195,115 @@ func cueTimecodeMarkers(cue *show.Cue) *[]show.TimecodeMarker {
 	return nil
 }
 
+type remoteFormLabels struct {
+	protocol  string
+	action    string
+	playback  string
+	cueNumber string
+	level     string
+	custom    string
+}
+
+var (
+	cueRemoteFormLabels = remoteFormLabels{
+		protocol: "Protocol", action: "Action", playback: "Playback",
+		cueNumber: "Cue Number", level: "Level", custom: "Custom Command",
+	}
+	markerRemoteFormLabels = remoteFormLabels{
+		protocol: "Protocol", action: "Remote action", playback: "Playback",
+		cueNumber: "Cue number", level: "Level", custom: "Command",
+	}
+)
+
+func remoteFormRows(th *material.Theme, fields *cueRemoteInputs, play *show.RemotePlay, labels remoteFormLabels) []cueEditFormRow {
+	rows := []cueEditFormRow{
+		dropdownRow(th, labels.protocol, fields.protocol, func(selected int) { play.Protocol = show.RemoteProtocol(selected) }),
+		dropdownRow(th, labels.action, fields.action, func(selected int) { play.Action = show.RemoteAction(selected) }),
+		textRow(th, labels.playback, fields.playback, func(value string) { play.Playback = value }),
+		textRow(th, labels.cueNumber, fields.cueNumber, func(value string) { play.CueNumber = value }),
+		textRow(th, labels.level, fields.level, func(value string) { play.Level = value }),
+	}
+	if play.Action == show.RemoteActionCustom {
+		rows = append(rows, textRow(th, labels.custom, fields.custom, func(value string) { play.Custom = value }))
+	}
+	return rows
+}
+
+type outputControlFormLabels struct {
+	action, outputID, fadeOut, fadeIn, message string
+}
+
+var (
+	cueOutputControlFormLabels = outputControlFormLabels{
+		action: "Action", outputID: "Output ID", fadeOut: "Fade Out MS", fadeIn: "Fade In MS", message: "Message",
+	}
+	markerOutputControlFormLabels = outputControlFormLabels{
+		action: "Output action", outputID: "Output", fadeOut: "Fade out", fadeIn: "Fade in", message: "Message",
+	}
+)
+
+func outputControlFormRows(th *material.Theme, fields *cueOutputControlInputs, play *show.OutputControlPlay, labels outputControlFormLabels, nonNegative bool) []cueEditFormRow {
+	value := func(v int) int64 {
+		if nonNegative {
+			return int64(max(0, v))
+		}
+		return int64(v)
+	}
+	return []cueEditFormRow{
+		dropdownRow(th, labels.action, fields.action, func(selected int) { play.Action = show.OutputControlAction(selected) }),
+		textRow(th, labels.outputID, fields.outputID, func(value string) { play.OutputID = value }),
+		integerRow(th, labels.fadeOut, fields.fadeOutMs, func(v int) { play.FadeOutMs = value(v) }),
+		integerRow(th, labels.fadeIn, fields.fadeInMs, func(v int) { play.FadeInMs = value(v) }),
+		textRow(th, labels.message, fields.message, func(value string) { play.Message = value }),
+	}
+}
+
+type mediaControlFormLabels struct {
+	action, level, seek, fade, curve string
+}
+
+var (
+	cueMediaControlFormLabels = mediaControlFormLabels{
+		action: "Action", level: "Level dB", seek: "Seek To MS", fade: "Fade MS", curve: "Curve",
+	}
+	markerMediaControlFormLabels = mediaControlFormLabels{
+		action: "Track action", level: "Level dB", seek: "Seek to", fade: "Fade time", curve: "Curve",
+	}
+)
+
+func mediaControlActionRow(th *material.Theme, fields *cueMediaControlInputs, play *show.MediaControlPlay, label string, apply func()) cueEditFormRow {
+	return dropdownRow(th, label, fields.action, func(selected int) {
+		play.Action = show.MediaControlAction(selected)
+		apply()
+	})
+}
+
+func mediaControlDetailRows(th *material.Theme, fields *cueMediaControlInputs, play *show.MediaControlPlay, labels mediaControlFormLabels, nonNegative bool) []cueEditFormRow {
+	value := func(v int) int64 {
+		if nonNegative {
+			return int64(max(0, v))
+		}
+		return int64(v)
+	}
+	rows := make([]cueEditFormRow, 0, 4)
+	if mediaControlActionUsesLevel(play.Action) {
+		rows = append(rows, floatRow(th, labels.level, fields.levelDB, func(v float64) { play.LevelDB = &v }))
+	}
+	if play.Action == show.MediaControlSeek {
+		rows = append(rows, integerRow(th, labels.seek, fields.seekToMs, func(v int) { seek := value(v); play.SeekToMs = &seek }))
+	}
+	return append(rows,
+		integerRow(th, labels.fade, fields.fadeMs, func(v int) { play.FadeMs = value(v) }),
+		dropdownRow(th, labels.curve, fields.curve, func(selected int) { play.Curve = show.FadeCurve(selected) }),
+	)
+}
+
 func (ctx *CueEditUI) renderRemoteTab(th *material.Theme, gtx layout.Context) layout.FlexChild {
 	play := ctx.cue.Play.Remote
 	if play == nil {
 		return ctx.renderForm(th, []cueEditFormRow{staticRow(th, "Remote", "No remote settings for this cue type.")})
 	}
-	fields := ctx.page.remote
-	rows := []cueEditFormRow{
-		dropdownRow(th, "Protocol", fields.protocol, func(selected int) { play.Protocol = show.RemoteProtocol(selected) }),
-		dropdownRow(th, "Action", fields.action, func(selected int) { play.Action = show.RemoteAction(selected) }),
-		textRow(th, "Playback", fields.playback, func(value string) { play.Playback = value }),
-		textRow(th, "Cue Number", fields.cueNumber, func(value string) { play.CueNumber = value }),
-		textRow(th, "Level", fields.level, func(value string) { play.Level = value }),
-	}
-	if play.Action == show.RemoteActionCustom {
-		rows = append(rows, textRow(th, "Custom Command", fields.custom, func(value string) { play.Custom = value }))
-	}
-	return ctx.renderForm(th, rows)
+	return ctx.renderForm(th, remoteFormRows(th, ctx.page.remote, play, cueRemoteFormLabels))
 }
 
 func (ctx *CueEditUI) renderWaitTab(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.FlexChild {
@@ -242,23 +334,11 @@ func (ctx *CueEditUI) renderMediaCtrlTab(th *material.Theme, gtx layout.Context,
 	}
 	fields := ctx.page.mediaControl
 
-	rows := []cueEditFormRow{
-		dropdownRow(th, "Action", fields.action, func(selected int) {
-			play.Action = show.MediaControlAction(selected)
-			syncMediaControlOptionals(play, fields)
-		}),
-	}
+	rows := []cueEditFormRow{mediaControlActionRow(th, fields, play, cueMediaControlFormLabels.action, func() {
+		syncMediaControlOptionals(play, fields)
+	})}
 	rows = ctx.appendMediaTargetRows(rows, th, manager, &fields.target, &play.Target)
-	if mediaControlActionUsesLevel(play.Action) {
-		rows = append(rows, floatRow(th, "Level dB", fields.levelDB, func(value float64) { play.LevelDB = &value }))
-	}
-	if play.Action == show.MediaControlSeek {
-		rows = append(rows, integerRow(th, "Seek To MS", fields.seekToMs, func(value int) { play.SeekToMs = ptr(int64(value)) }))
-	}
-	rows = append(rows,
-		integerRow(th, "Fade MS", fields.fadeMs, func(value int) { play.FadeMs = int64(value) }),
-		dropdownRow(th, "Curve", fields.curve, func(selected int) { play.Curve = show.FadeCurve(selected) }),
-	)
+	rows = append(rows, mediaControlDetailRows(th, fields, play, cueMediaControlFormLabels, false)...)
 	return ctx.renderForm(th, rows)
 }
 
@@ -267,12 +347,5 @@ func (ctx *CueEditUI) renderOutputCtrlTab(th *material.Theme, gtx layout.Context
 	if play == nil {
 		return ctx.renderForm(th, []cueEditFormRow{staticRow(th, "Output Control", "No output control settings for this cue type.")})
 	}
-	fields := ctx.page.outputControl
-	return ctx.renderForm(th, []cueEditFormRow{
-		dropdownRow(th, "Action", fields.action, func(selected int) { play.Action = show.OutputControlAction(selected) }),
-		textRow(th, "Output ID", fields.outputID, func(value string) { play.OutputID = value }),
-		integerRow(th, "Fade Out MS", fields.fadeOutMs, func(value int) { play.FadeOutMs = int64(value) }),
-		integerRow(th, "Fade In MS", fields.fadeInMs, func(value int) { play.FadeInMs = int64(value) }),
-		textRow(th, "Message", fields.message, func(value string) { play.Message = value }),
-	})
+	return ctx.renderForm(th, outputControlFormRows(th, ctx.page.outputControl, play, cueOutputControlFormLabels, false))
 }
