@@ -44,14 +44,16 @@ func TestCommandHistoryCapturesAcceptedDispatchAndCompletion(t *testing.T) {
 	cue := show.NewWaitCue()
 	cue.CueNumber = "7"
 	cue.Link.Mode = show.CueLinkManual
+	cue.Play.Wait.DurationMs = 1
 
 	if err := engine.enqueueCommand(cue, 0, false, "Audit test", false); err != nil {
 		t.Fatal(err)
 	}
-	eventually(t, time.Second, func() bool {
-		history := engine.CommandHistory()
-		return len(history) == 1 && !history[0].CompletedAt.IsZero()
-	})
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if !engine.audit.waitForCompletion(ctx, 1) {
+		t.Fatal("command audit did not report completion")
+	}
 	record := engine.CommandHistory()[0]
 	if record.Sequence != 1 || record.CueID != cue.ID || record.CueNumber != "7" || record.Origin != "Audit test" || record.Preview {
 		t.Fatalf("command record identity = %#v", record)

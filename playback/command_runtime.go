@@ -91,9 +91,10 @@ func (s *dispatchSequencer) signal() {
 type commandAudit struct {
 	mu      sync.RWMutex
 	history []CommandRecord
+	changed chan struct{}
 }
 
-func newCommandAudit() *commandAudit { return &commandAudit{} }
+func newCommandAudit() *commandAudit { return &commandAudit{changed: make(chan struct{})} }
 
 func (a *commandAudit) accept(next command) {
 	a.mu.Lock()
@@ -111,6 +112,7 @@ func (a *commandAudit) accept(next command) {
 		copy(a.history, a.history[len(a.history)-commandHistoryLimit:])
 		a.history = a.history[:commandHistoryLimit]
 	}
+	a.signalLocked()
 }
 
 func (a *commandAudit) dispatched(sequence uint64, at time.Time) {
@@ -127,7 +129,36 @@ func (a *commandAudit) update(sequence uint64, apply func(*CommandRecord)) {
 	for index := range a.history {
 		if a.history[index].Sequence == sequence {
 			apply(&a.history[index])
+			a.signalLocked()
 			return
+		}
+	}
+}
+
+func (a *commandAudit) signalLocked() {
+	close(a.changed)
+	a.changed = make(chan struct{})
+}
+
+func (a *commandAudit) waitForCompletion(ctx context.Context, sequence uint64) bool {
+	for {
+		a.mu.RLock()
+		completed := false
+		for index := range a.history {
+			if a.history[index].Sequence == sequence {
+				completed = !a.history[index].CompletedAt.IsZero()
+				break
+			}
+		}
+		changed := a.changed
+		a.mu.RUnlock()
+		if completed {
+			return true
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-changed:
 		}
 	}
 }
