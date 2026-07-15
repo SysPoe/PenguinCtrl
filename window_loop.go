@@ -195,7 +195,7 @@ func (a *App) run(window *app.Window) error {
 				}
 				return
 			}
-			defer file.Close()
+			defer func() { _ = file.Close() }()
 
 			// TODO(micro): Duplicates explorerPath type-switch without LocalPath; use explorerPath(file) and drop this branch.
 			path := ""
@@ -240,17 +240,15 @@ func (a *App) run(window *app.Window) error {
 				}
 				return
 			}
-			defer file.Close()
+			defer func() { _ = file.Close() }()
 			loadedPath := explorerPath(file)
 			tmp, err := os.CreateTemp("", "cusus-open-*.cusus")
 			if err == nil {
 				_, err = io.Copy(tmp, file)
 			}
 			if tmp != nil {
-				// TODO(micro): Fold tmp.Close into err before attempting to load the copied archive.
-				tmp.Close()
-				// TODO(micro): Explicitly mark temporary-file removal as best effort or report cleanup failure.
-				defer os.Remove(tmp.Name())
+				err = closeWithError(tmp, err)
+				defer func() { _ = os.Remove(tmp.Name()) }()
 			}
 			if err != nil {
 				operatorEvents.Add(operatorlog.Recoverable, "Open show", err.Error(), show.CueID{}, "")

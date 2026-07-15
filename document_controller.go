@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,6 +16,13 @@ import (
 	"github.com/syspoe/cusus/project"
 	"github.com/syspoe/cusus/show"
 )
+
+func closeWithError(closer io.Closer, current error) error {
+	if closeErr := closer.Close(); current == nil {
+		return closeErr
+	}
+	return current
+}
 
 // TODO(macro): This file is named document_controller but owns three unrelated layers:
 // (1) archive save/path helpers, (2) showDigest hashing, (3) full preflight check assembly and
