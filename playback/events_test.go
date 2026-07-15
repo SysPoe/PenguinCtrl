@@ -5,8 +5,8 @@ import (
 	"time"
 )
 
-func TestEventHubOverloadRequestsAuthoritativeResync(t *testing.T) {
-	hub := newEventHub()
+func TestOutputBusOverloadRequestsAuthoritativeResync(t *testing.T) {
+	hub := newOutputBus()
 	ch := hub.subscribe("main")
 	for i := 0; i < cap(ch)+20; i++ {
 		hub.publish(Event{Action: "control", OutputID: "main", Control: "seek"})
@@ -25,8 +25,8 @@ func TestEventHubOverloadRequestsAuthoritativeResync(t *testing.T) {
 	}
 }
 
-func TestEventHubOverloadCannotDeadlockWithConcurrentConsumer(t *testing.T) {
-	hub := newEventHub()
+func TestOutputBusOverloadCannotDeadlockWithConcurrentConsumer(t *testing.T) {
+	hub := newOutputBus()
 	ch := hub.subscribe("main")
 	stop := make(chan struct{})
 	go func() {
@@ -51,5 +51,43 @@ func TestEventHubOverloadCannotDeadlockWithConcurrentConsumer(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		close(stop)
 		t.Fatal("publisher deadlocked while output consumed an overloaded queue")
+	}
+}
+
+func TestOutputBusRoutesAndUnsubscribesNonMainOutput(t *testing.T) {
+	hub := newOutputBus()
+	stage := hub.subscribe("stage")
+	main := hub.subscribe("main")
+	if cap(stage) != outputSubscriberBuffer || cap(main) != outputSubscriberBuffer {
+		t.Fatalf("subscriber capacity = stage %d main %d", cap(stage), cap(main))
+	}
+
+	hub.publish(Event{Action: "control", OutputID: "stage", Control: "blackout"})
+	select {
+	case event := <-stage:
+		if event.OutputID != "stage" || event.Control != "blackout" {
+			t.Fatalf("stage event = %#v", event)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("non-main output did not receive its event")
+	}
+	select {
+	case event := <-main:
+		t.Fatalf("main subscriber received stage event: %#v", event)
+	default:
+	}
+
+	hub.unsubscribe("stage", stage)
+	hub.mu.RLock()
+	_, retained := hub.subscribers["stage"]
+	hub.mu.RUnlock()
+	if retained {
+		t.Fatal("unsubscribe retained an empty stage subscriber bucket")
+	}
+	hub.publish(Event{Action: "control", OutputID: "stage", Control: "stop"})
+	select {
+	case event := <-stage:
+		t.Fatalf("unsubscribed output received event: %#v", event)
+	default:
 	}
 }

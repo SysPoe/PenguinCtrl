@@ -4,7 +4,7 @@ import "testing"
 
 func TestBlackoutAllPublishesImmediateStateForEveryOutput(t *testing.T) {
 	engine := newLifecycleTestEngine(t)
-	events := engine.hub.subscribe("main")
+	events := engine.outputs.subscribe("main")
 	engine.BlackoutAll()
 	select {
 	case event := <-events:
@@ -24,7 +24,7 @@ func TestBlackoutAllPublishesImmediateStateForEveryOutput(t *testing.T) {
 
 func TestStopAllPublishesOutputWideCommandWithNoActiveInstances(t *testing.T) {
 	engine := newLifecycleTestEngine(t)
-	events := engine.hub.subscribe("main")
+	events := engine.outputs.subscribe("main")
 
 	engine.StopAll()
 

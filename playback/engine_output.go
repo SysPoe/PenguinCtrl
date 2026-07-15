@@ -58,7 +58,7 @@ func (e *Engine) replaceSingleLayerVisual(presented Instance) {
 
 	for _, instance := range outgoing {
 		fadeMs := max(int64(0), instance.FadeOutMs)
-		e.hub.publish(Event{
+		e.outputs.publish(Event{
 			Action: "control", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID},
 			Control: "fade-out", FadeMs: fadeMs,
 		})
@@ -146,14 +146,14 @@ func (e *Engine) HandleOutputDuration(instanceID string, durationMs int64) {
 }
 
 func (e *Engine) Subscribe(outputID string) (<-chan Event, func()) {
-	ch, release := e.hub.subscribePaused(outputID)
+	ch, release := e.outputs.subscribePaused(outputID)
 	// TODO(micro): sequence return is discarded; either use it or change OutputSnapshot to return only events when unused
 	events, _ := e.OutputSnapshot(outputID)
 	for _, event := range events {
 		ch <- event
 	}
 	release()
-	return ch, func() { e.hub.unsubscribe(outputID, ch) }
+	return ch, func() { e.outputs.unsubscribe(outputID, ch) }
 }
 
 // OutputSnapshot returns a complete desired state for an output plus the event
@@ -161,7 +161,7 @@ func (e *Engine) Subscribe(outputID string) (<-chan Event, func()) {
 // overload or window recreation applies this state, then ignores older queued
 // sequences and continues incrementally.
 func (e *Engine) OutputSnapshot(outputID string) ([]Event, uint64) {
-	sequence := e.hub.currentSequence()
+	sequence := e.outputs.currentSequence()
 	e.mu.RLock()
 	now := time.Now()
 	instances := make([]Instance, 0)
@@ -189,7 +189,7 @@ func (e *Engine) OutputSnapshot(outputID string) ([]Event, uint64) {
 	return events, sequence
 }
 
-func (e *Engine) OutputResyncCount() uint64 { return e.hub.resyncCount() }
+func (e *Engine) OutputResyncCount() uint64 { return e.outputs.resyncCount() }
 
 func (e *Engine) ActiveInstances() []Instance {
 	e.mu.RLock()

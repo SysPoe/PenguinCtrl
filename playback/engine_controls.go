@@ -30,7 +30,7 @@ func (e *Engine) StopAll() {
 	// authoritative state. Always addressing every output means repeated presses
 	// can still close those real players even when ActiveInstances is empty.
 	for _, outputID := range e.OutputIDs() {
-		e.hub.publish(Event{Action: "control", OutputID: outputID, Control: "stop-all"})
+		e.outputs.publish(Event{Action: "control", OutputID: outputID, Control: "stop-all"})
 	}
 	for _, instance := range instances {
 		e.HandleOutputReport(instance.ID, "stopped")
@@ -45,7 +45,7 @@ func (e *Engine) BlackoutAll() {
 		e.mu.Lock()
 		e.outputVisuals[outputID] = event
 		e.mu.Unlock()
-		e.hub.publish(event)
+		e.outputs.publish(event)
 	}
 	if log := e.operatorLogStore(); log != nil {
 		log.Diagnostic("Operator action", "Emergency blackout asserted on all outputs", nil)
@@ -93,7 +93,7 @@ func (e *Engine) EndInstance(instanceID string) {
 		return
 	}
 	instance := instances[0]
-	e.hub.publish(Event{Action: "control", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID}, Control: "stop"})
+	e.outputs.publish(Event{Action: "control", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID}, Control: "stop"})
 	e.HandleOutputReport(instance.ID, "ended")
 }
 
@@ -205,7 +205,7 @@ func (e *Engine) recordOperatorError(severity operatorlog.Severity, source strin
 		log.Add(severity, source, err.Error(), cueID, cueNumber)
 	}
 	for _, outputID := range e.OutputIDs() {
-		e.hub.publish(Event{Action: "error", OutputID: outputID, Error: err.Error()})
+		e.outputs.publish(Event{Action: "error", OutputID: outputID, Error: err.Error()})
 	}
 	e.changed()
 }

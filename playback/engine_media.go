@@ -89,7 +89,7 @@ func (e *Engine) startMedia(next command) error {
 	}
 	snapshot := *instance
 	e.mu.Unlock()
-	e.hub.publish(Event{Action: "play", OutputID: snapshot.OutputID, Instance: &snapshot})
+	e.outputs.publish(Event{Action: "play", OutputID: snapshot.OutputID, Instance: &snapshot})
 	e.signalState()
 	return nil
 }
@@ -207,7 +207,7 @@ func (e *Engine) scheduleInstanceLifecycle(instanceID string) {
 			if !waitContext(instance.run.ctx, wait) || !e.lifecycleCurrent(instance.ID, generation) {
 				return
 			}
-			e.hub.publish(Event{Action: "control", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID}, Control: "fade-out", FadeMs: fadeMs})
+			e.outputs.publish(Event{Action: "control", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID}, Control: "fade-out", FadeMs: fadeMs})
 			e.mu.Lock()
 			if active := e.instances[instance.ID]; active != nil && active.LifecycleGeneration == generation && !active.Paused {
 				materializeInstance(active, time.Now())
@@ -256,7 +256,7 @@ func (e *Engine) executeMediaControl(cue show.Cue, runCtx context.Context) error
 	}
 	control := mediaControlName(play.Action)
 	for outputID, ids := range idsByOutput {
-		e.hub.publish(Event{Action: "control", OutputID: outputID, InstanceIDs: ids, Control: control, FadeMs: play.FadeMs, LevelDB: play.LevelDB, PositionMs: play.SeekToMs, Curve: play.Curve})
+		e.outputs.publish(Event{Action: "control", OutputID: outputID, InstanceIDs: ids, Control: control, FadeMs: play.FadeMs, LevelDB: play.LevelDB, PositionMs: play.SeekToMs, Curve: play.Curve})
 	}
 
 	e.mu.Lock()
@@ -359,7 +359,7 @@ func (e *Engine) executeOutputControl(cue show.Cue, runCtx context.Context) erro
 		e.outputWindows[outputID] = event
 	}
 	e.mu.Unlock()
-	e.hub.publish(event)
+	e.outputs.publish(event)
 	if play.Action == show.OutputControlBlackout {
 		e.goOwned(func() {
 			if !waitContext(runCtx, time.Duration(max(int64(0), play.FadeOutMs))*time.Millisecond) {

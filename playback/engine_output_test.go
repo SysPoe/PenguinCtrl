@@ -75,7 +75,7 @@ func TestOutputReportRetiresInstanceAndPublishesRemoval(t *testing.T) {
 	}
 	engine := NewEngine(show.NewShowManager(), settings)
 	engine.instances["instance"] = &Instance{ID: "instance", CueID: show.NewCueID(), OutputID: "main"}
-	events := engine.hub.subscribe("main")
+	events := engine.outputs.subscribe("main")
 
 	engine.HandleOutputReport("instance", "ended")
 

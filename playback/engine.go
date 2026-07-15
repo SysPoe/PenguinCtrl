@@ -35,11 +35,10 @@ type Timeline interface {
 // media validation, and output state into owned components with explicit
 // snapshots. One broad state lock still couples otherwise independent policies
 // and makes their lifecycle ordering implicit.
-// TODO(macro): Engine remains a god object spanning the instance registry, output
-// pub/sub, media-metadata caches, dispatch sequencing, remote I/O ownership,
-// and validation context. Compose named collaborators (registry,
-// mediaCache, outputs) instead of growing one mutex-guarded bag; the engine_*.go
-// split only partitions methods.
+// TODO(macro): Engine remains a god object spanning the instance registry,
+// media-metadata caches, dispatch sequencing, remote I/O ownership, and
+// validation context. Compose named collaborators (registry, mediaCache) instead
+// of growing one mutex-guarded bag; the engine_*.go split only partitions methods.
 // TODO(macro): Consumers (ui/, media/, health) depend on *Engine concrete type
 // with no read-only vs control ports. Introduce narrow interfaces (e.g. RuntimeQuery,
 // OperatorControls, OutputBus) so UI snapshots and media backends stop coupling to
@@ -60,7 +59,7 @@ type Engine struct {
 	workerMu      sync.Mutex
 	workers       sync.WaitGroup
 	closing       bool
-	hub           *eventHub
+	outputs       *outputBus
 	mu            sync.RWMutex
 	instances     map[string]*Instance
 	executions    map[string]*CueExecution
@@ -102,7 +101,7 @@ func NewEngine(manager *show.ShowManager, settings *config.Store) *Engine {
 	return &Engine{
 		manager: manager, settings: settings, remote: remote.NewDispatcher(settings),
 		commands: make(chan command, 64), ctx: ctx, cancel: cancel, runCtx: runCtx, runCancel: runCancel, done: make(chan struct{}),
-		hub: newEventHub(), instances: map[string]*Instance{}, executions: map[string]*CueExecution{}, outputVisuals: map[string]Event{}, outputWindows: map[string]Event{}, durations: map[show.CueID]int64{}, runs: newCueRunTable(), safety: newSafetyLatch(), admission: &admissionGates{}, preview: &previewSession{},
+		outputs: newOutputBus(), instances: map[string]*Instance{}, executions: map[string]*CueExecution{}, outputVisuals: map[string]Event{}, outputWindows: map[string]Event{}, durations: map[show.CueID]int64{}, runs: newCueRunTable(), safety: newSafetyLatch(), admission: &admissionGates{}, preview: &previewSession{},
 		durationKeys: map[show.CueID]string{}, durationPending: map[show.CueID]string{}, durationErrors: map[show.CueID]string{},
 		mediaValidated: map[show.CueID]string{}, mediaPending: map[show.CueID]string{}, mediaErrors: map[show.CueID]string{}, stateEvent: make(chan struct{}, 1),
 		mediaProbeSlots: make(chan struct{}, 1),
@@ -152,10 +151,10 @@ func (e *Engine) SetOperatorLog(store *operatorlog.Store) {
 	e.operatorLog = store
 	e.mu.Unlock()
 	if store == nil {
-		e.hub.setOnResync(nil)
+		e.outputs.setOnResync(nil)
 		return
 	}
-	e.hub.setOnResync(func(outputID string, sequence uint64, queueCapacity int) {
+	e.outputs.setOnResync(func(outputID string, sequence uint64, queueCapacity int) {
 		store.Diagnostic("Output queue", "Output event queue saturated; authoritative resync requested", map[string]any{
 			"outputId": outputID, "eventSequence": sequence, "queueCapacity": queueCapacity,
 		})

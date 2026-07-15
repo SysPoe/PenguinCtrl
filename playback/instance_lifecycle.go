@@ -82,7 +82,7 @@ func (e *Engine) HandleOutputReport(instanceID, reportText string) {
 	case outputReportFadeOutStart:
 		e.scheduleLink(snapshot.Cue, snapshot.CueIndex, snapshot.PostWaitMs, linkFadeOut, snapshot.run.ctx)
 	case outputReportEnded, outputReportStopped:
-		e.hub.publish(Event{Action: "remove", OutputID: snapshot.OutputID, InstanceIDs: []string{snapshot.ID}})
+		e.outputs.publish(Event{Action: "remove", OutputID: snapshot.OutputID, InstanceIDs: []string{snapshot.ID}})
 		e.scheduleLink(snapshot.Cue, snapshot.CueIndex, snapshot.PostWaitMs, linkEnd, snapshot.run.ctx)
 		finalization := runCompleted
 		if snapshot.Link.Mode == show.CueLinkManual {

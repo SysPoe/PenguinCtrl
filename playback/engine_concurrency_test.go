@@ -24,8 +24,8 @@ func TestControlNamesRejectOutOfRangeActions(t *testing.T) {
 }
 
 func TestEngineCallbacksCanBeReplacedConcurrently(t *testing.T) {
-	engine := &Engine{hub: newEventHub()}
-	engine.hub.subscribe("main")
+	engine := &Engine{outputs: newOutputBus()}
+	engine.outputs.subscribe("main")
 
 	var workers sync.WaitGroup
 	workers.Add(2)
@@ -40,7 +40,7 @@ func TestEngineCallbacksCanBeReplacedConcurrently(t *testing.T) {
 		defer workers.Done()
 		for range 1000 {
 			engine.changed()
-			engine.hub.publish(Event{Action: "control", OutputID: "main"})
+			engine.outputs.publish(Event{Action: "control", OutputID: "main"})
 		}
 	}()
 	workers.Wait()

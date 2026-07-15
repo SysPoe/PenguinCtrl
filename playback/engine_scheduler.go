@@ -67,8 +67,8 @@ func (e *Engine) enqueueCommand(cue show.Cue, index int, intent commandIntent, o
 	}
 	run, stopped := e.beginCueRun(cue.ID)
 	for _, instance := range stopped {
-		e.hub.publish(Event{Action: "control", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID}, Control: "stop"})
-		e.hub.publish(Event{Action: "remove", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID}})
+		e.outputs.publish(Event{Action: "control", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID}, Control: "stop"})
+		e.outputs.publish(Event{Action: "remove", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID}})
 	}
 	if len(stopped) > 0 {
 		e.signalState()

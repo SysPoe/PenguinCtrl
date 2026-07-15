@@ -37,7 +37,7 @@ func TestMediaMarkerDispatchPreservesParentCueRunAndIsAudited(t *testing.T) {
 		MediaType: "image", OutputID: "main",
 	}
 	engine.mu.Unlock()
-	events := engine.hub.subscribe("main")
+	events := engine.outputs.subscribe("main")
 
 	engine.scheduleTimecode(instanceID, cue, 0)
 
@@ -91,7 +91,7 @@ func TestMediaMarkerUsesPreflightAdmissionWithoutStoppingParent(t *testing.T) {
 		MediaType: "image", OutputID: "main",
 	}
 	engine.mu.Unlock()
-	events := engine.hub.subscribe("main")
+	events := engine.outputs.subscribe("main")
 
 	engine.scheduleTimecode(instanceID, cue, 0)
 

@@ -73,8 +73,8 @@ func TestSeekBackwardReschedulesEndFromNewPosition(t *testing.T) {
 
 func TestLateDurationDiscoveryStartsFadeForRemainingPlayback(t *testing.T) {
 	engine := newLifecycleTestEngine(t)
-	events := engine.hub.subscribe("main")
-	defer engine.hub.unsubscribe("main", events)
+	events := engine.outputs.subscribe("main")
+	defer engine.outputs.unsubscribe("main", events)
 
 	engine.mu.Lock()
 	engine.instances["late-duration"] = &Instance{
