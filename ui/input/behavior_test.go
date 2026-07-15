@@ -2,7 +2,6 @@ package input
 
 import (
 	"image/color"
-	"math"
 	"testing"
 )
 
@@ -32,12 +31,36 @@ func TestColourPickerSynchronizesExternalValue(t *testing.T) {
 	field.syncFromValue()
 	field.syncSliders()
 
-	want := nrgbaToOKLCH(next)
-	if math.Abs(field.oklch.L-want.L) > 1e-9 || math.Abs(field.oklch.C-want.C) > 1e-9 || math.Abs(field.oklch.H-want.H) > 1e-9 {
-		t.Fatalf("oklch = %#v, want %#v", field.oklch, want)
+	if field.model.NRGBA() != next {
+		t.Fatalf("model color = %#v, want %#v", field.model.NRGBA(), next)
+	}
+	oklch := field.model.OKLCH()
+	if field.lightness.Value != oklch.L*100 || field.chroma.Value != oklch.C || field.hue.Value != oklch.H {
+		t.Fatalf("sliders = L %f C %f H %f, want %#v", field.lightness.Value, field.chroma.Value, field.hue.Value, oklch)
 	}
 	if field.alpha.Value != float64(next.A) {
 		t.Fatalf("alpha = %f, want %d", field.alpha.Value, next.A)
+	}
+}
+
+func TestColourPickerPublishesSliderModelChangesOnce(t *testing.T) {
+	field := NewColourPicker("Color", color.NRGBA{R: 0xff, A: 0xff})
+	var changes []color.NRGBA
+	field.AddEventListener(func(value color.NRGBA) { changes = append(changes, value) })
+	field.lightness.Value = 0
+	field.chroma.Value = 0
+	field.hue.Value = 0
+	field.alpha.Value = 64
+
+	field.updateFromSliders()
+	field.updateFromSliders()
+
+	want := color.NRGBA{A: 64}
+	if field.Value != want || field.model.NRGBA() != want {
+		t.Fatalf("slider color = picker %#v model %#v, want %#v", field.Value, field.model.NRGBA(), want)
+	}
+	if len(changes) != 1 || changes[0] != want {
+		t.Fatalf("notifications = %#v, want one %#v", changes, want)
 	}
 }
 
