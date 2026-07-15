@@ -8,8 +8,31 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/syspoe/cusus/internal/atomicfile"
 	"github.com/syspoe/cusus/show"
 )
+
+func TestSaveAtPathRetainsPreviousArchive(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "show.cusus")
+	ffmpeg := filepath.Join(t.TempDir(), "missing-ffmpeg")
+	if _, err := SaveAtPathWithProgress(path, show.Show{Title: "First"}, ffmpeg, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := SaveAtPathWithProgress(path, show.Show{Title: "Second"}, ffmpeg, nil); err != nil {
+		t.Fatal(err)
+	}
+	current, _, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous, _, err := Load(atomicfile.BackupPath(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.Show.Title != "Second" || previous.Show.Title != "First" {
+		t.Fatalf("current/previous titles = %q/%q", current.Show.Title, previous.Show.Title)
+	}
+}
 
 func TestSaveBundlesSupportedVideoWithoutTranscoding(t *testing.T) {
 	source := filepath.Join(t.TempDir(), "clip.mp4")

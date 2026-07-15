@@ -36,6 +36,15 @@ func Recover(path string) error {
 // last-known-good backup. The temporary file is created on the same volume,
 // flushed, and closed before any rename occurs.
 func Write(path string, data []byte, perm os.FileMode) error {
+	return WriteFunc(path, perm, func(file *os.File) error {
+		_, err := file.Write(data)
+		return err
+	})
+}
+
+// WriteFunc atomically publishes data written to a temporary file by write.
+// The callback must not retain the file after returning.
+func WriteFunc(path string, perm os.FileMode, write func(*os.File) error) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create parent directory: %w", err)
@@ -47,7 +56,7 @@ func Write(path string, data []byte, perm os.FileMode) error {
 	tmpPath := tmp.Name()
 	defer func() { _ = os.Remove(tmpPath) }()
 	if err = tmp.Chmod(perm); err == nil {
-		_, err = tmp.Write(data)
+		err = write(tmp)
 	}
 	if err == nil {
 		err = tmp.Sync()

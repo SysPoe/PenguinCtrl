@@ -55,54 +55,6 @@ func documentName(path string) string {
 	return filepath.Base(path)
 }
 
-// TODO(macro): Atomic replace/backup save path belongs in project.Save/Publish (archive package
-// already owns bundling); keeping Windows rename fallback in package main duplicates document
-// durability policy outside the package that owns manifests.
-func saveShowAtPath(path string, current show.Show, ffmpegPath string, progress func(project.SaveProgress)) (project.Manifest, error) {
-	if strings.TrimSpace(path) == "" {
-		return project.Manifest{}, errors.New("show has no file path; use Save As")
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return project.Manifest{}, err
-	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".cusus-save-*")
-	if err != nil {
-		return project.Manifest{}, err
-	}
-	tmpPath := tmp.Name()
-	// TODO(micro): Make cleanup explicit if Remove failure matters, or assign it to _ to document intentional best effort.
-	defer os.Remove(tmpPath)
-	manifest, err := project.SaveWithProgress(tmp, current, ffmpegPath, progress)
-	if err == nil {
-		err = tmp.Sync()
-	}
-	if closeErr := tmp.Close(); err == nil {
-		err = closeErr
-	}
-	if err != nil {
-		return project.Manifest{}, err
-	}
-	if err := os.Rename(tmpPath, path); err == nil {
-		return manifest, nil
-	}
-
-	// Windows does not consistently replace an existing file with Rename.
-	// Keep the old document as a short-lived backup until the new one lands.
-	// TODO(micro): backup suffix and rename fallback duplicate internal/atomicfile.Write; reuse that helper
-	backup := path + ".autosave-backup"
-	// TODO(micro): Check this removal error; otherwise a stale, undeletable backup is misreported later as a primary-file rename failure.
-	_ = os.Remove(backup)
-	if err := os.Rename(path, backup); err != nil {
-		return project.Manifest{}, fmt.Errorf("replace show file: %w", err)
-	}
-	if err := os.Rename(tmpPath, path); err != nil {
-		_ = os.Rename(backup, path)
-		return project.Manifest{}, fmt.Errorf("replace show file: %w", err)
-	}
-	_ = os.Remove(backup)
-	return manifest, nil
-}
-
 // TODO(macro): Preflight aggregation is split across document_controller (cue/FFmpeg/route
 // checks), preflight_service (disk/remote/HMAC gate), and health_service (runtime components).
 // Collapse into one preflight domain package with a single assembler so GO-blocking policy is

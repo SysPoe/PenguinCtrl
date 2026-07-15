@@ -319,7 +319,7 @@ func (a *App) run(window *app.Window) error {
 			postUI(ctx, func() { operatorPanel.SetStatus("Saving and optimizing bundled media…") })
 			snapshot := manager.ShowSnapshot()
 			saveMu.Lock()
-			manifest, err := saveShowAtPath(path, snapshot, settingsStore.Snapshot().FFmpegPath, func(progress project.SaveProgress) {
+			manifest, err := project.SaveAtPathWithProgress(path, snapshot, settingsStore.Snapshot().FFmpegPath, func(progress project.SaveProgress) {
 				status := formatSaveProgress(path, progress)
 				postUI(ctx, func() { operatorPanel.SetStatus(status) })
 			})
@@ -359,7 +359,7 @@ func (a *App) run(window *app.Window) error {
 			snapshot := manager.ShowSnapshot()
 			postUI(ctx, func() { operatorPanel.SetStatus("Saving " + documentName(path) + "…") })
 			saveMu.Lock()
-			manifest, err := saveShowAtPath(path, snapshot, settingsStore.Snapshot().FFmpegPath, func(progress project.SaveProgress) {
+			manifest, err := project.SaveAtPathWithProgress(path, snapshot, settingsStore.Snapshot().FFmpegPath, func(progress project.SaveProgress) {
 				status := formatSaveProgress(path, progress)
 				postUI(ctx, func() { operatorPanel.SetStatus(status) })
 			})

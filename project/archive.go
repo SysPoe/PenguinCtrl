@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/syspoe/cusus/internal/atomicfile"
 	"github.com/syspoe/cusus/show"
 )
 
@@ -60,6 +61,24 @@ type SaveProgress struct {
 // Save writes a portable .cusus ZIP archive.
 func Save(dst io.Writer, current show.Show, ffmpegPath string) (Manifest, error) {
 	return SaveWithProgress(dst, current, ffmpegPath, nil)
+}
+
+// SaveAtPathWithProgress publishes a portable show archive atomically while
+// retaining the previous archive as a last-known-good backup.
+func SaveAtPathWithProgress(path string, current show.Show, ffmpegPath string, progress func(SaveProgress)) (Manifest, error) {
+	if strings.TrimSpace(path) == "" {
+		return Manifest{}, errors.New("show has no file path; use Save As")
+	}
+	var manifest Manifest
+	err := atomicfile.WriteFunc(path, 0o600, func(file *os.File) error {
+		var err error
+		manifest, err = SaveWithProgress(file, current, ffmpegPath, progress)
+		return err
+	})
+	if err != nil {
+		return Manifest{}, fmt.Errorf("save show archive: %w", err)
+	}
+	return manifest, nil
 }
 
 // TODO(macro): Keep archive-relative media refs distinct from runtime absolute
