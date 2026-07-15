@@ -13,15 +13,164 @@ import (
 	"github.com/syspoe/cusus/config"
 )
 
+const (
+	audioRecoveryInitialBackoff = 250 * time.Millisecond
+	audioRecoveryMaxBackoff     = 4 * time.Second
+	audioRecoveryAttempts       = 6
+)
+
+type audioSourceRoute struct {
+	policy   string
+	backupID string
+	recover  func(string) error
+}
+
+// audioMixerRegistry owns endpoint mixers and non-realtime failover metadata.
+// devicePlayer carries only PCM callback/lifecycle state.
+type audioMixerRegistry struct {
+	topology *audioDeviceTopology
+	mu       sync.Mutex
+	mixers   map[string]*endpointMixer
+	routes   map[*devicePlayer]audioSourceRoute
+	closed   bool
+}
+
+func newAudioMixerRegistry(topology *audioDeviceTopology) *audioMixerRegistry {
+	return &audioMixerRegistry{
+		topology: topology,
+		mixers:   make(map[string]*endpointMixer),
+		routes:   make(map[*devicePlayer]audioSourceRoute),
+	}
+}
+
+func (registry *audioMixerRegistry) newSource(reader io.Reader, deviceID, recoveryPolicy, backupID string) (*devicePlayer, error) {
+	registry.mu.Lock()
+	defer registry.mu.Unlock()
+	if registry.closed || registry.topology == nil {
+		return nil, errors.New("audio system is closed")
+	}
+	mixer := registry.mixers[deviceID]
+	if mixer == nil {
+		mixer = &endpointMixer{registry: registry, topology: registry.topology, deviceID: deviceID}
+		mixer.sources.Store([]*devicePlayer{})
+		if err := mixer.openDeviceLocked(); err != nil {
+			return nil, err
+		}
+		registry.mixers[deviceID] = mixer
+	}
+	player := newDevicePlayer(reader, mixer, registry)
+	registry.routes[player] = audioSourceRoute{policy: recoveryPolicy, backupID: backupID}
+	go player.fillRing()
+	return player, nil
+}
+
+func (registry *audioMixerRegistry) setRecoveryHandler(player *devicePlayer, handler func(string) error) {
+	registry.mu.Lock()
+	route, ok := registry.routes[player]
+	if ok && !registry.closed {
+		route.recover = handler
+		registry.routes[player] = route
+	}
+	registry.mu.Unlock()
+}
+
+func (registry *audioMixerRegistry) removeSource(player *devicePlayer) {
+	registry.mu.Lock()
+	delete(registry.routes, player)
+	registry.mu.Unlock()
+}
+
+func (registry *audioMixerRegistry) failoverSource(player *devicePlayer, currentDeviceID string) bool {
+	player.mu.Lock()
+	closed := player.closed
+	player.mu.Unlock()
+	if closed {
+		return true
+	}
+	registry.mu.Lock()
+	route, ok := registry.routes[player]
+	registry.mu.Unlock()
+	if !ok {
+		return false
+	}
+	targetID, allowed := fallbackDeviceID(route.policy, route.backupID)
+	if !allowed || targetID == currentDeviceID || (route.policy == config.AudioRecoveryNamedBackup && targetID == "") {
+		return false
+	}
+	return route.recover != nil && route.recover(targetID) == nil
+}
+
+func (registry *audioMixerRegistry) lockedMixers() []*endpointMixer {
+	mixers := make([]*endpointMixer, 0, len(registry.mixers))
+	for _, mixer := range registry.mixers {
+		mixers = append(mixers, mixer)
+	}
+	return mixers
+}
+
+func (registry *audioMixerRegistry) metrics() []AudioMixerMetrics {
+	registry.mu.Lock()
+	mixers := registry.lockedMixers()
+	registry.mu.Unlock()
+	result := make([]AudioMixerMetrics, 0, len(mixers))
+	for _, mixer := range mixers {
+		sources := mixer.sources.Load().([]*devicePlayer)
+		metrics := AudioMixerMetrics{
+			EndpointID: mixer.deviceID, ActiveSources: len(sources), Recovering: mixer.recovering.Load(),
+			Failed: mixer.failed.Load(), RecoveryCount: mixer.recoveries.Load(),
+			MaxCallback: time.Duration(mixer.callbackMax.Load()),
+		}
+		if at := mixer.callbackAt.Load(); at > 0 {
+			metrics.LastCallback = time.Unix(0, at)
+		}
+		for _, source := range sources {
+			metrics.TotalUnderruns += source.Underruns()
+		}
+		result = append(result, metrics)
+	}
+	return result
+}
+
+func (registry *audioMixerRegistry) close() {
+	registry.mu.Lock()
+	if registry.closed {
+		registry.mu.Unlock()
+		return
+	}
+	registry.closed = true
+	mixers := registry.lockedMixers()
+	registry.mixers = nil
+	registry.routes = nil
+	registry.mu.Unlock()
+	for _, mixer := range mixers {
+		mixer.close()
+	}
+}
+
+type endpointMixer struct {
+	registry    *audioMixerRegistry
+	topology    *audioDeviceTopology
+	deviceID    string
+	mu          sync.Mutex
+	device      *malgo.Device
+	sources     atomic.Value // immutable []*devicePlayer, read without locks by callback
+	started     bool
+	closed      bool
+	recovering  atomic.Bool
+	failed      atomic.Bool
+	recoveries  atomic.Uint64
+	callbackAt  atomic.Int64
+	callbackMax atomic.Int64
+}
+
 func (m *endpointMixer) openDeviceLocked() error {
-	config, err := m.system.deviceConfig(m.deviceID)
-	if err != nil {
-		return err
+	if m.topology == nil {
+		return errors.New("audio device topology is unavailable")
 	}
 	callbacks := malgo.DeviceCallbacks{Data: m.mix, Stop: m.deviceStopped}
-	device, err := malgo.InitDevice(m.system.context.Context, config, callbacks)
+	device, err := m.topology.openPlaybackDevice(m.deviceID, callbacks)
 	if err != nil {
-		return fmt.Errorf("open audio device: %w", err)
+		return err
 	}
 	m.device = device
 	return nil
@@ -90,9 +239,8 @@ func (m *endpointMixer) deviceStopped() {
 
 func (m *endpointMixer) recover() {
 	defer m.recovering.Store(false)
-	// TODO(micro): recovery uses magic 250ms start backoff, 6 attempts, and 4s cap; name recovery constants.
-	backoff := 250 * time.Millisecond
-	for attempt := 0; attempt < 6; attempt++ {
+	backoff := audioRecoveryInitialBackoff
+	for range audioRecoveryAttempts {
 		time.Sleep(backoff)
 		m.mu.Lock()
 		if m.closed {
@@ -121,11 +269,11 @@ func (m *endpointMixer) recover() {
 			m.recoveries.Add(1)
 			return
 		}
-		backoff = min(4*time.Second, backoff*2)
+		backoff = min(audioRecoveryMaxBackoff, backoff*2)
 	}
 	failed := false
 	for _, source := range m.sources.Load().([]*devicePlayer) {
-		if !m.failover(source) {
+		if m.registry == nil || !m.registry.failoverSource(source, m.deviceID) {
 			failed = true
 			source.stoppedOnce.Do(func() { close(source.stopped) })
 		}
@@ -136,24 +284,13 @@ func (m *endpointMixer) recover() {
 	}
 }
 
-func (m *endpointMixer) failover(source *devicePlayer) bool {
-	targetID, allowed := fallbackDeviceID(source.recoveryPolicy, source.backupDeviceID)
-	if !allowed {
-		return false
-	}
-	if targetID == m.deviceID || (source.recoveryPolicy == config.AudioRecoveryNamedBackup && targetID == "") {
-		return false
-	}
-	return source.recoverTo(targetID)
-}
-
 func fallbackDeviceID(policy, backupID string) (string, bool) {
 	switch policy {
 	case config.AudioRecoveryFollowDefault:
 		return "", true
 	case config.AudioRecoveryNamedBackup:
-		// TODO(micro): strings.TrimSpace(backupID) is computed twice; bind once.
-		return strings.TrimSpace(backupID), strings.TrimSpace(backupID) != ""
+		backupID = strings.TrimSpace(backupID)
+		return backupID, backupID != ""
 	default:
 		return "", false
 	}
@@ -172,32 +309,4 @@ func (m *endpointMixer) close() {
 	if device != nil {
 		device.Uninit()
 	}
-}
-
-// TODO(macro): devicePlayer is the per-source PCM endpoint type but is declared
-// under audio_mixer.go while Start/fillRing/pcmRing live in audio_player.go —
-// inverted cohesion. Move the struct with its methods; leave mixer only with
-// multi-source mix/failover. Also: recovery func(string) error pulls decode
-// restart policy into the audio source — invert so mixers request failover and
-// a higher layer supplies a new reader without knowing FFmpeg.
-type devicePlayer struct {
-	reader         io.Reader
-	mixer          *endpointMixer
-	recoveryPolicy string
-	backupDeviceID string
-	volume         atomic.Uint64
-	ring           *pcmRing
-	done           chan struct{}
-	ready          chan struct{}
-	readyOnce      sync.Once
-	stopped        chan struct{}
-	stoppedOnce    sync.Once
-	intentional    atomic.Bool
-	eof            atomic.Bool
-	underruns      atomic.Uint64
-	mu             sync.Mutex
-	closed         bool
-	started        bool
-	recovery       func(string) error
-	renderedFrames atomic.Uint64
 }

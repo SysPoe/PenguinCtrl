@@ -3,6 +3,7 @@ package media
 import (
 	"bytes"
 	"encoding/binary"
+	"math"
 	"testing"
 	"time"
 
@@ -15,14 +16,14 @@ func TestPCMRingWrapsWithoutLosingOrder(t *testing.T) {
 		t.Fatalf("first write = %d", n)
 	}
 	first := make([]byte, 4)
-	if n := ring.read(first); n != 4 || !bytes.Equal(first, []byte{1, 2, 3, 4}) {
+	if n := readPCMRing(ring, first); n != 4 || !bytes.Equal(first, []byte{1, 2, 3, 4}) {
 		t.Fatalf("first read = %d %v", n, first)
 	}
 	if n := ring.write([]byte{7, 8, 9, 10, 11, 12}); n != 6 {
 		t.Fatalf("wrapped write = %d", n)
 	}
 	remaining := make([]byte, 8)
-	if n := ring.read(remaining); n != 8 || !bytes.Equal(remaining, []byte{5, 6, 7, 8, 9, 10, 11, 12}) {
+	if n := readPCMRing(ring, remaining); n != 8 || !bytes.Equal(remaining, []byte{5, 6, 7, 8, 9, 10, 11, 12}) {
 		t.Fatalf("wrapped read = %d %v", n, remaining)
 	}
 }
@@ -35,7 +36,8 @@ func TestAudioGainBoostsAndSaturatesWithoutWrapping(t *testing.T) {
 	binary.LittleEndian.PutUint16(input[2:], uint16(int16(20000)))
 	player.ring.write(input)
 	output := make([]byte, 4)
-	player.readSamples(output, nil, 1)
+	clear(output)
+	player.mixInto(output)
 	if got := int16(binary.LittleEndian.Uint16(output[0:])); got <= 1000 {
 		t.Fatalf("boosted sample = %d, want > 1000", got)
 	}
@@ -46,11 +48,12 @@ func TestAudioGainBoostsAndSaturatesWithoutWrapping(t *testing.T) {
 
 func TestAudioCallbackNeverWaitsForDecoder(t *testing.T) {
 	player := &devicePlayer{ring: newPCMRing(1024)}
-	player.volume.Store(float64Bits(1))
+	player.volume.Store(math.Float64bits(1))
 	output := make([]byte, 512)
 	done := make(chan struct{})
 	go func() {
-		player.readSamples(output, nil, 128)
+		clear(output)
+		player.mixInto(output)
 		close(done)
 	}()
 	select {
@@ -66,8 +69,8 @@ func TestAudioCallbackNeverWaitsForDecoder(t *testing.T) {
 func TestEndpointMixerCombinesSourcesWithoutAllocation(t *testing.T) {
 	first := &devicePlayer{ring: newPCMRing(16)}
 	second := &devicePlayer{ring: newPCMRing(16)}
-	first.volume.Store(float64Bits(1))
-	second.volume.Store(float64Bits(1))
+	first.volume.Store(math.Float64bits(1))
+	second.volume.Store(math.Float64bits(1))
 	for player, sample := range map[*devicePlayer]int16{first: 1000, second: 2000} {
 		raw := make([]byte, 4)
 		binary.LittleEndian.PutUint16(raw[0:], uint16(sample))
@@ -106,13 +109,29 @@ func TestFallbackDevicePolicy(t *testing.T) {
 }
 
 func TestPlayerRecoveryDelegatesTargetEndpoint(t *testing.T) {
-	player := &devicePlayer{}
+	registry := newAudioMixerRegistry(nil)
+	player := &devicePlayer{registry: registry}
+	registry.routes[player] = audioSourceRoute{policy: config.AudioRecoveryNamedBackup, backupID: "backup-device"}
 	called := ""
 	player.SetRecoveryHandler(func(deviceID string) error {
 		called = deviceID
 		return nil
 	})
-	if !player.recoverTo("backup-device") || called != "backup-device" {
+	if !registry.failoverSource(player, "failed-device") || called != "backup-device" {
 		t.Fatalf("recovery target = %q", called)
 	}
+}
+
+func readPCMRing(ring *pcmRing, dst []byte) int {
+	read := ring.readPos.Load()
+	n := min(len(dst), ring.available())
+	if n <= 0 {
+		return 0
+	}
+	start := int(read % uint64(len(ring.data)))
+	first := min(n, len(ring.data)-start)
+	copy(dst[:first], ring.data[start:start+first])
+	copy(dst[first:n], ring.data[:n-first])
+	ring.readPos.Store(read + uint64(n))
+	return n
 }

@@ -3,40 +3,68 @@ package media
 import (
 	"encoding/binary"
 	"errors"
-	"fmt"
+	"io"
 	"math"
+	"sync"
 	"sync/atomic"
 	"time"
 )
 
-func (p *devicePlayer) SetRecoveryHandler(handler func(string) error) {
-	p.mu.Lock()
-	p.recovery = handler
-	p.mu.Unlock()
+const (
+	audioFillBufferBytes = 32 * 1024
+	audioRingBackoff     = 2 * time.Millisecond
+)
+
+// devicePlayer owns one PCM source's prebuffer, callback, and close lifecycle.
+// Endpoint failover policy and decoder recovery handlers live in its registry.
+type devicePlayer struct {
+	reader         io.Reader
+	mixer          *endpointMixer
+	registry       *audioMixerRegistry
+	volume         atomic.Uint64
+	ring           *pcmRing
+	done           chan struct{}
+	ready          chan struct{}
+	readyOnce      sync.Once
+	stopped        chan struct{}
+	stoppedOnce    sync.Once
+	intentional    atomic.Bool
+	eof            atomic.Bool
+	underruns      atomic.Uint64
+	mu             sync.Mutex
+	closed         bool
+	started        bool
+	renderedFrames atomic.Uint64
 }
 
-func (p *devicePlayer) recoverTo(deviceID string) bool {
-	p.mu.Lock()
-	if p.closed {
-		p.mu.Unlock()
-		return true
+func newDevicePlayer(reader io.Reader, mixer *endpointMixer, registry *audioMixerRegistry) *devicePlayer {
+	player := &devicePlayer{
+		reader: reader, mixer: mixer, registry: registry, ring: newPCMRing(audioRingBytes),
+		done: make(chan struct{}), ready: make(chan struct{}), stopped: make(chan struct{}),
 	}
-	handler := p.recovery
+	player.volume.Store(1)
+	return player
+}
+
+func (p *devicePlayer) SetRecoveryHandler(handler func(string) error) {
+	p.mu.Lock()
+	registry := p.registry
 	p.mu.Unlock()
-	return handler != nil && handler(deviceID) == nil
+	if registry != nil {
+		registry.setRecoveryHandler(p, handler)
+	}
 }
 
 func (p *devicePlayer) Start() error {
 	select {
 	case <-p.ready:
 	case <-time.After(time.Second):
-		// TODO(micro): Use errors.New for this static message instead of fmt.Errorf.
-		return fmt.Errorf("audio prebuffer timed out")
+		return errors.New("audio prebuffer timed out")
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.closed {
-		return fmt.Errorf("audio player is closed")
+		return errors.New("audio player is closed")
 	}
 	if p.started {
 		return nil
@@ -51,14 +79,8 @@ func (p *devicePlayer) Start() error {
 	return nil
 }
 
-// TODO(micro): readSamples is unused outside tests; remove production dead code or wire it if still intended as the malgo callback path.
-func (p *devicePlayer) readSamples(output, _ []byte, _ uint32) {
-	clear(output)
-	p.mixInto(output)
-}
-
 func (p *devicePlayer) mixInto(output []byte) {
-	volume := float64FromBits(p.volume.Load())
+	volume := math.Float64frombits(p.volume.Load())
 	n := p.ring.mix(output, volume)
 	p.renderedFrames.Add(uint64(len(output) / (audioChannels * 2)))
 	if n < len(output) && !p.eof.Load() {
@@ -72,8 +94,12 @@ func (p *devicePlayer) RenderedPosition() time.Duration {
 }
 
 func (p *devicePlayer) fillRing() {
-	// TODO(micro): 32*1024 fill buffer size and 2ms backpressure sleep are magic; name constants next to audioPrebuffer/audioRingBytes.
-	buffer := make([]byte, 32*1024)
+	buffer := make([]byte, audioFillBufferBytes)
+	backoff := time.NewTimer(audioRingBackoff)
+	if !backoff.Stop() {
+		<-backoff.C
+	}
+	defer backoff.Stop()
 	for {
 		n, err := p.reader.Read(buffer)
 		written := 0
@@ -84,11 +110,11 @@ func (p *devicePlayer) fillRing() {
 				p.readyOnce.Do(func() { close(p.ready) })
 			}
 			if written < n {
-				// TODO(micro): Reuse a timer or another backoff primitive here; time.After allocates a fresh timer on every full-ring retry.
+				backoff.Reset(audioRingBackoff)
 				select {
 				case <-p.done:
 					return
-				case <-time.After(2 * time.Millisecond):
+				case <-backoff.C:
 				}
 			}
 		}
@@ -111,21 +137,26 @@ func (p *devicePlayer) Underruns() uint64        { return p.underruns.Load() }
 
 func (p *devicePlayer) SetVolume(volume float64) {
 	// TODO(micro): 12.0/20 max gain and -80 mute floor are duplicated with dbVolume; extract shared maxGainLinear / muteFloorDB constants.
-	p.volume.Store(float64Bits(max(0, min(math.Pow(10, 12.0/20), volume))))
+	p.volume.Store(math.Float64bits(max(0, min(math.Pow(10, 12.0/20), volume))))
 }
 
 func (p *devicePlayer) Close() error {
 	p.mu.Lock()
-	defer p.mu.Unlock()
 	if p.closed {
+		p.mu.Unlock()
 		return nil
 	}
 	p.closed = true
 	p.intentional.Store(true)
 	close(p.done)
-	if p.mixer != nil {
-		p.mixer.remove(p)
-		p.mixer = nil
+	mixer, registry := p.mixer, p.registry
+	p.mixer, p.registry = nil, nil
+	p.mu.Unlock()
+	if mixer != nil {
+		mixer.remove(p)
+	}
+	if registry != nil {
+		registry.removeSource(p)
 	}
 	return nil
 }
@@ -147,13 +178,12 @@ func (r *pcmRing) available() int {
 
 func (r *pcmRing) writeBytesAvailable() int { return len(r.data) - r.available() }
 
-// TODO(micro): writeBytes takes dst but always receives r.data from write; drop the dst param and write to r.data, or make it a package helper if reuse is intended.
-func (r *pcmRing) writeBytes(dst []byte, offset uint64, src []byte) int {
+func (r *pcmRing) writeBytes(offset uint64, src []byte) int {
 	n := min(len(src), len(r.data))
 	start := int(offset % uint64(len(r.data)))
 	first := min(n, len(r.data)-start)
-	copy(dst[start:start+first], src[:first])
-	copy(dst[:n-first], src[first:n])
+	copy(r.data[start:start+first], src[:first])
+	copy(r.data[:n-first], src[first:n])
 	return n
 }
 
@@ -163,23 +193,8 @@ func (r *pcmRing) write(src []byte) int {
 	if n <= 0 {
 		return 0
 	}
-	r.writeBytes(r.data, write, src[:n])
+	r.writeBytes(write, src[:n])
 	r.writePos.Store(write + uint64(n))
-	return n
-}
-
-// TODO(micro): pcmRing.read is only used by tests; production mixes via mix(). Move read to a test helper or delete if mix covers the API.
-func (r *pcmRing) read(dst []byte) int {
-	read := r.readPos.Load()
-	n := min(len(dst), r.available())
-	if n <= 0 {
-		return 0
-	}
-	start := int(read % uint64(len(r.data)))
-	first := min(n, len(r.data)-start)
-	copy(dst[:first], r.data[start:start+first])
-	copy(dst[first:n], r.data[:n-first])
-	r.readPos.Store(read + uint64(n))
 	return n
 }
 
@@ -202,7 +217,3 @@ func (r *pcmRing) mix(output []byte, gain float64) int {
 	r.readPos.Store(read + uint64(n))
 	return n
 }
-
-// TODO(micro): float64Bits/float64FromBits only alias math.Float64bits/frombits; call math directly at the two call sites.
-func float64Bits(value float64) uint64     { return math.Float64bits(value) }
-func float64FromBits(value uint64) float64 { return math.Float64frombits(value) }
