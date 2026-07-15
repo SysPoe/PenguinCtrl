@@ -72,10 +72,9 @@ func linkContextProblems(cue Cue, cues []Cue) []CueProblem {
 	}
 	// TODO(micro): linkModeName only returns "play" or "advance" — use == "play", not strings.HasSuffix.
 	if target, ok := linkedCue(cue, cues); ok && strings.HasSuffix(linkModeName(cue.Link.Mode), "play") {
-		for _, message := range cueWarningMessages(target, cues) {
-			problem := problemForMessage(message)
+		for _, problem := range cueStaticProblems(target, cues) {
 			if problem.Severity == ProblemBlocker {
-				problems = append(problems, CueProblem{Code: "link.target.blocked." + problem.Code, Severity: ProblemCaution, Message: fmt.Sprintf("Linked cue %s is blocked: %s", displayCueNumber(target), message), Consequence: "The automatic chain will stop at that cue.", Fix: "Open and repair the linked cue", Field: "link.target"})
+				problems = append(problems, CueProblem{Code: "link.target.blocked." + problem.Code, Severity: ProblemCaution, Message: fmt.Sprintf("Linked cue %s is blocked: %s", displayCueNumber(target), problem.Message), Consequence: "The automatic chain will stop at that cue.", Fix: "Open and repair the linked cue", Field: "link.target"})
 				break
 			}
 		}

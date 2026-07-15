@@ -121,8 +121,8 @@ func TestProblemFingerprintHandlesUnencodableCueData(t *testing.T) {
 
 func TestMediaWarningsUseMediaFieldAndMissingRelativeCueDoesNotResolve(t *testing.T) {
 	cue := validSound("1", "")
-	problem, ok := problemWithCode(CueProblems(cue, []Cue{cue}), "cue.missing.media.file")
-	if !ok || problem.Field != "media" {
+	problem, ok := problemWithCode(CueProblems(cue, []Cue{cue}), "media.file.missing")
+	if !ok || problem.Field != "media.file" {
 		t.Fatalf("missing media problem = %#v", problem)
 	}
 	absolute := cue

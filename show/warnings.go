@@ -2,8 +2,6 @@ package show
 
 import (
 	"math"
-	"regexp"
-	"strings"
 
 	"github.com/syspoe/cusus/config"
 )
@@ -33,12 +31,6 @@ func (s ProblemSeverity) Label() string {
 // CueProblem is a stable, user-facing validation result. Code is suitable for
 // acknowledgement fingerprints; Field and Fix allow every presentation to
 // take the operator back to the relevant editor or settings surface.
-// TODO(macro): Warning/problem system is split across warnings.go, warning_legacy
-// (string messages re-parsed by problemForMessage), warning_runtime, warning_links,
-// playback.CueProblems, and package-main preflight aggregation — dual string vs
-// structured representations and severity remapping at every boundary. Own
-// validation as one analysis/preflight module that emits CueProblem end-to-end
-// and delete the string intermediate.
 type CueProblem struct {
 	Code        string
 	Severity    ProblemSeverity
@@ -63,18 +55,12 @@ type WarningContext struct {
 	HasRuntimeState    bool
 }
 
-// TODO(macro): Retire the string-first validators and have each validation
-// domain emit CueProblem directly. Deriving stable codes, fields, severity, and
-// fixes from English message text makes operator behavior change when wording
-// changes and leaves two validation representations to keep synchronized.
 // CueProblems returns static problems that can be determined from a cue and
 // cue list. Use CueProblemsWithContext at GO/preflight boundaries.
 func CueProblems(cue Cue, cues []Cue) []CueProblem {
-	// TODO(micro): Seed capacity from the legacy warning count before appending the other problem domains.
-	problems := make([]CueProblem, 0)
-	for _, message := range cueWarningMessages(cue, cues) {
-		problems = append(problems, problemForMessage(message))
-	}
+	static := cueStaticProblems(cue, cues)
+	problems := make([]CueProblem, 0, len(static)+4)
+	problems = append(problems, static...)
 	problems = append(problems, cueNumberProblems(cue, cues)...)
 	problems = append(problems, cuePayloadProblems(cue)...)
 	problems = append(problems, cueLevelProblems(cue)...)
@@ -127,124 +113,81 @@ func CueWarnings(cue Cue, cues []Cue) []string {
 	problems := CueProblems(cue, cues)
 	warnings := make([]string, 0, len(problems))
 	for _, problem := range problems {
-		// TODO(micro): CueProblems never emits ProblemState (only WithContext does); filter is dead for this path — call WithContext or drop the check.
-		if problem.Severity != ProblemState {
-			warnings = append(warnings, problem.Message)
-		}
+		warnings = append(warnings, problem.Message)
 	}
 	return warnings
 }
 
-func cueWarningMessages(cue Cue, cues []Cue) []string {
-	warnings := make([]string, 0)
+func cueStaticProblems(cue Cue, cues []Cue) []CueProblem {
+	problems := make([]CueProblem, 0)
 	if cue.ID == (CueID{}) {
-		warnings = append(warnings, "Missing cue ID")
-	} else if duplicateCueID(cue.ID, cues) {
-		warnings = append(warnings, "Duplicate cue ID")
+		problems = append(problems, staticBlocker("cue.id.missing", "Missing cue ID", "general.id", "Regenerate the cue ID"))
+	} else if cueIDCount(cue.ID, cues) > 1 {
+		problems = append(problems, staticBlocker("cue.id.duplicate", "Duplicate cue ID", "general.id", "Regenerate one duplicate cue ID"))
 	}
 	if cue.Timing.PreWaitMs < 0 {
-		warnings = append(warnings, "Pre-wait cannot be negative")
+		problems = append(problems, staticBlocker("cue.timing.pre-wait.negative", "Pre-wait cannot be negative", "general.timing", "Set pre-wait to zero or greater"))
 	}
 	if cue.Timing.PostWaitMs < 0 {
-		warnings = append(warnings, "Post-wait cannot be negative")
+		problems = append(problems, staticBlocker("cue.timing.post-wait.negative", "Post-wait cannot be negative", "general.timing", "Set post-wait to zero or greater"))
 	}
 
-	warnings = append(warnings, cueLinkWarnings(cue.Link, cues)...)
+	problems = append(problems, cueLinkProblems(cue.Link, cues)...)
 
 	switch cue.Type {
 	case CueTypeSound:
 		if cue.Play.Sound == nil {
-			warnings = append(warnings, "Missing sound settings")
+			problems = append(problems, staticBlocker("sound.settings.missing", "Missing sound settings", "media", "Restore the sound cue settings"))
 		} else {
 			play := cue.Play.Sound
-			warnings = append(warnings, mediaFileWarnings(play.File)...)
-			warnings = append(warnings, mediaTimingWarnings(play.ClipStartMs, play.ClipEndMs, play.FadeInMs, play.FadeOutMs)...)
-			warnings = append(warnings, timecodeWarnings(play.Timecode, cues)...)
+			problems = append(problems, mediaFileProblems(play.File)...)
+			problems = append(problems, mediaTimingProblems(play.ClipStartMs, play.ClipEndMs, play.FadeInMs, play.FadeOutMs)...)
+			problems = append(problems, timecodeProblems(play.Timecode, cues)...)
 		}
 	case CueTypeVideo:
 		if cue.Play.Video == nil {
-			warnings = append(warnings, "Missing video settings")
+			problems = append(problems, staticBlocker("video.settings.missing", "Missing video settings", "media", "Restore the video cue settings"))
 		} else {
 			play := cue.Play.Video
-			warnings = append(warnings, mediaFileWarnings(play.File)...)
-			warnings = append(warnings, mediaTimingWarnings(play.ClipStartMs, play.ClipEndMs, play.FadeInMs, play.FadeOutMs)...)
-			warnings = append(warnings, timecodeWarnings(play.Timecode, cues)...)
+			problems = append(problems, mediaFileProblems(play.File)...)
+			problems = append(problems, mediaTimingProblems(play.ClipStartMs, play.ClipEndMs, play.FadeInMs, play.FadeOutMs)...)
+			problems = append(problems, timecodeProblems(play.Timecode, cues)...)
 		}
 	case CueTypeImage:
 		if cue.Play.Image == nil {
-			warnings = append(warnings, "Missing image settings")
+			problems = append(problems, staticBlocker("image.settings.missing", "Missing image settings", "media", "Restore the image cue settings"))
 		} else {
 			play := cue.Play.Image
-			warnings = append(warnings, mediaFileWarnings(play.File)...)
+			problems = append(problems, mediaFileProblems(play.File)...)
 			if play.FadeInMs < 0 {
-				warnings = append(warnings, "Fade-in cannot be negative")
+				problems = append(problems, staticBlocker("media.fade-in.negative", "Fade-in cannot be negative", "media.fade", "Set fade-in to zero or greater"))
 			}
 			if play.FadeOutMs < 0 {
-				warnings = append(warnings, "Fade-out cannot be negative")
+				problems = append(problems, staticBlocker("media.fade-out.negative", "Fade-out cannot be negative", "media.fade", "Set fade-out to zero or greater"))
 			}
 			if play.DurationMs < 0 {
-				warnings = append(warnings, "Duration cannot be negative")
+				problems = append(problems, staticBlocker("image.duration.negative", "Duration cannot be negative", "media.duration", "Set duration to zero or greater"))
 			}
-			warnings = append(warnings, timecodeWarnings(play.Timecode, cues)...)
+			problems = append(problems, timecodeProblems(play.Timecode, cues)...)
 		}
 	case CueTypeRemote:
-		warnings = append(warnings, remoteWarnings(cue.Play.Remote)...)
+		problems = append(problems, remoteProblems(cue.Play.Remote)...)
 	case CueTypeWait:
-		warnings = append(warnings, waitWarnings(cue.Play.Wait, cues)...)
+		problems = append(problems, waitProblems(cue.Play.Wait, cues)...)
 	case CueTypeMediaControl:
-		warnings = append(warnings, mediaControlWarnings(cue.Play.MediaControl, cues)...)
+		problems = append(problems, mediaControlProblems(cue.Play.MediaControl, cues)...)
 	case CueTypeOutputControl:
-		warnings = append(warnings, outputControlWarnings(cue.Play.OutputControl)...)
+		problems = append(problems, outputControlProblems(cue.Play.OutputControl)...)
 	default:
-		warnings = append(warnings, "Unknown cue type")
+		problems = append(problems, staticBlocker("cue.type.unknown", "Unknown cue type", "general.type", "Choose a supported cue type"))
 	}
 
-	return warnings
+	return problems
 }
 
-func problemForMessage(message string) CueProblem {
-	problem := CueProblem{
-		Code: "cue." + warningCode(message), Severity: ProblemBlocker, Message: message,
-		Consequence: "This cue cannot reliably produce the programmed result.", Fix: "Edit cue", Field: warningField(message),
-	}
-	lower := strings.ToLower(message)
-	switch {
-	// TODO(micro): Dead branch — cueWarningMessages never emits "duplicate timecode"/"same time"; remove or emit that warning.
-	case strings.Contains(lower, "duplicate timecode") || strings.Contains(lower, "same time"):
-		problem.Severity = ProblemCaution
-	case strings.Contains(lower, "target cue group"):
-		problem.Fix = "Choose target group"
-	case strings.Contains(lower, "remote"):
-		problem.Fix = "Edit remote cue"
-	case strings.Contains(lower, "output"):
-		problem.Fix = "Edit output or open settings"
-	}
-	return problem
-}
-
-func warningCode(message string) string {
-	value := strings.ToLower(message)
-	// TODO(micro): MustCompile on every call; hoist `[^a-z0-9]+` to a package-level var like unresolvedVariablePattern.
-	value = regexp.MustCompile(`[^a-z0-9]+`).ReplaceAllString(value, ".")
-	return strings.Trim(value, ".")
-}
-
-func warningField(message string) string {
-	lower := strings.ToLower(message)
-	switch {
-	case strings.Contains(lower, "file"), strings.Contains(lower, "clip"), strings.Contains(lower, "fade"):
-		return "media"
-	case strings.Contains(lower, "remote"), strings.Contains(lower, "osc"), strings.Contains(lower, "erc"):
-		return "remote"
-	case strings.Contains(lower, "link"), strings.Contains(lower, "target cue"):
-		return "link"
-	case strings.Contains(lower, "timecode"):
-		return "timecode"
-	case strings.Contains(lower, "wait"):
-		return "wait"
-	case strings.Contains(lower, "output"):
-		return "output"
-	default:
-		return "general"
+func staticBlocker(code, message, field, fix string) CueProblem {
+	return CueProblem{
+		Code: code, Severity: ProblemBlocker, Message: message,
+		Consequence: "This cue cannot reliably produce the programmed result.", Fix: fix, Field: field,
 	}
 }

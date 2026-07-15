@@ -37,11 +37,7 @@ func resolvedMediaProblems(cue Cue, context WarningContext) []CueProblem {
 	if unknown := unresolvedVariables(resolved); len(unknown) > 0 {
 		return []CueProblem{{Code: "media.path.variable.unknown", Severity: ProblemBlocker, Message: "Unknown media variable: " + strings.Join(unknown, ", "), Consequence: "The media path cannot be resolved.", Fix: "Define the variable in Settings or edit the path", Field: "media.file"}}
 	}
-	if warnings := mediaFileWarnings(resolved); len(warnings) > 0 {
-		problems := make([]CueProblem, 0, len(warnings))
-		for _, warning := range warnings {
-			problems = append(problems, problemForMessage(warning))
-		}
+	if problems := mediaFileProblems(resolved); len(problems) > 0 {
 		return problems
 	}
 	if strings.TrimSpace(context.MediaProbeError) != "" {

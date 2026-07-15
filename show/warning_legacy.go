@@ -8,11 +8,6 @@ import (
 	"strings"
 )
 
-// TODO(micro): Useless wrapper — call cueIDCount(id, cues) > 1 at the single call site and delete this.
-func duplicateCueID(id CueID, cues []Cue) bool {
-	return cueIDCount(id, cues) > 1
-}
-
 func cueIDCount(id CueID, cues []Cue) int {
 	count := 0
 	for _, candidate := range cues {
@@ -23,9 +18,9 @@ func cueIDCount(id CueID, cues []Cue) int {
 	return count
 }
 
-func cueLinkWarnings(link CueLink, cues []Cue) []string {
+func cueLinkProblems(link CueLink, cues []Cue) []CueProblem {
 	if link.Mode < CueLinkManual || link.Mode > CueLinkEndPlay {
-		return []string{"Unknown link mode"}
+		return []CueProblem{staticBlocker("link.mode.unknown", "Unknown link mode", "link.mode", "Choose a supported link mode")}
 	}
 	if link.Mode == CueLinkManual {
 		return nil
@@ -34,43 +29,37 @@ func cueLinkWarnings(link CueLink, cues []Cue) []string {
 	case CueTargetNone, CueTargetNext, CueTargetPrevious:
 		return nil
 	case CueTargetCue:
-		return targetCueWarnings(link.Target.CueID, cues)
+		return targetCueProblems(link.Target.CueID, cues, "link.target.cue", "link.target", "Choose an existing target cue")
 	default:
-		return []string{"Unknown link target"}
+		return []CueProblem{staticBlocker("link.target.kind.unknown", "Unknown link target", "link.target", "Choose a supported link target")}
 	}
 }
 
-func targetCueWarnings(id CueID, cues []Cue) []string {
+func targetCueProblems(id CueID, cues []Cue, prefix, field, fix string) []CueProblem {
 	if id == (CueID{}) {
-		return []string{"Missing target cue ID"}
+		return []CueProblem{staticBlocker(prefix+".id.missing", "Missing target cue ID", field, fix)}
 	}
 	switch cueIDCount(id, cues) {
 	case 0:
-		return []string{"Target cue ID does not exist"}
+		return []CueProblem{staticBlocker(prefix+".not-found", "Target cue ID does not exist", field, fix)}
 	case 1:
 		return nil
 	default:
-		return []string{"Target cue ID is duplicated"}
+		return []CueProblem{staticBlocker(prefix+".duplicate", "Target cue ID is duplicated", field, "Regenerate duplicate cue IDs")}
 	}
 }
 
-func mediaFileWarnings(source string) []string {
+func mediaFileProblems(source string) []CueProblem {
 	source = strings.TrimSpace(source)
 	if source == "" {
-		return []string{"Missing media file"}
+		return []CueProblem{staticBlocker("media.file.missing", "Missing media file", "media.file", "Choose a media file")}
 	}
 	// A templated path cannot be checked until it is resolved at playback.
 	if strings.Contains(source, "{") {
 		return nil
 	}
-
-	path, err := outputFilePath(source)
-	if err != nil {
-		return []string{"Invalid media file"}
-	}
-	if strings.TrimSpace(path) == "" {
-		// TODO(micro): Dead after a successful outputFilePath — Abs("") is non-empty and parse errors already returned above.
-		return []string{"Invalid output file"}
+	if _, err := outputFilePath(source); err != nil {
+		return []CueProblem{staticBlocker("media.file.invalid", "Invalid media file", "media.file", "Choose a valid media path")}
 	}
 	return nil
 }
@@ -97,53 +86,55 @@ func outputFilePath(source string) (string, error) {
 	return source, nil
 }
 
-func mediaTimingWarnings(clipStartMs, clipEndMs, fadeInMs, fadeOutMs int64) []string {
-	var warnings []string
+func mediaTimingProblems(clipStartMs, clipEndMs, fadeInMs, fadeOutMs int64) []CueProblem {
+	var problems []CueProblem
 	if clipStartMs < 0 {
-		warnings = append(warnings, "Clip start cannot be negative")
+		problems = append(problems, staticBlocker("media.clip.start.negative", "Clip start cannot be negative", "media.clip", "Set clip start to zero or greater"))
 	}
 	if clipEndMs < 0 {
-		warnings = append(warnings, "Clip end cannot be negative")
+		problems = append(problems, staticBlocker("media.clip.end.negative", "Clip end cannot be negative", "media.clip", "Set clip end to zero or greater"))
 	} else if clipEndMs > 0 && clipEndMs <= clipStartMs {
-		warnings = append(warnings, "Clip end must be after clip start")
+		problems = append(problems, staticBlocker("media.clip.end.not-after-start", "Clip end must be after clip start", "media.clip", "Move clip end after clip start"))
 	}
 	if fadeInMs < 0 {
-		warnings = append(warnings, "Fade-in cannot be negative")
+		problems = append(problems, staticBlocker("media.fade-in.negative", "Fade-in cannot be negative", "media.fade", "Set fade-in to zero or greater"))
 	}
 	if fadeOutMs < 0 {
-		warnings = append(warnings, "Fade-out cannot be negative")
+		problems = append(problems, staticBlocker("media.fade-out.negative", "Fade-out cannot be negative", "media.fade", "Set fade-out to zero or greater"))
 	}
-	return warnings
+	return problems
 }
 
-func timecodeWarnings(markers []TimecodeMarker, cues []Cue) []string {
-	var warnings []string
-	for _, marker := range markers {
+func timecodeProblems(markers []TimecodeMarker, cues []Cue) []CueProblem {
+	var problems []CueProblem
+	for markerIndex, marker := range markers {
 		if marker.Disabled {
 			continue
 		}
+		codePrefix := fmt.Sprintf("timecode.marker.%d.", markerIndex)
 		prefix := "Timecode at " + formatWarningTime(marker.TimeMs) + ": "
 		if marker.TimeMs < 0 {
-			warnings = append(warnings, prefix+"Time cannot be negative")
+			problems = append(problems, staticBlocker(codePrefix+"time.negative", prefix+"Time cannot be negative", "timecode", "Set marker time to zero or greater"))
 		}
+		var nested []CueProblem
 		switch marker.Type {
 		case CueTypeMediaControl:
-			for _, warning := range mediaControlWarnings(marker.Action.MediaControl, cues) {
-				warnings = append(warnings, prefix+warning)
-			}
+			nested = mediaControlProblems(marker.Action.MediaControl, cues)
 		case CueTypeOutputControl:
-			for _, warning := range outputControlWarnings(marker.Action.OutputControl) {
-				warnings = append(warnings, prefix+warning)
-			}
+			nested = outputControlProblems(marker.Action.OutputControl)
 		case CueTypeRemote:
-			for _, warning := range remoteWarnings(marker.Action.Remote) {
-				warnings = append(warnings, prefix+warning)
-			}
+			nested = remoteProblems(marker.Action.Remote)
 		default:
-			warnings = append(warnings, prefix+"Unsupported action")
+			problems = append(problems, staticBlocker(codePrefix+"action.unsupported", prefix+"Unsupported action", "timecode", "Choose media, output, or remote control"))
+		}
+		for _, problem := range nested {
+			problem.Code = codePrefix + problem.Code
+			problem.Message = prefix + problem.Message
+			problem.Field = "timecode"
+			problems = append(problems, problem)
 		}
 	}
-	return warnings
+	return problems
 }
 
 func formatWarningTime(ms int64) string {
@@ -153,57 +144,50 @@ func formatWarningTime(ms int64) string {
 	return fmt.Sprintf("%02d:%02d.%03d", ms/60000, (ms%60000)/1000, ms%1000)
 }
 
-// TODO(micro): Delete this unused predicate; keeping a second definition of payload presence invites drift from cuePayloadProblems.
-// TODO(micro): Dead code — no callers; delete or use from cuePayloadProblems instead of re-counting arms.
-func cuePlayConfigured(play CuePlay) bool {
-	return play.Sound != nil || play.Video != nil || play.Image != nil || play.Remote != nil ||
-		play.Wait != nil || play.MediaControl != nil || play.OutputControl != nil
-}
-
-func remoteWarnings(play *RemotePlay) []string {
+func remoteProblems(play *RemotePlay) []CueProblem {
 	if play == nil {
-		return []string{"Missing remote settings"}
+		return []CueProblem{staticBlocker("remote.settings.missing", "Missing remote settings", "remote", "Restore the remote cue settings")}
 	}
-	var warnings []string
+	var problems []CueProblem
 	if play.Protocol < RemoteProtocolAuto || play.Protocol > RemoteProtocolERC {
-		warnings = append(warnings, "Unknown remote protocol")
+		problems = append(problems, staticBlocker("remote.protocol.unknown", "Unknown remote protocol", "remote.protocol", "Choose Auto, OSC, or ERC"))
 	}
 	if play.Action < RemoteActionNone || play.Action > RemoteActionCustom {
-		return append(warnings, "Unknown remote action")
+		return append(problems, staticBlocker("remote.action.unknown", "Unknown remote action", "remote.action", "Choose a supported remote action"))
 	}
 	if play.Action == RemoteActionNone {
-		return append(warnings, "Missing remote action")
+		return append(problems, staticBlocker("remote.action.missing", "Missing remote action", "remote.action", "Choose a remote action"))
 	}
 	if play.Action == RemoteActionCustom {
 		if strings.TrimSpace(play.Custom) == "" {
-			warnings = append(warnings, "Missing custom remote command")
+			problems = append(problems, staticBlocker("remote.custom.missing", "Missing custom remote command", "remote.custom", "Enter a custom command"))
 		}
-		return warnings
+		return problems
 	}
 	if strings.TrimSpace(play.Playback) == "" {
-		warnings = append(warnings, "Missing remote playback")
+		problems = append(problems, staticBlocker("remote.playback.missing", "Missing remote playback", "remote.playback", "Enter a playback number or template"))
 	}
 	if play.Action == RemoteActionGoto && strings.TrimSpace(play.CueNumber) == "" {
-		warnings = append(warnings, "Missing remote cue number")
+		problems = append(problems, staticBlocker("remote.cue-number.missing", "Missing remote cue number", "remote.cueNumber", "Enter a cue number or template"))
 	}
-	return warnings
+	return problems
 }
 
-func waitWarnings(play *WaitPlay, cues []Cue) []string {
+func waitProblems(play *WaitPlay, cues []Cue) []CueProblem {
 	if play == nil {
-		return []string{"Missing wait settings"}
+		return []CueProblem{staticBlocker("wait.settings.missing", "Missing wait settings", "wait", "Restore the wait cue settings")}
 	}
 	if play.Kind < WaitDuration || play.Kind > WaitAllMediaStopped {
-		return []string{"Unknown wait type"}
+		return []CueProblem{staticBlocker("wait.kind.unknown", "Unknown wait type", "wait.kind", "Choose a supported wait type")}
 	}
 	if play.Kind == WaitDuration {
 		if play.DurationMs < 0 {
-			return []string{"Duration cannot be negative"}
+			return []CueProblem{staticBlocker("wait.duration.negative", "Duration cannot be negative", "wait.duration", "Set duration to zero or greater")}
 		}
 		return nil
 	}
 	if waitKindUsesMediaTarget(play.Kind) {
-		return mediaTargetWarnings(play.Media, cues)
+		return mediaTargetProblems(play.Media, cues)
 	}
 	return nil
 }
@@ -213,79 +197,77 @@ func waitKindUsesMediaTarget(kind WaitKind) bool {
 		kind == WaitFadeOutComplete || kind == WaitInstanceStopped
 }
 
-func mediaControlWarnings(play *MediaControlPlay, cues []Cue) []string {
+func mediaControlProblems(play *MediaControlPlay, cues []Cue) []CueProblem {
 	if play == nil {
-		return []string{"Missing media control settings"}
+		return []CueProblem{staticBlocker("media-control.settings.missing", "Missing media control settings", "media.control", "Restore the media-control settings")}
 	}
-	var warnings []string
+	var problems []CueProblem
 	if play.Action < MediaControlFadeTo || play.Action > MediaControlUnmute {
-		warnings = append(warnings, "Unknown media control action")
+		problems = append(problems, staticBlocker("media-control.action.unknown", "Unknown media control action", "media.control.action", "Choose a supported media-control action"))
 	}
-	warnings = append(warnings, mediaTargetWarnings(play.Target, cues)...)
+	problems = append(problems, mediaTargetProblems(play.Target, cues)...)
 	if (play.Action == MediaControlFadeTo || play.Action == MediaControlSetVolume) && play.LevelDB == nil {
-		warnings = append(warnings, "Missing target level")
+		problems = append(problems, staticBlocker("media-control.level.missing", "Missing target level", "media.control.level", "Enter a target level"))
 	}
 	if play.Action == MediaControlSeek {
 		if play.SeekToMs == nil {
-			warnings = append(warnings, "Missing seek position")
+			problems = append(problems, staticBlocker("media-control.seek.missing", "Missing seek position", "media.control.seek", "Enter a seek position"))
 		} else if *play.SeekToMs < 0 {
-			warnings = append(warnings, "Seek position cannot be negative")
+			problems = append(problems, staticBlocker("media-control.seek.negative", "Seek position cannot be negative", "media.control.seek", "Set seek position to zero or greater"))
 		}
 	}
 	if play.FadeMs < 0 {
-		warnings = append(warnings, "Fade duration cannot be negative")
+		problems = append(problems, staticBlocker("media-control.fade.negative", "Fade duration cannot be negative", "media.control.fade", "Set fade duration to zero or greater"))
 	}
 	if play.Curve < FadeCurveLinear || play.Curve > FadeCurveEqualPower {
-		warnings = append(warnings, "Unknown fade curve")
+		problems = append(problems, staticBlocker("media-control.curve.unknown", "Unknown fade curve", "media.control.curve", "Choose a supported fade curve"))
 	}
-	return warnings
+	return problems
 }
 
-func mediaTargetWarnings(target MediaTarget, cues []Cue) []string {
+func mediaTargetProblems(target MediaTarget, cues []Cue) []CueProblem {
 	switch target.Kind {
 	case MediaTargetCue:
-		return targetCueWarnings(target.CueID, cues)
+		return targetCueProblems(target.CueID, cues, "media.target.cue", "media.target", "Choose an existing media cue")
 	case MediaTargetGroup:
 		if target.GroupID == (GroupID{}) {
-			return []string{"Missing target cue group"}
+			return []CueProblem{staticBlocker("media.target.group.missing", "Missing target cue group", "media.target", "Choose a target group")}
 		}
 		for _, cue := range cues {
 			if cue.GroupID == target.GroupID {
 				return nil
 			}
 		}
-		return []string{"Target cue group was not found"}
+		return []CueProblem{staticBlocker("media.target.group.not-found", "Target cue group was not found", "media.target", "Choose an existing target group")}
 	case MediaTargetInstance:
 		if strings.TrimSpace(target.InstanceID) == "" {
-			return []string{"Missing target instance ID"}
+			return []CueProblem{staticBlocker("media.target.instance.missing", "Missing target instance ID", "media.target", "Choose a media instance")}
 		}
 	case MediaTargetOutput:
 		if strings.TrimSpace(target.OutputID) == "" {
-			return []string{"Missing target output ID"}
+			return []CueProblem{staticBlocker("media.target.output.missing", "Missing target output ID", "media.target", "Choose an output")}
 		}
-	case MediaTargetAllAudio, MediaTargetAllVideo, MediaTargetAllMedia:
-		return nil
-	case MediaTargetCurrentTrack:
+	case MediaTargetAllAudio, MediaTargetAllVideo, MediaTargetAllMedia, MediaTargetCurrentTrack:
 		return nil
 	default:
-		return []string{"Unknown media target"}
+		return []CueProblem{staticBlocker("media.target.kind.unknown", "Unknown media target", "media.target", "Choose a supported media target")}
 	}
 	return nil
 }
 
-func outputControlWarnings(play *OutputControlPlay) []string {
+func outputControlProblems(play *OutputControlPlay) []CueProblem {
 	if play == nil {
-		return []string{"Missing output control settings"}
+		return []CueProblem{staticBlocker("output-control.settings.missing", "Missing output control settings", "output", "Restore the output-control settings")}
 	}
-	var warnings []string
+	var problems []CueProblem
 	if play.Action < OutputControlBlackout || play.Action > OutputControlExitFullscreen {
-		warnings = append(warnings, "Unknown output control action")
+		problems = append(problems, staticBlocker("output-control.action.unknown", "Unknown output control action", "output.action", "Choose a supported output-control action"))
 	}
 	if play.FadeOutMs < 0 {
-		warnings = append(warnings, "Fade-out cannot be negative")
+		problems = append(problems, staticBlocker("output-control.fade-out.negative", "Fade-out cannot be negative", "output.fade", "Set fade-out to zero or greater"))
 	}
 	if play.FadeInMs < 0 {
-		warnings = append(warnings, "Fade-in cannot be negative")
+		problems = append(problems, staticBlocker("output-control.fade-in.negative", "Fade-in cannot be negative", "output.fade", "Set fade-in to zero or greater"))
 	}
-	return warnings
+	return problems
 }
