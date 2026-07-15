@@ -29,4 +29,12 @@ func TestPreloadCandidatesFollowSelectionAndSkipNonMedia(t *testing.T) {
 	if len(candidates) != 2 || candidates[0].CueID != sound.ID || candidates[1].CueID != video.ID {
 		t.Fatalf("preload candidates = %#v", candidates)
 	}
+	if candidates[0].MediaType != "audio" || candidates[0].Source != "first.wav" ||
+		candidates[1].MediaType != "video" || candidates[1].Source != "second.mp4" {
+		t.Fatalf("preload descriptors = %#v", candidates)
+	}
+	instances := engine.PreloadInstances(2)
+	if len(instances) != 2 || instances[0].Source != candidates[0].Source || instances[0].ID != "" || instances[0].BackendStarted {
+		t.Fatalf("compatibility preload instances = %#v", instances)
+	}
 }

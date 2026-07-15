@@ -8,21 +8,21 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
-func visualInstance(instance *Instance) bool {
+func visualInstance(instance *liveInstance) bool {
 	return instance != nil && (instance.MediaType == "video" || instance.MediaType == "image")
 }
 
 // replaceSingleLayerVisual performs a guarded handoff after the incoming
 // visual has produced its first frame. Outputs configured for more than one
 // layer retain their explicit compositing behavior.
-func (e *Engine) replaceSingleLayerVisual(presented Instance) {
+func (e *Engine) replaceSingleLayerVisual(presented liveInstance) {
 	if presented.Preview || !visualInstance(&presented) || config.VideoOutputFor(e.settings.Snapshot(), presented.OutputID).Layers != 1 {
 		return
 	}
 
 	e.mu.Lock()
-	var newest *Instance
-	e.instances.visit(func(candidate *Instance) {
+	var newest *liveInstance
+	e.instances.visit(func(candidate *liveInstance) {
 		if candidate.Preview || !candidate.Presented || candidate.OutputID != presented.OutputID || !visualInstance(candidate) {
 			return
 		}
@@ -38,17 +38,17 @@ func (e *Engine) replaceSingleLayerVisual(presented Instance) {
 	}
 
 	now := time.Now()
-	outgoing := make([]Instance, 0)
-	e.instances.visit(func(candidate *Instance) {
+	outgoing := make([]liveInstance, 0)
+	e.instances.visit(func(candidate *liveInstance) {
 		if candidate.ID == newest.ID || candidate.Preview || !candidate.Presented || candidate.OutputID != presented.OutputID ||
-			!visualInstance(candidate) || candidate.ReplacementScheduled {
+			!visualInstance(candidate) || candidate.replacementScheduled {
 			return
 		}
-		materializeInstance(candidate, now)
-		candidate.ReplacementScheduled = true
-		candidate.FadeOutStarted = true
-		candidate.EndScheduled = false
-		candidate.LifecycleGeneration++
+		materializeLiveInstance(candidate, now)
+		candidate.replacementScheduled = true
+		candidate.fadeOutStarted = true
+		candidate.endScheduled = false
+		candidate.lifecycleGeneration++
 		startInstanceFade(candidate, silenceFloorDB, max(int64(0), candidate.FadeOutMs), now)
 		outgoing = append(outgoing, *candidate)
 	})
@@ -133,8 +133,8 @@ func (e *Engine) HandleOutputDuration(instanceID string, durationMs int64) {
 	e.mediaCatalog.recordDuration(instance.CueID, durationMs)
 	started := instance.BackendStarted
 	if started {
-		instance.EndScheduled = false
-		instance.LifecycleGeneration++
+		instance.endScheduled = false
+		instance.lifecycleGeneration++
 	}
 	e.mu.Unlock()
 	if started {

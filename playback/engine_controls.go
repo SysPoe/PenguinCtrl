@@ -249,33 +249,33 @@ func (e *Engine) hasInstance(id string) bool {
 	return e.instances.has(id)
 }
 
-func materializeInstance(instance *Instance, now time.Time) {
-	if instance.BackendStarted && !instance.Paused && !instance.PositionAt.IsZero() {
-		instance.PositionMs += max(int64(0), now.Sub(instance.PositionAt).Milliseconds())
-		instance.PositionAt = now
+func materializeLiveInstance(instance *liveInstance, now time.Time) {
+	if instance.BackendStarted && !instance.Paused && !instance.positionAt.IsZero() {
+		instance.PositionMs += max(int64(0), now.Sub(instance.positionAt).Milliseconds())
+		instance.positionAt = now
 	}
-	if instance.FadeDurationMs > 0 && !instance.FadeStartedAt.IsZero() {
-		elapsed := now.Sub(instance.FadeStartedAt).Milliseconds()
-		progress := min(1.0, max(0.0, float64(elapsed)/float64(instance.FadeDurationMs)))
-		instance.LevelDB = instance.FadeStartDB + (instance.FadeTargetDB-instance.FadeStartDB)*progress
+	if instance.fadeDurationMs > 0 && !instance.fadeStartedAt.IsZero() {
+		elapsed := now.Sub(instance.fadeStartedAt).Milliseconds()
+		progress := min(1.0, max(0.0, float64(elapsed)/float64(instance.fadeDurationMs)))
+		instance.LevelDB = instance.fadeStartDB + (instance.fadeTargetDB-instance.fadeStartDB)*progress
 		if progress >= 1 {
-			instance.FadeDurationMs = 0
-			instance.FadeStartedAt = time.Time{}
+			instance.fadeDurationMs = 0
+			instance.fadeStartedAt = time.Time{}
 		}
 	}
 }
 
-func startInstanceFade(instance *Instance, targetDB float64, durationMs int64, now time.Time) {
+func startInstanceFade(instance *liveInstance, targetDB float64, durationMs int64, now time.Time) {
 	if durationMs <= 0 {
 		instance.LevelDB = targetDB
-		instance.FadeDurationMs = 0
-		instance.FadeStartedAt = time.Time{}
+		instance.fadeDurationMs = 0
+		instance.fadeStartedAt = time.Time{}
 		return
 	}
-	instance.FadeStartDB = instance.LevelDB
-	instance.FadeTargetDB = targetDB
-	instance.FadeDurationMs = durationMs
-	instance.FadeStartedAt = now
+	instance.fadeStartDB = instance.LevelDB
+	instance.fadeTargetDB = targetDB
+	instance.fadeDurationMs = durationMs
+	instance.fadeStartedAt = now
 }
 
 func mediaControlName(action show.MediaControlAction) mediaCommand {

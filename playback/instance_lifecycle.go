@@ -18,7 +18,7 @@ const (
 // reduceInstanceLifecycle applies report-driven instance state changes. Its
 // applied result is false only when an idempotent report is already reflected
 // in the instance; retire indicates that the caller should unregister it.
-func reduceInstanceLifecycle(instance *Instance, report outputReport, now time.Time) (applied, retire bool) {
+func reduceInstanceLifecycle(instance *liveInstance, report outputReport, now time.Time) (applied, retire bool) {
 	switch report {
 	case outputReportStarted:
 		if instance.BackendStarted {
@@ -26,18 +26,18 @@ func reduceInstanceLifecycle(instance *Instance, report outputReport, now time.T
 		}
 		instance.BackendStarted = true
 		instance.LoadState = "playing"
-		instance.StartLatencyMs = max(int64(0), now.Sub(instance.RequestedAt).Milliseconds())
-		instance.StartedAt, instance.PositionAt = now, now
+		instance.StartLatencyMs = max(int64(0), now.Sub(instance.requestedAt).Milliseconds())
+		instance.StartedAt, instance.positionAt = now, now
 	case outputReportFadeInComplete:
 		if instance.FadeInComplete {
 			return false, false
 		}
 		instance.FadeInComplete = true
 	case outputReportFadeOutStart:
-		if instance.FadeOutStarted {
+		if instance.fadeOutStarted {
 			return false, false
 		}
-		instance.FadeOutStarted = true
+		instance.fadeOutStarted = true
 	case outputReportPresented:
 		if instance.Presented {
 			return false, false

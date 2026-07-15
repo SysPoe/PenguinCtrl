@@ -23,12 +23,15 @@ func (e *Engine) startMedia(next command) error {
 	cue, cueIndex := next.cue, next.index
 	settings := e.settings.Snapshot()
 	now := time.Now()
-	instance := &Instance{
-		ID: uuid.NewString(), CueID: cue.ID, GroupID: cue.GroupID, CueNumber: cue.CueNumber, CueIndex: cueIndex, Link: cue.Link, PostWaitMs: cue.Timing.PostWaitMs,
-		LayerOrder: next.sequence,
-		Preview:    next.intent.preview(), run: next.run,
-		// TODO(micro): "loading" magic string; share media.LoadLoading (or a playback const) instead of free text
-		StartedAt: now, RequestedAt: now, PositionAt: now, LoadState: "loading", Cue: show.CloneCue(cue),
+	instance := &liveInstance{
+		Instance: Instance{
+			ID: uuid.NewString(), CueID: cue.ID, GroupID: cue.GroupID, CueNumber: cue.CueNumber,
+			LayerOrder: next.sequence, Preview: next.intent.preview(), StartedAt: now,
+			// TODO(micro): "loading" magic string; share media.LoadLoading (or a playback const) instead of free text
+			LoadState: "loading",
+		},
+		cueIndex: cueIndex, link: cue.Link, postWaitMs: cue.Timing.PostWaitMs,
+		run: next.run, requestedAt: now, positionAt: now, cue: show.CloneCue(cue),
 	}
 	// TODO(micro): Sound/Video arms nearly identical (resolve file/output/clip/fade/level); extract shared media-play applier
 	switch cue.Type {
@@ -86,7 +89,7 @@ func (e *Engine) startMedia(next command) error {
 	if instance.DurationMs > 0 {
 		e.mediaCatalog.recordDuration(instance.CueID, instance.DurationMs)
 	}
-	snapshot := *instance
+	snapshot := instance.Instance
 	e.mu.Unlock()
 	e.outputs.publish(playOutputEvent{outputID: snapshot.OutputID, instance: snapshotMedia(snapshot)})
 	e.signalState()
@@ -130,14 +133,14 @@ func (e *Engine) scheduleTimecode(instanceID string, cue show.Cue, cueIndex int)
 				return
 			}
 			action := marker.Action
-			if action.MediaControl != nil {
-				control := *action.MediaControl
+			if mediaControl := action.MediaControl(); mediaControl != nil {
+				control := *mediaControl
 				control.Target = show.MediaTarget{Kind: show.MediaTargetInstance, InstanceID: instanceID}
-				action.MediaControl = &control
+				action = show.NewTimecodeMediaAction(&control)
 			}
 			embedded := show.Cue{
 				ID: cue.ID, CueNumber: cue.CueNumber, Description: cue.Description,
-				Type: marker.Type, Play: action, Link: show.CueLink{Mode: show.CueLinkManual},
+				Type: action.CueType(), Play: action.CuePlay(), Link: show.CueLink{Mode: show.CueLinkManual},
 			}
 			if err := e.enqueueEmbeddedCommand(embedded, cueIndex, "Timecode at "+formatPlaybackTime(marker.TimeMs), parentRun); err != nil {
 				return
@@ -216,23 +219,24 @@ func (e *Engine) executeMediaControl(cue show.Cue, runCtx context.Context) error
 	e.mu.Lock()
 	now := time.Now()
 	reschedule := make([]string, 0, len(instances))
+	linkInstances := make([]liveInstance, 0, len(instances))
 	for _, matched := range instances {
 		instance := e.instances.get(matched.ID)
 		if instance == nil {
 			continue
 		}
-		materializeInstance(instance, now)
+		materializeLiveInstance(instance, now)
 		switch play.Action {
 		case show.MediaControlPause:
 			instance.Paused = true
-			instance.PositionAt = time.Time{}
-			instance.EndScheduled = false
-			instance.LifecycleGeneration++
+			instance.positionAt = time.Time{}
+			instance.endScheduled = false
+			instance.lifecycleGeneration++
 		case show.MediaControlResume:
 			instance.Paused = false
-			instance.PositionAt = now
-			instance.EndScheduled = false
-			instance.LifecycleGeneration++
+			instance.positionAt = now
+			instance.endScheduled = false
+			instance.lifecycleGeneration++
 			reschedule = append(reschedule, instance.ID)
 		case show.MediaControlSeek:
 			if play.SeekToMs != nil {
@@ -241,13 +245,13 @@ func (e *Engine) executeMediaControl(cue show.Cue, runCtx context.Context) error
 					instance.PositionMs = min(instance.PositionMs, instance.ClipEndMs)
 				}
 				if instance.Paused {
-					instance.PositionAt = time.Time{}
+					instance.positionAt = time.Time{}
 				} else {
-					instance.PositionAt = now
+					instance.positionAt = now
 					reschedule = append(reschedule, instance.ID)
 				}
-				instance.EndScheduled = false
-				instance.LifecycleGeneration++
+				instance.endScheduled = false
+				instance.lifecycleGeneration++
 			}
 		case show.MediaControlFadeTo, show.MediaControlSetVolume:
 			if play.LevelDB != nil {
@@ -264,13 +268,16 @@ func (e *Engine) executeMediaControl(cue show.Cue, runCtx context.Context) error
 		case show.MediaControlUnmute:
 			instance.Muted = false
 		}
+		if play.Action == show.MediaControlFadeOut {
+			linkInstances = append(linkInstances, *instance)
+		}
 	}
 	e.mu.Unlock()
 	for _, id := range reschedule {
 		e.scheduleInstanceLifecycle(id)
 	}
 	if play.Action == show.MediaControlFadeOut {
-		for _, instance := range instances {
+		for _, instance := range linkInstances {
 			e.lifecycle.dispatchLink(instance, linkFadeOut)
 		}
 	}
@@ -345,12 +352,12 @@ func (e *Engine) freezeImagesForOutput(outputID string) {
 	e.mu.Lock()
 	now := time.Now()
 	changed := false
-	e.instances.visit(func(instance *Instance) {
-		if instance.OutputID != outputID || instance.MediaType != "image" || instance.PositionAt.IsZero() {
+	e.instances.visit(func(instance *liveInstance) {
+		if instance.OutputID != outputID || instance.MediaType != "image" || instance.positionAt.IsZero() {
 			return
 		}
-		materializeInstance(instance, now)
-		instance.PositionAt = time.Time{}
+		materializeLiveInstance(instance, now)
+		instance.positionAt = time.Time{}
 		changed = true
 	})
 	e.mu.Unlock()

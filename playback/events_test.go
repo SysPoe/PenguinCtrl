@@ -2,6 +2,7 @@ package playback
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 	"time"
 
@@ -11,7 +12,7 @@ import (
 func TestTypedOutputEventsPreserveSubscriptionFacade(t *testing.T) {
 	instance := Instance{
 		ID: "instance", CueID: show.NewCueID(), OutputID: "main", MediaType: "video", Source: "clip.mp4",
-		DurationMs: 2500, PositionMs: 400, LifecycleGeneration: 9, Cue: show.NewVideoCue(),
+		DurationMs: 2500, PositionMs: 400,
 	}
 	payloads := []struct {
 		payload outputEvent
@@ -37,8 +38,12 @@ func TestTypedOutputEventsPreserveSubscriptionFacade(t *testing.T) {
 	if play.Instance == nil || play.Instance.ID != instance.ID || play.Instance.Source != instance.Source {
 		t.Fatalf("play facade lost wire state: %#v", play)
 	}
-	if play.Instance.LifecycleGeneration != 0 || play.Instance.Cue.ID != (show.CueID{}) {
-		t.Fatalf("play facade leaked runtime state: %#v", play.Instance)
+	instanceType := reflect.TypeOf(*play.Instance)
+	if _, found := instanceType.FieldByName("LifecycleGeneration"); found {
+		t.Fatal("public Instance exposes lifecycle generation")
+	}
+	if _, found := instanceType.FieldByName("Cue"); found {
+		t.Fatal("public Instance exposes the engine-owned cue copy")
 	}
 }
 

@@ -14,7 +14,7 @@ type lifecycleHost interface {
 	goOwned(func()) bool
 	scheduleLink(show.Cue, int, int64, linkMoment, context.Context)
 	scheduleTimecode(string, show.Cue, int)
-	replaceSingleLayerVisual(Instance)
+	replaceSingleLayerVisual(liveInstance)
 	finishCueRun(cueRunToken, runFinalization)
 	signalState()
 }
@@ -31,25 +31,25 @@ func newLifecycleController(host lifecycleHost, mu *sync.RWMutex, instances *ins
 }
 
 type instanceLifecycleSchedule struct {
-	instance   Instance
+	instance   liveInstance
 	generation uint64
 	fadeAfter  time.Duration
 	fadeFor    int64
 	endAfter   time.Duration
 }
 
-func prepareInstanceLifecycle(instance *Instance, now time.Time) (instanceLifecycleSchedule, bool) {
-	if instance == nil || !instance.BackendStarted || instance.DurationMs <= 0 || instance.EndScheduled {
+func prepareInstanceLifecycle(instance *liveInstance, now time.Time) (instanceLifecycleSchedule, bool) {
+	if instance == nil || !instance.BackendStarted || instance.DurationMs <= 0 || instance.endScheduled {
 		return instanceLifecycleSchedule{}, false
 	}
-	materializeInstance(instance, now)
+	materializeLiveInstance(instance, now)
 	remainingMs := max(int64(0), instance.DurationMs-(instance.PositionMs-instance.ClipStartMs))
-	instance.EndScheduled = true
-	instance.LifecycleGeneration++
+	instance.endScheduled = true
+	instance.lifecycleGeneration++
 	fadeMs := min(max(int64(0), instance.FadeOutMs), remainingMs)
 	return instanceLifecycleSchedule{
 		instance:   *instance,
-		generation: instance.LifecycleGeneration,
+		generation: instance.lifecycleGeneration,
 		fadeAfter:  time.Duration(remainingMs-fadeMs) * time.Millisecond,
 		fadeFor:    fadeMs,
 		endAfter:   time.Duration(remainingMs) * time.Millisecond,
@@ -74,9 +74,9 @@ func (c *lifecycleController) schedule(instanceID string) {
 				command: mediaCommandFadeOut, fadeMs: schedule.fadeFor,
 			})
 			c.mu.Lock()
-			if active := c.instances.get(schedule.instance.ID); active != nil && active.LifecycleGeneration == schedule.generation && !active.Paused {
+			if active := c.instances.get(schedule.instance.ID); active != nil && active.lifecycleGeneration == schedule.generation && !active.Paused {
 				now := time.Now()
-				materializeInstance(active, now)
+				materializeLiveInstance(active, now)
 				startInstanceFade(active, silenceFloorDB, schedule.fadeFor, now)
 			}
 			c.mu.Unlock()
@@ -118,7 +118,7 @@ func (c *lifecycleController) handleOutputReport(instanceID string, report outpu
 			c.dispatchLink(snapshot, linkFadeIn)
 		}
 		c.schedule(snapshot.ID)
-		c.host.scheduleTimecode(snapshot.ID, snapshot.Cue, snapshot.CueIndex)
+		c.host.scheduleTimecode(snapshot.ID, snapshot.cue, snapshot.cueIndex)
 	case outputReportPresented:
 		c.host.replaceSingleLayerVisual(snapshot)
 	case outputReportFadeInComplete:
@@ -129,7 +129,7 @@ func (c *lifecycleController) handleOutputReport(instanceID string, report outpu
 		c.outputs.publish(removeOutputEvent{outputID: snapshot.OutputID, instanceIDs: []string{snapshot.ID}})
 		c.dispatchLink(snapshot, linkEnd)
 		finalization := runCompleted
-		if snapshot.Link.Mode == show.CueLinkManual {
+		if snapshot.link.Mode == show.CueLinkManual {
 			finalization = runAborted
 		}
 		c.host.finishCueRun(snapshot.run, finalization)
@@ -137,6 +137,6 @@ func (c *lifecycleController) handleOutputReport(instanceID string, report outpu
 	c.host.signalState()
 }
 
-func (c *lifecycleController) dispatchLink(instance Instance, moment linkMoment) {
-	c.host.scheduleLink(instance.Cue, instance.CueIndex, instance.PostWaitMs, moment, instance.run.ctx)
+func (c *lifecycleController) dispatchLink(instance liveInstance, moment linkMoment) {
+	c.host.scheduleLink(instance.cue, instance.cueIndex, instance.postWaitMs, moment, instance.run.ctx)
 }

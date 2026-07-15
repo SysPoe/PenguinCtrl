@@ -6,10 +6,8 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
-// TODO(macro): Instance still combines public runtime-query state with mutable
-// engine lifecycle bookkeeping and the preload DTO role. Output commands now use
-// MediaSnapshot, but ActiveInstances and preload should migrate before the
-// engine-only fields can move to an unexported liveInstance.
+// Instance is a detached public snapshot of one live media item. Engine
+// lifecycle bookkeeping lives separately in liveInstance.
 type Instance struct {
 	ID             string       `json:"id"`
 	CueID          show.CueID   `json:"cueId"`
@@ -30,31 +28,37 @@ type Instance struct {
 	Muted          bool         `json:"muted"`
 	PositionMs     int64        `json:"positionMs"`
 	FadeInComplete bool         `json:"-"`
-	FadeOutStarted bool         `json:"-"`
-	EndScheduled   bool         `json:"-"`
-	CueIndex       int          `json:"-"`
-	Link           show.CueLink `json:"-"`
-	PostWaitMs     int64        `json:"-"`
+	StartedAt      time.Time    `json:"-"`
+	BackendStarted bool         `json:"-"`
+	Presented      bool         `json:"-"`
+	LoadState      string       `json:"loadState,omitempty"`
+	StartLatencyMs int64        `json:"startLatencyMs,omitempty"`
+}
+
+// liveInstance is the engine-owned mutable record. Embedding the public state
+// keeps state transitions compact while snapshots copy only Instance.
+type liveInstance struct {
+	Instance
+	fadeOutStarted bool
+	endScheduled   bool
+	cueIndex       int
+	link           show.CueLink
+	postWaitMs     int64
 	run            cueRunToken
-	StartedAt      time.Time `json:"-"`
-	PositionAt     time.Time `json:"-"`
-	FadeStartedAt  time.Time `json:"-"`
-	FadeStartDB    float64   `json:"-"`
-	FadeTargetDB   float64   `json:"-"`
-	FadeDurationMs int64     `json:"-"`
-	RequestedAt    time.Time `json:"-"`
-	BackendStarted bool      `json:"-"`
-	Presented      bool      `json:"-"`
+	positionAt     time.Time
+	fadeStartedAt  time.Time
+	fadeStartDB    float64
+	fadeTargetDB   float64
+	fadeDurationMs int64
+	requestedAt    time.Time
 	// ReplacementScheduled prevents rapid successive visual starts from
 	// restarting an outgoing layer's configured fade.
-	ReplacementScheduled bool `json:"-"`
+	replacementScheduled bool
 	// LifecycleGeneration invalidates stale fade/end timers after pause, seek,
 	// duration correction, or resume. Timers must never act on another
 	// generation of the same logical playback instance.
-	LifecycleGeneration uint64   `json:"-"`
-	LoadState           string   `json:"loadState,omitempty"`
-	StartLatencyMs      int64    `json:"startLatencyMs,omitempty"`
-	Cue                 show.Cue `json:"-"`
+	lifecycleGeneration uint64
+	cue                 show.Cue
 }
 
 // MediaSnapshot is the immutable wire state required by output consumers.

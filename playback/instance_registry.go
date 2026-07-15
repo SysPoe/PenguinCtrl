@@ -9,18 +9,18 @@ import (
 // instanceRegistry owns the live-instance collection. Engine.mu guards it so
 // cue-run replacement can remain atomic with removing the prior run's media.
 type instanceRegistry struct {
-	active map[string]*Instance
+	active map[string]*liveInstance
 }
 
 func newInstanceRegistry() *instanceRegistry {
-	return &instanceRegistry{active: make(map[string]*Instance)}
+	return &instanceRegistry{active: make(map[string]*liveInstance)}
 }
 
-func (r *instanceRegistry) register(instance *Instance) {
+func (r *instanceRegistry) register(instance *liveInstance) {
 	r.active[instance.ID] = instance
 }
 
-func (r *instanceRegistry) get(id string) *Instance {
+func (r *instanceRegistry) get(id string) *liveInstance {
 	return r.active[id]
 }
 
@@ -34,33 +34,33 @@ func (r *instanceRegistry) removeCue(cueID show.CueID) []Instance {
 		if instance.CueID != cueID {
 			continue
 		}
-		removed = append(removed, *instance)
+		removed = append(removed, instance.Instance)
 		delete(r.active, id)
 	}
 	return removed
 }
 
-func (r *instanceRegistry) visit(visitor func(*Instance)) {
+func (r *instanceRegistry) visit(visitor func(*liveInstance)) {
 	for _, instance := range r.active {
 		visitor(instance)
 	}
 }
 
-func (r *instanceRegistry) snapshots(now time.Time, matches func(*Instance) bool) []Instance {
+func (r *instanceRegistry) snapshots(now time.Time, matches func(*liveInstance) bool) []Instance {
 	result := make([]Instance, 0, len(r.active))
 	for _, instance := range r.active {
 		if matches != nil && !matches(instance) {
 			continue
 		}
 		snapshot := *instance
-		materializeInstance(&snapshot, now)
-		result = append(result, snapshot)
+		materializeLiveInstance(&snapshot, now)
+		result = append(result, snapshot.Instance)
 	}
 	return result
 }
 
 func (r *instanceRegistry) matching(target show.MediaTarget, now time.Time) []Instance {
-	return r.snapshots(now, func(instance *Instance) bool {
+	return r.snapshots(now, func(instance *liveInstance) bool {
 		switch target.Kind {
 		case show.MediaTargetCue:
 			return instance.CueID == target.CueID
@@ -102,5 +102,5 @@ func (r *instanceRegistry) has(id string) bool {
 
 func (r *instanceRegistry) lifecycleCurrent(id string, generation uint64) bool {
 	instance := r.active[id]
-	return instance != nil && instance.LifecycleGeneration == generation && !instance.Paused
+	return instance != nil && instance.lifecycleGeneration == generation && !instance.Paused
 }

@@ -39,9 +39,9 @@ func TestPreviewTogglePausesAndResumesSameSession(t *testing.T) {
 	previewID := show.NewCueID()
 	engine.preview.begin(previewID)
 	engine.mu.Lock()
-	engine.instances.register(&Instance{
-		ID: "preview", CueID: previewID, Preview: true, MediaType: "audio", OutputID: "main",
-		run: cueRunToken{ctx: engine.runCtx},
+	engine.instances.register(&liveInstance{
+		Instance: Instance{ID: "preview", CueID: previewID, Preview: true, MediaType: "audio", OutputID: "main"},
+		run:      cueRunToken{ctx: engine.runCtx},
 	})
 	engine.mu.Unlock()
 	cue := show.NewSoundCue()
@@ -88,9 +88,9 @@ func TestStopPreviewClearsSessionAndStopsOwnedInstance(t *testing.T) {
 	previewID := show.NewCueID()
 	engine.preview.begin(previewID)
 	engine.mu.Lock()
-	engine.instances.register(&Instance{
-		ID: "preview", CueID: previewID, Preview: true, MediaType: "audio", OutputID: "main",
-		run: cueRunToken{ctx: engine.runCtx},
+	engine.instances.register(&liveInstance{
+		Instance: Instance{ID: "preview", CueID: previewID, Preview: true, MediaType: "audio", OutputID: "main"},
+		run:      cueRunToken{ctx: engine.runCtx},
 	})
 	engine.mu.Unlock()
 

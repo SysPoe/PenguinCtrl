@@ -23,18 +23,17 @@ func TestMediaMarkerDispatchPreservesParentCueRunAndIsAudited(t *testing.T) {
 	cue := show.Cue{
 		ID: show.NewCueID(), CueNumber: "12", Type: show.CueTypeImage,
 		Play: show.CuePlay{Image: &show.ImagePlay{Timecode: []show.TimecodeMarker{{
-			Type: show.CueTypeOutputControl,
-			Action: show.CuePlay{OutputControl: &show.OutputControlPlay{
+			Action: show.NewTimecodeOutputAction(&show.OutputControlPlay{
 				Action: show.OutputControlBlackout, OutputID: "main",
-			}},
+			}),
 		}}}},
 	}
 	parentRun, _ := engine.beginCueRun(cue.ID)
 	instanceID := "parent-timecode"
 	engine.mu.Lock()
-	engine.instances.register(&Instance{
-		ID: instanceID, CueID: cue.ID, run: parentRun,
-		MediaType: "image", OutputID: "main",
+	engine.instances.register(&liveInstance{
+		Instance: Instance{ID: instanceID, CueID: cue.ID, MediaType: "image", OutputID: "main"},
+		run:      parentRun,
 	})
 	engine.mu.Unlock()
 	events := engine.outputs.subscribe("main")
@@ -77,18 +76,17 @@ func TestMediaMarkerUsesPreflightAdmissionWithoutStoppingParent(t *testing.T) {
 	cue := show.Cue{
 		ID: show.NewCueID(), Type: show.CueTypeImage,
 		Play: show.CuePlay{Image: &show.ImagePlay{Timecode: []show.TimecodeMarker{{
-			Type: show.CueTypeOutputControl,
-			Action: show.CuePlay{OutputControl: &show.OutputControlPlay{
+			Action: show.NewTimecodeOutputAction(&show.OutputControlPlay{
 				Action: show.OutputControlBlackout, OutputID: "main",
-			}},
+			}),
 		}}}},
 	}
 	parentRun, _ := engine.beginCueRun(cue.ID)
 	instanceID := "blocked-parent-timecode"
 	engine.mu.Lock()
-	engine.instances.register(&Instance{
-		ID: instanceID, CueID: cue.ID, run: parentRun,
-		MediaType: "image", OutputID: "main",
+	engine.instances.register(&liveInstance{
+		Instance: Instance{ID: instanceID, CueID: cue.ID, MediaType: "image", OutputID: "main"},
+		run:      parentRun,
 	})
 	engine.mu.Unlock()
 	events := engine.outputs.subscribe("main")
@@ -130,10 +128,10 @@ func TestMediaMarkersUseConfiguredExternalTimeline(t *testing.T) {
 	engine.SetTimeline(timeline)
 	instanceID := "external-timecode"
 	engine.mu.Lock()
-	engine.instances.register(&Instance{ID: instanceID, run: cueRunToken{ctx: engine.runCtx}})
+	engine.instances.register(&liveInstance{Instance: Instance{ID: instanceID}, run: cueRunToken{ctx: engine.runCtx}})
 	engine.mu.Unlock()
 	cue := show.Cue{ID: show.NewCueID(), Type: show.CueTypeImage, Play: show.CuePlay{Image: &show.ImagePlay{Timecode: []show.TimecodeMarker{{
-		TimeMs: 250, Type: show.CueTypeOutputControl, Action: show.CuePlay{OutputControl: &show.OutputControlPlay{Action: show.OutputControlBlackout}},
+		TimeMs: 250, Action: show.NewTimecodeOutputAction(&show.OutputControlPlay{Action: show.OutputControlBlackout}),
 	}}}}}
 	engine.scheduleTimecode(instanceID, cue, 0)
 	select {

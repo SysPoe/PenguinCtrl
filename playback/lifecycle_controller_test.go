@@ -29,7 +29,7 @@ func (h *lifecycleHostStub) scheduleTimecode(_ string, _ show.Cue, _ int) {
 	h.timecodeCalls++
 }
 
-func (*lifecycleHostStub) replaceSingleLayerVisual(Instance) {}
+func (*lifecycleHostStub) replaceSingleLayerVisual(liveInstance) {}
 
 func (h *lifecycleHostStub) finishCueRun(_ cueRunToken, finalization runFinalization) {
 	h.finalizations = append(h.finalizations, finalization)
@@ -40,10 +40,9 @@ func (h *lifecycleHostStub) signalState() {
 }
 
 func TestPrepareInstanceLifecycleClampsFadeToRemainingPlayback(t *testing.T) {
-	instance := &Instance{
-		ID: "timed", BackendStarted: true, DurationMs: 1000,
-		ClipStartMs: 100, PositionMs: 800, FadeOutMs: 500,
-		LifecycleGeneration: 4,
+	instance := &liveInstance{
+		Instance:            Instance{ID: "timed", BackendStarted: true, DurationMs: 1000, ClipStartMs: 100, PositionMs: 800, FadeOutMs: 500},
+		lifecycleGeneration: 4,
 	}
 
 	schedule, ok := prepareInstanceLifecycle(instance, time.Unix(100, 0))
@@ -53,7 +52,7 @@ func TestPrepareInstanceLifecycleClampsFadeToRemainingPlayback(t *testing.T) {
 	if schedule.fadeAfter != 0 || schedule.fadeFor != 300 || schedule.endAfter != 300*time.Millisecond {
 		t.Fatalf("schedule = %#v, want immediate 300ms fade and end after 300ms", schedule)
 	}
-	if !instance.EndScheduled || instance.LifecycleGeneration != 5 || schedule.generation != 5 {
+	if !instance.endScheduled || instance.lifecycleGeneration != 5 || schedule.generation != 5 {
 		t.Fatalf("lifecycle identity = instance %#v schedule %#v", instance, schedule)
 	}
 	if _, ok := prepareInstanceLifecycle(instance, time.Unix(100, 0)); ok {
@@ -68,10 +67,13 @@ func TestLifecycleControllerRoutesReportEffectsAndRetiresInstance(t *testing.T) 
 	outputs := newOutputBus()
 	controller := newLifecycleController(host, mu, registry, outputs)
 	cue := show.NewSoundCue()
-	registry.register(&Instance{
-		ID: "reported", CueID: cue.ID, Cue: cue, CueIndex: 7, PostWaitMs: 20,
-		OutputID: "main", FadeInMs: 0, Link: show.CueLink{Mode: show.CueLinkManual},
-		run: cueRunToken{cueID: cue.ID, id: 1, ctx: context.Background()},
+	registry.register(&liveInstance{
+		Instance:   Instance{ID: "reported", CueID: cue.ID, OutputID: "main", FadeInMs: 0},
+		cue:        cue,
+		cueIndex:   7,
+		postWaitMs: 20,
+		link:       show.CueLink{Mode: show.CueLinkManual},
+		run:        cueRunToken{cueID: cue.ID, id: 1, ctx: context.Background()},
 	})
 	outputEvents := outputs.subscribe("main")
 

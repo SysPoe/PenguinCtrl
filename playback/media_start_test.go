@@ -44,11 +44,14 @@ func TestMediaTimelineStartsOnBackendReport(t *testing.T) {
 
 func addPresentedVisual(engine *Engine, id string, layer uint64, fadeOutMs int64) {
 	engine.mu.Lock()
-	engine.instances.register(&Instance{
-		ID: id, CueID: show.NewCueID(), MediaType: "video", OutputID: "main",
-		LayerOrder: layer, FadeOutMs: fadeOutMs, BackendStarted: true,
-		Presented: true, StartedAt: time.Now(), PositionAt: time.Now(),
-		run: cueRunToken{ctx: context.Background()}, LoadState: "playing",
+	engine.instances.register(&liveInstance{
+		Instance: Instance{
+			ID: id, CueID: show.NewCueID(), MediaType: "video", OutputID: "main",
+			LayerOrder: layer, FadeOutMs: fadeOutMs, BackendStarted: true,
+			Presented: true, StartedAt: time.Now(), LoadState: "playing",
+		},
+		positionAt: time.Now(),
+		run:        cueRunToken{ctx: context.Background()},
 	})
 	engine.mu.Unlock()
 }
@@ -70,10 +73,11 @@ func TestSingleLayerPresentedVisualFadesAndStopsPreviousVisual(t *testing.T) {
 	if len(instances) != 2 {
 		t.Fatalf("instances during replacement fade = %d, want 2", len(instances))
 	}
-	for _, instance := range instances {
-		if instance.ID == "old" && !instance.ReplacementScheduled {
-			t.Fatal("outgoing visual was not marked for replacement")
-		}
+	engine.mu.RLock()
+	replacementScheduled := engine.instances.get("old").replacementScheduled
+	engine.mu.RUnlock()
+	if !replacementScheduled {
+		t.Fatal("outgoing visual was not marked for replacement")
 	}
 
 	deadline := time.Now().Add(500 * time.Millisecond)
@@ -95,10 +99,10 @@ func TestSingleLayerDoesNotReplaceBeforeFirstPresentedFrame(t *testing.T) {
 	engine := NewEngine(show.NewShowManager(), settings)
 	addPresentedVisual(engine, "old", 1, 0)
 	engine.mu.Lock()
-	engine.instances.register(&Instance{
+	engine.instances.register(&liveInstance{Instance: Instance{
 		ID: "new", CueID: show.NewCueID(), MediaType: "video", OutputID: "main",
 		LayerOrder: 2, BackendStarted: true, LoadState: "playing",
-	})
+	}})
 	engine.mu.Unlock()
 
 	if got := len(engine.ActiveInstances()); got != 2 {
