@@ -39,6 +39,13 @@ func TestFailedRouteHealthIsWarningUntilAnAffectedCueIsIdentified(t *testing.T) 
 	}
 }
 
+func TestMissingTimecodeServiceReportsFailedHealth(t *testing.T) {
+	component := timecodeHealth(nil)
+	if component.State != health.Failed || component.ID != "timecode" {
+		t.Fatalf("timecode health = %+v", component)
+	}
+}
+
 func (b *healthBackendStub) AudioDevices() ([]media.AudioDevice, error) { return nil, nil }
 func (b *healthBackendStub) AudioDeviceWarning() string                 { return b.audioWarning }
 func (b *healthBackendStub) AudioMixerMetrics() []media.AudioMixerMetrics {

@@ -111,7 +111,10 @@ func (a *App) run(window *app.Window) error {
 	defer a.Redundancy.Close()
 	power := startPowerKeeper()
 	defer power.Close()
-	preflightService := newPreflightService()
+	preflightService, err := newPreflightService()
+	if err != nil {
+		return err
+	}
 	defer preflightService.Close()
 	playbackEngine.SetPreflightGate(func(cue show.Cue) error { return preflightService.Gate(manager.ShowSnapshot(), cue) })
 	playbackEngine.SetAuthorityGate(a.Redundancy.Gate)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -11,8 +12,24 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
+func TestPreflightFailsClosedWhenShowCannotBeEncoded(t *testing.T) {
+	service, err := newPreflightService()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
+	current := show.Show{Extensions: map[string]json.RawMessage{"invalid": json.RawMessage(`{`)}}
+	checks := service.Request(current, config.Defaults(), "", "", nil, func(show.Cue) []show.CueProblem { return nil })
+	if len(checks) != 1 || checks[0].Code != "preflight.encode.failed" || checks[0].Severity != operatorlog.ShowStopping {
+		t.Fatalf("encoding failure checks = %#v", checks)
+	}
+}
+
 func TestSignedPreflightGateRejectsStaleShow(t *testing.T) {
-	service := newPreflightService()
+	service, err := newPreflightService()
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer service.Close()
 	cue := show.NewWaitCue()
 	current := show.Show{Title: "signed", Cues: []show.Cue{cue}}
@@ -40,7 +57,10 @@ func TestSignedPreflightGateRejectsStaleShow(t *testing.T) {
 }
 
 func TestSignedPreflightScopesCueBlockersToReachablePlayChain(t *testing.T) {
-	service := newPreflightService()
+	service, err := newPreflightService()
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer service.Close()
 	wait := show.NewWaitCue()
 	wait.CueNumber, wait.Link.Mode = "1", show.CueLinkManual

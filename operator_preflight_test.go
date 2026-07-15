@@ -21,7 +21,7 @@ func TestBuildPreflightFindsRuntimePrerequisites(t *testing.T) {
 	settings.RemoteTargets = nil
 
 	checks := buildPreflight([]show.Cue{cue, video}, settings, "audio device offline", "display disconnected")
-	wants := []string{"Missing output file", "definitely-not-a-cusus-ffmpeg-binary", "audio device offline", "display disconnected"}
+	wants := []string{"Missing media file", "definitely-not-a-cusus-ffmpeg-binary", "audio device offline", "display disconnected"}
 	for _, want := range wants {
 		found := false
 		for _, check := range checks {

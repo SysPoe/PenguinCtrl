@@ -26,7 +26,13 @@ type preflightSnapshot struct {
 	Signature  [sha256.Size]byte
 	Generated  time.Time
 	Checks     []operatorlog.PreflightCheck
+	SignError  string
 }
+
+const (
+	packagingSpaceFactor  = 2
+	packagingSpaceReserve = uint64(2 << 30)
+)
 
 // TODO(macro): preflightService mixes infrastructure (async cache, HMAC freshness gate) with
 // domain checks (disk forecast, remote health) and cue-link graph reachability. Extract the
@@ -43,33 +49,39 @@ type preflightService struct {
 	wg      sync.WaitGroup
 }
 
-func newPreflightService() *preflightService {
+func newPreflightService() (*preflightService, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	service := &preflightService{ctx: ctx, cancel: cancel}
-	// TODO(micro): Handle rand.Read failure rather than silently continuing with a predictable all-zero secret.
-	// TODO(micro): ignore rand.Read error; secret may stay zero and HMAC gate becomes deterministic
-	_, _ = rand.Read(service.secret[:])
-	return service
+	if _, err := rand.Read(service.secret[:]); err != nil {
+		cancel()
+		return nil, fmt.Errorf("generate preflight signing secret: %w", err)
+	}
+	return service, nil
 }
 
 func (s *preflightService) Close() { s.cancel(); s.wg.Wait() }
 
 func (s *preflightService) Request(showState show.Show, settings config.Settings, audioWarning, videoWarning string, health []remote.TargetHealth, problems func(show.Cue) []show.CueProblem) []operatorlog.PreflightCheck {
 	cues := showState.Cues
-	showDigest := showDigest(showState)
-	// TODO(micro): Ignoring Marshal error on environment key can collapse distinct settings/health into one cache key; handle err.
-	environment, _ := json.Marshal(struct {
+	showBytes, err := json.Marshal(showState)
+	if err != nil {
+		return preflightEncodingFailure("show", err)
+	}
+	showDigest := sha256.Sum256(showBytes)
+	environment, err := json.Marshal(struct {
 		Settings     config.Settings
 		Audio, Video string
 		Health       []remote.TargetHealth
 	}{settings, audioWarning, videoWarning, health})
+	if err != nil {
+		return preflightEncodingFailure("environment", err)
+	}
 	keyInput := append(append([]byte(nil), showDigest[:]...), environment...)
 	key := sha256.Sum256(keyInput)
 
 	s.mu.Lock()
 	s.key = key
-	// TODO(micro): 2s freshness TTL is a magic duration (also health poll interval); name a shared const.
-	if s.latest.Key == key && time.Since(s.latest.Generated) < 2*time.Second {
+	if s.latest.Key == key && time.Since(s.latest.Generated) < readinessRefreshInterval {
 		checks := append([]operatorlog.PreflightCheck(nil), s.latest.Checks...)
 		s.mu.Unlock()
 		return checks
@@ -94,7 +106,11 @@ func (s *preflightService) compute(key, showDigest [sha256.Size]byte, cues []sho
 	checks = append(checks, diskPreflight(cues, settings)...)
 	checks = append(checks, remoteHealthPreflight(cues, settings, health)...)
 	snapshot := preflightSnapshot{Key: key, ShowDigest: showDigest, Generated: time.Now().UTC(), Checks: checks}
-	snapshot.Signature = s.sign(snapshot)
+	var err error
+	snapshot.Signature, err = s.sign(snapshot)
+	if err != nil {
+		snapshot.SignError = err.Error()
+	}
 	s.mu.Lock()
 	if s.ctx.Err() == nil && s.key == key {
 		s.latest = snapshot
@@ -104,11 +120,21 @@ func (s *preflightService) compute(key, showDigest [sha256.Size]byte, cues []sho
 }
 
 func (s *preflightService) Gate(current show.Show, selected show.Cue) error {
-	digest := showDigest(current)
+	raw, err := json.Marshal(current)
+	if err != nil {
+		return fmt.Errorf("encode show for preflight gate: %w", err)
+	}
+	digest := sha256.Sum256(raw)
 	s.mu.RLock()
 	snapshot, expected := s.latest, s.key
 	s.mu.RUnlock()
-	expectedSignature := s.sign(snapshot)
+	if snapshot.SignError != "" {
+		return fmt.Errorf("sign preflight snapshot: %s", snapshot.SignError)
+	}
+	expectedSignature, err := s.sign(snapshot)
+	if err != nil {
+		return fmt.Errorf("verify preflight snapshot: %w", err)
+	}
 	if snapshot.Key != expected || snapshot.ShowDigest != digest || !hmac.Equal(snapshot.Signature[:], expectedSignature[:]) {
 		return errors.New("signed preflight is stale or still computing")
 	}
@@ -169,16 +195,27 @@ func reachableCueIDs(cues []show.Cue, start show.CueID) map[show.CueID]struct{} 
 	return result
 }
 
-func (s *preflightService) sign(snapshot preflightSnapshot) [sha256.Size]byte {
+func (s *preflightService) sign(snapshot preflightSnapshot) ([sha256.Size]byte, error) {
 	mac := hmac.New(sha256.New, s.secret[:])
-	mac.Write(snapshot.Key[:])
-	mac.Write(snapshot.ShowDigest[:])
-	// TODO(micro): Ignoring Marshal error signs empty checks and can falsely accept a stale/corrupt gate; fail closed on err.
-	raw, _ := json.Marshal(snapshot.Checks)
-	mac.Write(raw)
+	_, _ = mac.Write(snapshot.Key[:])
+	_, _ = mac.Write(snapshot.ShowDigest[:])
+	raw, err := json.Marshal(snapshot.Checks)
+	if err != nil {
+		return [sha256.Size]byte{}, err
+	}
+	_, _ = mac.Write(raw)
 	var signature [sha256.Size]byte
 	copy(signature[:], mac.Sum(nil))
-	return signature
+	return signature, nil
+}
+
+func preflightEncodingFailure(subject string, err error) []operatorlog.PreflightCheck {
+	return []operatorlog.PreflightCheck{{
+		Severity: operatorlog.ShowStopping,
+		Code:     "preflight.encode.failed",
+		Source:   "Preflight",
+		Message:  fmt.Sprintf("Could not encode the %s for a signed preflight result: %v", subject, err),
+	}}
 }
 
 func diskPreflight(cues []show.Cue, settings config.Settings) []operatorlog.PreflightCheck {
@@ -209,8 +246,7 @@ func diskPreflight(cues []show.Cue, settings config.Settings) []operatorlog.Pref
 	if err != nil {
 		return diskCaution("Free space could not be measured: " + err.Error())
 	}
-	// TODO(micro): sourceBytes*2 + 2GiB forecast is magic policy; name packaging multiplier and fixed reserve consts.
-	required := sourceBytes*2 + 2<<30
+	required := sourceBytes*packagingSpaceFactor + packagingSpaceReserve
 	if available < required {
 		return diskCaution(fmt.Sprintf("Only %.1f GiB free; packaging/cache forecast requires %.1f GiB", float64(available)/(1<<30), float64(required)/(1<<30)))
 	}
@@ -248,16 +284,13 @@ func cueMediaSources(cue show.Cue, settings config.Settings) []string {
 }
 
 func remoteHealthPreflight(cues []show.Cue, settings config.Settings, health []remote.TargetHealth) []operatorlog.PreflightCheck {
-	// TODO(micro): hasRemote is redundant with len(affected); drop the bool and early-return on len(affected)==0.
-	hasRemote := false
 	var affected []show.CueID
 	for _, cue := range cues {
-		hasRemote = hasRemote || cue.Type == show.CueTypeRemote
 		if cue.Type == show.CueTypeRemote {
 			affected = append(affected, cue.ID)
 		}
 	}
-	if !hasRemote {
+	if len(affected) == 0 {
 		return nil
 	}
 	byName := make(map[string]remote.TargetHealth, len(health))
