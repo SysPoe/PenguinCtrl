@@ -22,7 +22,7 @@ func TestRedundancyFingerprintRequiresEveryReferencedMediaHash(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "cue.wav")
 	current := show.Show{Cues: []show.Cue{{
 		ID: show.NewCueID(), Type: show.CueTypeSound,
-		Play: show.CuePlay{Sound: &show.SoundPlay{File: path}},
+		Play: show.CuePlay{Sound: &show.SoundPlay{MediaClip: show.MediaClip{File: path}}},
 	}}}
 	settings := config.Defaults()
 	missing, err := buildRedundancyFingerprint(current, settings, nil, true)
@@ -48,13 +48,13 @@ func TestRedundancyFingerprintUsesContentNotMachineLocalPath(t *testing.T) {
 	cueID := show.NewCueID()
 	contentHash := strings.Repeat("b", 64)
 	first, err := buildRedundancyFingerprint(
-		show.Show{Cues: []show.Cue{{ID: cueID, Type: show.CueTypeSound, Play: show.CuePlay{Sound: &show.SoundPlay{File: firstPath}}}}},
+		show.Show{Cues: []show.Cue{{ID: cueID, Type: show.CueTypeSound, Play: show.CuePlay{Sound: &show.SoundPlay{MediaClip: show.MediaClip{File: firstPath}}}}}},
 		settings, []project.File{{Source: firstPath, Hash: contentHash, Kind: "audio"}}, true,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	secondShow := show.Show{Cues: []show.Cue{{ID: cueID, Type: show.CueTypeSound, Play: show.CuePlay{Sound: &show.SoundPlay{File: secondPath}}}}}
+	secondShow := show.Show{Cues: []show.Cue{{ID: cueID, Type: show.CueTypeSound, Play: show.CuePlay{Sound: &show.SoundPlay{MediaClip: show.MediaClip{File: secondPath}}}}}}
 	second, err := buildRedundancyFingerprint(secondShow, settings, []project.File{{Source: secondPath, Hash: contentHash, Kind: "audio"}}, true)
 	if err != nil {
 		t.Fatal(err)

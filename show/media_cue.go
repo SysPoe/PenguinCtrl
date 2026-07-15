@@ -1,10 +1,8 @@
 package show
 
-// TODO(macro): Extract a shared media clip payload — SoundPlay and VideoPlay
-// duplicate file/output/clip/fade/level/timecode fields, so archive path rewrite,
-// warnings, clone, and duration checks each switch on cue type instead of one
-// media shape with kind-specific extras.
-type SoundPlay struct {
+// MediaClip is the common timed-media payload shared by sound and video cues.
+// It remains anonymously embedded so the durable JSON schema stays flat.
+type MediaClip struct {
 	File     string `json:"file"`
 	OutputID string `json:"outputId,omitempty"`
 
@@ -21,23 +19,9 @@ type SoundPlay struct {
 	Timecode []TimecodeMarker `json:"timecode,omitempty"`
 }
 
-type VideoPlay struct {
-	File string `json:"file"`
+type SoundPlay struct{ MediaClip }
 
-	OutputID string `json:"outputId,omitempty"`
-
-	ClipStartMs int64 `json:"clipStartMs,omitempty"`
-	ClipEndMs   int64 `json:"clipEndMs,omitempty"`
-
-	FadeInMs  int64 `json:"fadeInMs,omitempty"`
-	FadeOutMs int64 `json:"fadeOutMs,omitempty"`
-
-	LevelDB float64 `json:"levelDb"`
-
-	// TODO implement loops / vamps
-
-	Timecode []TimecodeMarker `json:"timecode,omitempty"`
-}
+type VideoPlay struct{ MediaClip }
 
 type ImagePlay struct {
 	File string `json:"file"`

@@ -56,7 +56,7 @@ func TestDuplicatePasteAndMoveKeepIndependentPayloadsAndSelection(t *testing.T) 
 
 func TestManagerMutationAndLoadedShowRepairCueInvariants(t *testing.T) {
 	manager := NewShowManager()
-	invalid := Cue{ID: NewCueID(), Type: CueTypeSound, Play: CuePlay{Video: &VideoPlay{File: "clip.mp4"}}}
+	invalid := Cue{ID: NewCueID(), Type: CueTypeSound, Play: CuePlay{Video: &VideoPlay{MediaClip: MediaClip{File: "clip.mp4"}}}}
 	manager.AddCue(invalid)
 	invalid.Play.Video.File = "mutated.mp4"
 	stored := manager.Snapshot()[0]
@@ -65,7 +65,7 @@ func TestManagerMutationAndLoadedShowRepairCueInvariants(t *testing.T) {
 	}
 
 	groupID := NewGroupID()
-	first := Cue{ID: NewCueID(), Type: CueTypeSound, Play: CuePlay{Video: &VideoPlay{File: "imported.mp4"}}, GroupID: groupID, GroupTitle: "Act One"}
+	first := Cue{ID: NewCueID(), Type: CueTypeSound, Play: CuePlay{Video: &VideoPlay{MediaClip: MediaClip{File: "imported.mp4"}}}, GroupID: groupID, GroupTitle: "Act One"}
 	second := testCue("2")
 	second.GroupID, second.GroupTitle = groupID, "Act 1"
 	first.Link = CueLink{Mode: CueLinkStartPlay, Target: CueTarget{Kind: CueTargetCue, CueID: NewCueID()}}

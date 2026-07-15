@@ -14,7 +14,7 @@ func TestResolvedMediaSourcesResolvesConcreteMediaCuePaths(t *testing.T) {
 	cue := show.Cue{
 		Type:      show.CueTypeSound,
 		CueNumber: "12",
-		Play:      show.CuePlay{Sound: &show.SoundPlay{File: `{mediaRoot}\cue-{cueNumber}.wav`}},
+		Play:      show.CuePlay{Sound: &show.SoundPlay{MediaClip: show.MediaClip{File: `{mediaRoot}\cue-{cueNumber}.wav`}}},
 	}
 	want := []string{`C:\show\media\cue-12.wav`}
 	if got := ResolvedMediaSources(cue, settings); !reflect.DeepEqual(got, want) {
@@ -26,7 +26,7 @@ func TestResolvedMediaSourcesOmitsUnsupportedAndUnresolvedSources(t *testing.T) 
 	settings := config.Defaults()
 	tests := []show.Cue{
 		{Type: show.CueTypeWait, Play: show.CuePlay{Wait: &show.WaitPlay{}}},
-		{Type: show.CueTypeVideo, Play: show.CuePlay{Video: &show.VideoPlay{File: "  "}}},
+		{Type: show.CueTypeVideo, Play: show.CuePlay{Video: &show.VideoPlay{MediaClip: show.MediaClip{File: "  "}}}},
 		{Type: show.CueTypeImage, Play: show.CuePlay{Image: &show.ImagePlay{File: `{missing}\still.png`}}},
 	}
 	for _, cue := range tests {

@@ -18,7 +18,7 @@ func TestLoadVerifiesAndPublishesCompleteArchive(t *testing.T) {
 	asset := testAsset(content)
 	manifest := Manifest{
 		Format: Format, Version: Version, Assets: []Asset{asset},
-		Show: show.Show{Cues: []show.Cue{{Type: show.CueTypeSound, Play: show.CuePlay{Sound: &show.SoundPlay{File: asset.Path}}}}},
+		Show: show.Show{Cues: []show.Cue{{Type: show.CueTypeSound, Play: show.CuePlay{Sound: &show.SoundPlay{MediaClip: show.MediaClip{File: asset.Path}}}}}},
 	}
 	path := writeTestArchive(t, manifest, []testZipEntry{{name: asset.Path, body: content}})
 	setTestCache(t)
@@ -74,7 +74,7 @@ func TestLoadRejectsDuplicateArchiveEntry(t *testing.T) {
 func TestLoadRejectsCueReferenceOutsideManifest(t *testing.T) {
 	manifest := Manifest{
 		Format: Format, Version: Version,
-		Show: show.Show{Cues: []show.Cue{{CueNumber: "12", Type: show.CueTypeVideo, Play: show.CuePlay{Video: &show.VideoPlay{File: "media/not-declared.webm"}}}}},
+		Show: show.Show{Cues: []show.Cue{{CueNumber: "12", Type: show.CueTypeVideo, Play: show.CuePlay{Video: &show.VideoPlay{MediaClip: show.MediaClip{File: "media/not-declared.webm"}}}}}},
 	}
 	path := writeTestArchive(t, manifest, nil)
 	setTestCache(t)

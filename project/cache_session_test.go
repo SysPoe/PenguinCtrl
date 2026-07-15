@@ -17,7 +17,7 @@ func TestCacheMaintainerOwnsSessionProtectionLifecycle(t *testing.T) {
 		Version: Version,
 		Show: show.Show{Cues: []show.Cue{{
 			Type: show.CueTypeSound,
-			Play: show.CuePlay{Sound: &show.SoundPlay{File: asset.Path}},
+			Play: show.CuePlay{Sound: &show.SoundPlay{MediaClip: show.MediaClip{File: asset.Path}}},
 		}}},
 		Assets: []Asset{asset},
 	}

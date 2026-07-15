@@ -67,7 +67,7 @@ func newDefaultCue(cueType CueType) Cue {
 func defaultCuePlay(cueType CueType) CuePlay {
 	switch cueType {
 	case CueTypeVideo:
-		return CuePlay{Video: &VideoPlay{OutputID: "{defaultMediaOutput}"}}
+		return CuePlay{Video: &VideoPlay{MediaClip: MediaClip{OutputID: "{defaultMediaOutput}"}}}
 	case CueTypeImage:
 		return CuePlay{Image: &ImagePlay{OutputID: "{defaultMediaOutput}"}}
 	case CueTypeRemote:
@@ -79,6 +79,6 @@ func defaultCuePlay(cueType CueType) CuePlay {
 	case CueTypeOutputControl:
 		return CuePlay{OutputControl: &OutputControlPlay{Action: OutputControlTestPattern}}
 	default:
-		return CuePlay{Sound: &SoundPlay{OutputID: "{defaultMediaOutput}"}}
+		return CuePlay{Sound: &SoundPlay{MediaClip: MediaClip{OutputID: "{defaultMediaOutput}"}}}
 	}
 }

@@ -19,7 +19,7 @@ func TestProjectSessionOwnsPortableAndRuntimeMediaBoundaries(t *testing.T) {
 		Show: show.Show{Cues: []show.Cue{{
 			CueNumber: "1",
 			Type:      show.CueTypeSound,
-			Play:      show.CuePlay{Sound: &show.SoundPlay{File: asset.Path}},
+			Play:      show.CuePlay{Sound: &show.SoundPlay{MediaClip: show.MediaClip{File: asset.Path}}},
 		}}},
 		Assets: []Asset{asset},
 	}
@@ -65,7 +65,7 @@ func TestProjectSessionSnapshotsDoNotMutateOwnedState(t *testing.T) {
 			Version: Version,
 			Show: show.Show{Cues: []show.Cue{{
 				Type: show.CueTypeSound,
-				Play: show.CuePlay{Sound: &show.SoundPlay{File: asset.Path}},
+				Play: show.CuePlay{Sound: &show.SoundPlay{MediaClip: show.MediaClip{File: asset.Path}}},
 			}}},
 			Assets:     []Asset{asset},
 			Extensions: map[string]json.RawMessage{"test": json.RawMessage(`{"enabled":true}`)},

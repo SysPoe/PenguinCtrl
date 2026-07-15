@@ -43,7 +43,7 @@ func TestSaveBundlesSupportedVideoWithoutTranscoding(t *testing.T) {
 	current := show.Show{Cues: []show.Cue{{
 		CueNumber: "1",
 		Type:      show.CueTypeVideo,
-		Play:      show.CuePlay{Video: &show.VideoPlay{File: source}},
+		Play:      show.CuePlay{Video: &show.VideoPlay{MediaClip: show.MediaClip{File: source}}},
 	}}}
 	var archive bytes.Buffer
 	var updates []SaveProgress
@@ -97,7 +97,7 @@ func TestSaveWithProgressDoesNotMutateShowSnapshot(t *testing.T) {
 	current := show.Show{Cues: []show.Cue{{
 		CueNumber: "1",
 		Type:      show.CueTypeVideo,
-		Play:      show.CuePlay{Video: &show.VideoPlay{File: source}},
+		Play:      show.CuePlay{Video: &show.VideoPlay{MediaClip: show.MediaClip{File: source}}},
 	}}}
 	var archive bytes.Buffer
 	if _, err := SaveWithProgress(&archive, current, filepath.Join(t.TempDir(), "missing-ffmpeg"), nil); err != nil {
@@ -126,7 +126,7 @@ func TestSavePreservesMediaFilenameAndNumbersCollisions(t *testing.T) {
 		cues = append(cues, show.Cue{
 			CueNumber: string(rune('1' + i)),
 			Type:      show.CueTypeSound,
-			Play:      show.CuePlay{Sound: &show.SoundPlay{File: source}},
+			Play:      show.CuePlay{Sound: &show.SoundPlay{MediaClip: show.MediaClip{File: source}}},
 		})
 	}
 

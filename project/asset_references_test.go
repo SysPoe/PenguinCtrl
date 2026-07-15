@@ -12,8 +12,8 @@ import (
 
 func TestShowAssetReferenceTraversalOwnsAllMediaKinds(t *testing.T) {
 	current := show.Show{Cues: []show.Cue{
-		{CueNumber: "1", Type: show.CueTypeSound, Play: show.CuePlay{Sound: &show.SoundPlay{File: "sound.wav"}}},
-		{CueNumber: "2", Type: show.CueTypeVideo, Play: show.CuePlay{Video: &show.VideoPlay{File: "video.mov"}}},
+		{CueNumber: "1", Type: show.CueTypeSound, Play: show.CuePlay{Sound: &show.SoundPlay{MediaClip: show.MediaClip{File: "sound.wav"}}}},
+		{CueNumber: "2", Type: show.CueTypeVideo, Play: show.CuePlay{Video: &show.VideoPlay{MediaClip: show.MediaClip{File: "video.mov"}}}},
 		{CueNumber: "3", Type: show.CueTypeImage, Play: show.CuePlay{Image: &show.ImagePlay{File: "image.png"}}},
 		{CueNumber: "4", Type: show.CueTypeWait, Play: show.CuePlay{Wait: &show.WaitPlay{}}},
 		{CueNumber: "5", Type: show.CueTypeSound},
@@ -56,8 +56,8 @@ func TestPortableAssetReferencesHydrateAndPublishRoundTrip(t *testing.T) {
 		}
 	}
 	portable := show.Show{Cues: []show.Cue{
-		{CueNumber: "1", Type: show.CueTypeSound, Play: show.CuePlay{Sound: &show.SoundPlay{File: "media/sound.opus"}}},
-		{CueNumber: "2", Type: show.CueTypeVideo, Play: show.CuePlay{Video: &show.VideoPlay{File: "media/video.mp4"}}},
+		{CueNumber: "1", Type: show.CueTypeSound, Play: show.CuePlay{Sound: &show.SoundPlay{MediaClip: show.MediaClip{File: "media/sound.opus"}}}},
+		{CueNumber: "2", Type: show.CueTypeVideo, Play: show.CuePlay{Video: &show.VideoPlay{MediaClip: show.MediaClip{File: "media/video.mp4"}}}},
 		{CueNumber: "3", Type: show.CueTypeImage, Play: show.CuePlay{Image: &show.ImagePlay{File: "media/image.webp"}}},
 	}}
 	runtimeShow := show.CloneShow(portable)
