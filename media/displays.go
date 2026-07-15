@@ -16,6 +16,8 @@ type VideoDisplay struct {
 	RefreshRate, DPI    int
 }
 
+const defaultDisplayDPI = 96
+
 func (topology *deviceTopology) videoDisplays() ([]VideoDisplay, error) {
 	topology.displaysMu.RLock()
 	displays, err := append([]VideoDisplay(nil), topology.displays...), topology.displaysErr

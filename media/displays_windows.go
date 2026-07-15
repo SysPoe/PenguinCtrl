@@ -4,8 +4,6 @@ package media
 
 import (
 	"errors"
-	"gioui.org/app"
-	"github.com/syspoe/cusus/config"
 	"golang.org/x/sys/windows"
 	"runtime/cgo"
 	"syscall"
@@ -15,8 +13,8 @@ import (
 const (
 	monitorInfoPrimary        = 1
 	eddGetDeviceInterfaceName = 1
-	swpNoActivate             = 0x0010
 	enumCurrentSettings       = ^uint32(0)
+	monitorEffectiveDPI       = 0
 )
 
 var (
@@ -24,8 +22,6 @@ var (
 	procEnumDisplayMonitors = user32.NewProc("EnumDisplayMonitors")
 	procGetMonitorInfoW     = user32.NewProc("GetMonitorInfoW")
 	procEnumDisplayDevicesW = user32.NewProc("EnumDisplayDevicesW")
-	procSetWindowPos        = user32.NewProc("SetWindowPos")
-	procGetWindowRect       = user32.NewProc("GetWindowRect")
 	procEnumDisplaySettings = user32.NewProc("EnumDisplaySettingsW")
 	shcore                  = windows.NewLazySystemDLL("shcore.dll")
 	procGetDpiForMonitor    = shcore.NewProc("GetDpiForMonitor")
@@ -89,11 +85,9 @@ func enumDisplayMonitor(monitor, _ uintptr, _ *winRect, data uintptr) uintptr {
 	if ok, _, _ := procEnumDisplaySettings.Call(uintptr(unsafe.Pointer(adapterPtr)), uintptr(enumCurrentSettings), uintptr(unsafe.Pointer(&mode))); ok != 0 {
 		refreshRate = int(mode.DisplayFrequency)
 	}
-	// TODO(micro): default DPI 96 is magic; name a windowsDefaultDPI constant (also used by non-Windows stub).
-	var dpiX, dpiY uint32 = 96, 96
-	// TODO(micro): MDT_EFFECTIVE_DPI is the bare 0; name the monitor DPI type constant.
-	if result, _, _ := procGetDpiForMonitor.Call(monitor, 0, uintptr(unsafe.Pointer(&dpiX)), uintptr(unsafe.Pointer(&dpiY))); result != 0 {
-		dpiX, dpiY = 96, 96
+	var dpiX, dpiY uint32 = defaultDisplayDPI, defaultDisplayDPI
+	if result, _, _ := procGetDpiForMonitor.Call(monitor, monitorEffectiveDPI, uintptr(unsafe.Pointer(&dpiX)), uintptr(unsafe.Pointer(&dpiY))); result != 0 {
+		dpiX, dpiY = defaultDisplayDPI, defaultDisplayDPI
 	}
 	enumeration.result = append(enumeration.result, VideoDisplay{ID: id, Name: name, Primary: info.Flags&monitorInfoPrimary != 0, X: int(info.Monitor.Left), Y: int(info.Monitor.Top), Width: int(info.Monitor.Right - info.Monitor.Left), Height: int(info.Monitor.Bottom - info.Monitor.Top), RefreshRate: refreshRate, DPI: int(dpiX)})
 	return 1
@@ -108,46 +102,7 @@ func enumerateVideoDisplays() ([]VideoDisplay, error) {
 		return nil, callErr
 	}
 	if len(enumeration.result) == 0 {
-		// TODO(micro): Start this error with lowercase text so callers can wrap it without producing mid-sentence capitalization.
-		return nil, errors.New("Windows reported no connected displays")
+		return nil, errors.New("windows reported no connected displays")
 	}
 	return enumeration.result, nil
-}
-
-// TODO(macro): Platform layer mixes display inventory (EnumDisplayMonitors) with
-// stage-window placement (SetWindowPos/GetWindowRect/ViewEvent HWND). Inventory
-// belongs with topology monitoring; HWND placement belongs with outputWindow.
-// Split so non-Windows stubs and Windows Win32 surface each concern separately.
-func platformViewHandle(event any) uintptr {
-	if e, ok := event.(app.Win32ViewEvent); ok && e.Valid() {
-		return e.HWND
-	}
-	return 0
-}
-func platformPlaceWindow(hwnd uintptr, route config.VideoOutput, displays []VideoDisplay) bool {
-	if hwnd == 0 || len(displays) == 0 {
-		return false
-	}
-	d, found := resolveDisplayForGeometry(route.DisplayID, displays)
-	x, y, w, h := d.X+route.X, d.Y+route.Y, route.Width, route.Height
-	if route.Fullscreen {
-		x, y, w, h = d.X, d.Y, d.Width, d.Height
-	}
-	insertAfter := ^uintptr(1) // HWND_NOTOPMOST (-2).
-	if route.AlwaysOnTop {
-		insertAfter = ^uintptr(0) // HWND_TOPMOST (-1).
-	}
-	ok, _, _ := procSetWindowPos.Call(hwnd, insertAfter, uintptr(x), uintptr(y), uintptr(w), uintptr(h), swpNoActivate)
-	return found && ok != 0
-}
-func platformWindowGeometry(hwnd uintptr, d VideoDisplay) (int, int, int, int, bool) {
-	var r winRect
-	if hwnd == 0 {
-		return 0, 0, 0, 0, false
-	}
-	ok, _, _ := procGetWindowRect.Call(hwnd, uintptr(unsafe.Pointer(&r)))
-	if ok == 0 {
-		return 0, 0, 0, 0, false
-	}
-	return int(r.Left) - d.X, int(r.Top) - d.Y, int(r.Right - r.Left), int(r.Bottom - r.Top), true
 }

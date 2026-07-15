@@ -28,6 +28,9 @@ type outputTransition struct {
 }
 
 func resolveDisplayForGeometry(id string, displays []VideoDisplay) (VideoDisplay, bool) {
+	if len(displays) == 0 {
+		return VideoDisplay{}, false
+	}
 	if id != "" {
 		for _, display := range displays {
 			if display.ID == id {
@@ -40,7 +43,6 @@ func resolveDisplayForGeometry(id string, displays []VideoDisplay) (VideoDisplay
 			return display, id == ""
 		}
 	}
-	// TODO(micro): panics if displays is empty; callers sometimes check len==0 but platformPlaceWindow can pass empty after early len check -- still unsafe if called elsewhere with empty slice.
 	return displays[0], id == ""
 }
 
