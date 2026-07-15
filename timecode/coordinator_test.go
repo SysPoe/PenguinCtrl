@@ -37,7 +37,7 @@ func TestHoldPolicyLatchesDiscontinuityUntilAcknowledged(t *testing.T) {
 
 func TestLTCAndMTCAdaptersProduceTimelinePosition(t *testing.T) {
 	ltc := New(Config{Source: SourceLTC, Policy: PolicyResync})
-	if err := ltc.IngestLTCFrame(1, 2, 3, 15, 30); err != nil {
+	if err := NewLTCAdapter(ltc).IngestFrame(1, 2, 3, 15, 30); err != nil {
 		t.Fatal(err)
 	}
 	if got := ltc.Position(); got < time.Hour+2*time.Minute+3500*time.Millisecond || got > time.Hour+2*time.Minute+3510*time.Millisecond {
@@ -45,9 +45,10 @@ func TestLTCAndMTCAdaptersProduceTimelinePosition(t *testing.T) {
 	}
 
 	mtc := New(Config{Source: SourceMTC, Policy: PolicyResync})
+	adapter := NewMTCAdapter(mtc)
 	values := []byte{4, 0, 3, 0, 2, 0, 1, 6}
 	for part, value := range values {
-		if err := mtc.IngestMTCQuarterFrame(byte(part<<4) | value); err != nil {
+		if err := adapter.IngestQuarterFrame(byte(part<<4) | value); err != nil {
 			t.Fatal(err)
 		}
 	}

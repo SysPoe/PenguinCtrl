@@ -27,6 +27,10 @@ const (
 	StateRunning       State = "running"
 	StateChasing       State = "chasing"
 	StateDiscontinuity State = "discontinuity"
+
+	defaultFrameRate      = 30
+	defaultJumpTolerance  = 500 * time.Millisecond
+	waitUntilPollInterval = 20 * time.Millisecond
 )
 
 type Config struct {
@@ -48,10 +52,6 @@ type Status struct {
 	Discontinuity time.Duration
 }
 
-// TODO(macro): Coordinator mixes the master-clock state machine (position,
-// hold/chase/resync, WaitUntil) with LTC/MTC wire-frame reassembly and rate
-// decoding. Keep Coordinator as source-agnostic Update/Status; move IngestLTC
-// / IngestMTC / MTC quarter-frame state into source adapters next to ListenOSC.
 type Coordinator struct {
 	mu         sync.RWMutex
 	now        func() time.Time
@@ -67,8 +67,6 @@ type Coordinator struct {
 	jump       time.Duration
 	notify     chan struct{}
 	onJump     func(time.Duration)
-	mtc        [8]byte
-	mtcMask    uint8
 }
 
 func New(config Config) *Coordinator {
@@ -92,11 +90,10 @@ func normalizeConfig(config Config) Config {
 		config.Policy = PolicyHold
 	}
 	if config.FrameRate <= 0 || math.IsNaN(config.FrameRate) || math.IsInf(config.FrameRate, 0) {
-		// TODO(micro): name default FrameRate (30) and JumpTolerance (500ms) as constants
-		config.FrameRate = 30
+		config.FrameRate = defaultFrameRate
 	}
 	if config.JumpTolerance <= 0 {
-		config.JumpTolerance = 500 * time.Millisecond
+		config.JumpTolerance = defaultJumpTolerance
 	}
 	return config
 }
@@ -105,7 +102,7 @@ func (c *Coordinator) Configure(config Config) {
 	c.mu.Lock()
 	c.config = normalizeConfig(config)
 	c.position, c.anchor, c.running, c.held = 0, c.now(), false, false
-	c.state, c.pending, c.jump, c.mtcMask = StateStopped, 0, 0, 0
+	c.state, c.pending, c.jump = StateStopped, 0, 0
 	c.generation++
 	c.mu.Unlock()
 	c.signal()
@@ -168,12 +165,12 @@ func (c *Coordinator) Update(source Source, position time.Duration, running bool
 	} else {
 		c.position, c.anchor, c.running, c.held = position, now, running, false
 		c.jump = jump
-		// TODO(micro): Use a switch for the chase/running/stopped state selection instead of a three-level if/else chain.
-		if discontinuity && c.config.Policy == PolicyChase {
+		switch {
+		case discontinuity && c.config.Policy == PolicyChase:
 			c.state = StateChasing
-		} else if running {
+		case running:
 			c.state = StateRunning
-		} else {
+		default:
 			c.state = StateStopped
 		}
 		if discontinuity {
@@ -211,8 +208,7 @@ func (c *Coordinator) WaitUntil(ctx context.Context, target time.Duration) bool 
 		if !held && position >= target {
 			return true
 		}
-		// TODO(micro): name WaitUntil poll interval (20ms) as a constant
-		timer := time.NewTimer(20 * time.Millisecond)
+		timer := time.NewTimer(waitUntilPollInterval)
 		select {
 		case <-ctx.Done():
 			timer.Stop()
@@ -222,39 +218,6 @@ func (c *Coordinator) WaitUntil(ctx context.Context, target time.Duration) bool 
 		case <-timer.C:
 		}
 	}
-}
-
-func (c *Coordinator) IngestLTCFrame(hours, minutes, seconds, frames int, rate float64) error {
-	position, err := framePosition(hours, minutes, seconds, frames, rate)
-	if err != nil {
-		return err
-	}
-	return c.Update(SourceLTC, position, true)
-}
-
-func (c *Coordinator) IngestMTCQuarterFrame(data byte) error {
-	part, value := (data>>4)&0x07, data&0x0f
-	c.mu.Lock()
-	c.mtc[part], c.mtcMask = value, c.mtcMask|(1<<part)
-	complete := c.mtcMask == 0xff
-	values := c.mtc
-	if complete {
-		c.mtcMask = 0
-	}
-	c.mu.Unlock()
-	if !complete {
-		return nil
-	}
-	frames := int(values[0] | (values[1]&0x1)<<4)
-	seconds := int(values[2] | (values[3]&0x3)<<4)
-	minutes := int(values[4] | (values[5]&0x3)<<4)
-	hours := int(values[6] | (values[7]&0x1)<<4)
-	rate := []float64{24, 25, 29.97, 30}[(values[7]>>1)&0x3]
-	position, err := framePosition(hours, minutes, seconds, frames, rate)
-	if err != nil {
-		return err
-	}
-	return c.Update(SourceMTC, position, true)
 }
 
 func framePosition(hours, minutes, seconds, frames int, rate float64) (time.Duration, error) {
