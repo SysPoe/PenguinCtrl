@@ -237,7 +237,7 @@ func (e *Engine) CueProblems(cue show.Cue) []show.CueProblem {
 		context.HasRuntimeState = true
 		context.ActiveMediaMatches = len(e.matchingInstances(cue.Play.Wait.Media))
 	}
-	return show.CueProblemsWithContext(cue, e.manager.Snapshot(), context)
+	return show.CueProblemsWithContext(cue, e.show.Snapshot(), context)
 }
 
 func problemMessages(problems []show.CueProblem, severity show.ProblemSeverity) []string {

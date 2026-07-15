@@ -19,7 +19,8 @@ func TestNextLinkPastEndDeselectsWithoutWarning(t *testing.T) {
 	engine.scheduleLink(cue, 0, 0, linkStart, context.Background())
 
 	eventually(t, time.Second, func() bool {
-		return !engine.manager.HasSelectedCue()
+		_, _, selected := engine.show.SelectedCueCopy()
+		return !selected
 	})
 	if got := events.Snapshot(); len(got) != 0 {
 		t.Fatalf("end-of-list next link recorded operator events: %#v", got)

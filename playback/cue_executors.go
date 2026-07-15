@@ -61,7 +61,7 @@ func (executor remoteCueExecutor) execute(next command) (bool, error) {
 	var result remote.DispatchResult
 	dispatch := func() error {
 		var err error
-		result, err = executor.engine.remote.DispatchWithResult(executor.engine.ctx, *next.cue.Play.Remote, next.cue)
+		result, err = executor.engine.remoteCommands.DispatchWithResult(executor.engine.ctx, *next.cue.Play.Remote, next.cue)
 		return err
 	}
 	executor.engine.mu.RLock()

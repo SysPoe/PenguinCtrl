@@ -111,7 +111,7 @@ func (e *Engine) instancesForOutput(outputID string) []Instance {
 func (e *Engine) OutputIDs() []string {
 	settings := e.settings.Snapshot()
 	seen := map[string]struct{}{settings.DefaultMediaOutput: {}}
-	for _, cue := range e.manager.Snapshot() {
+	for _, cue := range e.show.Snapshot() {
 		var output string
 		switch cue.Type {
 		case show.CueTypeSound:

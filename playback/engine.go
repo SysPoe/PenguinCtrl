@@ -34,60 +34,66 @@ type Timeline interface {
 // state into owned components with explicit snapshots. One broad state lock
 // still couples otherwise independent policies and makes their lifecycle ordering
 // implicit.
-// TODO(macro): Engine remains a god object spanning dispatch sequencing, remote
-// I/O ownership, and validation context. Compose a CueAnalysis collaborator
-// instead of growing the engine_*.go method surface.
-// TODO(macro): Consumers (ui/, media/, health) depend on *Engine concrete type
-// with no read-only vs control ports. Introduce narrow interfaces (e.g. RuntimeQuery,
-// OperatorControls, OutputBus) so UI snapshots and media backends stop coupling to
-// the full runtime surface.
-// TODO(macro): Owning *remote.Dispatcher pulls network transport into the playback
-// package. Prefer injecting a RemoteDispatcher interface constructed outside playback
-// so cue execution stays domain-local and remote lifecycle is not Engine.Close's job.
+// TODO(macro): Engine remains a god object spanning dispatch sequencing and
+// validation context. Compose a CueAnalysis collaborator instead of growing
+// the engine_*.go method surface.
 type Engine struct {
-	manager             *show.ShowManager
-	settings            *config.Store
-	remote              *remote.Dispatcher
-	commands            chan command
-	ctx                 context.Context
-	cancel              context.CancelFunc
-	runCtx              context.Context
-	runCancel           context.CancelFunc
-	done                chan struct{}
-	workerMu            sync.Mutex
-	workers             sync.WaitGroup
-	closing             bool
-	outputs             *outputBus
-	mu                  sync.RWMutex
-	instances           *instanceRegistry
-	lifecycle           *lifecycleController
-	cueExecutors        *cueExecutorSet
-	links               *linkNavigator
-	executions          map[string]*CueExecution
-	outputVisuals       map[string]Event
-	outputWindows       map[string]Event
-	mediaCatalog        *mediaCatalog
-	stateEvent          chan struct{}
-	lastError           atomic.Value
-	operatorLog         *operatorlog.Store
-	onChange            func()
-	preview             *previewSession
-	runs                *cueRunTable
-	safety              *safetyLatch
-	enqueueMu           sync.Mutex
-	nextCommandSequence uint64
-	dispatch            *dispatchSequencer
-	audit               *commandAudit
-	admission           *admissionGates
-	remoteAuthority     func(func() error) error
-	timeline            Timeline
+	show                     ShowAccess
+	settings                 SettingsAccess
+	remoteCommands           RemoteCommands
+	remoteHealth             RemoteHealthSource
+	closeCompatibilityRemote func()
+	commands                 chan command
+	ctx                      context.Context
+	cancel                   context.CancelFunc
+	runCtx                   context.Context
+	runCancel                context.CancelFunc
+	done                     chan struct{}
+	workerMu                 sync.Mutex
+	workers                  sync.WaitGroup
+	closing                  bool
+	outputs                  *outputBus
+	mu                       sync.RWMutex
+	instances                *instanceRegistry
+	lifecycle                *lifecycleController
+	cueExecutors             *cueExecutorSet
+	links                    *linkNavigator
+	executions               map[string]*CueExecution
+	outputVisuals            map[string]Event
+	outputWindows            map[string]Event
+	mediaCatalog             *mediaCatalog
+	stateEvent               chan struct{}
+	lastError                atomic.Value
+	operatorLog              *operatorlog.Store
+	onChange                 func()
+	preview                  *previewSession
+	runs                     *cueRunTable
+	safety                   *safetyLatch
+	enqueueMu                sync.Mutex
+	nextCommandSequence      uint64
+	dispatch                 *dispatchSequencer
+	audit                    *commandAudit
+	admission                *admissionGates
+	remoteAuthority          func(func() error) error
+	timeline                 Timeline
 }
 
-func NewEngine(manager *show.ShowManager, settings *config.Store) *Engine {
+// NewEngineWithRemote constructs playback around a caller-owned remote port.
+// Engine.Close stops playback workers but does not close remotePort.
+func NewEngineWithRemote(showAccess ShowAccess, settings SettingsAccess, remotePort RemotePort) *Engine {
+	if showAccess == nil {
+		panic("playback: show access is nil")
+	}
+	if settings == nil {
+		panic("playback: settings access is nil")
+	}
+	if remotePort == nil {
+		panic("playback: remote port is nil")
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	runCtx, runCancel := context.WithCancel(ctx)
 	engine := &Engine{
-		manager: manager, settings: settings, remote: remote.NewDispatcher(settings),
+		show: showAccess, settings: settings, remoteCommands: remotePort, remoteHealth: remotePort,
 		commands: make(chan command, 64), ctx: ctx, cancel: cancel, runCtx: runCtx, runCancel: runCancel, done: make(chan struct{}),
 		outputs: newOutputBus(), instances: newInstanceRegistry(), executions: map[string]*CueExecution{}, outputVisuals: map[string]Event{}, outputWindows: map[string]Event{}, runs: newCueRunTable(), safety: newSafetyLatch(), admission: &admissionGates{}, preview: &previewSession{},
 		mediaCatalog: newMediaCatalog(ctx), stateEvent: make(chan struct{}, 1),
@@ -95,7 +101,7 @@ func NewEngine(manager *show.ShowManager, settings *config.Store) *Engine {
 	}
 	engine.lifecycle = newLifecycleController(engine, &engine.mu, engine.instances, engine.outputs)
 	engine.cueExecutors = newCueExecutorSet(engine)
-	engine.links = newLinkNavigator(engine, showManagerCueSelection{manager: manager})
+	engine.links = newLinkNavigator(engine, showAccessCueSelection{show: showAccess})
 	return engine
 }
 
@@ -108,7 +114,9 @@ func (e *Engine) Close() {
 	e.closing = true
 	e.workerMu.Unlock()
 	e.workers.Wait()
-	e.remote.Close()
+	if e.closeCompatibilityRemote != nil {
+		e.closeCompatibilityRemote()
+	}
 }
 
 // TODO(micro): Remove the bool result or make callers handle it; every current caller discards the shutdown rejection signal.
@@ -128,7 +136,7 @@ func (e *Engine) goOwned(work func()) bool {
 	return true
 }
 
-func (e *Engine) RemoteHealth() []remote.TargetHealth { return e.remote.Health() }
+func (e *Engine) RemoteHealth() []remote.TargetHealth { return e.remoteHealth.Health() }
 
 func (e *Engine) SetOnChange(callback func()) {
 	e.mu.Lock()
@@ -185,7 +193,7 @@ func (e *Engine) SetMediaValidator(validator func(string, show.CueType) error) {
 // full media files in the background. Calls are cheap when cue media has not
 // changed, so the show-manager change callback can invoke this directly.
 func (e *Engine) RefreshDurations() {
-	cues := e.manager.Snapshot()
+	cues := e.show.Snapshot()
 	settings := e.settings.Snapshot()
 	plan := e.mediaCatalog.planRefresh(cues, settings)
 	if plan.changed {
@@ -250,11 +258,11 @@ func durationDetails(cue show.Cue, settings config.Settings) (source string, cli
 // dedicated PreloadSpec (or share a MediaSource value object) so media.Prewarm
 // does not depend on the full instance lifecycle model.
 func (e *Engine) PreloadCandidates(limit int) []Instance {
-	_, selected, ok := e.manager.SelectedCueCopy()
+	_, selected, ok := e.show.SelectedCueCopy()
 	if !ok || limit <= 0 {
 		return nil
 	}
-	cues, settings := e.manager.Snapshot(), e.settings.Snapshot()
+	cues, settings := e.show.Snapshot(), e.settings.Snapshot()
 	result := make([]Instance, 0, limit)
 	for index := selected; index < len(cues) && len(result) < limit; index++ {
 		cue := cues[index]

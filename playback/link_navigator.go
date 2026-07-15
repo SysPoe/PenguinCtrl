@@ -23,20 +23,20 @@ type cueSelectionPort interface {
 	deselectCue()
 }
 
-type showManagerCueSelection struct {
-	manager *show.ShowManager
+type showAccessCueSelection struct {
+	show ShowAccess
 }
 
-func (port showManagerCueSelection) cues() []show.Cue {
-	return port.manager.Snapshot()
+func (port showAccessCueSelection) cues() []show.Cue {
+	return port.show.Snapshot()
 }
 
-func (port showManagerCueSelection) selectCue(index int) {
-	port.manager.SelectCue(index)
+func (port showAccessCueSelection) selectCue(index int) {
+	port.show.SelectCue(index)
 }
 
-func (port showManagerCueSelection) deselectCue() {
-	port.manager.DeselectCue()
+func (port showAccessCueSelection) deselectCue() {
+	port.show.DeselectCue()
 }
 
 type linkNavigationHost interface {

@@ -32,7 +32,7 @@ func (e *Engine) PlaySelectedOverride() error {
 }
 
 func (e *Engine) playSelected(blocker blockerPolicy) error {
-	cue, index, ok := e.manager.SelectedCueCopy()
+	cue, index, ok := e.show.SelectedCueCopy()
 	if !ok {
 		err := errors.New("no cue is selected")
 		e.recordError("Operator GO", err)
@@ -42,7 +42,7 @@ func (e *Engine) playSelected(blocker blockerPolicy) error {
 }
 
 func (e *Engine) PlayIndex(index int) error {
-	cues := e.manager.Snapshot()
+	cues := e.show.Snapshot()
 	if index < 0 || index >= len(cues) {
 		err := fmt.Errorf("cue index %d is out of range", index)
 		e.recordError("Operator GO", err)
@@ -52,7 +52,7 @@ func (e *Engine) PlayIndex(index int) error {
 }
 
 func (e *Engine) PlayCueID(id show.CueID) error {
-	cue, index, ok := e.manager.CueByIDCopy(id)
+	cue, index, ok := e.show.CueByIDCopy(id)
 	if !ok {
 		err := errors.New("cue was not found")
 		e.recordError("Operator GO", err)
