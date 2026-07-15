@@ -1,17 +1,9 @@
 package remote
 
 import (
-	"bufio"
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
-	"sort"
-	"strconv"
-	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -19,54 +11,22 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
+const (
+	dispatchTimeout     = 750 * time.Millisecond
+	acknowledgedRetries = 3
+)
+
 type settingsProvider interface {
 	Snapshot() config.Settings
 }
 
-// TODO(macro): packetSender only covers unacked UDP; ACK TCP (sendAcknowledged)
-// and health TCP dials bypass it with hard-coded net.Dialer usage. One transport
-// port (or dialer injection) should own all remote I/O so timeouts, tests, and
-// future TLS/relay paths do not fork per call site.
-type packetSender interface {
-	Send(context.Context, string, int, []byte) error
-}
-
-type udpSender struct{}
-
-func (udpSender) Send(ctx context.Context, host string, port int, payload []byte) (err error) {
-	address := net.JoinHostPort(host, strconv.Itoa(port))
-	// TODO(micro): (&net.Dialer{}) is equivalent to net.Dialer{} zero value; use a shared dialer field
-	conn, err := (&net.Dialer{}).DialContext(ctx, "udp", address)
-	if err != nil {
-		return err
-	}
-	defer func() { err = errors.Join(err, conn.Close()) }()
-	if deadline, ok := ctx.Deadline(); ok {
-		_ = conn.SetWriteDeadline(deadline)
-	}
-	_, err = conn.Write(payload)
-	return err
-}
-
-// TODO(macro): Separate protocol codecs/transports, dispatch success policy,
-// and target-health monitoring behind small interfaces. Dispatcher currently
-// owns all three concerns and their goroutines, so adding a protocol or health
-// strategy expands the same lifecycle-sensitive type.
-// TODO(macro): Split Dispatcher into command transport vs continuous target health.
-// Dispatch/ACK and the 2s probe loop share config and a health map, but they are
-// different lifecycles and consumers (playback engine vs preflight/health UI). A
-// TargetMonitor (or health feed) owned outside the command path would keep remote
-// control send/retry independent of probe policy and TargetHealth projection.
 type Dispatcher struct {
 	settings         settingsProvider
-	sender           packetSender
-	ctx              context.Context
-	cancel           context.CancelFunc
-	done             chan struct{}
+	transport        transport
+	monitor          *TargetMonitor
+	ownsMonitor      bool
 	nextID           atomic.Uint64
 	lastAcknowledged atomic.Bool
-	healthMu         sync.RWMutex
-	health           map[string]TargetHealth
 }
 
 type TargetHealth struct {
@@ -91,30 +51,24 @@ type DispatchResult struct {
 }
 
 func NewDispatcher(settings settingsProvider) *Dispatcher {
-	ctx, cancel := context.WithCancel(context.Background())
-	dispatcher := &Dispatcher{settings: settings, sender: udpSender{}, ctx: ctx, cancel: cancel, done: make(chan struct{}), health: map[string]TargetHealth{}}
-	go dispatcher.monitor()
-	return dispatcher
+	io := &networkTransport{}
+	monitor := newTargetMonitor(settings, io)
+	return &Dispatcher{settings: settings, transport: io, monitor: monitor, ownsMonitor: true}
+}
+
+// NewDispatcherWithMonitor constructs the command path with an independently
+// owned target monitor.
+func NewDispatcherWithMonitor(settings settingsProvider, monitor *TargetMonitor) *Dispatcher {
+	return &Dispatcher{settings: settings, transport: &networkTransport{}, monitor: monitor}
 }
 
 func (d *Dispatcher) Close() {
-	if d.cancel == nil {
-		return
+	if d.ownsMonitor {
+		d.monitor.Close()
 	}
-	d.cancel()
-	<-d.done
 }
 
-func (d *Dispatcher) Health() []TargetHealth {
-	d.healthMu.RLock()
-	defer d.healthMu.RUnlock()
-	result := make([]TargetHealth, 0, len(d.health))
-	for _, health := range d.health {
-		result = append(result, health)
-	}
-	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
-	return result
-}
+func (d *Dispatcher) Health() []TargetHealth { return d.monitor.Health() }
 
 func (d *Dispatcher) LastDispatchAcknowledged() bool { return d.lastAcknowledged.Load() }
 
@@ -141,8 +95,6 @@ func (d *Dispatcher) DispatchWithResult(ctx context.Context, play show.RemotePla
 	}
 	results := make(chan result, len(settings.RemoteTargets))
 	for _, target := range settings.RemoteTargets {
-		// TODO(micro): Remove this obsolete loop-variable copy; target is already distinct per iteration on the required Go version.
-		target := target
 		go func() {
 			protocol, acknowledged, err := d.dispatchTarget(ctx, target, play.Protocol, resolved)
 			results <- result{protocol: protocol, acknowledged: acknowledged, err: err}
@@ -199,14 +151,13 @@ func (d *Dispatcher) dispatchTarget(parent context.Context, target config.Remote
 		return protocol, false, fmt.Errorf("%s: %w", targetLabel(target), err)
 	}
 	started := time.Now()
-	// TODO(micro): name dispatch timeout (750ms) and ACK retry count (3) as constants
-	ctx, cancel := context.WithTimeout(parent, 750*time.Millisecond)
+	ctx, cancel := context.WithTimeout(parent, dispatchTimeout)
 	defer cancel()
 	acknowledged := false
 	if target.AckPort > 0 {
 		id := fmt.Sprintf("%d-%d", time.Now().UnixMilli(), d.nextID.Add(1))
-		for attempt := 0; attempt < 3; attempt++ {
-			err = sendAcknowledged(ctx, target.Host, target.AckPort, id, payload)
+		for attempt := 0; attempt < acknowledgedRetries; attempt++ {
+			err = d.transport.SendAcknowledged(ctx, target.Host, target.AckPort, id, payload)
 			if err == nil {
 				acknowledged = true
 				break
@@ -216,109 +167,13 @@ func (d *Dispatcher) dispatchTarget(parent context.Context, target config.Remote
 			}
 		}
 	} else {
-		err = d.sender.Send(ctx, target.Host, port, payload)
+		err = d.transport.Send(ctx, target.Host, port, payload)
 	}
-	d.recordHealth(target, err, acknowledged, time.Since(started))
+	d.monitor.RecordDispatch(target, err, acknowledged, time.Since(started))
 	if err != nil {
 		return protocol, false, fmt.Errorf("%s: %w", targetLabel(target), err)
 	}
 	return protocol, acknowledged, nil
-}
-
-func sendAcknowledged(ctx context.Context, host string, port int, id string, payload []byte) (err error) {
-	conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", net.JoinHostPort(host, strconv.Itoa(port)))
-	if err != nil {
-		return err
-	}
-	defer func() { err = errors.Join(err, conn.Close()) }()
-	if deadline, ok := ctx.Deadline(); ok {
-		_ = conn.SetDeadline(deadline)
-	}
-	request := struct {
-		ID      string `json:"id"`
-		Payload string `json:"payload"`
-	}{ID: id, Payload: base64.StdEncoding.EncodeToString(payload)}
-	if err := json.NewEncoder(conn).Encode(request); err != nil {
-		return err
-	}
-	response, err := bufio.NewReader(conn).ReadString('\n')
-	if err != nil {
-		return err
-	}
-	if strings.TrimSpace(response) != "ACK "+id {
-		return fmt.Errorf("unexpected acknowledgement %q", strings.TrimSpace(response))
-	}
-	return nil
-}
-
-// TODO(micro): merge recordHealth/recordProbeHealth - only Acknowledged differs
-
-func (d *Dispatcher) recordHealth(target config.RemoteTarget, err error, acknowledged bool, roundTrip time.Duration) {
-	key := targetLabel(target)
-	d.healthMu.Lock()
-	health := d.health[key]
-	health.Name, health.Host, health.Known, health.LastChecked, health.RoundTrip = key, target.Host, true, time.Now(), roundTrip
-	health.Acknowledged = acknowledged
-	if err == nil {
-		health.Reachable, health.LastSuccess, health.LastError, health.ConsecutiveFailures = true, time.Now(), "", 0
-	} else {
-		health.Reachable, health.LastError, health.ConsecutiveFailures = false, err.Error(), health.ConsecutiveFailures+1
-	}
-	d.health[key] = health
-	d.healthMu.Unlock()
-}
-
-func (d *Dispatcher) monitor() {
-	defer close(d.done)
-	// TODO(micro): name probe interval (2s) and dial timeout (500ms) as constants
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-	for {
-		d.probeTargets()
-		select {
-		case <-d.ctx.Done():
-			return
-		case <-ticker.C:
-		}
-	}
-}
-
-func (d *Dispatcher) probeTargets() {
-	var probes sync.WaitGroup
-	for _, target := range d.settings.Snapshot().RemoteTargets {
-		if target.HealthPort <= 0 {
-			continue
-		}
-		// TODO(micro): Remove this obsolete loop-variable copy; the goroutine can capture the per-iteration target directly.
-		target := target
-		probes.Add(1)
-		go func() {
-			defer probes.Done()
-			started := time.Now()
-			ctx, cancel := context.WithTimeout(d.ctx, 500*time.Millisecond)
-			defer cancel()
-			conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", net.JoinHostPort(target.Host, strconv.Itoa(target.HealthPort)))
-			if err == nil {
-				_ = conn.Close()
-			}
-			d.recordProbeHealth(target, err, time.Since(started))
-		}()
-	}
-	probes.Wait()
-}
-
-func (d *Dispatcher) recordProbeHealth(target config.RemoteTarget, err error, roundTrip time.Duration) {
-	key := targetLabel(target)
-	d.healthMu.Lock()
-	health := d.health[key]
-	health.Name, health.Host, health.Known, health.LastChecked, health.RoundTrip = key, target.Host, true, time.Now(), roundTrip
-	if err == nil {
-		health.Reachable, health.LastSuccess, health.LastError, health.ConsecutiveFailures = true, time.Now(), "", 0
-	} else {
-		health.Reachable, health.LastError, health.ConsecutiveFailures = false, err.Error(), health.ConsecutiveFailures+1
-	}
-	d.health[key] = health
-	d.healthMu.Unlock()
 }
 
 func resolvePlay(play show.RemotePlay, settings config.Settings, cueNumber string) show.RemotePlay {
