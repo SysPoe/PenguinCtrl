@@ -43,11 +43,11 @@ func TestMediaSourceUpdateFillsDefaultClipEndFromProbe(t *testing.T) {
 	}
 
 	play := ctx.cue.Play.Sound
-	ctx.setTimecodeMediaSource(&play.File, &play.ClipEndMs, "soundClipEndMs", "new.wav")
+	ctx.setTimecodeMediaSource(&play.File, &play.ClipEndMs, ctx.page.media.clipEndMs, "new.wav")
 	if play.ClipEndMs != 3500 {
 		t.Fatalf("clip end = %d, want probed duration 3500", play.ClipEndMs)
 	}
-	if got := ctx.page.integer["soundClipEndMs"].Value; got != 3500 {
+	if got := ctx.page.media.clipEndMs.Value; got != 3500 {
 		t.Fatalf("clip end input = %d, want 3500", got)
 	}
 }

@@ -48,13 +48,8 @@ func (ctx *CueEditUI) focusActiveTab() {
 	case tabLink:
 		ctx.page.dropdown["linkMode"].Focus()
 	case tabMedia:
-		switch ctx.cType {
-		case show.CueTypeSound:
-			ctx.page.text["soundFile"].Focus()
-		case show.CueTypeVideo:
-			ctx.page.text["videoFile"].Focus()
-		case show.CueTypeImage:
-			ctx.page.text["imageFile"].Focus()
+		if ctx.page.media != nil {
+			ctx.page.media.file.Focus()
 		}
 	case tabRemote:
 		ctx.page.dropdown["remoteProtocol"].Focus()

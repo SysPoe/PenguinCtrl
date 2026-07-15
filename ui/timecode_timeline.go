@@ -8,6 +8,7 @@ import (
 	"gioui.org/io/pointer"
 	"gioui.org/widget"
 	"github.com/syspoe/cusus/show"
+	"github.com/syspoe/cusus/ui/input"
 )
 
 type timelineDragMode uint8
@@ -137,10 +138,11 @@ func (ctx *CueEditUI) applyTimecodeClipRange(startMs, endMs int64) {
 	switch {
 	case ctx.cue.Play.Sound != nil:
 		ctx.cue.Play.Sound.ClipStartMs, ctx.cue.Play.Sound.ClipEndMs = startMs, endMs
-		ctx.page.integer["soundClipStartMs"].Value, ctx.page.integer["soundClipEndMs"].Value = int(startMs), int(endMs)
 	case ctx.cue.Play.Video != nil:
 		ctx.cue.Play.Video.ClipStartMs, ctx.cue.Play.Video.ClipEndMs = startMs, endMs
-		ctx.page.integer["videoClipStartMs"].Value, ctx.page.integer["videoClipEndMs"].Value = int(startMs), int(endMs)
+	}
+	if fields := ctx.page.media; fields != nil && fields.clipStartMs != nil && fields.clipEndMs != nil {
+		fields.clipStartMs.Value, fields.clipEndMs.Value = int(startMs), int(endMs)
 	}
 }
 
@@ -197,15 +199,15 @@ func (ctx *CueEditUI) setTimecodeClipEnd(endMs int64) {
 	ctx.updateTimelineDuration()
 }
 
-func (ctx *CueEditUI) setTimecodeMediaSource(file *string, clipEndMs *int64, endInputKey, value string) {
+func (ctx *CueEditUI) setTimecodeMediaSource(file *string, clipEndMs *int64, endInput *input.Integer, value string) {
 	changed := !sameFilePath(*file, value)
 	*file = value
 	if !changed {
 		return
 	}
 	*clipEndMs = 0
-	if field := ctx.page.integer[endInputKey]; field != nil {
-		field.Value = 0
+	if endInput != nil {
+		endInput.Value = 0
 	}
 	ctx.timeline.defaultClipEnd = true
 	ctx.ensureTimelineWaveform()
@@ -228,13 +230,13 @@ func (ctx *CueEditUI) setTimecodeFades(fadeInMs, fadeOutMs int64) {
 	switch {
 	case ctx.cue.Play.Sound != nil:
 		ctx.cue.Play.Sound.FadeInMs, ctx.cue.Play.Sound.FadeOutMs = fadeInMs, fadeOutMs
-		ctx.page.integer["soundFadeInMs"].Value, ctx.page.integer["soundFadeOutMs"].Value = int(fadeInMs), int(fadeOutMs)
 	case ctx.cue.Play.Video != nil:
 		ctx.cue.Play.Video.FadeInMs, ctx.cue.Play.Video.FadeOutMs = fadeInMs, fadeOutMs
-		ctx.page.integer["videoFadeInMs"].Value, ctx.page.integer["videoFadeOutMs"].Value = int(fadeInMs), int(fadeOutMs)
 	case ctx.cue.Play.Image != nil:
 		ctx.cue.Play.Image.FadeInMs, ctx.cue.Play.Image.FadeOutMs = fadeInMs, fadeOutMs
-		ctx.page.integer["imageFadeInMs"].Value, ctx.page.integer["imageFadeOutMs"].Value = int(fadeInMs), int(fadeOutMs)
+	}
+	if fields := ctx.page.media; fields != nil {
+		fields.fadeInMs.Value, fields.fadeOutMs.Value = int(fadeInMs), int(fadeOutMs)
 	}
 }
 

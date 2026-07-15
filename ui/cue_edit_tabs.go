@@ -49,45 +49,100 @@ func (ctx *CueEditUI) renderLinkTab(th *material.Theme, gtx layout.Context, mana
 // TODO(macro): Media/Remote/Wait/MediaCtrl/OutputCtrl tabs are hand-written field lists that mirror show.Cue play payloads and partially duplicate timecode marker action forms. Generate tab schemas from typed field groups (or shared action-form builders) so cue-type coverage and marker editors stay in lockstep.
 func (ctx *CueEditUI) renderMediaTab(th *material.Theme, gtx layout.Context) layout.FlexChild {
 	rows := []cueEditFormRow{}
+	fields := ctx.page.media
 	if play := ctx.cue.Play.Sound; play != nil {
 		rows = append(rows,
-			ctx.fileRow(th, "File", "audio", ctx.page.text["soundFile"], ctx.page.dropdown["soundProjectFile"], ctx.page.button["soundFileBrowse"], soundFileExtensions, func(value string) {
-				ctx.setTimecodeMediaSource(&play.File, &play.ClipEndMs, "soundClipEndMs", value)
+			ctx.fileRow(th, "File", "audio", fields.file, fields.projectFile, fields.fileBrowse, soundFileExtensions, func(value string) {
+				ctx.setTimecodeMediaSource(&play.File, &play.ClipEndMs, fields.clipEndMs, value)
 			}),
-			textRow(th, "Output ID", ctx.page.text["soundOutputID"], func(value string) { play.OutputID = value }),
-			integerRow(th, "Clip Start MS", ctx.page.integer["soundClipStartMs"], func(value int) { ctx.setTimecodeClipStart(int64(value)) }),
-			integerRow(th, "Clip End MS", ctx.page.integer["soundClipEndMs"], func(value int) { ctx.setTimecodeClipEnd(int64(value)) }),
-			integerRow(th, "Fade In MS", ctx.page.integer["soundFadeInMs"], func(value int) { play.FadeInMs = int64(value) }),
-			integerRow(th, "Fade Out MS", ctx.page.integer["soundFadeOutMs"], func(value int) { play.FadeOutMs = int64(value) }),
-			floatRow(th, "Level dB", ctx.page.float["soundLevelDB"], func(value float64) { play.LevelDB = value }),
+			textRow(th, "Output ID", fields.outputID, func(value string) { play.OutputID = value }),
 		)
+		rows = append(rows, ctx.mediaRangeRows(th, mediaTabRangeLabels, false)...)
+		rows = append(rows, floatRow(th, "Level dB", fields.levelDB, func(value float64) { play.LevelDB = value }))
 	}
 	if play := ctx.cue.Play.Video; play != nil {
 		rows = append(rows,
-			ctx.fileRow(th, "File", "video", ctx.page.text["videoFile"], ctx.page.dropdown["videoProjectFile"], ctx.page.button["videoFileBrowse"], videoFileExtensions, func(value string) {
-				ctx.setTimecodeMediaSource(&play.File, &play.ClipEndMs, "videoClipEndMs", value)
+			ctx.fileRow(th, "File", "video", fields.file, fields.projectFile, fields.fileBrowse, videoFileExtensions, func(value string) {
+				ctx.setTimecodeMediaSource(&play.File, &play.ClipEndMs, fields.clipEndMs, value)
 			}),
-			textRow(th, "Output ID", ctx.page.text["videoOutputID"], func(value string) { play.OutputID = value }),
-			integerRow(th, "Clip Start MS", ctx.page.integer["videoClipStartMs"], func(value int) { ctx.setTimecodeClipStart(int64(value)) }),
-			integerRow(th, "Clip End MS", ctx.page.integer["videoClipEndMs"], func(value int) { ctx.setTimecodeClipEnd(int64(value)) }),
-			integerRow(th, "Fade In MS", ctx.page.integer["videoFadeInMs"], func(value int) { play.FadeInMs = int64(value) }),
-			integerRow(th, "Fade Out MS", ctx.page.integer["videoFadeOutMs"], func(value int) { play.FadeOutMs = int64(value) }),
-			floatRow(th, "Level dB", ctx.page.float["videoLevelDB"], func(value float64) { play.LevelDB = value }),
+			textRow(th, "Output ID", fields.outputID, func(value string) { play.OutputID = value }),
 		)
+		rows = append(rows, ctx.mediaRangeRows(th, mediaTabRangeLabels, false)...)
+		rows = append(rows, floatRow(th, "Level dB", fields.levelDB, func(value float64) { play.LevelDB = value }))
 	}
 	if play := ctx.cue.Play.Image; play != nil {
 		rows = append(rows,
-			ctx.fileRow(th, "File", "image", ctx.page.text["imageFile"], ctx.page.dropdown["imageProjectFile"], ctx.page.button["imageFileBrowse"], imageFileExtensions, func(value string) { play.File = value }),
-			textRow(th, "Output ID", ctx.page.text["imageOutputID"], func(value string) { play.OutputID = value }),
-			integerRow(th, "Fade In MS", ctx.page.integer["imageFadeInMs"], func(value int) { play.FadeInMs = int64(value) }),
-			integerRow(th, "Fade Out MS", ctx.page.integer["imageFadeOutMs"], func(value int) { play.FadeOutMs = int64(value) }),
-			integerRow(th, "Duration MS", ctx.page.integer["imageDurationMs"], func(value int) { play.DurationMs = int64(value) }),
+			ctx.fileRow(th, "File", "image", fields.file, fields.projectFile, fields.fileBrowse, imageFileExtensions, func(value string) { play.File = value }),
+			textRow(th, "Output ID", fields.outputID, func(value string) { play.OutputID = value }),
 		)
+		rows = append(rows, ctx.mediaRangeRows(th, mediaTabRangeLabels, false)...)
 	}
 	if len(rows) == 0 {
 		rows = append(rows, staticRow(th, "Media", "No media settings for this cue type."))
 	}
 	return ctx.renderForm(th, rows)
+}
+
+type mediaRangeLabels struct {
+	clipStart string
+	clipEnd   string
+	fadeIn    string
+	fadeOut   string
+	duration  string
+}
+
+var (
+	mediaTabRangeLabels = mediaRangeLabels{
+		clipStart: "Clip Start MS",
+		clipEnd:   "Clip End MS",
+		fadeIn:    "Fade In MS",
+		fadeOut:   "Fade Out MS",
+		duration:  "Duration MS",
+	}
+	timecodeRangeLabels = mediaRangeLabels{
+		clipStart: "Clip start",
+		clipEnd:   "Clip end",
+		fadeIn:    "Fade in",
+		fadeOut:   "Fade out",
+		duration:  "Duration",
+	}
+)
+
+func (ctx *CueEditUI) mediaRangeRows(th *material.Theme, labels mediaRangeLabels, nonNegative bool) []cueEditFormRow {
+	fields := ctx.page.media
+	if fields == nil {
+		return nil
+	}
+	value := func(v int) int64 {
+		if nonNegative {
+			return int64(max(0, v))
+		}
+		return int64(v)
+	}
+	if play := ctx.cue.Play.Sound; play != nil {
+		return []cueEditFormRow{
+			integerRow(th, labels.clipStart, fields.clipStartMs, func(v int) { ctx.setTimecodeClipStart(int64(v)) }),
+			integerRow(th, labels.clipEnd, fields.clipEndMs, func(v int) { ctx.setTimecodeClipEnd(int64(v)) }),
+			integerRow(th, labels.fadeIn, fields.fadeInMs, func(v int) { play.FadeInMs = value(v) }),
+			integerRow(th, labels.fadeOut, fields.fadeOutMs, func(v int) { play.FadeOutMs = value(v) }),
+		}
+	}
+	if play := ctx.cue.Play.Video; play != nil {
+		return []cueEditFormRow{
+			integerRow(th, labels.clipStart, fields.clipStartMs, func(v int) { ctx.setTimecodeClipStart(int64(v)) }),
+			integerRow(th, labels.clipEnd, fields.clipEndMs, func(v int) { ctx.setTimecodeClipEnd(int64(v)) }),
+			integerRow(th, labels.fadeIn, fields.fadeInMs, func(v int) { play.FadeInMs = value(v) }),
+			integerRow(th, labels.fadeOut, fields.fadeOutMs, func(v int) { play.FadeOutMs = value(v) }),
+		}
+	}
+	if play := ctx.cue.Play.Image; play != nil {
+		return []cueEditFormRow{
+			integerRow(th, labels.duration, fields.durationMs, func(v int) { play.DurationMs = value(v) }),
+			integerRow(th, labels.fadeIn, fields.fadeInMs, func(v int) { play.FadeInMs = value(v) }),
+			integerRow(th, labels.fadeOut, fields.fadeOutMs, func(v int) { play.FadeOutMs = value(v) }),
+		}
+	}
+	return nil
 }
 
 func (ctx *CueEditUI) renderTimecodeTab(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.FlexChild {

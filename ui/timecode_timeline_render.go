@@ -73,30 +73,12 @@ func (ctx *CueEditUI) drawTimeline(th *material.Theme, gtx layout.Context, marke
 	return layout.Dimensions{Size: size}
 }
 
-// TODO(macro): Timecode tab re-binds clip/fade/duration fields that the Media tab already owns, plus a parallel MediaControl/Remote/OutputControl form for markers. Share one media-range binder and one action-form builder so Media and Timecode stop dual-editing the same cue fields through separate integer widgets.
+// TODO(macro): Marker MediaControl/Remote/OutputControl forms still parallel the
+// cue-type action forms. Share action-form builders so marker and cue coverage
+// stay in lockstep.
 func (ctx *CueEditUI) timecodeEditorRows(th *material.Theme, markers *[]show.TimecodeMarker) []cueEditFormRow {
 	rows := []cueEditFormRow{timecodeSectionRow(th, "Clip and fades")}
-	if play := ctx.cue.Play.Sound; play != nil {
-		rows = append(rows,
-			integerRow(th, "Clip start", ctx.page.integer["soundClipStartMs"], func(v int) { ctx.setTimecodeClipStart(int64(v)) }),
-			integerRow(th, "Clip end", ctx.page.integer["soundClipEndMs"], func(v int) { ctx.setTimecodeClipEnd(int64(v)) }),
-			integerRow(th, "Fade in", ctx.page.integer["soundFadeInMs"], func(v int) { play.FadeInMs = int64(max(0, v)) }),
-			integerRow(th, "Fade out", ctx.page.integer["soundFadeOutMs"], func(v int) { play.FadeOutMs = int64(max(0, v)) }),
-		)
-	} else if play := ctx.cue.Play.Video; play != nil {
-		rows = append(rows,
-			integerRow(th, "Clip start", ctx.page.integer["videoClipStartMs"], func(v int) { ctx.setTimecodeClipStart(int64(v)) }),
-			integerRow(th, "Clip end", ctx.page.integer["videoClipEndMs"], func(v int) { ctx.setTimecodeClipEnd(int64(v)) }),
-			integerRow(th, "Fade in", ctx.page.integer["videoFadeInMs"], func(v int) { play.FadeInMs = int64(max(0, v)) }),
-			integerRow(th, "Fade out", ctx.page.integer["videoFadeOutMs"], func(v int) { play.FadeOutMs = int64(max(0, v)) }),
-		)
-	} else if play := ctx.cue.Play.Image; play != nil {
-		rows = append(rows,
-			integerRow(th, "Duration", ctx.page.integer["imageDurationMs"], func(v int) { play.DurationMs = int64(max(0, v)) }),
-			integerRow(th, "Fade in", ctx.page.integer["imageFadeInMs"], func(v int) { play.FadeInMs = int64(max(0, v)) }),
-			integerRow(th, "Fade out", ctx.page.integer["imageFadeOutMs"], func(v int) { play.FadeOutMs = int64(max(0, v)) }),
-		)
-	}
+	rows = append(rows, ctx.mediaRangeRows(th, timecodeRangeLabels, true)...)
 
 	selected := selectedTimelineIndexes(&ctx.timeline, len(*markers))
 	rows = append(rows, timecodeSectionRow(th, "Selected action"))

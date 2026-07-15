@@ -28,6 +28,65 @@ type cueEditPageState struct {
 	dropdown  map[string]*input.Dropdown
 	colour    map[string]*input.ColourPicker
 	button    map[string]*widget.Clickable
+
+	media *mediaPlayInputs
+}
+
+// mediaPlayInputs is the compile-checked widget model shared by the Media and
+// Timecode tabs. A cue has at most one media payload, so these fields do not
+// need cue-type-prefixed string keys.
+type mediaPlayInputs struct {
+	file        *input.Text
+	projectFile *input.Dropdown
+	fileBrowse  *widget.Clickable
+	outputID    *input.Text
+	clipStartMs *input.Integer
+	clipEndMs   *input.Integer
+	fadeInMs    *input.Integer
+	fadeOutMs   *input.Integer
+	durationMs  *input.Integer
+	levelDB     *input.Float
+}
+
+func newTimedMediaPlayInputs(file, outputID string, clipStartMs, clipEndMs, fadeInMs, fadeOutMs int64, levelDB float64) *mediaPlayInputs {
+	return &mediaPlayInputs{
+		file:        input.NewText("File", file),
+		projectFile: input.NewDropdown(nil, -1),
+		fileBrowse:  new(widget.Clickable),
+		outputID:    input.NewText("Output ID", outputID),
+		clipStartMs: input.NewInteger("Clip Start MS", int(clipStartMs)),
+		clipEndMs:   input.NewInteger("Clip End MS", int(clipEndMs)),
+		fadeInMs:    input.NewInteger("Fade In MS", int(fadeInMs)),
+		fadeOutMs:   input.NewInteger("Fade Out MS", int(fadeOutMs)),
+		levelDB:     input.NewFloat("Level dB", levelDB),
+	}
+}
+
+func newImageMediaPlayInputs(play *show.ImagePlay) *mediaPlayInputs {
+	return &mediaPlayInputs{
+		file:        input.NewText("File", play.File),
+		projectFile: input.NewDropdown(nil, -1),
+		fileBrowse:  new(widget.Clickable),
+		outputID:    input.NewText("Output ID", play.OutputID),
+		fadeInMs:    input.NewInteger("Fade In MS", int(play.FadeInMs)),
+		fadeOutMs:   input.NewInteger("Fade Out MS", int(play.FadeOutMs)),
+		durationMs:  input.NewInteger("Duration MS", int(play.DurationMs)),
+	}
+}
+
+func newCueMediaPlayInputs(cue show.Cue) *mediaPlayInputs {
+	switch {
+	case cue.Play.Sound != nil:
+		play := cue.Play.Sound
+		return newTimedMediaPlayInputs(play.File, play.OutputID, play.ClipStartMs, play.ClipEndMs, play.FadeInMs, play.FadeOutMs, play.LevelDB)
+	case cue.Play.Video != nil:
+		play := cue.Play.Video
+		return newTimedMediaPlayInputs(play.File, play.OutputID, play.ClipStartMs, play.ClipEndMs, play.FadeInMs, play.FadeOutMs, play.LevelDB)
+	case cue.Play.Image != nil:
+		return newImageMediaPlayInputs(cue.Play.Image)
+	default:
+		return nil
+	}
 }
 
 func newCueEditPageState(cue show.Cue) cueEditPageState {
@@ -60,42 +119,10 @@ func newCueEditPageState(cue show.Cue) cueEditPageState {
 		}
 	}
 
-	// TODO(micro): magic string field keys ("cueNumber","soundFile",…) are duplicated in tab renderers; share const keys or typed field structs
+	// TODO(micro): remaining general/link/action string field keys are duplicated in tab renderers; migrate them to typed field structs
 	state.dropdown["linkMode"] = newEnumDropdown(cueLinkModeLabels, int(cue.Link.Mode))
 	state.dropdown["linkTargetKind"] = newEnumDropdown(cueTargetKindLabels, int(cue.Link.Target.Kind))
-
-	if cue.Play.Sound != nil {
-		// TODO(micro): Sound/Video/Image field init is nearly identical; extract mediaPlayInputs(kind, play) helper
-		state.text["soundFile"] = input.NewText("File", cue.Play.Sound.File)
-		state.dropdown["soundProjectFile"] = input.NewDropdown(nil, -1)
-		state.button["soundFileBrowse"] = new(widget.Clickable)
-		state.text["soundOutputID"] = input.NewText("Output ID", cue.Play.Sound.OutputID)
-		state.integer["soundClipStartMs"] = input.NewInteger("Clip Start MS", int(cue.Play.Sound.ClipStartMs))
-		state.integer["soundClipEndMs"] = input.NewInteger("Clip End MS", int(cue.Play.Sound.ClipEndMs))
-		state.integer["soundFadeInMs"] = input.NewInteger("Fade In MS", int(cue.Play.Sound.FadeInMs))
-		state.integer["soundFadeOutMs"] = input.NewInteger("Fade Out MS", int(cue.Play.Sound.FadeOutMs))
-		state.float["soundLevelDB"] = input.NewFloat("Level dB", cue.Play.Sound.LevelDB)
-	}
-	if cue.Play.Video != nil {
-		state.text["videoFile"] = input.NewText("File", cue.Play.Video.File)
-		state.dropdown["videoProjectFile"] = input.NewDropdown(nil, -1)
-		state.button["videoFileBrowse"] = new(widget.Clickable)
-		state.text["videoOutputID"] = input.NewText("Output ID", cue.Play.Video.OutputID)
-		state.integer["videoClipStartMs"] = input.NewInteger("Clip Start MS", int(cue.Play.Video.ClipStartMs))
-		state.integer["videoClipEndMs"] = input.NewInteger("Clip End MS", int(cue.Play.Video.ClipEndMs))
-		state.integer["videoFadeInMs"] = input.NewInteger("Fade In MS", int(cue.Play.Video.FadeInMs))
-		state.integer["videoFadeOutMs"] = input.NewInteger("Fade Out MS", int(cue.Play.Video.FadeOutMs))
-		state.float["videoLevelDB"] = input.NewFloat("Level dB", cue.Play.Video.LevelDB)
-	}
-	if cue.Play.Image != nil {
-		state.text["imageFile"] = input.NewText("File", cue.Play.Image.File)
-		state.dropdown["imageProjectFile"] = input.NewDropdown(nil, -1)
-		state.button["imageFileBrowse"] = new(widget.Clickable)
-		state.text["imageOutputID"] = input.NewText("Output ID", cue.Play.Image.OutputID)
-		state.integer["imageFadeInMs"] = input.NewInteger("Fade In MS", int(cue.Play.Image.FadeInMs))
-		state.integer["imageFadeOutMs"] = input.NewInteger("Fade Out MS", int(cue.Play.Image.FadeOutMs))
-		state.integer["imageDurationMs"] = input.NewInteger("Duration MS", int(cue.Play.Image.DurationMs))
-	}
+	state.media = newCueMediaPlayInputs(cue)
 	if cue.Play.Remote != nil {
 		state.dropdown["remoteProtocol"] = newEnumDropdown(remoteProtocolLabels, int(cue.Play.Remote.Protocol))
 		state.dropdown["remoteAction"] = newEnumDropdown(remoteActionLabels, int(cue.Play.Remote.Action))
