@@ -15,8 +15,8 @@ func TestAudioDeviceWarningAllowsIndependentWindowsDefaultRouting(t *testing.T) 
 		settings config.Settings
 	}{
 		{name: "both default", settings: config.Settings{}},
-		{name: "playback default", settings: config.Settings{PreviewAudioDevice: "speakers"}},
-		{name: "preview default", settings: config.Settings{PlaybackAudioDevice: "speakers"}},
+		{name: "playback default", settings: config.Settings{AudioSettings: config.AudioSettings{PreviewAudioDevice: "speakers"}}},
+		{name: "preview default", settings: config.Settings{AudioSettings: config.AudioSettings{PlaybackAudioDevice: "speakers"}}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -34,10 +34,10 @@ func TestAudioDeviceWarningReportsDisconnectedRoutes(t *testing.T) {
 		settings config.Settings
 		want     string
 	}{
-		{name: "playback", settings: config.Settings{PlaybackAudioDevice: "missing"}, want: "playback audio device"},
-		{name: "preview", settings: config.Settings{PreviewAudioDevice: "missing"}, want: "preview audio device"},
-		{name: "both same", settings: config.Settings{PlaybackAudioDevice: "missing", PreviewAudioDevice: "missing"}, want: "playback and preview audio device"},
-		{name: "both separate", settings: config.Settings{PlaybackAudioDevice: "missing-1", PreviewAudioDevice: "missing-2"}, want: "playback and preview audio devices"},
+		{name: "playback", settings: config.Settings{AudioSettings: config.AudioSettings{PlaybackAudioDevice: "missing"}}, want: "playback audio device"},
+		{name: "preview", settings: config.Settings{AudioSettings: config.AudioSettings{PreviewAudioDevice: "missing"}}, want: "preview audio device"},
+		{name: "both same", settings: config.Settings{AudioSettings: config.AudioSettings{PlaybackAudioDevice: "missing", PreviewAudioDevice: "missing"}}, want: "playback and preview audio device"},
+		{name: "both separate", settings: config.Settings{AudioSettings: config.AudioSettings{PlaybackAudioDevice: "missing-1", PreviewAudioDevice: "missing-2"}}, want: "playback and preview audio devices"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

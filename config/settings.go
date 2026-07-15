@@ -52,42 +52,125 @@ type WindowPlacement struct {
 	Height int `json:"height"`
 }
 
-// TODO(macro): Split this persistence DTO into versioned domain settings
-// (media, routing, timecode, redundancy, and operator UI), with one migration
-// boundary preserving the on-disk JSON contract. The flat aggregate makes every
-// new option fan out through defaults, normalization, UI binding, and consumers.
-// TODO(macro): Decompose the Settings blob by domain — one struct owns ffmpeg,
-// audio recovery, video stages, template variables, remote targets, cache
-// quotas, operator window geometry, timecode, and redundancy secrets, so every
-// subsystem snapshots/clones/hashes unrelated machine policy. Group nested
-// sub-settings (Media, Audio, Outputs, Remote, Timecode, Redundancy, UI).
+type MediaSettings struct {
+	FFmpegPath         string            `json:"ffmpegPath"`
+	DefaultMediaOutput string            `json:"defaultMediaOutput"`
+	Variables          map[string]string `json:"variables"`
+}
+
+type AudioSettings struct {
+	PlaybackAudioDevice       string `json:"playbackAudioDevice,omitempty"`
+	PlaybackAudioRecovery     string `json:"playbackAudioRecovery,omitempty"`
+	PlaybackBackupAudioDevice string `json:"playbackBackupAudioDevice,omitempty"`
+	PreviewAudioDevice        string `json:"previewAudioDevice,omitempty"`
+	PreviewAudioRecovery      string `json:"previewAudioRecovery,omitempty"`
+	PreviewBackupAudioDevice  string `json:"previewBackupAudioDevice,omitempty"`
+}
+
+type OutputSettings struct {
+	VideoOutputs []VideoOutput `json:"videoOutputs,omitempty"`
+}
+
+type RemoteSettings struct {
+	DefaultPlayback     string         `json:"defaultPlayback"`
+	RemoteTargets       []RemoteTarget `json:"remoteTargets"`
+	RemoteSuccessPolicy string         `json:"remoteSuccessPolicy,omitempty"`
+}
+
+type CacheSettings struct {
+	CacheQuotaGB   int `json:"cacheQuotaGb,omitempty"`
+	CacheReserveGB int `json:"cacheReserveGb,omitempty"`
+}
+
+type OperatorUISettings struct {
+	OperatorWindow WindowPlacement `json:"operatorWindow"`
+}
+
+type TimecodeSettings struct {
+	TimecodeSource        string  `json:"timecodeSource,omitempty"`
+	TimecodePolicy        string  `json:"timecodePolicy,omitempty"`
+	TimecodeListenAddress string  `json:"timecodeListenAddress,omitempty"`
+	TimecodeFrameRate     float64 `json:"timecodeFrameRate,omitempty"`
+}
+
+type RedundancySettings struct {
+	RedundancyRole          string `json:"redundancyRole,omitempty"`
+	RedundancyNodeID        string `json:"redundancyNodeId,omitempty"`
+	RedundancyListenAddress string `json:"redundancyListenAddress,omitempty"`
+	RedundancyPeerAddress   string `json:"redundancyPeerAddress,omitempty"`
+	RedundancySharedKey     string `json:"redundancySharedKey,omitempty"`
+	RedundancyInterlockPath string `json:"redundancyInterlockPath,omitempty"`
+}
+
+// Settings is composed from domain-owned policies. Anonymous embedding keeps
+// source compatibility for consumers while the JSON methods below preserve the
+// original flat settings file through one versioned migration boundary.
 type Settings struct {
-	FFmpegPath                string            `json:"ffmpegPath"`
-	DefaultPlayback           string            `json:"defaultPlayback"`
-	DefaultMediaOutput        string            `json:"defaultMediaOutput"`
-	PlaybackAudioDevice       string            `json:"playbackAudioDevice,omitempty"`
-	PlaybackAudioRecovery     string            `json:"playbackAudioRecovery,omitempty"`
-	PlaybackBackupAudioDevice string            `json:"playbackBackupAudioDevice,omitempty"`
-	PreviewAudioDevice        string            `json:"previewAudioDevice,omitempty"`
-	PreviewAudioRecovery      string            `json:"previewAudioRecovery,omitempty"`
-	PreviewBackupAudioDevice  string            `json:"previewBackupAudioDevice,omitempty"`
-	VideoOutputs              []VideoOutput     `json:"videoOutputs,omitempty"`
-	Variables                 map[string]string `json:"variables"`
-	RemoteTargets             []RemoteTarget    `json:"remoteTargets"`
-	RemoteSuccessPolicy       string            `json:"remoteSuccessPolicy,omitempty"`
-	CacheQuotaGB              int               `json:"cacheQuotaGb,omitempty"`
-	CacheReserveGB            int               `json:"cacheReserveGb,omitempty"`
-	OperatorWindow            WindowPlacement   `json:"operatorWindow"`
-	TimecodeSource            string            `json:"timecodeSource,omitempty"`
-	TimecodePolicy            string            `json:"timecodePolicy,omitempty"`
-	TimecodeListenAddress     string            `json:"timecodeListenAddress,omitempty"`
-	TimecodeFrameRate         float64           `json:"timecodeFrameRate,omitempty"`
-	RedundancyRole            string            `json:"redundancyRole,omitempty"`
-	RedundancyNodeID          string            `json:"redundancyNodeId,omitempty"`
-	RedundancyListenAddress   string            `json:"redundancyListenAddress,omitempty"`
-	RedundancyPeerAddress     string            `json:"redundancyPeerAddress,omitempty"`
-	RedundancySharedKey       string            `json:"redundancySharedKey,omitempty"`
-	RedundancyInterlockPath   string            `json:"redundancyInterlockPath,omitempty"`
+	MediaSettings
+	AudioSettings
+	OutputSettings
+	RemoteSettings
+	CacheSettings
+	OperatorUISettings
+	TimecodeSettings
+	RedundancySettings
+}
+
+const settingsSchemaVersion = 1
+
+type settingsFileV1 struct {
+	SettingsVersion int `json:"settingsVersion,omitempty"`
+	MediaSettings
+	AudioSettings
+	OutputSettings
+	RemoteSettings
+	CacheSettings
+	OperatorUISettings
+	TimecodeSettings
+	RedundancySettings
+}
+
+func (settings Settings) MarshalJSON() ([]byte, error) {
+	return json.Marshal(settingsFileFrom(settings))
+}
+
+func (settings *Settings) UnmarshalJSON(data []byte) error {
+	file := settingsFileFrom(*settings)
+	if err := json.Unmarshal(data, &file); err != nil {
+		return err
+	}
+	if file.SettingsVersion > settingsSchemaVersion {
+		return fmt.Errorf("settings schema version %d is newer than supported version %d", file.SettingsVersion, settingsSchemaVersion)
+	}
+	*settings = file.settings()
+	return nil
+}
+
+func settingsFileFrom(settings Settings) settingsFileV1 {
+	return settingsFileV1{
+		SettingsVersion:    settingsSchemaVersion,
+		MediaSettings:      settings.MediaSettings,
+		AudioSettings:      settings.AudioSettings,
+		OutputSettings:     settings.OutputSettings,
+		RemoteSettings:     settings.RemoteSettings,
+		CacheSettings:      settings.CacheSettings,
+		OperatorUISettings: settings.OperatorUISettings,
+		TimecodeSettings:   settings.TimecodeSettings,
+		RedundancySettings: settings.RedundancySettings,
+	}
+}
+
+func (file settingsFileV1) settings() Settings {
+	return Settings{
+		MediaSettings:      file.MediaSettings,
+		AudioSettings:      file.AudioSettings,
+		OutputSettings:     file.OutputSettings,
+		RemoteSettings:     file.RemoteSettings,
+		CacheSettings:      file.CacheSettings,
+		OperatorUISettings: file.OperatorUISettings,
+		TimecodeSettings:   file.TimecodeSettings,
+		RedundancySettings: file.RedundancySettings,
+	}
 }
 
 const (
@@ -124,26 +207,23 @@ const (
 
 func Defaults() Settings {
 	return Settings{
-		FFmpegPath:              "ffmpeg",
-		DefaultPlayback:         "1",
-		DefaultMediaOutput:      "main",
-		PlaybackAudioRecovery:   AudioRecoveryFailClosed,
-		PreviewAudioRecovery:    AudioRecoveryFailClosed,
-		VideoOutputs:            []VideoOutput{{Stage: "main", Fullscreen: true, Width: defaultVideoWidth, Height: defaultVideoHeight, ResolutionWidth: defaultResolutionWidth, ResolutionHeight: defaultResolutionHeight, Scaling: "contain", IdleBehavior: "black", Layers: minimumOutputLayers}},
-		Variables:               map[string]string{},
-		RemoteTargets:           []RemoteTarget{{Name: "Local console", Host: "127.0.0.1", OSCPort: 8000, ERCPort: 6553}},
-		RemoteSuccessPolicy:     RemoteSuccessAll,
-		CacheQuotaGB:            20,
-		CacheReserveGB:          5,
-		OperatorWindow:          WindowPlacement{X: 80, Y: 80, Width: 1300, Height: 720},
-		TimecodeSource:          TimecodeInternal,
-		TimecodePolicy:          TimecodeHold,
-		TimecodeListenAddress:   "127.0.0.1:9001",
-		TimecodeFrameRate:       30,
-		RedundancyRole:          RedundancyOff,
-		RedundancyNodeID:        defaultNodeID(),
-		RedundancyListenAddress: "127.0.0.1:9012",
-		RedundancyPeerAddress:   "127.0.0.1:9013",
+		MediaSettings:  MediaSettings{FFmpegPath: "ffmpeg", DefaultMediaOutput: "main", Variables: map[string]string{}},
+		AudioSettings:  AudioSettings{PlaybackAudioRecovery: AudioRecoveryFailClosed, PreviewAudioRecovery: AudioRecoveryFailClosed},
+		OutputSettings: OutputSettings{VideoOutputs: []VideoOutput{{Stage: "main", Fullscreen: true, Width: defaultVideoWidth, Height: defaultVideoHeight, ResolutionWidth: defaultResolutionWidth, ResolutionHeight: defaultResolutionHeight, Scaling: "contain", IdleBehavior: "black", Layers: minimumOutputLayers}}},
+		RemoteSettings: RemoteSettings{
+			DefaultPlayback:     "1",
+			RemoteTargets:       []RemoteTarget{{Name: "Local console", Host: "127.0.0.1", OSCPort: 8000, ERCPort: 6553}},
+			RemoteSuccessPolicy: RemoteSuccessAll,
+		},
+		CacheSettings:      CacheSettings{CacheQuotaGB: 20, CacheReserveGB: 5},
+		OperatorUISettings: OperatorUISettings{OperatorWindow: WindowPlacement{X: 80, Y: 80, Width: 1300, Height: 720}},
+		TimecodeSettings:   TimecodeSettings{TimecodeSource: TimecodeInternal, TimecodePolicy: TimecodeHold, TimecodeListenAddress: "127.0.0.1:9001", TimecodeFrameRate: 30},
+		RedundancySettings: RedundancySettings{
+			RedundancyRole:          RedundancyOff,
+			RedundancyNodeID:        defaultNodeID(),
+			RedundancyListenAddress: "127.0.0.1:9012",
+			RedundancyPeerAddress:   "127.0.0.1:9013",
+		},
 	}
 }
 

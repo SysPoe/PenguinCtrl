@@ -7,7 +7,7 @@ import (
 )
 
 func TestVideoOutputWarning(t *testing.T) {
-	settings := config.Settings{VideoOutputs: []config.VideoOutput{{Stage: "main", DisplayID: "connected"}, {Stage: "foh", DisplayID: "missing"}}}
+	settings := config.Settings{OutputSettings: config.OutputSettings{VideoOutputs: []config.VideoOutput{{Stage: "main", DisplayID: "connected"}, {Stage: "foh", DisplayID: "missing"}}}}
 	warning := videoOutputWarning(settings, []VideoDisplay{{ID: "connected"}})
 	if !strings.Contains(warning, "foh") || strings.Contains(warning, "main") {
 		t.Fatalf("unexpected warning %q", warning)
@@ -24,7 +24,7 @@ func TestResolveDisplayForGeometryFallsBackToPrimary(t *testing.T) {
 
 func TestVideoOutputWarningRequiresConfirmationAndRefreshMatch(t *testing.T) {
 	displays := []VideoDisplay{{ID: "stage", RefreshRate: 60}}
-	settings := config.Settings{VideoOutputs: []config.VideoOutput{{Stage: "main", DisplayID: "stage", ExpectedRefresh: 50}}}
+	settings := config.Settings{OutputSettings: config.OutputSettings{VideoOutputs: []config.VideoOutput{{Stage: "main", DisplayID: "stage", ExpectedRefresh: 50}}}}
 	if warning := videoOutputWarning(settings, displays); !strings.Contains(warning, "confirmation") {
 		t.Fatalf("unconfirmed warning = %q", warning)
 	}

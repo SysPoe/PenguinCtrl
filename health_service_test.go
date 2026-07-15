@@ -110,7 +110,7 @@ func TestHealthComponentsExposeIdentityRecoveryAndAction(t *testing.T) {
 
 func TestOutputHealthReportsEnumerationFailureAsDegraded(t *testing.T) {
 	backend := &healthBackendStub{displayErr: errors.New("display service offline")}
-	components := outputHealth(backend, config.Settings{VideoOutputs: []config.VideoOutput{{Stage: "main"}}})
+	components := outputHealth(backend, config.Settings{OutputSettings: config.OutputSettings{VideoOutputs: []config.VideoOutput{{Stage: "main"}}}})
 	if len(components) != 1 || components[0].State != health.Degraded || !strings.Contains(components[0].Summary, "display service offline") {
 		t.Fatalf("output health = %+v", components)
 	}
@@ -118,7 +118,7 @@ func TestOutputHealthReportsEnumerationFailureAsDegraded(t *testing.T) {
 
 func TestUnconfirmedDisplayMappingIsInformational(t *testing.T) {
 	backend := &healthBackendStub{displays: []media.VideoDisplay{{ID: "main-display"}}}
-	components := outputHealth(backend, config.Settings{VideoOutputs: []config.VideoOutput{{Stage: "main", DisplayID: "main-display"}}})
+	components := outputHealth(backend, config.Settings{OutputSettings: config.OutputSettings{VideoOutputs: []config.VideoOutput{{Stage: "main", DisplayID: "main-display"}}}})
 	checks := healthPreflightChecks(health.NewSnapshot(components))
 	if len(checks) != 1 || checks[0].Severity != operatorlog.Info {
 		t.Fatalf("display confirmation checks = %+v", checks)
@@ -130,7 +130,7 @@ func TestUnconfirmedDisplayMappingIsInformational(t *testing.T) {
 
 func TestDisplayEnumerationFailureRemainsWarning(t *testing.T) {
 	backend := &healthBackendStub{displayErr: errors.New("display service offline")}
-	components := outputHealth(backend, config.Settings{VideoOutputs: []config.VideoOutput{{Stage: "main"}}})
+	components := outputHealth(backend, config.Settings{OutputSettings: config.OutputSettings{VideoOutputs: []config.VideoOutput{{Stage: "main"}}}})
 	checks := healthPreflightChecks(health.NewSnapshot(components))
 	if len(checks) != 1 || checks[0].Severity != operatorlog.Warning {
 		t.Fatalf("display enumeration checks = %+v", checks)

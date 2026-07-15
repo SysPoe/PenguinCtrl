@@ -8,9 +8,11 @@ func TestNormalizeRedundancyDefaultsAndExplicitRole(t *testing.T) {
 		t.Fatalf("redundancy defaults = %+v", defaults)
 	}
 	configured := normalize(Settings{
-		RedundancyRole: RedundancyStandby, RedundancyNodeID: " spare ",
-		RedundancyListenAddress: " 127.0.0.1:9020 ", RedundancyPeerAddress: " 127.0.0.1:9021 ",
-		RedundancySharedKey: " secret ", RedundancyInterlockPath: " shared/command.lock ",
+		RedundancySettings: RedundancySettings{
+			RedundancyRole: RedundancyStandby, RedundancyNodeID: " spare ",
+			RedundancyListenAddress: " 127.0.0.1:9020 ", RedundancyPeerAddress: " 127.0.0.1:9021 ",
+			RedundancySharedKey: " secret ", RedundancyInterlockPath: " shared/command.lock ",
+		},
 	})
 	if configured.RedundancyRole != RedundancyStandby || configured.RedundancyNodeID != "spare" || configured.RedundancyListenAddress != "127.0.0.1:9020" || configured.RedundancySharedKey != "secret" {
 		t.Fatalf("redundancy configuration = %+v", configured)

@@ -4,8 +4,10 @@ import "testing"
 
 func TestAudioRecoveryPoliciesNormalizeAndResolvePerRoute(t *testing.T) {
 	settings := normalize(Settings{
-		PlaybackAudioDevice: " primary ", PlaybackAudioRecovery: AudioRecoveryNamedBackup, PlaybackBackupAudioDevice: " backup ",
-		PreviewAudioDevice: " preview ", PreviewAudioRecovery: "invalid", PreviewBackupAudioDevice: " ignored ",
+		AudioSettings: AudioSettings{
+			PlaybackAudioDevice: " primary ", PlaybackAudioRecovery: AudioRecoveryNamedBackup, PlaybackBackupAudioDevice: " backup ",
+			PreviewAudioDevice: " preview ", PreviewAudioRecovery: "invalid", PreviewBackupAudioDevice: " ignored ",
+		},
 	})
 	device, policy, backup := AudioRoute(settings, false)
 	if device != "primary" || policy != AudioRecoveryNamedBackup || backup != "backup" {

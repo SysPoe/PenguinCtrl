@@ -1,12 +1,43 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/syspoe/cusus/internal/atomicfile"
 )
+
+func TestSettingsJSONKeepsFlatVersionedWireContract(t *testing.T) {
+	settings := Defaults()
+	settings.FFmpegPath = "custom-ffmpeg"
+	raw, err := json.Marshal(settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wire map[string]any
+	if err := json.Unmarshal(raw, &wire); err != nil {
+		t.Fatal(err)
+	}
+	if wire["settingsVersion"] != float64(settingsSchemaVersion) || wire["ffmpegPath"] != "custom-ffmpeg" {
+		t.Fatalf("versioned flat settings wire = %s", raw)
+	}
+	if _, nested := wire["MediaSettings"]; nested {
+		t.Fatalf("domain grouping leaked into the persisted contract: %s", raw)
+	}
+
+	restored := Defaults()
+	if err := json.Unmarshal([]byte(`{"defaultPlayback":"42"}`), &restored); err != nil {
+		t.Fatal(err)
+	}
+	if restored.DefaultPlayback != "42" || restored.FFmpegPath != "ffmpeg" {
+		t.Fatalf("legacy flat migration lost defaults: %#v", restored)
+	}
+	if err := json.Unmarshal([]byte(`{"settingsVersion":999}`), &restored); err == nil {
+		t.Fatal("future settings schema was accepted")
+	}
+}
 
 func TestUpdateReplacesExistingSettingsOnWindows(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
