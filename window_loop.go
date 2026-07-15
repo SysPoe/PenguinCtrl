@@ -118,7 +118,7 @@ func (a *App) run(window *app.Window) error {
 			// TODO(micro): Preallocate at least len(current.Cues); most media cues contribute one path.
 			var paths []string
 			for _, cue := range current.Cues {
-				paths = append(paths, cueMediaSources(cue, settings)...)
+				paths = append(paths, project.ResolvedMediaSources(cue, settings)...)
 			}
 			return paths
 		},

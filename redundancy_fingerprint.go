@@ -77,7 +77,7 @@ func redundancyProductionIdentity(current show.Show, settings config.Settings, f
 	ready := true
 	for index, cue := range current.Cues {
 		logical.Cues[index] = show.CloneCue(cue)
-		for _, source := range cueMediaSources(cue, settings) {
+		for _, source := range project.ResolvedMediaSources(cue, settings) {
 			path, ok := canonicalMediaPath(source)
 			identity, exists := available[path]
 			if !ok || !exists {

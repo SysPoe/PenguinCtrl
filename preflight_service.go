@@ -10,12 +10,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/syspoe/cusus/config"
 	"github.com/syspoe/cusus/operatorlog"
+	"github.com/syspoe/cusus/project"
 	"github.com/syspoe/cusus/remote"
 	"github.com/syspoe/cusus/show"
 )
@@ -234,7 +234,7 @@ func diskPreflight(cues []show.Cue, settings config.Settings) []operatorlog.Pref
 	_ = os.Remove(probePath)
 	var sourceBytes uint64
 	for _, cue := range cues {
-		for _, source := range cueMediaSources(cue, settings) {
+		for _, source := range project.ResolvedMediaSources(cue, settings) {
 			if info, statErr := os.Stat(source); statErr == nil && info.Mode().IsRegular() {
 				sourceBytes += uint64(info.Size())
 			}
@@ -253,32 +253,6 @@ func diskPreflight(cues []show.Cue, settings config.Settings) []operatorlog.Pref
 
 func diskCaution(message string) []operatorlog.PreflightCheck {
 	return []operatorlog.PreflightCheck{{Severity: operatorlog.Warning, Source: "Disk / cache", Message: message, Fingerprint: "disk:" + message}}
-}
-
-// TODO(macro): cueMediaSources is shared domain knowledge used by preflight disk checks, cache
-// maintenance (window_loop), and redundancy fingerprints, yet lives under preflight_service.
-// Move resolved media-source extraction onto show.Cue (or project media inventory) so packages
-// do not depend on preflight for path enumeration.
-func cueMediaSources(cue show.Cue, settings config.Settings) []string {
-	var source string
-	switch cue.Type {
-	case show.CueTypeSound:
-		if cue.Play.Sound != nil {
-			source = config.Resolve(cue.Play.Sound.File, settings, cue.CueNumber)
-		}
-	case show.CueTypeVideo:
-		if cue.Play.Video != nil {
-			source = config.Resolve(cue.Play.Video.File, settings, cue.CueNumber)
-		}
-	case show.CueTypeImage:
-		if cue.Play.Image != nil {
-			source = config.Resolve(cue.Play.Image.File, settings, cue.CueNumber)
-		}
-	}
-	if strings.TrimSpace(source) == "" || strings.Contains(source, "{") {
-		return nil
-	}
-	return []string{source}
 }
 
 func remoteHealthPreflight(cues []show.Cue, settings config.Settings, health []remote.TargetHealth) []operatorlog.PreflightCheck {
