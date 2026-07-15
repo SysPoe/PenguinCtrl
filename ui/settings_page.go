@@ -60,35 +60,31 @@ type videoOutputFields struct {
 	remove           widget.Clickable
 }
 
-// TODO(macro): Bind per-domain settings view models through the same typed
-// validation boundary used by config.Store. This flat widget mirror plus the
-// manual load/save mapping lets persistence, validation, and UI fields drift as
-// the settings schema grows.
-// TODO(macro): SettingsPage is a flat god-struct: every section's fields, device providers,
-// action clickables, and host callbacks sit on one type with monolithic load/save. Split
-// into section models (Defaults, Audio, VideoOutputs, Timecode, Redundancy, Targets,
-// Variables) that each load/save their config slice, and keep SettingsPage as a section
-// host + status chrome.
-type SettingsPage struct {
-	store                     *config.Store
-	initialized               bool
-	list                      layout.List
-	ffmpegPath                *input.Text
-	defaultPlayback           *input.Text
-	defaultMediaOutput        *input.Text
-	cacheQuotaGB              *input.Integer
-	cacheReserveGB            *input.Integer
-	timecodeSource            *input.Dropdown
-	timecodePolicy            *input.Dropdown
-	timecodeListenAddress     *input.Text
-	timecodeFrameRate         *input.Float
-	redundancyRole            *input.Dropdown
-	redundancyNodeID          *input.Text
-	redundancyListenAddress   *input.Text
-	redundancyPeerAddress     *input.Text
-	redundancySharedKey       *input.Text
-	redundancyInterlockPath   *input.Text
-	remoteSuccessPolicy       *input.Dropdown
+type settingsDefaultsModel struct {
+	ffmpegPath         *input.Text
+	defaultPlayback    *input.Text
+	defaultMediaOutput *input.Text
+	cacheQuotaGB       *input.Integer
+	cacheReserveGB     *input.Integer
+}
+
+type settingsTimecodeModel struct {
+	timecodeSource        *input.Dropdown
+	timecodePolicy        *input.Dropdown
+	timecodeListenAddress *input.Text
+	timecodeFrameRate     *input.Float
+}
+
+type settingsRedundancyModel struct {
+	redundancyRole          *input.Dropdown
+	redundancyNodeID        *input.Text
+	redundancyListenAddress *input.Text
+	redundancyPeerAddress   *input.Text
+	redundancySharedKey     *input.Text
+	redundancyInterlockPath *input.Text
+}
+
+type settingsAudioModel struct {
 	playbackAudioDevice       *input.Dropdown
 	playbackAudioRecovery     *input.Dropdown
 	playbackBackupAudioDevice *input.Dropdown
@@ -97,30 +93,55 @@ type SettingsPage struct {
 	previewBackupAudioDevice  *input.Dropdown
 	audioDevices              []AudioDevice
 	audioDeviceProvider       func() ([]AudioDevice, error)
-	videoDisplays             []VideoDisplay
-	videoDisplayProvider      func() ([]VideoDisplay, error)
-	videoOutputs              []*videoOutputFields
-	targets                   []*remoteTargetFields
-	variables                 []*variableFields
-	addTarget                 widget.Clickable
-	addVariable               widget.Clickable
-	save                      widget.Clickable
-	reload                    widget.Clickable
-	reopenOutputs             widget.Clickable
-	supportBundle             widget.Clickable
-	refreshAudioDevices       widget.Clickable
-	refreshDisplays           widget.Clickable
-	addVideoOutput            widget.Clickable
-	takeAuthority             widget.Clickable
-	releaseAuthority          widget.Clickable
-	status                    string
-	statusError               bool
-	onSaved                   func()
-	onReopenOutputs           func()
-	onSupportBundle           func() (string, error)
-	redundancyStatus          func() string
-	onTakeAuthority           func() error
-	onReleaseAuthority        func() error
+}
+
+type settingsVideoModel struct {
+	videoDisplays        []VideoDisplay
+	videoDisplayProvider func() ([]VideoDisplay, error)
+	videoOutputs         []*videoOutputFields
+}
+
+type settingsTargetsModel struct {
+	remoteSuccessPolicy *input.Dropdown
+	targets             []*remoteTargetFields
+	addTarget           widget.Clickable
+}
+
+type settingsVariablesModel struct {
+	variables   []*variableFields
+	addVariable widget.Clickable
+}
+
+// SettingsPage hosts status chrome and composes typed per-domain section models.
+type SettingsPage struct {
+	settingsDefaultsModel
+	settingsTimecodeModel
+	settingsRedundancyModel
+	settingsAudioModel
+	settingsVideoModel
+	settingsTargetsModel
+	settingsVariablesModel
+
+	store               *config.Store
+	initialized         bool
+	list                layout.List
+	save                widget.Clickable
+	reload              widget.Clickable
+	reopenOutputs       widget.Clickable
+	supportBundle       widget.Clickable
+	refreshAudioDevices widget.Clickable
+	refreshDisplays     widget.Clickable
+	addVideoOutput      widget.Clickable
+	takeAuthority       widget.Clickable
+	releaseAuthority    widget.Clickable
+	status              string
+	statusError         bool
+	onSaved             func()
+	onReopenOutputs     func()
+	onSupportBundle     func() (string, error)
+	redundancyStatus    func() string
+	onTakeAuthority     func() error
+	onReleaseAuthority  func() error
 }
 
 func (p *SettingsPage) SetOnSaved(callback func()) { p.onSaved = callback }
@@ -150,8 +171,7 @@ func (p *SettingsPage) SetVideoDisplayProvider(provider func() ([]VideoDisplay, 
 // ShowAudioDevices refreshes and scrolls directly to the audio routing controls.
 func (p *SettingsPage) ShowAudioDevices() {
 	p.refreshAudioDeviceList()
-	// TODO(micro): magic section index 2 for audio; name a const matching Layout section order.
-	p.list.Position.First = 2
+	p.list.Position.First = settingsAudioSectionIndex
 	p.list.Position.Offset = 0
 }
 

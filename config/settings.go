@@ -205,6 +205,15 @@ const (
 	maximumCacheReserveGB      = 100
 )
 
+// MinimumRedundancySharedKeyLength is the UI and validation policy boundary
+// for configured redundancy authentication keys.
+const MinimumRedundancySharedKeyLength = 16
+
+// DefaultVideoOutput returns the canonical settings defaults for a stage.
+func DefaultVideoOutput(stage string) VideoOutput {
+	return VideoOutput{Stage: stage, Width: defaultVideoWidth, Height: defaultVideoHeight, ResolutionWidth: defaultResolutionWidth, ResolutionHeight: defaultResolutionHeight, Scaling: "contain", IdleBehavior: "black", Layers: minimumOutputLayers}
+}
+
 func Defaults() Settings {
 	return Settings{
 		MediaSettings:  MediaSettings{FFmpegPath: "ffmpeg", DefaultMediaOutput: "main", Variables: map[string]string{}},

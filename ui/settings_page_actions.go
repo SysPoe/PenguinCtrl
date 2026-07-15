@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"strings"
 
 	"gioui.org/io/key"
 	"gioui.org/layout"
@@ -10,6 +9,8 @@ import (
 	"gioui.org/widget/material"
 	"github.com/syspoe/cusus/config"
 )
+
+const settingsAudioSectionIndex = 2
 
 func (p *SettingsPage) Layout(th *material.Theme, gtx layout.Context) layout.Dimensions {
 	if !p.initialized {
@@ -78,12 +79,7 @@ func (p *SettingsPage) handleClicks(gtx layout.Context) {
 	}
 	if p.addVideoOutput.Clicked(gtx) {
 		index := len(p.videoOutputs) + 1
-		p.videoOutputs = append(p.videoOutputs, newVideoOutputFields(config.VideoOutput{
-			// TODO(micro): default video stage geometry/resolution are magic; pull from config defaults or named consts.
-			Stage: fmt.Sprintf("stage-%d", index), Width: 960, Height: 540,
-			ResolutionWidth: 1920, ResolutionHeight: 1080,
-			Scaling: "contain", IdleBehavior: "black", Layers: 1,
-		}, p.videoDisplays))
+		p.videoOutputs = append(p.videoOutputs, newVideoOutputFields(config.DefaultVideoOutput(fmt.Sprintf("stage-%d", index)), p.videoDisplays))
 	}
 	if p.addTarget.Clicked(gtx) {
 		p.targets = append(p.targets, newRemoteTargetFields(config.RemoteTarget{Name: fmt.Sprintf("Target %d", len(p.targets)+1), Host: "127.0.0.1", OSCPort: 8000, ERCPort: 6553}))
@@ -111,99 +107,22 @@ func (p *SettingsPage) handleClicks(gtx layout.Context) {
 	}
 }
 
-// TODO(macro): saveSettings is a single cross-section serializer/validator that knows every field and hard-codes section order for ShowAudioDevices via list.Position.First. Per-section Collect()/Validate() would keep scroll targets, validation, and config mapping inside section boundaries.
 func (p *SettingsPage) saveSettings() {
 	settings := p.store.Snapshot()
-	settings.FFmpegPath = strings.TrimSpace(p.ffmpegPath.Value)
-	settings.DefaultPlayback = strings.TrimSpace(p.defaultPlayback.Value)
-	settings.DefaultMediaOutput = strings.TrimSpace(p.defaultMediaOutput.Value)
-	settings.CacheQuotaGB, settings.CacheReserveGB = p.cacheQuotaGB.Value, p.cacheReserveGB.Value
-	settings.TimecodeSource = selectedDropdownValue(p.timecodeSource)
-	settings.TimecodePolicy = selectedDropdownValue(p.timecodePolicy)
-	settings.TimecodeListenAddress = strings.TrimSpace(p.timecodeListenAddress.Value)
-	settings.TimecodeFrameRate = p.timecodeFrameRate.Value
-	settings.RedundancyRole = selectedDropdownValue(p.redundancyRole)
-	settings.RedundancyNodeID = strings.TrimSpace(p.redundancyNodeID.Value)
-	settings.RedundancyListenAddress = strings.TrimSpace(p.redundancyListenAddress.Value)
-	settings.RedundancyPeerAddress = strings.TrimSpace(p.redundancyPeerAddress.Value)
-	settings.RedundancySharedKey = strings.TrimSpace(p.redundancySharedKey.Value)
-	settings.RedundancyInterlockPath = strings.TrimSpace(p.redundancyInterlockPath.Value)
-	if settings.RedundancyRole != config.RedundancyOff {
-		if settings.RedundancyNodeID == "" || settings.RedundancyListenAddress == "" || settings.RedundancyPeerAddress == "" || settings.RedundancyInterlockPath == "" {
-			p.status, p.statusError = "Redundancy requires node ID, heartbeat addresses, and a shared interlock path", true
-			return
-		}
-		// TODO(micro): 16-char key min is a magic policy number; share with config validation const.
-		if len(settings.RedundancySharedKey) < 16 {
-			p.status, p.statusError = "Redundancy shared key must contain at least 16 characters", true
-			return
-		}
+	collectors := []func(*config.Settings) error{
+		p.settingsDefaultsModel.collect,
+		p.settingsAudioModel.collect,
+		p.settingsVideoModel.collect,
+		p.settingsTimecodeModel.collect,
+		p.settingsRedundancyModel.collect,
+		p.settingsTargetsModel.collect,
+		p.settingsVariablesModel.collect,
 	}
-	settings.PlaybackAudioDevice = selectedDropdownValue(p.playbackAudioDevice)
-	settings.PlaybackAudioRecovery = selectedDropdownValue(p.playbackAudioRecovery)
-	settings.PlaybackBackupAudioDevice = selectedDropdownValue(p.playbackBackupAudioDevice)
-	settings.PreviewAudioDevice = selectedDropdownValue(p.previewAudioDevice)
-	settings.PreviewAudioRecovery = selectedDropdownValue(p.previewAudioRecovery)
-	settings.PreviewBackupAudioDevice = selectedDropdownValue(p.previewBackupAudioDevice)
-	if settings.PlaybackAudioRecovery == config.AudioRecoveryNamedBackup && settings.PlaybackBackupAudioDevice == "" {
-		p.status, p.statusError = "Playback named-backup policy requires a backup device", true
-		return
-	}
-	if settings.PreviewAudioRecovery == config.AudioRecoveryNamedBackup && settings.PreviewBackupAudioDevice == "" {
-		p.status, p.statusError = "Preview named-backup policy requires a backup device", true
-		return
-	}
-	settings.VideoOutputs = make([]config.VideoOutput, 0, len(p.videoOutputs))
-	stages := make(map[string]struct{}, len(p.videoOutputs))
-	for _, fields := range p.videoOutputs {
-		stage := strings.TrimSpace(fields.stage.Value)
-		if stage == "" {
-			p.status, p.statusError = "Video stage names cannot be empty", true
+	for _, collect := range collectors {
+		if err := collect(&settings); err != nil {
+			p.status, p.statusError = err.Error(), true
 			return
 		}
-		if _, exists := stages[stage]; exists {
-			p.status, p.statusError = "Duplicate video stage: "+stage, true
-			return
-		}
-		stages[stage] = struct{}{}
-		settings.VideoOutputs = append(settings.VideoOutputs, config.VideoOutput{
-			Stage: stage, DisplayID: selectedDropdownValue(fields.display), Fullscreen: fields.fullscreen.Checked,
-			X: fields.x.Value, Y: fields.y.Value, Width: fields.width.Value, Height: fields.height.Value,
-			ResolutionWidth: fields.resolutionW.Value, ResolutionHeight: fields.resolutionH.Value,
-			Scaling: selectedDropdownValue(fields.scaling), IdleBehavior: selectedDropdownValue(fields.idle),
-			TestGrid: fields.testGrid.Checked, SafeAreaPercent: fields.safeArea.Value, Layers: fields.layers.Value,
-			ExpectedRefresh: fields.expectedRefresh.Value, AlwaysOnTop: fields.alwaysOnTop.Checked, LockedFullscreen: fields.lockedFullscreen.Checked,
-			HideCursor: fields.hideCursor.Checked, DisplayConfirmed: fields.displayConfirmed.Checked,
-		})
-	}
-	settings.RemoteTargets = make([]config.RemoteTarget, 0, len(p.targets))
-	settings.RemoteSuccessPolicy = selectedDropdownValue(p.remoteSuccessPolicy)
-	for _, target := range p.targets {
-		settings.RemoteTargets = append(settings.RemoteTargets, config.RemoteTarget{
-			Name: strings.TrimSpace(target.name.Value), Host: strings.TrimSpace(target.host.Value),
-			OSCPort: target.oscPort.Value, ERCPort: target.ercPort.Value, HealthPort: target.healthPort.Value, AckPort: target.ackPort.Value,
-		})
-	}
-	settings.Variables = map[string]string{}
-	for _, variable := range p.variables {
-		name := strings.TrimSpace(variable.name.Value)
-		if name == "" {
-			p.status, p.statusError = "Variable names cannot be empty", true
-			return
-		}
-		if !config.ValidVariableName(name) {
-			p.status, p.statusError = "Invalid variable name: "+name, true
-			return
-		}
-		if name == "defaultPlayback" || name == "defaultMediaOutput" || name == "cueNumber" {
-			p.status, p.statusError = name+" is a built-in variable", true
-			return
-		}
-		if _, exists := settings.Variables[name]; exists {
-			p.status, p.statusError = "Duplicate variable: "+name, true
-			return
-		}
-		settings.Variables[name] = variable.value.Value
 	}
 	if err := p.store.Update(settings); err != nil {
 		p.status, p.statusError = err.Error(), true

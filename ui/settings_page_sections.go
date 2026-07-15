@@ -2,19 +2,17 @@ package ui
 
 import (
 	"fmt"
+	"image/color"
 
 	"gioui.org/layout"
 	"gioui.org/unit"
+	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"github.com/syspoe/cusus/config"
 	"github.com/syspoe/cusus/palette"
 	"github.com/syspoe/cusus/ui/input"
 )
 
-// TODO(macro): settings_page_sections.go / outputs / actions are file splits of
-// one SettingsPage type rather than section modules. Once section models exist,
-// each section should own its Layout + Collect/Validate in one place instead of
-// methods on the god page type spread across three files.
 func (p *SettingsPage) header(th *material.Theme, gtx layout.Context) layout.Dimensions {
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
@@ -33,20 +31,19 @@ func (p *SettingsPage) header(th *material.Theme, gtx layout.Context) layout.Dim
 				}),
 			)
 		}),
-		// TODO(micro): Reopen/Support buttons use makeBtn (ContrastBg) while Reload/Save use layoutButton with custom colors; unify chrome
-		makeBtn(th, &p.reopenOutputs, "Reopen output windows"),
-		makeBtn(th, &p.supportBundle, "Create support bundle"),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return layoutButton(th, gtx, &p.reload, "Reload", th.ContrastBg)
-			})
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return layoutButton(th, gtx, &p.save, "Save", palette.Primary)
-			})
-		}),
+		settingsHeaderButton(th, &p.reopenOutputs, "Reopen output windows", th.ContrastBg),
+		settingsHeaderButton(th, &p.supportBundle, "Create support bundle", th.ContrastBg),
+		settingsHeaderButton(th, &p.reload, "Reload", th.ContrastBg),
+		settingsHeaderButton(th, &p.save, "Save", palette.Primary),
 	)
+}
+
+func settingsHeaderButton(th *material.Theme, clickable *widget.Clickable, label string, background color.NRGBA) layout.FlexChild {
+	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+		return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layoutButton(th, gtx, clickable, label, background)
+		})
+	})
 }
 
 func (p *SettingsPage) defaultsSection(th *material.Theme, gtx layout.Context) layout.Dimensions {
