@@ -26,17 +26,8 @@ import (
 	"github.com/syspoe/cusus/ui"
 )
 
-// TODO(macro): Move document lifecycle, background-service ownership, and UI
-// command handling into a window-session controller, leaving run as a small Gio
-// event pump. This function currently owns enough unrelated lifetimes that save,
-// recovery, shutdown, and frame behavior cannot be exercised independently.
-// TODO(macro): App.run is the package-main god loop — Gio event pump, document session
-// (path/digest/journal/save/open/new/close), health+preflight+cache wiring, E-STOP orchestration,
-// operator-warning transitions, redundancy fingerprint updates, and full layout composition.
-// Extract a document.Session (or project.Controller) for load/save/dirty/journal, an
-// operator.Shell for frame-time status/preflight/fingerprint fan-out, and keep run() as a thin
-// event dispatcher + layout root so domain policy is unit-testable outside the frame loop.
-func (a *App) run(window *app.Window) error {
+func (s *windowSession) run() error {
+	a, window := s.application, s.window
 	topBar := &a.UI.TopBar
 	playbackSidebar := &a.UI.PlaybackSidebar
 	tbCtx := &a.UI.TBContext
