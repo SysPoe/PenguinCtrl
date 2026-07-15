@@ -1,4 +1,4 @@
-// TODO(micro): Add a package comment and Go-style docs for ErrShutdownTimeout and Group's exported lifecycle API.
+// Package taskgroup owns named, cancellable, panic-reported background work.
 package taskgroup
 
 import (
@@ -6,8 +6,11 @@ import (
 	"errors"
 	"sync"
 	"time"
+
+	"github.com/syspoe/cusus/internal/crashreport"
 )
 
+// ErrShutdownTimeout reports that owned work did not exit before its deadline.
 var ErrShutdownTimeout = errors.New("background task shutdown deadline exceeded")
 
 // Group owns cancellable background work and bounds the number of tasks that
@@ -21,6 +24,7 @@ type Group struct {
 	wg     sync.WaitGroup
 }
 
+// New creates a group with bounded task concurrency.
 func New(parent context.Context, concurrency int) *Group {
 	if parent == nil {
 		parent = context.Background()
@@ -32,15 +36,12 @@ func New(parent context.Context, concurrency int) *Group {
 	return &Group{ctx: ctx, cancel: cancel, slots: make(chan struct{}, concurrency)}
 }
 
+// Context is cancelled when the group closes.
 func (g *Group) Context() context.Context { return g.ctx }
 
-// TODO(macro): Go accepts a task name then discards it, and has no panic
-// fencing—unlike crashreport.Go, which records then re-panics for the
-// supervisor. Unify background-work policy (named tasks, bounded concurrency,
-// crash reports, shutdown) so callers are not forced to pick between two
-// incomplete concurrency helpers.
-// TODO(micro): name param is discarded (_ string); remove it or use it in panic/log labels
-func (g *Group) Go(_ string, work func(context.Context)) bool {
+// Go schedules named work unless the group is closing. Panics are written to
+// the crash report before being re-raised for the supervisor.
+func (g *Group) Go(name string, work func(context.Context)) bool {
 	g.mu.Lock()
 	if g.closed {
 		g.mu.Unlock()
@@ -56,11 +57,12 @@ func (g *Group) Go(_ string, work func(context.Context)) bool {
 		case <-g.ctx.Done():
 			return
 		}
-		work(g.ctx)
+		crashreport.Run(name, func() { work(g.ctx) })
 	}()
 	return true
 }
 
+// Close cancels the group and waits for all accepted tasks.
 func (g *Group) Close(timeout time.Duration) error {
 	g.mu.Lock()
 	if !g.closed {

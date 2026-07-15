@@ -35,8 +35,10 @@ func TestConcurrencyIsBounded(t *testing.T) {
 	for range 8 {
 		group.Go("bounded", func(context.Context) {
 			current := active.Add(1)
-			for current > maximum.Load() && !maximum.CompareAndSwap(maximum.Load(), current) {
-				// TODO(micro): Rewrite this CAS retry with a named observed value so the empty spin body and repeated Load calls are explicit.
+			for observed := maximum.Load(); current > observed; observed = maximum.Load() {
+				if maximum.CompareAndSwap(observed, current) {
+					break
+				}
 			}
 			<-release
 			active.Add(-1)

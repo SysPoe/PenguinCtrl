@@ -1,4 +1,4 @@
-// TODO(micro): Add a package comment and Go-style docs for the exported crash-output lifecycle functions.
+// Package crashreport captures fatal runtime output and named goroutine panics.
 package crashreport
 
 import (
@@ -25,6 +25,7 @@ var state struct {
 	fatalPath string
 }
 
+// SetDirectory selects where crash reports are retained.
 func SetDirectory(directory string) {
 	state.Lock()
 	state.directory = directory
@@ -59,6 +60,7 @@ func InstallFatalOutput() error {
 	return nil
 }
 
+// CloseFatalOutput detaches the runtime crash sink and removes it after a clean exit.
 func CloseFatalOutput(clean bool) {
 	state.Lock()
 	file, path := state.fatalFile, state.fatalPath
@@ -79,17 +81,22 @@ func CloseFatalOutput(clean bool) {
 // deliberate: the external supervisor must restart into a known silent state
 // instead of allowing a partially failed show-control process to continue.
 func Go(name string, work func()) {
-	go func() {
-		defer func() {
-			if value := recover(); value != nil {
-				_ = Write(name, value, debug.Stack())
-				panic(value)
-			}
-		}()
-		work()
-	}()
+	go Run(name, work)
 }
 
+// Run executes owned work with durable panic reporting on the current
+// goroutine. Re-panicking lets the external supervisor restore a known state.
+func Run(name string, work func()) {
+	defer func() {
+		if value := recover(); value != nil {
+			_ = Write(name, value, debug.Stack())
+			panic(value)
+		}
+	}()
+	work()
+}
+
+// Write persists one named panic and stack trace.
 func Write(component string, value any, stack []byte) error {
 	state.RLock()
 	directory := state.directory
