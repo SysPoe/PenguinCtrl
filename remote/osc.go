@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/syspoe/cusus/internal/osc"
 	"github.com/syspoe/cusus/show"
 )
 
@@ -21,7 +22,11 @@ func encodeOSC(address string, values []show.RemoteValue) ([]byte, error) {
 		switch value.Type {
 		case show.RemoteValueString:
 			tags.WriteByte('s')
-			args = append(args, oscString(value.Value))
+			encoded, err := osc.AppendString(nil, value.Value)
+			if err != nil {
+				return nil, err
+			}
+			args = append(args, encoded)
 		case show.RemoteValueInt:
 			parsed, err := strconv.ParseInt(strings.TrimSpace(value.Value), 10, 32)
 			if err != nil {
@@ -54,18 +59,16 @@ func encodeOSC(address string, values []show.RemoteValue) ([]byte, error) {
 			return nil, fmt.Errorf("unsupported OSC value type %d", value.Type)
 		}
 	}
-	payload := append(oscString(address), oscString(tags.String())...)
+	payload, err := osc.AppendString(nil, address)
+	if err != nil {
+		return nil, err
+	}
+	payload, err = osc.AppendString(payload, tags.String())
+	if err != nil {
+		return nil, err
+	}
 	for _, arg := range args {
 		payload = append(payload, arg...)
 	}
 	return payload, nil
-}
-
-func oscString(value string) []byte {
-	raw := append([]byte(value), 0)
-	// TODO(micro): name OSC 4-byte alignment pad as a constant (or shared OSC helper)
-	for len(raw)%4 != 0 {
-		raw = append(raw, 0)
-	}
-	return raw
 }
