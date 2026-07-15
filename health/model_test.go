@@ -15,3 +15,10 @@ func TestSnapshotSortsComponentsAndSelectsWorstState(t *testing.T) {
 		t.Fatalf("component order = %+v", snapshot.Components)
 	}
 }
+
+func TestSnapshotTreatsUnknownStateAsFailed(t *testing.T) {
+	snapshot := NewSnapshot([]Component{{ID: "invalid", Kind: "engine", State: State(99)}})
+	if snapshot.Overall != Failed || snapshot.Components[0].State != Failed {
+		t.Fatalf("unknown state was not failed closed: %+v", snapshot)
+	}
+}

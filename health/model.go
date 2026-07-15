@@ -1,4 +1,4 @@
-// TODO(micro): Add Go-style documentation for the exported State, Component, Snapshot, and NewSnapshot API in this file.
+// Package health models and monitors the readiness of show-control components.
 package health
 
 import (
@@ -7,11 +7,7 @@ import (
 	"time"
 )
 
-// TODO(macro): This package is only DTOs + NewSnapshot aggregation, while all
-// component collectors (engine, audio, remote, redundancy, disk, …) live in the
-// main package (health_service.go). Move collectors behind health interfaces or
-// promote healthService into this package so "system health" has a real boundary
-// instead of anemic types with logic stranded in main.
+// State is the ordered operational severity of a component.
 type State int
 
 const (
@@ -36,6 +32,27 @@ func (s State) String() string {
 	}
 }
 
+func normalizedState(state State) State {
+	switch state {
+	case Normal, Degraded, Recovering, Failed:
+		return state
+	default:
+		return Failed
+	}
+}
+
+// MoreSevere returns the higher operational severity, treating unknown values
+// as Failed so invalid observations cannot make readiness look healthier.
+func MoreSevere(left, right State) State {
+	left = normalizedState(left)
+	right = normalizedState(right)
+	if right > left {
+		return right
+	}
+	return left
+}
+
+// Component is one named subsystem observation in a health snapshot.
 type Component struct {
 	ID      string
 	Kind    string
@@ -46,12 +63,14 @@ type Component struct {
 	Details map[string]any
 }
 
+// Snapshot is an immutable-at-publication aggregate of component observations.
 type Snapshot struct {
 	Generated  time.Time
 	Overall    State
 	Components []Component
 }
 
+// NewSnapshot normalizes, sorts, and aggregates component observations.
 func NewSnapshot(components []Component) Snapshot {
 	copyOf := append([]Component(nil), components...)
 	sort.Slice(copyOf, func(i, j int) bool {
@@ -67,10 +86,8 @@ func NewSnapshot(components []Component) Snapshot {
 		copyOf[index].Name = strings.TrimSpace(copyOf[index].Name)
 		copyOf[index].Summary = strings.TrimSpace(copyOf[index].Summary)
 		copyOf[index].Action = strings.TrimSpace(copyOf[index].Action)
-		// TODO(micro): State iota order is used as severity rank via `>`; document that or use an explicit max-severity helper/clamp
-		if copyOf[index].State > overall {
-			overall = copyOf[index].State
-		}
+		copyOf[index].State = normalizedState(copyOf[index].State)
+		overall = MoreSevere(overall, copyOf[index].State)
 	}
 	return Snapshot{Generated: time.Now().UTC(), Overall: overall, Components: copyOf}
 }

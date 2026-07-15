@@ -90,10 +90,10 @@ func (a *App) run(window *app.Window) error {
 	lastMixerUnderruns := map[string]uint64{}
 	var safetyResume widget.Clickable
 	lastFrameAt := time.Now()
-	healthMonitor := newHealthService(func() []health.Component {
+	healthMonitor := health.NewMonitor(func() []health.Component {
 		path, dirty, _ := document.status(manager.ShowSnapshot())
 		return collectHealthComponents(playbackEngine, mediaManager, a.Timecode, a.Redundancy, settingsStore.Snapshot(), path, dirty)
-	})
+	}, readinessRefreshInterval)
 	defer healthMonitor.Close()
 	defer a.Timecode.Close()
 	defer a.Redundancy.Close()

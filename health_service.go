@@ -1,13 +1,10 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/syspoe/cusus/config"
@@ -24,56 +21,6 @@ const (
 	healthComponentCapacity  = 10
 	cacheReserveWarnFactor   = 2
 )
-
-// TODO(macro): healthService (generic poller) cohabits with collectHealthComponents and every
-// subsystem probe (engine/audio/output/decoder/remote/disk/timecode/redundancy) plus
-// health→preflight and operator-banner severity policy. Move the poller into package health;
-// keep component collectors beside their domains (or health adapters), and extract
-// healthPreflightChecks/operatorHealthState into the preflight assembler so package main is not
-// the health domain.
-type healthService struct {
-	ctx      context.Context
-	cancel   context.CancelFunc
-	wg       sync.WaitGroup
-	mu       sync.RWMutex
-	latest   health.Snapshot
-	provider func() []health.Component
-}
-
-func newHealthService(provider func() []health.Component) *healthService {
-	ctx, cancel := context.WithCancel(context.Background())
-	service := &healthService{ctx: ctx, cancel: cancel, provider: provider, latest: health.NewSnapshot(nil)}
-	service.wg.Add(1)
-	go service.run()
-	return service
-}
-
-func (s *healthService) run() {
-	defer s.wg.Done()
-	ticker := time.NewTicker(readinessRefreshInterval)
-	defer ticker.Stop()
-	for {
-		snapshot := health.NewSnapshot(s.provider())
-		s.mu.Lock()
-		s.latest = snapshot
-		s.mu.Unlock()
-		select {
-		case <-s.ctx.Done():
-			return
-		case <-ticker.C:
-		}
-	}
-}
-
-func (s *healthService) Snapshot() health.Snapshot {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	copyOf := s.latest
-	copyOf.Components = slices.Clone(s.latest.Components)
-	return copyOf
-}
-
-func (s *healthService) Close() { s.cancel(); s.wg.Wait() }
 
 // TODO(macro): collectHealthComponents reaches across playback, media, timecode, redundancy,
 // config, and document dirty state — a composition-root concern that forces package main to
