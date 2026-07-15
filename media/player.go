@@ -51,6 +51,7 @@ type Player struct {
 	presented     bool
 	visualFadeAt  time.Time
 	visualFadeFor time.Duration
+	initialFadeIn bool
 }
 
 // TODO(macro): NewPlayer minting a private FFmpegBackend bypasses Manager's
@@ -66,6 +67,7 @@ func NewPlayerWithBackend(instance playback.Instance, settings *config.Store, ba
 	return &Player{
 		instance: instance, settings: settings, window: window, report: report, duration: duration, failure: failure,
 		backend: backend, volumeDB: instance.LevelDB, decodeVisible: true, ctx: ctx, cancel: cancel,
+		initialFadeIn: instance.FadeInMs > 0 && (instance.MediaType == playback.MediaTypeAudio || instance.MediaType == playback.MediaTypeVideo),
 	}
 }
 
@@ -103,8 +105,7 @@ func (p *Player) MediaType() string { return p.instance.MediaType }
 // continues, and revealing the layer restarts at the current presentation time.
 func (p *Player) SetDecodeVisible(visible bool) {
 	p.mu.Lock()
-	// TODO(micro): media type string "video" (and audio/image elsewhere) should be package constants shared with backend preload checks.
-	if p.instance.MediaType != "video" || p.closed || p.decodeVisible == visible {
+	if p.instance.MediaType != playback.MediaTypeVideo || p.closed || p.decodeVisible == visible {
 		p.mu.Unlock()
 		return
 	}

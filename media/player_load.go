@@ -54,13 +54,18 @@ func (p *Player) restart(position time.Duration) error {
 	clock, backend := p.clock, p.backend
 	request := PlaybackRequest{Instance: p.instance, Position: position, RequestedAt: time.Now()}
 	volume, muted := p.volumeDB, p.muted
+	initialFadeIn := p.initialFadeIn
 	p.mu.Unlock()
 
 	session, err := backend.Open(request)
 	if err != nil {
 		return err
 	}
-	session.SetVolume(volume)
+	if initialFadeIn {
+		session.SetVolume(muteFloorDB)
+	} else {
+		session.SetVolume(volume)
+	}
 	session.SetMuted(muted)
 	if session.State() != LoadReady {
 		if err := session.Preload(p.ctx); err != nil {
@@ -81,9 +86,17 @@ func (p *Player) restart(position time.Duration) error {
 		return err
 	}
 	p.mu.Lock()
-	// TODO(micro): session.Start already calls clock.Start(); this second Start is a no-op for the clock and only re-reads anchor -- use clock.Start() return from session.Start or Position path cleanly.
-	p.started = clock.Start()
+	p.started = clock.StartedAt()
+	startFadeIn := p.initialFadeIn
+	fadeTargetDB := p.volumeDB
+	if startFadeIn {
+		p.initialFadeIn = false
+		p.volumeDB = muteFloorDB
+	}
 	p.mu.Unlock()
+	if startFadeIn {
+		p.setVolume(fadeTargetDB, time.Duration(p.instance.FadeInMs)*time.Millisecond, 0)
+	}
 	p.report("started")
 	p.invalidate()
 	p.goOwned(func(ctx context.Context) {

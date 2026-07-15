@@ -13,12 +13,20 @@ import (
 	_ "golang.org/x/image/webp"
 )
 
-// TODO(macro): Control is a flat string switch that co-drives transport
-// (pause/seek/stop), audio gain, and visual opacity on the same Player. As
-// media types diverge (audio-only, image, video), this becomes a mixed concern
-// hub. Split transport vs audio parameter vs visual parameter handlers (or
-// type-specific controllers) so stop/fade policy is not one combined path.
+const volumeFadeTick = 20 * time.Millisecond
+
 func (p *Player) Control(event playback.Event) {
+	switch event.Control {
+	case "pause", "resume", "seek", "stop":
+		p.controlTransport(event)
+	case "set-volume", "fade-to", "mute", "unmute":
+		p.controlAudio(event)
+	case "fade-out":
+		p.controlFadeOut(event)
+	}
+}
+
+func (p *Player) controlTransport(event playback.Event) {
 	switch event.Control {
 	case "pause":
 		p.pause()
@@ -28,6 +36,17 @@ func (p *Player) Control(event playback.Event) {
 		if event.PositionMs != nil {
 			p.reportFailure(p.restart(time.Duration(max(0, *event.PositionMs)) * time.Millisecond))
 		}
+	case "stop":
+		if event.FadeMs > 0 {
+			p.controlFadeOut(event)
+			return
+		}
+		p.Close(true)
+	}
+}
+
+func (p *Player) controlAudio(event playback.Event) {
+	switch event.Control {
 	case "set-volume", "fade-to":
 		if event.LevelDB != nil {
 			p.setVolume(*event.LevelDB, time.Duration(event.FadeMs)*time.Millisecond, event.Curve)
@@ -36,19 +55,13 @@ func (p *Player) Control(event playback.Event) {
 		p.setMuted(true)
 	case "unmute":
 		p.setMuted(false)
-	case "fade-out":
-		p.startVisualFadeOut(time.Duration(event.FadeMs) * time.Millisecond)
-		// TODO(micro): mute-floor -80 is repeated in fade-out/stop and fadeVolumeDB; name muteFloorDB and reuse.
-		p.setVolume(-80, time.Duration(event.FadeMs)*time.Millisecond, event.Curve)
-	case "stop":
-		if event.FadeMs > 0 {
-			p.startVisualFadeOut(time.Duration(event.FadeMs) * time.Millisecond)
-			// TODO(micro): fade-out and stop>0 paths are identical (visual fade + setVolume -80); extract one helper.
-			p.setVolume(-80, time.Duration(event.FadeMs)*time.Millisecond, event.Curve)
-		} else {
-			p.Close(true)
-		}
 	}
+}
+
+func (p *Player) controlFadeOut(event playback.Event) {
+	duration := time.Duration(event.FadeMs) * time.Millisecond
+	p.startVisualFadeOut(duration)
+	p.setVolume(muteFloorDB, duration, event.Curve)
 }
 
 func (p *Player) startVisualFadeOut(duration time.Duration) {
@@ -133,8 +146,7 @@ func (p *Player) setVolume(target float64, duration time.Duration, curve show.Fa
 	}
 	p.goOwned(func(ctx context.Context) {
 		started := time.Now()
-		// TODO(micro): 20ms volume-fade tick is magic; name a volumeFadeTick constant.
-		ticker := time.NewTicker(20 * time.Millisecond)
+		ticker := time.NewTicker(volumeFadeTick)
 		defer ticker.Stop()
 		for {
 			select {

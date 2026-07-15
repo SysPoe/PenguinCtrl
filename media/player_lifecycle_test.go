@@ -3,6 +3,8 @@ package media
 import (
 	"context"
 	"errors"
+	"image"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,6 +14,83 @@ import (
 type rejectingPlaybackBackend struct{ err error }
 
 func (b rejectingPlaybackBackend) Open(PlaybackRequest) (PlaybackSession, error) { return nil, b.err }
+
+type recordingPlaybackBackend struct{ session *recordingPlaybackSession }
+
+func (b recordingPlaybackBackend) Open(PlaybackRequest) (PlaybackSession, error) {
+	return b.session, nil
+}
+
+type recordingPlaybackSession struct {
+	mu      sync.Mutex
+	volumes []float64
+	done    chan struct{}
+	once    sync.Once
+}
+
+func (*recordingPlaybackSession) Preload(context.Context) error   { return nil }
+func (*recordingPlaybackSession) Frame(time.Duration) image.Image { return nil }
+func (*recordingPlaybackSession) SetMuted(bool)                   {}
+func (*recordingPlaybackSession) State() LoadState                { return LoadReady }
+func (*recordingPlaybackSession) Metrics() PlaybackMetrics {
+	return PlaybackMetrics{State: LoadPlaying}
+}
+func (s *recordingPlaybackSession) Done() <-chan struct{} { return s.done }
+func (s *recordingPlaybackSession) Start(clock *PlaybackClock) error {
+	clock.Start()
+	return nil
+}
+func (s *recordingPlaybackSession) SetVolume(db float64) {
+	s.mu.Lock()
+	s.volumes = append(s.volumes, db)
+	s.mu.Unlock()
+}
+func (s *recordingPlaybackSession) Close() { s.once.Do(func() { close(s.done) }) }
+
+func (s *recordingPlaybackSession) latestVolume() float64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.volumes) == 0 {
+		return 0
+	}
+	return s.volumes[len(s.volumes)-1]
+}
+
+func (s *recordingPlaybackSession) firstVolume() float64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.volumes[0]
+}
+
+func TestSoundFadeInAndFadeOutDriveSessionGain(t *testing.T) {
+	session := &recordingPlaybackSession{done: make(chan struct{})}
+	player := NewPlayerWithBackend(
+		playback.Instance{MediaType: playback.MediaTypeAudio, FadeInMs: 60, LevelDB: -6, DurationMs: 1000},
+		nil, recordingPlaybackBackend{session: session}, nil, func(string) {}, nil, nil,
+	)
+	if err := player.Start(); err != nil {
+		t.Fatal(err)
+	}
+	if got := session.firstVolume(); got != muteFloorDB {
+		t.Fatalf("initial session volume = %v dB, want mute floor %v dB", got, muteFloorDB)
+	}
+	waitForVolume(t, session, -6)
+	player.Control(playback.Event{Control: "fade-out", FadeMs: 60})
+	waitForVolume(t, session, muteFloorDB)
+	player.Close(false)
+}
+
+func waitForVolume(t *testing.T, session *recordingPlaybackSession, want float64) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if got := session.latestVolume(); got == want {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("latest session volume = %v dB, want %v dB", session.latestVolume(), want)
+}
 
 func TestPlayerCloseCancelsAndJoinsOwnedWork(t *testing.T) {
 	player := &Player{}

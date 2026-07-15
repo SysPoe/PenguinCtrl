@@ -41,6 +41,12 @@ func (c *PlaybackClock) Start() time.Time {
 	return c.anchor
 }
 
+func (c *PlaybackClock) StartedAt() time.Time {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.anchor
+}
+
 func (c *PlaybackClock) Pause() time.Duration {
 	c.mu.Lock()
 	defer c.mu.Unlock()
