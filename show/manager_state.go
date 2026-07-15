@@ -43,11 +43,7 @@ func (sm *ShowManager) ProblemAcknowledged(fingerprint string) bool {
 }
 
 func cloneCues(cues []Cue) []Cue {
-	cloned := make([]Cue, len(cues))
-	for i := range cues {
-		cloned[i] = CloneCue(cues[i])
-	}
-	return cloned
+	return deepClone(cues)
 }
 
 func (sm *ShowManager) SelectedCueCopy() (Cue, int, bool) {
