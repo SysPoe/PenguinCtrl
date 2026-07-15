@@ -19,6 +19,13 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
+const (
+	timelineMinZoom       = 1.0
+	timelineMaxZoom       = 64.0
+	timelineZoomFactor    = 1.12
+	timelineScrollDivisor = 50.0
+)
+
 func (ctx *CueEditUI) copyTimelineSelection(gtx layout.Context) {
 	copied := ctx.timeline.model.copySelection()
 	if len(copied) == 0 {
@@ -164,8 +171,7 @@ func (ctx *CueEditUI) handleTimelinePointer(gtx layout.Context, size image.Point
 				anchor := hoverTrackMs
 				oldDur := t.viewDuration()
 				frac := float64(anchor-t.viewStartMs) / float64(oldDur)
-				// TODO(micro): zoom max 64, factor 1.12, scroll divisor 50 are magic; name timeline zoom consts.
-				t.zoom = math.Max(1, math.Min(64, t.zoom*math.Pow(1.12, float64(-e.Scroll.Y)/50)))
+				t.zoom = math.Max(timelineMinZoom, math.Min(timelineMaxZoom, t.zoom*math.Pow(timelineZoomFactor, float64(-e.Scroll.Y)/timelineScrollDivisor)))
 				t.viewStartMs = anchor - int64(frac*float64(t.viewDuration()))
 				t.clampView()
 			} else {

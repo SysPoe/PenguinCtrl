@@ -16,6 +16,11 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
+const (
+	waveformAlpha     = uint8(0xD0)
+	waveformAmplitude = 0.40
+)
+
 func (ctx *CueEditUI) drawTimeline(th *material.Theme, gtx layout.Context) layout.Dimensions {
 	t := &ctx.timeline
 	markers := &t.model.markers
@@ -161,7 +166,7 @@ func (ctx *CueEditUI) drawWaveformBars(gtx layout.Context, size image.Point) {
 	clipDuration := max(int64(0), clipEnd-clipStart)
 	fadeIn, fadeOut := ctx.timecodeFades()
 	center := size.Y / 2
-	amp := float64(size.Y) * 0.40
+	amp := float64(size.Y) * waveformAmplitude
 	for x := 0; x < size.X; x++ {
 		fromMs := t.viewStartMs + int64(float64(x)/float64(size.X)*float64(t.viewDuration()))
 		toMs := t.viewStartMs + int64(float64(x+1)/float64(size.X)*float64(t.viewDuration()))
@@ -185,8 +190,7 @@ func (ctx *CueEditUI) drawWaveformBars(gtx layout.Context, size image.Point) {
 			}
 		}
 		h := max(1, int(float64(peak)*amp*gain))
-		// TODO(micro): waveform alpha 0xD0 and 0.40 amp are magic; name waveformAlpha/waveformAmplitude consts.
-		paint.FillShape(gtx.Ops, palette.WithAlpha(palette.Success, 0xD0), clip.Rect{Min: image.Pt(x, center-h), Max: image.Pt(x+1, center+h)}.Op())
+		paint.FillShape(gtx.Ops, palette.WithAlpha(palette.Success, waveformAlpha), clip.Rect{Min: image.Pt(x, center-h), Max: image.Pt(x+1, center+h)}.Op())
 	}
 }
 

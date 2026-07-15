@@ -16,6 +16,7 @@ import (
 
 const topBarHeight int = 40
 const menuWidth int = 200
+const topBarCompactWidth = unit.Dp(900)
 
 // TODO(macro): TopBar mixes menu chrome, file/page request flags, blackout, and a
 // status sink. Keep menus as one concern and replace the Take*/Request* flag bus
@@ -71,9 +72,8 @@ func (tb *TopBar) AddCueMenuOpen() bool {
 
 func (tb *TopBar) FileMenuOpen() bool { return tb.showFile }
 
-// TODO(micro): identical to CloseMenus; delete one or make CloseAddCueMenu call CloseMenus.
 func (tb *TopBar) CloseAddCueMenu() {
-	tb.setAllFalse()
+	tb.CloseMenus()
 }
 
 func (tb *TopBar) CloseMenus() {
@@ -140,10 +140,9 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, set
 		tb.showAction = !wasOpen
 	}
 	if !settingsPage && tb.btnAddCue.Clicked(gtx) {
-		// TODO(micro): misnamed var (wasOpen elsewhere); rename to wasOpen for consistency.
-		oval := tb.showAddCue
+		wasOpen := tb.showAddCue
 		tb.setAllFalse()
-		tb.showAddCue = !oval
+		tb.showAddCue = !wasOpen
 	}
 	if tb.btnPage.Clicked(gtx) {
 		tb.setAllFalse()
@@ -166,8 +165,7 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, set
 	var pageSize image.Point
 	var blackoutSize image.Point
 	windowWidth := gtx.Constraints.Max.X
-	// TODO(micro): 900 compact breakpoint is magic; name topBarCompactWidth const.
-	compact := windowWidth < gtx.Dp(unit.Dp(900))
+	compact := windowWidth < gtx.Dp(topBarCompactWidth)
 	if compact {
 		tb.showAction, tb.showAddCue = false, false
 	}

@@ -19,6 +19,22 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
+const (
+	playbackRefreshInterval = 100 * time.Millisecond
+	cueSelectionAlpha       = uint8(50)
+	cueHoverAlpha           = uint8(30)
+)
+
+var cueTypeLabels = map[show.CueType]string{
+	show.CueTypeImage:         "Image",
+	show.CueTypeWait:          "Wait",
+	show.CueTypeVideo:         "Video",
+	show.CueTypeSound:         "Sound",
+	show.CueTypeRemote:        "Remote",
+	show.CueTypeMediaControl:  "MediaCtrl",
+	show.CueTypeOutputControl: "OutputCtrl",
+}
+
 // TODO(macro): Main is a page-level god layout: engine snapshotting, selection/move/group
 // event handling, header chrome, and per-row cell rendering are one function with a long
 // callback surface (edit/move/group ports plus concrete *ShowManager/*Engine/*Store).
@@ -65,8 +81,7 @@ func Main(
 		}
 		knownDurations = engine.KnownDurations()
 		if len(activeByCue) > 0 || len(executionByCue) > 0 {
-			// TODO(micro): 100ms invalidate cadence is magic; name a playbackRefreshInterval const.
-			gtx.Execute(op.InvalidateCmd{At: time.Now().Add(100 * time.Millisecond)})
+			gtx.Execute(op.InvalidateCmd{At: time.Now().Add(playbackRefreshInterval)})
 		}
 	}
 	if len(cues) == 0 {
@@ -148,8 +163,6 @@ func Main(
 	}
 	if moveCueActive && !moveHandled && state.moveToEndClick.Clicked(gtx) && moveToEnd != nil {
 		moveToEnd()
-		// TODO(micro): Delete this assignment; moveHandled is never read again before the function returns.
-		moveHandled = true
 	}
 
 	_, selectedIndex, hasSelection := manager.SelectedCueCopy()
@@ -241,17 +254,16 @@ func Main(
 						borderHeight := max(1, gtx.Dp(borderHeightDp))
 
 						cueTypeCol := typeCols[cue.Type]
-						// TODO(micro): selection/hover alpha 50/30 are magic; name cueSelectionAlpha/cueHoverAlpha consts.
-						selectedColor := applyAlpha(palette.WithAlpha(cue.Color, 50), th.ContrastBg)
-						hoverColor := applyAlpha(palette.WithAlpha(cue.Color, 30), th.Bg)
+						selectedColor := applyAlpha(palette.WithAlpha(cue.Color, cueSelectionAlpha), th.ContrastBg)
+						hoverColor := applyAlpha(palette.WithAlpha(cue.Color, cueHoverAlpha), th.Bg)
 
 						bg := th.Bg
-						// TODO(micro): Express these mutually exclusive row states as a switch; the priority order is easier to scan that way.
-						if cueFailed {
+						switch {
+						case cueFailed:
 							bg = applyAlpha(palette.WithAlpha(palette.Danger, 95), th.Bg)
-						} else if cueIndex == selectedIndex {
+						case cueIndex == selectedIndex:
 							bg = selectedColor
-						} else if state.rowClicks[cueIndex].Hovered() {
+						case state.rowClicks[cueIndex].Hovered():
 							bg = hoverColor
 						}
 						cueBg := applyAlpha(cue.Color, bg)
@@ -341,26 +353,8 @@ func Main(
 													func(gtx layout.Context) layout.Dimensions {
 
 														return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-															// TODO(micro): Drop the empty initializer; every switch arm, including default, overwrites str.
-															// TODO(micro): var str = "" is zero-value noise; declare str inside cases or use a map.
-															var str = ""
-															switch cue.Type {
-															// TODO(micro): cue type labels reimplemented as switch; map[show.CueType]string next to typeCols.
-															case show.CueTypeImage:
-																str = "Image"
-															case show.CueTypeWait:
-																str = "Wait"
-															case show.CueTypeVideo:
-																str = "Video"
-															case show.CueTypeSound:
-																str = "Sound"
-															case show.CueTypeRemote:
-																str = "Remote"
-															case show.CueTypeMediaControl:
-																str = "MediaCtrl"
-															case show.CueTypeOutputControl:
-																str = "OutputCtrl"
-															default:
+															str := cueTypeLabels[cue.Type]
+															if str == "" {
 																str = "Unknown"
 															}
 															el := material.Body2(th, str)
@@ -373,8 +367,6 @@ func Main(
 											}),
 											// Description / live playback progress
 											makeProgressCell(th, descriptionLabel(cue.Description), progress, cueTypeCol, weights[3], text.Start),
-											// TODO(micro): obsolete "// TODO Action" comment; remove or implement the missing action column.
-											// TODO Action
 											// Duration
 											makeRuntimeCell(th, duration, weights[4]),
 											// Elapsed
@@ -390,8 +382,7 @@ func Main(
 											// Link
 											layout.Flexed(weights[10], func(gtx layout.Context) layout.Dimensions {
 												return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-													// TODO(micro): Drop the empty initializer; every switch arm, including default, overwrites str.
-													var str = ""
+													var str string
 													switch cue.Link.Mode {
 													case show.CueLinkManual:
 														str = "MAN"
