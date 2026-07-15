@@ -20,23 +20,24 @@ import (
 
 const (
 	readinessRefreshInterval = 2 * time.Second
-	healthComponentCapacity  = 10
 	cacheReserveWarnFactor   = 2
 )
 
-// TODO(macro): collectHealthComponents reaches across playback, media, timecode, redundancy,
-// config, and document dirty state — a composition-root concern that forces package main to
-// import every subsystem. Define a health.Provider/Collector interface implemented per package
-// and register collectors at newApp so this fan-in stays at the wiring boundary only.
-func collectHealthComponents(engine *playback.Engine, backend media.Backend, timeline *timecode.Service, spare *redundancy.Service, settings config.Settings, documentPath string, dirty bool) []health.Component {
-	components := make([]health.Component, 0, healthComponentCapacity)
-	components = append(components, engineHealth(engine), archiveHealth(documentPath, dirty), timecodeHealth(timeline), redundancyHealth(spare))
-	components = append(components, audioHealth(engine, backend, settings)...)
-	components = append(components, outputHealth(backend, settings)...)
-	components = append(components, decoderHealth(engine)...)
-	components = append(components, remoteTargetHealth(engine)...)
-	components = append(components, diskHealth(settings))
-	return components
+func newHealthCollectors(engine *playback.Engine, backend media.Backend, timeline *timecode.Service, spare *redundancy.Service, settings func() config.Settings, documentStatus func() (string, bool)) []health.Collector {
+	return []health.Collector{
+		health.CollectorFunc(func() []health.Component { return []health.Component{engineHealth(engine)} }),
+		health.CollectorFunc(func() []health.Component {
+			path, dirty := documentStatus()
+			return []health.Component{archiveHealth(path, dirty)}
+		}),
+		health.CollectorFunc(func() []health.Component { return []health.Component{timecodeHealth(timeline)} }),
+		health.CollectorFunc(func() []health.Component { return []health.Component{redundancyHealth(spare)} }),
+		health.CollectorFunc(func() []health.Component { return audioHealth(engine, backend, settings()) }),
+		health.CollectorFunc(func() []health.Component { return outputHealth(backend, settings()) }),
+		health.CollectorFunc(func() []health.Component { return decoderHealth(engine) }),
+		health.CollectorFunc(func() []health.Component { return remoteTargetHealth(engine) }),
+		health.CollectorFunc(func() []health.Component { return []health.Component{diskHealth(settings())} }),
+	}
 }
 
 func redundancyHealth(service *redundancy.Service) health.Component {

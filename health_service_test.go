@@ -83,7 +83,12 @@ func TestHealthComponentsExposeIdentityRecoveryAndAction(t *testing.T) {
 	defer timeline.Close()
 	spare := redundancy.NewService(redundancy.Config{Role: redundancy.RoleOff})
 	defer spare.Close()
-	components := collectHealthComponents(engine, backend, timeline, spare, settings, "show.cusus", false)
+	collectors := newHealthCollectors(
+		engine, backend, timeline, spare,
+		func() config.Settings { return settings },
+		func() (string, bool) { return "show.cusus", false },
+	)
+	components := health.CollectAll(collectors...)
 	snapshot := health.NewSnapshot(components)
 	if snapshot.Overall != health.Failed {
 		t.Fatalf("overall health = %s", snapshot.Overall)
