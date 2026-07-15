@@ -104,6 +104,21 @@ func TestRenameAndUngroup(t *testing.T) {
 	}
 }
 
+func TestRenameGroupNoOpDoesNotPublishChange(t *testing.T) {
+	manager := NewShowManager()
+	manager.AddCue(testCue("1"))
+	manager.SelectCue(0)
+	manager.CreateGroupForSelected("Act")
+	changes := 0
+	manager.SetOnChange(func() { changes++ })
+	if !manager.RenameSelectedGroup("Act") {
+		t.Fatal("no-op rename was rejected")
+	}
+	if changes != 0 {
+		t.Fatalf("no-op rename published %d changes", changes)
+	}
+}
+
 func TestUngroupMiddleCueKeepsRemainingGroupContiguous(t *testing.T) {
 	manager := NewShowManager()
 	for _, number := range []string{"1", "2", "3", "4"} {

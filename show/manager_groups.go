@@ -4,10 +4,9 @@ import (
 	"strings"
 )
 
-// TODO(macro): Decide whether groups are a first-class show aggregate or pure
-// denormalized cue fields — GroupID+GroupTitle on every cue avoids orphans, but
-// title edits fan out, move/ungroup rewrites membership ad hoc, and there is no
-// Group entity to own ordering invariants or validate MediaTargetGroup refs.
+// Groups are deliberately a derived aggregate over denormalized cue membership.
+// A group exists exactly while at least one cue carries its ID; ShowManager is
+// the mutation boundary that keeps titles and contiguous ordering consistent.
 // Groups returns cue groups in show order. A group exists only while it has at
 // least one cue, and its first cue supplies the display title.
 func (sm *ShowManager) Groups() []CueGroup {
@@ -84,14 +83,17 @@ func (sm *ShowManager) RenameSelectedGroup(title string) bool {
 		sm.mu.Unlock()
 		return false
 	}
-	// TODO(micro): Track whether any title actually changed; skip sm.changed() when rename is a no-op.
+	changed := false
 	for index := range sm.show.Cues {
-		if sm.show.Cues[index].GroupID == id {
+		if sm.show.Cues[index].GroupID == id && sm.show.Cues[index].GroupTitle != title {
 			sm.show.Cues[index].GroupTitle = title
+			changed = true
 		}
 	}
 	sm.mu.Unlock()
-	sm.changed()
+	if changed {
+		sm.changed()
+	}
 	return true
 }
 
@@ -120,15 +122,14 @@ func (sm *ShowManager) UngroupSelectedCue() bool {
 func (sm *ShowManager) MoveSelectedCueIntoGroup(groupID GroupID, atEnd bool) bool {
 	sm.mu.Lock()
 	source := sm.selection.index
-	// TODO(micro): Do not bind last in this first lookup; it is overwritten after the selected cue is removed.
-	first, last, title := groupBounds(sm.show.Cues, groupID)
+	first, _, title := groupBounds(sm.show.Cues, groupID)
 	if source < 0 || source >= len(sm.show.Cues) || first < 0 {
 		sm.mu.Unlock()
 		return false
 	}
 	cue := sm.show.Cues[source]
 	sm.show.Cues = append(sm.show.Cues[:source], sm.show.Cues[source+1:]...)
-	first, last, _ = groupBounds(sm.show.Cues, groupID)
+	first, last, _ := groupBounds(sm.show.Cues, groupID)
 	if first < 0 { // The selected cue was the group's only member.
 		cue.GroupID, cue.GroupTitle = groupID, title
 		insertAt := min(source, len(sm.show.Cues))
@@ -159,15 +160,14 @@ func (sm *ShowManager) MoveSelectedCueAfterGroup(groupID GroupID) bool {
 func (sm *ShowManager) moveSelectedOutsideGroup(groupID GroupID, after bool) bool {
 	sm.mu.Lock()
 	source := sm.selection.index
-	// TODO(micro): Do not bind last in this first lookup; it is overwritten after the selected cue is removed.
-	first, last, _ := groupBounds(sm.show.Cues, groupID)
+	first, _, _ := groupBounds(sm.show.Cues, groupID)
 	if source < 0 || source >= len(sm.show.Cues) || first < 0 {
 		sm.mu.Unlock()
 		return false
 	}
 	cue := sm.show.Cues[source]
 	sm.show.Cues = append(sm.show.Cues[:source], sm.show.Cues[source+1:]...)
-	first, last, _ = groupBounds(sm.show.Cues, groupID)
+	first, last, _ := groupBounds(sm.show.Cues, groupID)
 	insertAt := min(source, len(sm.show.Cues))
 	if first >= 0 {
 		insertAt = first
