@@ -22,6 +22,12 @@ import (
 	"github.com/syspoe/cusus/playback"
 )
 
+type outputTransition struct {
+	event   playback.Event
+	stage   string
+	started time.Time
+}
+
 func resolveDisplayForGeometry(id string, displays []VideoDisplay) (VideoDisplay, bool) {
 	if id != "" {
 		for _, display := range displays {
@@ -109,9 +115,6 @@ func (o *outputWindow) layoutContent(gtx layout.Context, route config.VideoOutpu
 	if len(visible) > 0 {
 		children := make([]layout.StackChild, 0, len(visible))
 		for _, player := range visible {
-			// TODO(micro): Remove this obsolete loop-variable copy; Go 1.22+ closures capture the per-iteration player.
-			// TODO(micro): player := player is a no-op under Go 1.22+ loop semantics; drop the rebinding.
-			player := player
 			children = append(children, layout.Expanded(func(gtx layout.Context) layout.Dimensions {
 				return player.LayoutScaled(gtx, route.Scaling)
 			}))
@@ -238,7 +241,7 @@ func layoutFrame(gtx layout.Context, frame image.Image, scaling string) layout.D
 
 func (o *outputWindow) handleEvent(event playback.Event) {
 	if event.Action == "resync" {
-		events, sequence := o.manager.engine.OutputSnapshot(o.id)
+		events, sequence := o.controller.port.OutputSnapshot(o.id)
 		for _, snapshotEvent := range events {
 			o.applyEvent(snapshotEvent)
 		}
@@ -305,9 +308,6 @@ func (o *outputWindow) reconcile(instances []playback.Instance) {
 		if o.players[instance.ID] != nil {
 			continue
 		}
-		// TODO(micro): Remove this obsolete loop-variable copy; the module requires Go 1.26.
-		// TODO(micro): instance := instance is a no-op under Go 1.22+ loop semantics; drop the rebinding.
-		instance := instance
 		o.start(&instance)
 	}
 }
@@ -316,25 +316,25 @@ func (o *outputWindow) start(instance *playback.Instance) {
 	if instance == nil || o.players[instance.ID] != nil {
 		return
 	}
-	backend := o.manager.playbackBackend()
+	backend := o.controller.runtime.backend()
 	if backend == nil {
-		o.manager.engine.HandleOutputError(instance.ID, errors.New("media backend is unavailable"))
+		o.controller.port.HandleOutputError(instance.ID, errors.New("media backend is unavailable"))
 		return
 	}
 	player := NewPlayerWithBackend(
 		*instance,
-		o.manager.settings,
+		o.controller.settings,
 		backend,
 		o.window,
-		func(report string) { o.manager.engine.HandleOutputReport(instance.ID, report) },
-		func(durationMs int64) { o.manager.engine.HandleOutputDuration(instance.ID, durationMs) },
-		func(err error) { o.manager.engine.HandleOutputError(instance.ID, err) },
+		func(report string) { o.controller.port.HandleOutputReport(instance.ID, report) },
+		func(durationMs int64) { o.controller.port.HandleOutputDuration(instance.ID, durationMs) },
+		func(err error) { o.controller.port.HandleOutputError(instance.ID, err) },
 	)
 	o.players[instance.ID] = player
 	player.goOwned(func(context.Context) {
 		if err := player.Start(); err != nil {
 			log.Printf("play %s: %v", instance.Source, err)
-			o.manager.engine.HandleOutputError(instance.ID, err)
+			o.controller.port.HandleOutputError(instance.ID, err)
 		}
 	})
 }
@@ -443,9 +443,6 @@ var testPatternColors = []color.NRGBA{
 func layoutTestPattern(gtx layout.Context) layout.Dimensions {
 	children := make([]layout.FlexChild, len(testPatternColors))
 	for i, barColor := range testPatternColors {
-		// TODO(micro): Remove this obsolete loop-variable copy; barColor is already scoped to this iteration.
-		// TODO(micro): barColor := barColor is a no-op under Go 1.22+ loop semantics; drop the rebinding.
-		barColor := barColor
 		children[i] = layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			paint.FillShape(gtx.Ops, barColor, clip.Rect{Max: gtx.Constraints.Max}.Op())
 			return layout.Dimensions{Size: gtx.Constraints.Max}

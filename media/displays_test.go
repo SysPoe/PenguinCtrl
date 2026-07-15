@@ -33,3 +33,13 @@ func TestVideoOutputWarningRequiresConfirmationAndRefreshMatch(t *testing.T) {
 		t.Fatalf("refresh warning = %q", warning)
 	}
 }
+
+func TestDisplaySignatureIncludesOperatorVisibleTopology(t *testing.T) {
+	base := []VideoDisplay{{ID: "stage", Name: "Projector", Primary: false}}
+	if displaySignature(base) == displaySignature([]VideoDisplay{{ID: "stage", Name: "LED Wall", Primary: false}}) {
+		t.Fatal("display name change did not change signature")
+	}
+	if displaySignature(base) == displaySignature([]VideoDisplay{{ID: "stage", Name: "Projector", Primary: true}}) {
+		t.Fatal("primary display change did not change signature")
+	}
+}

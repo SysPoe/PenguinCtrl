@@ -1,43 +1,68 @@
 package media
 
 import (
+	"image"
 	"log"
+	"sync"
 	"time"
 
 	"gioui.org/app"
 	"gioui.org/io/pointer"
+	"gioui.org/io/system"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
+	"gioui.org/widget"
 	"github.com/syspoe/cusus/config"
 	"github.com/syspoe/cusus/palette"
 	"github.com/syspoe/cusus/playback"
 )
 
-// TODO(macro): outputWindow.run is a second Gio app loop (window events, geometry
-// persistence, engine subscription, player reconcile) living beside the operator
-// window_loop. Extract a StageWindowController so output lifecycle, recovery
-// reopen, and layout are not an anonymous method chain on a type declared in
-// manager.go.
+type outputWindow struct {
+	id              string
+	controller      *outputController
+	window          *app.Window
+	players         map[string]*Player
+	clickable       widget.Clickable
+	fullscreen      bool
+	blackout        bool
+	test            bool
+	identify        bool
+	identifyMessage string
+	reopening       bool
+	transition      *outputTransition
+	nativeHandle    uintptr
+	routed          bool
+	displayMissing  bool
+	lastGeometry    [4]int
+	heldFrame       image.Image
+	routeMu         sync.Mutex
+	lastSequence    uint64
+	geometryUpdates chan [4]int
+}
+
+const (
+	outputWindowSettle      = 250 * time.Millisecond
+	outputWindowMinWidth    = unit.Dp(320)
+	outputWindowMinHeight   = unit.Dp(180)
+	outputWindowEventBuffer = 64
+)
+
 func (o *outputWindow) run() {
 	o.geometryUpdates = make(chan [4]int, 1)
 	defer func() {
-		o.manager.removed(o.id)
-		if o.reopening || o.manager.shouldRecoverOutput(o.id) {
-			// TODO(micro): 250ms reopen delay is duplicated with geometry debounce below; name a shared outputWindowSettle constant.
-			time.AfterFunc(250*time.Millisecond, func() { o.manager.ensureOutput(o.id) })
+		o.controller.removed(o.id)
+		if o.reopening || o.controller.shouldRecoverOutput(o.id) {
+			time.AfterFunc(outputWindowSettle, func() { o.controller.ensureOutput(o.id) })
 		}
 	}()
 	log.Printf("opening media output %q", o.id)
 	route := o.route()
-	o.window = new(app.Window)
-	// TODO(micro): min window size 320x180 is magic; name constants.
-	o.window.Option(app.Title(o.id), app.Size(unit.Dp(route.Width), unit.Dp(route.Height)), app.MinSize(unit.Dp(320), unit.Dp(180)))
-	events, unsubscribe := o.manager.engine.Subscribe(o.id)
+	o.window.Option(app.Title(o.id), app.Size(unit.Dp(route.Width), unit.Dp(route.Height)), app.MinSize(outputWindowMinWidth, outputWindowMinHeight))
+	events, unsubscribe := o.controller.port.Subscribe(o.id)
 	defer unsubscribe()
-	// TODO(micro): pending event buffer size 64 is magic; name a constant.
-	pending := make(chan playback.Event, 64)
+	pending := make(chan playback.Event, outputWindowEventBuffer)
 	done := make(chan struct{})
 	defer close(done)
 	go o.persistGeometryLoop(done)
@@ -121,8 +146,17 @@ func (o *outputWindow) run() {
 	}
 }
 
+func (o *outputWindow) close() {
+	o.routeMu.Lock()
+	window := o.window
+	o.routeMu.Unlock()
+	if window != nil {
+		window.Perform(system.ActionClose)
+	}
+}
+
 func (o *outputWindow) route() config.VideoOutput {
-	return config.VideoOutputFor(o.manager.settings.Snapshot(), o.id)
+	return config.VideoOutputFor(o.controller.settings.Snapshot(), o.id)
 }
 
 func (o *outputWindow) applyRoute(force bool) {
@@ -135,27 +169,23 @@ func (o *outputWindow) applyRoute(force bool) {
 	o.routed = true
 	o.routeMu.Unlock()
 	route := o.route()
-	found := platformPlaceWindow(handle, route, o.manager.currentDisplays())
+	found := platformPlaceWindow(handle, route, o.controller.topology.currentDisplays())
 	o.routeMu.Lock()
 	o.displayMissing = route.DisplayID != "" && !found
 	o.routeMu.Unlock()
-	// TODO(micro): both branches only differ by fullscreen bool and Option; set o.fullscreen once and pick Fullscreen/Windowed.
+	o.routeMu.Lock()
+	o.fullscreen = route.Fullscreen
+	o.routeMu.Unlock()
 	if route.Fullscreen {
-		o.routeMu.Lock()
-		o.fullscreen = true
-		o.routeMu.Unlock()
 		o.window.Option(app.Fullscreen.Option())
 	} else {
-		o.routeMu.Lock()
-		o.fullscreen = false
-		o.routeMu.Unlock()
 		o.window.Option(app.Windowed.Option())
 	}
 	o.window.Invalidate()
 }
 
 func (o *outputWindow) persistGeometry() {
-	displays := o.manager.currentDisplays()
+	displays := o.controller.topology.currentDisplays()
 	if len(displays) == 0 {
 		return
 	}
@@ -191,7 +221,7 @@ func (o *outputWindow) persistGeometryLoop(done <-chan struct{}) {
 		case <-done:
 			return
 		}
-		timer := time.NewTimer(250 * time.Millisecond)
+		timer := time.NewTimer(outputWindowSettle)
 	debounce:
 		for {
 			select {
@@ -202,7 +232,7 @@ func (o *outputWindow) persistGeometryLoop(done <-chan struct{}) {
 					default:
 					}
 				}
-				timer.Reset(250 * time.Millisecond)
+				timer.Reset(outputWindowSettle)
 			case <-timer.C:
 				break debounce
 			case <-done:
@@ -210,7 +240,7 @@ func (o *outputWindow) persistGeometryLoop(done <-chan struct{}) {
 				return
 			}
 		}
-		if err := o.manager.settings.UpdateVideoOutputGeometry(o.id, geometry[0], geometry[1], geometry[2], geometry[3]); err != nil {
+		if err := o.controller.settings.UpdateVideoOutputGeometry(o.id, geometry[0], geometry[1], geometry[2], geometry[3]); err != nil {
 			log.Printf("persist media output %q geometry: %v", o.id, err)
 		}
 	}

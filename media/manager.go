@@ -4,404 +4,83 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"image"
-	"log"
 	"sync"
-	"time"
 
-	"gioui.org/app"
-	"gioui.org/io/system"
-	"gioui.org/widget"
 	"github.com/syspoe/cusus/config"
 	"github.com/syspoe/cusus/playback"
 )
 
-// TODO(macro): Split hardware inventory, decoder/audio reset, and output-window
-// lifecycle into separately owned services, and have output windows depend on a
-// narrow playback event port rather than *playback.Engine. Manager currently
-// coordinates several lock domains and background loops as one failure domain.
-// TODO(macro): Manager is a god object — owns stage window lifecycle, the shared
-// FFmpeg backend, AudioSystem, and both audio-device and display topology
-// monitors (each with their own caches/mutexes). Split into an output-window
-// controller, a media-runtime (decoder+audio) owner, and a device-topology
-// service so emergency reset, health polling, and stage routing stop contending
-// in one type.
+// Manager is the stable application facade over independently owned media
+// runtime, device-topology, and output-window lifecycles.
 type Manager struct {
-	engine            *playback.Engine
-	settings          *config.Store
-	mu                sync.Mutex
-	backendMu         sync.RWMutex
-	resetMu           sync.Mutex
-	windows           map[string]*outputWindow
-	desired           map[string]struct{}
-	closed            bool
-	ctx               context.Context
-	cancel            context.CancelFunc
-	workers           sync.WaitGroup
-	audio             *AudioSystem
-	decoder           *FFmpegBackend
-	audioStatusMu sync.Mutex
-	// TODO(micro): lastAudioCheck is written in refreshAudioDevices but never read; drop the field or use it like lastDisplayCheck for a stale-cache path.
-	lastAudioCheck    time.Time
-	audioDeviceStatus string
-	audioDevices      []AudioDevice
-	audioDevicesErr   error
-	audioRefresh      chan struct{}
-	displaysMu        sync.RWMutex
-	displays          []VideoDisplay
-	displaysErr       error
-	displayRefresh    chan struct{}
-	displaySignature  string
-	displayStatusMu   sync.Mutex
-	lastDisplayCheck  time.Time
-	videoOutputStatus string
+	lifecycleMu sync.Mutex
+	closed      bool
+	runtime     *mediaRuntime
+	topology    *deviceTopology
+	outputs     *outputController
 }
+
+var _ Host = (*Manager)(nil)
 
 func NewManager(engine *playback.Engine, settings *config.Store) *Manager {
-	audioSystem, err := NewAudioSystem(settings)
-	if err != nil {
-		log.Printf("initialize audio output: %v", err)
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	manager := &Manager{engine: engine, settings: settings, windows: map[string]*outputWindow{}, desired: map[string]struct{}{}, audio: audioSystem, ctx: ctx, cancel: cancel, audioRefresh: make(chan struct{}, 1), displayRefresh: make(chan struct{}, 1), audioDeviceStatus: "Checking audio output devices…"}
-	manager.decoder = NewFFmpegBackend(settings, audioSystem)
-	manager.refreshDisplays(true)
-	manager.workers.Add(2)
-	go func() { defer manager.workers.Done(); manager.monitorDisplays() }()
-	go func() { defer manager.workers.Done(); manager.monitorAudioDevices() }()
-	return manager
+	runtime, _ := newMediaRuntime(settings)
+	topology := newDeviceTopology(settings, runtime)
+	outputs := newOutputController(engine, settings, runtime, topology)
+	topology.onDisplaysChanged = outputs.refreshRoutes
+	topology.start()
+	return &Manager{runtime: runtime, topology: topology, outputs: outputs}
 }
 
-func (m *Manager) Prewarm(instances []playback.Instance) {
-	requests := make([]PlaybackRequest, 0, len(instances))
-	for _, instance := range instances {
-		requests = append(requests, PlaybackRequest{
-			Instance: instance,
-			Position: time.Duration(max(int64(0), instance.ClipStartMs)) * time.Millisecond,
-		})
-	}
-	m.backendMu.RLock()
-	defer m.backendMu.RUnlock()
-	if m.decoder != nil {
-		m.decoder.Prewarm(requests)
-	}
-}
+func (m *Manager) Prewarm(instances []playback.Instance) { m.runtime.prewarm(instances) }
 
-func (m *Manager) AudioDevices() ([]AudioDevice, error) {
-	m.audioStatusMu.Lock()
-	defer m.audioStatusMu.Unlock()
-	return append([]AudioDevice(nil), m.audioDevices...), m.audioDevicesErr
-}
+func (m *Manager) AudioDevices() ([]AudioDevice, error) { return m.topology.audioDevicesSnapshot() }
 
-func (m *Manager) AudioMixerMetrics() []AudioMixerMetrics {
-	m.backendMu.RLock()
-	defer m.backendMu.RUnlock()
-	if m.audio == nil {
-		return nil
-	}
-	return m.audio.Metrics()
-}
+func (m *Manager) AudioMixerMetrics() []AudioMixerMetrics { return m.runtime.mixerMetrics() }
 
-// AudioDeviceWarning returns a cached warning for selected devices that are no
-// longer present. Empty device IDs intentionally follow Windows' default route
-// and therefore do not depend on one particular endpoint remaining connected.
-func (m *Manager) AudioDeviceWarning() string {
-	m.audioStatusMu.Lock()
-	defer m.audioStatusMu.Unlock()
-	return m.audioDeviceStatus
-}
+func (m *Manager) AudioDeviceWarning() string { return m.topology.audioWarning() }
 
-func (m *Manager) RefreshAudioDeviceStatus() {
-	select {
-	case m.audioRefresh <- struct{}{}:
-	default:
-	}
-}
+func (m *Manager) RefreshAudioDeviceStatus() { m.topology.refreshAudioStatus() }
 
-func (m *Manager) monitorAudioDevices() {
-	// TODO(micro): 2s poll interval is duplicated with monitorDisplays; extract a shared devicePollInterval constant.
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-	for {
-		m.refreshAudioDevices()
-		select {
-		case <-m.ctx.Done():
-			return
-		case <-m.audioRefresh:
-		case <-ticker.C:
-		}
-	}
-}
+func (m *Manager) VideoDisplays() ([]VideoDisplay, error) { return m.topology.videoDisplays() }
 
-func (m *Manager) refreshAudioDevices() {
-	var devices []AudioDevice
-	var metrics []AudioMixerMetrics
-	var err error
-	m.backendMu.RLock()
-	if m.audio == nil {
-		err = fmt.Errorf("audio output is unavailable")
-	} else {
-		devices, err = m.audio.Devices()
-		metrics = m.audio.Metrics()
-	}
-	m.backendMu.RUnlock()
-	status := audioDeviceWarning(m.settings.Snapshot(), devices, err)
-	if status == "" {
-		for _, mixer := range metrics {
-			if mixer.Failed {
-				status = "An audio endpoint could not be recovered. Active cues on that route are offline."
-				break
-			}
-			if mixer.Recovering {
-				status = "An audio endpoint stopped unexpectedly. CuSus is reconnecting with bounded retry."
-				break
-			}
-		}
-	}
-	m.audioStatusMu.Lock()
-	m.audioDevices, m.audioDevicesErr, m.audioDeviceStatus, m.lastAudioCheck = devices, err, status, time.Now()
-	m.audioStatusMu.Unlock()
-}
+func (m *Manager) VideoOutputWarning() string { return m.topology.videoWarning() }
 
-func audioDeviceWarning(settings config.Settings, devices []AudioDevice, err error) string {
-	if err != nil {
-		return "Audio device detection failed: " + err.Error()
-	}
-	if len(devices) == 0 {
-		return "No Windows audio output device is available. Playback and preview audio are offline."
-	}
-	available := make(map[string]struct{}, len(devices))
-	for _, device := range devices {
-		available[device.ID] = struct{}{}
-	}
-	_, playbackAvailable := available[settings.PlaybackAudioDevice]
-	_, previewAvailable := available[settings.PreviewAudioDevice]
-	playbackMissing := settings.PlaybackAudioDevice != "" && !playbackAvailable
-	previewMissing := settings.PreviewAudioDevice != "" && !previewAvailable
-	switch {
-	case playbackMissing && previewMissing && settings.PlaybackAudioDevice == settings.PreviewAudioDevice:
-		return "The selected playback and preview audio device is disconnected."
-	case playbackMissing && previewMissing:
-		return "The selected playback and preview audio devices are disconnected."
-	case playbackMissing:
-		return "The selected playback audio device is disconnected."
-	case previewMissing:
-		return "The selected preview audio device is disconnected."
-	default:
-		return ""
-	}
-}
+func (m *Manager) RefreshVideoOutputStatus() { m.topology.refreshVideoStatus() }
 
-func (m *Manager) EnsureOutputs(outputIDs []string) {
-	outputIDs = m.outputIDsWithConfiguredStages(outputIDs)
-	m.mu.Lock()
-	for _, outputID := range outputIDs {
-		m.desired[outputID] = struct{}{}
-	}
-	m.mu.Unlock()
-	for _, outputID := range outputIDs {
-		m.ensureOutput(outputID)
-	}
-}
+func (m *Manager) EnsureOutputs(outputIDs []string) { m.outputs.ensure(outputIDs) }
 
-func (m *Manager) SyncOutputs(outputIDs []string) {
-	outputIDs = m.outputIDsWithConfiguredStages(outputIDs)
-	desired := make(map[string]struct{}, len(outputIDs))
-	for _, outputID := range outputIDs {
-		desired[outputID] = struct{}{}
-	}
-	m.mu.Lock()
-	if m.closed {
-		m.mu.Unlock()
-		return
-	}
-	m.desired = desired
-	var stale []*outputWindow
-	for outputID, output := range m.windows {
-		if _, keep := desired[outputID]; !keep {
-			stale = append(stale, output)
-		}
-	}
-	m.mu.Unlock()
-	for _, outputID := range outputIDs {
-		m.ensureOutput(outputID)
-	}
-	for _, output := range stale {
-		if output.window != nil {
-			output.window.Perform(system.ActionClose)
-		}
-	}
-}
-
-func (m *Manager) ensureOutput(outputID string) {
-	if outputID == "" {
-		return
-	}
-	m.mu.Lock()
-	if m.closed {
-		m.mu.Unlock()
-		return
-	}
-	if _, exists := m.windows[outputID]; exists {
-		m.mu.Unlock()
-		return
-	}
-	output := &outputWindow{id: outputID, manager: m, players: map[string]*Player{}}
-	m.windows[outputID] = output
-	m.mu.Unlock()
-	go output.run()
-}
-
-func (m *Manager) removed(outputID string) {
-	m.mu.Lock()
-	delete(m.windows, outputID)
-	m.mu.Unlock()
-}
-
-func (m *Manager) shouldRecoverOutput(outputID string) bool {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.closed {
-		return false
-	}
-	_, desired := m.desired[outputID]
-	return desired
-}
+func (m *Manager) SyncOutputs(outputIDs []string) { m.outputs.sync(outputIDs) }
 
 func (m *Manager) Close() {
-	m.resetMu.Lock()
-	defer m.resetMu.Unlock()
-	m.mu.Lock()
+	m.lifecycleMu.Lock()
+	defer m.lifecycleMu.Unlock()
 	if m.closed {
-		m.mu.Unlock()
 		return
 	}
 	m.closed = true
-	m.cancel()
-	m.desired = map[string]struct{}{}
-	windows := make([]*outputWindow, 0, len(m.windows))
-	for _, output := range m.windows {
-		windows = append(windows, output)
-	}
-	m.mu.Unlock()
-	m.workers.Wait()
-	for _, output := range windows {
-		if output.window != nil {
-			output.window.Perform(system.ActionClose)
-		}
-	}
-	m.backendMu.Lock()
-	defer m.backendMu.Unlock()
-	if m.decoder != nil {
-		m.decoder.Close()
-	}
-	if m.audio != nil {
-		m.audio.Close()
-	}
+	m.topology.close()
+	m.outputs.close()
+	m.runtime.close()
 }
 
 // EmergencyReset force-closes every decoder and hardware-audio source, creates
-// fresh backend resources, and restarts output windows. It is intentionally
-// stronger than STOP ALL and can recover output-local players that have fallen
-// out of sync with the engine registry.
+// fresh backend resources, and restarts output windows.
 func (m *Manager) EmergencyReset(ctx context.Context) error {
-	m.resetMu.Lock()
-	defer m.resetMu.Unlock()
+	m.lifecycleMu.Lock()
+	defer m.lifecycleMu.Unlock()
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
 	}
-	m.mu.Lock()
 	if m.closed {
-		m.mu.Unlock()
 		return errors.New("media manager is closed")
 	}
-	windows := make([]*outputWindow, 0, len(m.windows))
-	for _, output := range m.windows {
-		windows = append(windows, output)
-	}
-	m.mu.Unlock()
-
-	m.backendMu.Lock()
-	if m.decoder != nil {
-		m.decoder.Close()
-	}
-	if m.audio != nil {
-		m.audio.Close()
-	}
-	audioSystem, audioErr := NewAudioSystem(m.settings)
-	m.audio = audioSystem
-	m.decoder = NewFFmpegBackend(m.settings, audioSystem)
-	m.backendMu.Unlock()
-
-	for _, output := range windows {
-		if output.window != nil {
-			output.window.Perform(system.ActionClose)
-		}
-	}
-	m.RefreshAudioDeviceStatus()
+	audioErr := m.runtime.reset()
+	m.outputs.restart()
+	m.topology.refreshAudioStatus()
 	if audioErr != nil {
 		return fmt.Errorf("reinitialize audio output: %w", audioErr)
 	}
 	return nil
-}
-
-func (m *Manager) playbackBackend() PlaybackBackend {
-	m.backendMu.RLock()
-	defer m.backendMu.RUnlock()
-	return m.decoder
-}
-
-// TODO(macro): outputWindow type lives in manager.go while its event loop,
-// routing, layout, player lifecycle, and transitions are spread across
-// output_window.go and output_layout.go. Move the type next to its methods and
-// give Manager only a narrower output-registry handle so window internals stop
-// leaking into the package root type file.
-type outputWindow struct {
-	id              string
-	manager         *Manager
-	window          *app.Window
-	players         map[string]*Player
-	clickable       widget.Clickable
-	fullscreen      bool
-	blackout        bool
-	test            bool
-	identify        bool
-	identifyMessage string
-	reopening       bool
-	transition      *outputTransition
-	nativeHandle    uintptr
-	routed          bool
-	displayMissing  bool
-	lastGeometry    [4]int
-	heldFrame       image.Image
-	routeMu         sync.Mutex
-	lastSequence    uint64
-	geometryUpdates chan [4]int
-}
-
-func (m *Manager) outputIDsWithConfiguredStages(outputIDs []string) []string {
-	seen := make(map[string]struct{}, len(outputIDs))
-	// TODO(micro): Snapshot() is called twice; bind settings := m.settings.Snapshot() once and reuse for capacity and VideoOutputs.
-	result := make([]string, 0, len(outputIDs)+len(m.settings.Snapshot().VideoOutputs))
-	for _, outputID := range outputIDs {
-		if outputID != "" {
-			if _, exists := seen[outputID]; !exists {
-				seen[outputID], result = struct{}{}, append(result, outputID)
-			}
-		}
-	}
-	for _, output := range m.settings.Snapshot().VideoOutputs {
-		if _, exists := seen[output.Stage]; !exists {
-			seen[output.Stage], result = struct{}{}, append(result, output.Stage)
-		}
-	}
-	return result
-}
-
-type outputTransition struct {
-	event   playback.Event
-	stage   string
-	started time.Time
 }
