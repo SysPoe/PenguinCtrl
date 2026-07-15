@@ -13,6 +13,8 @@ import (
 	"github.com/syspoe/cusus/ui/input"
 )
 
+const formBrowseButtonWidth = unit.Dp(140)
+
 func (ctx *CueEditUI) fileRow(th *material.Theme, label, kind string, field *input.Text, projectFiles *input.Dropdown, browse *widget.Clickable, extensions []string, apply func(value string)) cueEditFormRow {
 	field.SetChangeListener(apply)
 	projectFiles.SetChangeListener(func(_ int, selected input.DropdownItem) {
@@ -67,8 +69,7 @@ func (ctx *CueEditUI) fileRow(th *material.Theme, label, kind string, field *inp
 							gtx = gtx.Disabled()
 						}
 						return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							// TODO(micro): 140 browse-button width is a magic Dp; name formBrowseButtonWidth const.
-							width := gtx.Dp(unit.Dp(140))
+							width := gtx.Dp(formBrowseButtonWidth)
 							gtx.Constraints.Min.X = width
 							gtx.Constraints.Max.X = width
 							return layoutCenteredButton(th, gtx, browse, "Add file…", th.ContrastBg)
@@ -135,8 +136,7 @@ func integerRow(th *material.Theme, label string, field *input.Integer, apply fu
 	}}
 }
 
-// TODO(micro): Remove label while every caller passes "Level dB", or rename this to levelDBRow.
-func floatRow(th *material.Theme, label string, field *input.Float, apply func(value float64)) cueEditFormRow {
+func levelDBRow(th *material.Theme, label string, field *input.Float, apply func(value float64)) cueEditFormRow {
 	field.SetChangeListener(apply)
 	return cueEditFormRow{label: label, layout: func(gtx layout.Context) layout.Dimensions {
 		return field.Layout(th, gtx)
@@ -152,8 +152,7 @@ func dropdownRow(th *material.Theme, label string, field *input.Dropdown, apply 
 
 func staticRow(th *material.Theme, label, text string) cueEditFormRow {
 	return cueEditFormRow{label: label, layout: func(gtx layout.Context) layout.Dimensions {
-		// TODO(micro): local "label" shadows the label parameter; rename (e.g. body).
-		label := stableBody1(th, text)
-		return layoutStableText(gtx, label.Layout)
+		body := stableBody1(th, text)
+		return layoutStableText(gtx, body.Layout)
 	}}
 }

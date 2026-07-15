@@ -52,11 +52,6 @@ func newEnumDropdown(labels []string, selected int) *input.Dropdown {
 }
 
 func splitTags(value string) []string {
-	// TODO(micro): early return of []string{} is redundant with the split loop below; drop it or return nil.
-	if strings.TrimSpace(value) == "" {
-		return []string{}
-	}
-
 	parts := strings.Split(value, ",")
 	tags := make([]string, 0, len(parts))
 	for _, part := range parts {

@@ -53,7 +53,7 @@ func TestFormRowsDoNotApplyUnchangedValuesDuringLayout(t *testing.T) {
 		{
 			name: "float",
 			row: func(applied *int) cueEditFormRow {
-				return floatRow(theme, "Level dB", input.NewFloat("Level dB", -3.5), func(float64) { *applied++ })
+				return levelDBRow(theme, "Level dB", input.NewFloat("Level dB", -3.5), func(float64) { *applied++ })
 			},
 		},
 		{

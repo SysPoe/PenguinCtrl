@@ -17,6 +17,11 @@ import (
 	"github.com/syspoe/cusus/utils"
 )
 
+var (
+	operatorRecoverableColor  = color.NRGBA{R: 0xB7, G: 0x58, B: 0x35, A: 0xFF}
+	operatorShowStoppingColor = color.NRGBA{R: 0xB5, G: 0x20, B: 0x2A, A: 0xFF}
+)
+
 func operatorButton(th *material.Theme, gtx layout.Context, clickable *widget.Clickable, label string) layout.Dimensions {
 	return layout.Inset{Left: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		button := material.Button(th, clickable, label)
@@ -78,22 +83,20 @@ func operatorSeverityColor(severity operatorlog.Severity) color.NRGBA {
 	case operatorlog.Warning:
 		return palette.Warning
 	case operatorlog.Recoverable:
-		// TODO(micro): hard-coded severity colors; move to palette (e.g. palette.Recoverable / palette.ShowStopping).
-		return color.NRGBA{R: 0xB7, G: 0x58, B: 0x35, A: 0xFF}
+		return operatorRecoverableColor
 	case operatorlog.CueFailure:
 		return palette.Danger
 	case operatorlog.ShowStopping:
-		return color.NRGBA{R: 0xB5, G: 0x20, B: 0x2A, A: 0xFF}
+		return operatorShowStoppingColor
 	default:
 		return palette.Primary
 	}
 }
 
 func preflightCount(checks []preflight.Check) string {
-	// TODO(micro): active-count loop duplicates preflightRequiresAttention predicate; extract shared active-check helper.
 	active := 0
 	for _, check := range checks {
-		if !check.Acknowledged && check.Severity >= operatorlog.Warning {
+		if activePreflightCheck(check) {
 			active++
 		}
 	}
@@ -108,11 +111,15 @@ func preflightCount(checks []preflight.Check) string {
 
 func preflightRequiresAttention(checks []preflight.Check) bool {
 	for _, check := range checks {
-		if !check.Acknowledged && check.Severity >= operatorlog.Warning {
+		if activePreflightCheck(check) {
 			return true
 		}
 	}
 	return false
+}
+
+func activePreflightCheck(check preflight.Check) bool {
+	return !check.Acknowledged && check.Severity >= operatorlog.Warning
 }
 
 func preflightSummary(checks []preflight.Check) string {

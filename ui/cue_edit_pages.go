@@ -33,8 +33,7 @@ func (ctx *CueEditUI) drawBody(th *material.Theme, manager *show.ShowManager) la
 	case tabOutputCtrl:
 		return ctx.renderOutputCtrlTab(th)
 	}
-	// TODO(micro): default branch returns empty flexed layout for invalid tab; return empty dims or log the bad tab id.
-	return layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layout.Dimensions{}
 	})
 }

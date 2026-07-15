@@ -172,8 +172,8 @@ func TestInvalidWarningIconIsReportedAsUnavailable(t *testing.T) {
 }
 
 func TestInformationalPreflightIsReadyWithoutAttention(t *testing.T) {
-	// TODO(micro): Give checks capacity two because the test appends one known element below.
-	checks := []preflight.Check{{Severity: operatorlog.Info}}
+	checks := make([]preflight.Check, 0, 2)
+	checks = append(checks, preflight.Check{Severity: operatorlog.Info})
 	if got := preflightCount(checks); got != "READY" {
 		t.Fatalf("preflight count = %q, want READY", got)
 	}

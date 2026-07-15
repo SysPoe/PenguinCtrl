@@ -47,7 +47,7 @@ func (ctx *CueEditUI) timedMediaTabRows(th *material.Theme, kind string, extensi
 		textRow(th, "Output ID", fields.outputID, func(value string) { *outputID = value }),
 	}
 	rows = append(rows, ctx.mediaRangeRows(th, mediaTabRangeLabels, false)...)
-	return append(rows, floatRow(th, "Level dB", fields.levelDB, func(value float64) { *levelDB = value }))
+	return append(rows, levelDBRow(th, "Level dB", fields.levelDB, func(value float64) { *levelDB = value }))
 }
 
 type mediaRangeLabels struct {
@@ -235,7 +235,7 @@ func mediaControlDetailRows(th *material.Theme, fields *cueMediaControlInputs, p
 	value := nonNegativeInt64(nonNegative)
 	rows := make([]cueEditFormRow, 0, 4)
 	if mediaControlActionUsesLevel(play.Action) {
-		rows = append(rows, floatRow(th, labels.level, fields.levelDB, func(v float64) { play.LevelDB = &v }))
+		rows = append(rows, levelDBRow(th, labels.level, fields.levelDB, func(v float64) { play.LevelDB = &v }))
 	}
 	if play.Action == show.MediaControlSeek {
 		rows = append(rows, integerRow(th, labels.seek, fields.seekToMs, func(v int) { seek := value(v); play.SeekToMs = &seek }))
