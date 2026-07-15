@@ -9,9 +9,6 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
-// TODO(macro): engine_scheduler.go still mixes command queueing with preview
-// session state. Extract PreviewSession so the scheduler owns only the worker,
-// sequence assignment, and accepted-command handoff.
 func (e *Engine) run() {
 	defer close(e.done)
 	for {
@@ -62,58 +59,6 @@ func (e *Engine) PlayCueID(id show.CueID) error {
 		return err
 	}
 	return e.enqueueCommand(cue, index, liveCommand, "Operator GO", rejectBlockers)
-}
-
-// TogglePreview starts or pauses a sound-cue preview. Timecode and cue links
-// are stripped so previewing cannot trigger show actions.
-func (e *Engine) TogglePreview(cue show.Cue) (bool, error) {
-	if cue.Play.Sound == nil {
-		return false, errors.New("only sound cues can be previewed")
-	}
-	e.mu.RLock()
-	id, paused := e.previewCueID, e.previewPaused
-	e.mu.RUnlock()
-	if id != (show.CueID{}) && len(e.matchingInstances(show.MediaTarget{Kind: show.MediaTargetCue, CueID: id})) > 0 {
-		action := show.MediaControlPause
-		playing := false
-		if paused {
-			action, playing = show.MediaControlResume, true
-		}
-		if err := e.ControlMedia(show.MediaTarget{Kind: show.MediaTargetCue, CueID: id}, action, nil, nil, 0); err != nil {
-			return !paused, err
-		}
-		e.mu.Lock()
-		e.previewPaused = !playing
-		e.mu.Unlock()
-		return playing, nil
-	}
-
-	preview := show.CloneCue(cue)
-	preview.ID = show.NewCueID()
-	preview.GroupID, preview.GroupTitle = show.GroupID{}, ""
-	preview.Timing = show.CueTiming{}
-	preview.Link = show.CueLink{Mode: show.CueLinkManual}
-	preview.Play.Sound.Timecode = nil
-	e.mu.Lock()
-	e.previewCueID, e.previewPaused = preview.ID, false
-	e.mu.Unlock()
-	if err := e.enqueueCommand(preview, -1, previewCommand, "Preview", rejectBlockers); err != nil {
-		e.mu.Lock()
-		e.previewCueID = show.CueID{}
-		e.mu.Unlock()
-		return false, err
-	}
-	return true, nil
-}
-
-func (e *Engine) StopPreview() {
-	e.mu.Lock()
-	id := e.previewCueID
-	e.previewCueID, e.previewPaused = show.CueID{}, false
-	e.mu.Unlock()
-	if id != (show.CueID{}) {
-		_ = e.ControlMedia(show.MediaTarget{Kind: show.MediaTargetCue, CueID: id}, show.MediaControlStop, nil, nil, 0)
-	}
 }
 
 func (e *Engine) enqueueCommand(cue show.Cue, index int, intent commandIntent, origin string, blocker blockerPolicy) error {
