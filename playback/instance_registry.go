@@ -6,7 +6,7 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
-// instanceRegistry owns the live-instance collection. Engine.mu guards it so
+// instanceRegistry owns the live-instance collection. runtimeState guards it so
 // cue-run replacement can remain atomic with removing the prior run's media.
 type instanceRegistry struct {
 	active map[string]*liveInstance

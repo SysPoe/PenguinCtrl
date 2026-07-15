@@ -43,8 +43,8 @@ func TestMediaTimelineStartsOnBackendReport(t *testing.T) {
 }
 
 func addPresentedVisual(engine *Engine, id string, layer uint64, fadeOutMs int64) {
-	engine.mu.Lock()
-	engine.instances.register(&liveInstance{
+	engine.runtime.mu.Lock()
+	engine.runtime.instances.register(&liveInstance{
 		Instance: Instance{
 			ID: id, CueID: show.NewCueID(), MediaType: "video", OutputID: "main",
 			LayerOrder: layer, FadeOutMs: fadeOutMs, BackendStarted: true,
@@ -53,7 +53,7 @@ func addPresentedVisual(engine *Engine, id string, layer uint64, fadeOutMs int64
 		positionAt: time.Now(),
 		run:        cueRunToken{ctx: context.Background()},
 	})
-	engine.mu.Unlock()
+	engine.runtime.mu.Unlock()
 }
 
 func TestSingleLayerPresentedVisualFadesAndStopsPreviousVisual(t *testing.T) {
@@ -64,18 +64,18 @@ func TestSingleLayerPresentedVisualFadesAndStopsPreviousVisual(t *testing.T) {
 	engine := NewEngine(show.NewShowManager(), settings)
 	addPresentedVisual(engine, "old", 1, 30)
 	addPresentedVisual(engine, "new", 2, 0)
-	engine.mu.Lock()
-	engine.instances.get("new").Presented = false
-	engine.mu.Unlock()
+	engine.runtime.mu.Lock()
+	engine.runtime.instances.get("new").Presented = false
+	engine.runtime.mu.Unlock()
 
 	engine.HandleOutputReport("new", "presented")
 	instances := engine.ActiveInstances()
 	if len(instances) != 2 {
 		t.Fatalf("instances during replacement fade = %d, want 2", len(instances))
 	}
-	engine.mu.RLock()
-	replacementScheduled := engine.instances.get("old").replacementScheduled
-	engine.mu.RUnlock()
+	engine.runtime.mu.RLock()
+	replacementScheduled := engine.runtime.instances.get("old").replacementScheduled
+	engine.runtime.mu.RUnlock()
 	if !replacementScheduled {
 		t.Fatal("outgoing visual was not marked for replacement")
 	}
@@ -98,12 +98,12 @@ func TestSingleLayerDoesNotReplaceBeforeFirstPresentedFrame(t *testing.T) {
 	}
 	engine := NewEngine(show.NewShowManager(), settings)
 	addPresentedVisual(engine, "old", 1, 0)
-	engine.mu.Lock()
-	engine.instances.register(&liveInstance{Instance: Instance{
+	engine.runtime.mu.Lock()
+	engine.runtime.instances.register(&liveInstance{Instance: Instance{
 		ID: "new", CueID: show.NewCueID(), MediaType: "video", OutputID: "main",
 		LayerOrder: 2, BackendStarted: true, LoadState: "playing",
 	}})
-	engine.mu.Unlock()
+	engine.runtime.mu.Unlock()
 
 	if got := len(engine.ActiveInstances()); got != 2 {
 		t.Fatalf("instances before first presented frame = %d, want 2", got)
@@ -128,9 +128,9 @@ func TestMultiLayerOutputKeepsPresentedVisuals(t *testing.T) {
 	engine := NewEngine(show.NewShowManager(), settings)
 	addPresentedVisual(engine, "old", 1, 0)
 	addPresentedVisual(engine, "new", 2, 0)
-	engine.mu.Lock()
-	engine.instances.get("new").Presented = false
-	engine.mu.Unlock()
+	engine.runtime.mu.Lock()
+	engine.runtime.instances.get("new").Presented = false
+	engine.runtime.mu.Unlock()
 
 	engine.HandleOutputReport("new", "presented")
 	if got := len(engine.ActiveInstances()); got != 2 {

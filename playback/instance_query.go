@@ -2,15 +2,12 @@ package playback
 
 import (
 	"sort"
-	"time"
 
 	"github.com/syspoe/cusus/show"
 )
 
 func (e *Engine) matchingInstances(target show.MediaTarget) []Instance {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	return e.instances.matching(target, time.Now())
+	return e.runtime.matching(target)
 }
 
 func (e *Engine) instancesForOutput(outputID string) []Instance {
@@ -61,19 +58,13 @@ func (e *Engine) OutputIDs() []string {
 }
 
 func (e *Engine) hasMediaType(mediaType string) bool {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	return e.instances.hasMediaType(mediaType)
+	return e.runtime.hasMediaType(mediaType)
 }
 
 func (e *Engine) instanceCount() int {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	return e.instances.count()
+	return e.runtime.instanceCount()
 }
 
 func (e *Engine) hasInstance(id string) bool {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	return e.instances.has(id)
+	return e.runtime.hasInstance(id)
 }

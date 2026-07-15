@@ -64,9 +64,7 @@ func (executor remoteCueExecutor) execute(next command) (bool, error) {
 		result, err = executor.engine.remoteCommands.DispatchWithResult(executor.engine.ctx, *next.cue.Play.Remote, next.cue)
 		return err
 	}
-	executor.engine.mu.RLock()
-	authorize := executor.engine.remoteAuthority
-	executor.engine.mu.RUnlock()
+	authorize := executor.engine.hooks.remoteAuthorityExecutor()
 	var err error
 	if authorize != nil {
 		err = authorize(dispatch)

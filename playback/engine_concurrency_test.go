@@ -1,6 +1,7 @@
 package playback
 
 import (
+	"context"
 	"sync"
 	"testing"
 
@@ -24,7 +25,7 @@ func TestControlNamesRejectOutOfRangeActions(t *testing.T) {
 }
 
 func TestEngineCallbacksCanBeReplacedConcurrently(t *testing.T) {
-	engine := &Engine{outputs: newOutputBus()}
+	engine := &Engine{outputs: newOutputCoordinator(newRuntimeState(context.Background())), hooks: &engineHooks{}}
 	engine.outputs.subscribe("main")
 
 	var workers sync.WaitGroup

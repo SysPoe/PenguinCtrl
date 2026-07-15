@@ -2,7 +2,6 @@ package playback
 
 import (
 	"context"
-	"sync"
 	"testing"
 	"time"
 
@@ -62,10 +61,10 @@ func TestPrepareInstanceLifecycleClampsFadeToRemainingPlayback(t *testing.T) {
 
 func TestLifecycleControllerRoutesReportEffectsAndRetiresInstance(t *testing.T) {
 	host := &lifecycleHostStub{}
-	mu := &sync.RWMutex{}
-	registry := newInstanceRegistry()
+	runtime := newRuntimeState(context.Background())
+	registry := runtime.instances
 	outputs := newOutputBus()
-	controller := newLifecycleController(host, mu, registry, outputs)
+	controller := newLifecycleController(host, runtime, outputs)
 	cue := show.NewSoundCue()
 	registry.register(&liveInstance{
 		Instance:   Instance{ID: "reported", CueID: cue.ID, OutputID: "main", FadeInMs: 0},

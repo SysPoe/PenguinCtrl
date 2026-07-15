@@ -20,13 +20,13 @@ func newLifecycleTestEngine(t *testing.T) *Engine {
 }
 
 func addLifecycleTestInstance(engine *Engine, id string, duration time.Duration) {
-	engine.mu.Lock()
-	engine.instances.register(&liveInstance{
+	engine.runtime.mu.Lock()
+	engine.runtime.instances.register(&liveInstance{
 		Instance:   Instance{ID: id, CueID: show.NewCueID(), MediaType: "audio", OutputID: "main", DurationMs: duration.Milliseconds(), BackendStarted: true},
 		positionAt: time.Now(),
-		run:        cueRunToken{ctx: engine.runCtx},
+		run:        cueRunToken{ctx: engine.runtime.runCtx},
 	})
-	engine.mu.Unlock()
+	engine.runtime.mu.Unlock()
 	engine.scheduleInstanceLifecycle(id)
 }
 
@@ -75,13 +75,13 @@ func TestLateDurationDiscoveryStartsFadeForRemainingPlayback(t *testing.T) {
 	events := engine.outputs.subscribe("main")
 	defer engine.outputs.unsubscribe("main", events)
 
-	engine.mu.Lock()
-	engine.instances.register(&liveInstance{
+	engine.runtime.mu.Lock()
+	engine.runtime.instances.register(&liveInstance{
 		Instance:   Instance{ID: "late-duration", CueID: show.NewCueID(), MediaType: "audio", OutputID: "main", DurationMs: 1000, FadeOutMs: 500, BackendStarted: true},
 		positionAt: time.Now().Add(-700 * time.Millisecond),
-		run:        cueRunToken{ctx: engine.runCtx},
+		run:        cueRunToken{ctx: engine.runtime.runCtx},
 	})
-	engine.mu.Unlock()
+	engine.runtime.mu.Unlock()
 	engine.scheduleInstanceLifecycle("late-duration")
 
 	select {

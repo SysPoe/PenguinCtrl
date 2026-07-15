@@ -48,12 +48,12 @@ func (actions *controlActions) executeMedia(cue show.Cue, runCtx context.Context
 		})
 	}
 
-	e.mu.Lock()
+	e.runtime.mu.Lock()
 	now := time.Now()
 	reschedule := make([]string, 0, len(instances))
 	linkInstances := make([]liveInstance, 0, len(instances))
 	for _, matched := range instances {
-		instance := e.instances.get(matched.ID)
+		instance := e.runtime.instances.get(matched.ID)
 		if instance == nil {
 			continue
 		}
@@ -63,7 +63,7 @@ func (actions *controlActions) executeMedia(cue show.Cue, runCtx context.Context
 			linkInstances = append(linkInstances, *instance)
 		}
 	}
-	e.mu.Unlock()
+	e.runtime.mu.Unlock()
 	for _, id := range reschedule {
 		e.scheduleInstanceLifecycle(id)
 	}
@@ -149,14 +149,12 @@ func (actions *controlActions) executeOutput(cue show.Cue, runCtx context.Contex
 		outputID: outputID, command: outputControlName(play.Action), fadeOutMs: max(int64(0), play.FadeOutMs),
 		fadeInMs: max(int64(0), play.FadeInMs), message: play.Message,
 	}
-	e.mu.Lock()
 	switch play.Action {
 	case show.OutputControlBlackout, show.OutputControlClear, show.OutputControlTestPattern, show.OutputControlIdentify:
-		e.outputVisuals[outputID] = payload.compatibilityEvent()
+		e.outputs.rememberVisual(outputID, payload.compatibilityEvent())
 	case show.OutputControlFullscreen, show.OutputControlExitFullscreen:
-		e.outputWindows[outputID] = payload.compatibilityEvent()
+		e.outputs.rememberWindow(outputID, payload.compatibilityEvent())
 	}
-	e.mu.Unlock()
 	e.outputs.publish(payload)
 	if play.Action == show.OutputControlBlackout {
 		e.goOwned(func() {

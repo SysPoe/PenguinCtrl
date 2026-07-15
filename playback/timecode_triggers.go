@@ -21,14 +21,14 @@ func (triggers *timecodeTriggers) schedule(instanceID string, cue show.Cue, cueI
 	e := triggers.engine
 	markers := mediaTimecode(cue)
 	sort.SliceStable(markers, func(i, j int) bool { return markers[i].TimeMs < markers[j].TimeMs })
-	e.mu.RLock()
-	timeline := e.timeline
-	parent := e.instances.get(instanceID)
+	e.runtime.mu.RLock()
+	timeline := e.runtime.timeline
+	parent := e.runtime.instances.get(instanceID)
 	parentRun := cueRunToken{}
 	if parent != nil {
 		parentRun = parent.run
 	}
-	e.mu.RUnlock()
+	e.runtime.mu.RUnlock()
 	if parentRun.ctx == nil {
 		return
 	}

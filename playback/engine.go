@@ -30,31 +30,25 @@ type Timeline interface {
 	WaitUntil(context.Context, time.Duration) bool
 }
 
-// TODO(macro): Keep Engine as a facade, but move remaining scheduling and output
-// state into owned components with explicit snapshots. One broad state lock
-// still couples otherwise independent policies and makes their lifecycle ordering
-// implicit.
-// TODO(macro): Engine remains a god object spanning dispatch sequencing and
-// validation context. Compose a CueAnalysis collaborator instead of growing
-// the engine_*.go method surface.
+// Engine is the compatibility facade composed by the application. Mutable
+// scheduling, runtime, output, and integration state belongs to focused
+// collaborators constructed below.
 type Engine struct {
 	show                     ShowAccess
 	settings                 SettingsAccess
 	remoteCommands           RemoteCommands
 	remoteHealth             RemoteHealthSource
 	closeCompatibilityRemote func()
-	commands                 chan command
 	ctx                      context.Context
 	cancel                   context.CancelFunc
-	runCtx                   context.Context
-	runCancel                context.CancelFunc
 	done                     chan struct{}
 	workerMu                 sync.Mutex
 	workers                  sync.WaitGroup
 	closing                  bool
-	outputs                  *outputBus
-	mu                       sync.RWMutex
-	instances                *instanceRegistry
+	outputs                  *outputCoordinator
+	runtime                  *runtimeState
+	scheduler                *commandCoordinator
+	hooks                    *engineHooks
 	lifecycle                *lifecycleController
 	cueExecutors             *cueExecutorSet
 	links                    *linkNavigator
@@ -64,24 +58,12 @@ type Engine struct {
 	controls                 *controlActions
 	waits                    *waitEngine
 	analysis                 CueAnalysis
-	executions               map[string]*CueExecution
-	outputVisuals            map[string]Event
-	outputWindows            map[string]Event
 	mediaCatalog             *mediaCatalog
 	stateEvent               chan struct{}
 	lastError                atomic.Value
-	operatorLog              *operatorlog.Store
-	onChange                 func()
 	preview                  *previewSession
-	runs                     *cueRunTable
 	safety                   *safetyLatch
-	enqueueMu                sync.Mutex
-	nextCommandSequence      uint64
-	dispatch                 *dispatchSequencer
-	audit                    *commandAudit
 	admission                *admissionGates
-	remoteAuthority          func(func() error) error
-	timeline                 Timeline
 }
 
 // NewEngineWithRemote constructs playback around a caller-owned remote port.
@@ -97,15 +79,16 @@ func NewEngineWithRemote(showAccess ShowAccess, settings SettingsAccess, remoteP
 		panic("playback: remote port is nil")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	runCtx, runCancel := context.WithCancel(ctx)
 	engine := &Engine{
 		show: showAccess, settings: settings, remoteCommands: remotePort, remoteHealth: remotePort,
-		commands: make(chan command, 64), ctx: ctx, cancel: cancel, runCtx: runCtx, runCancel: runCancel, done: make(chan struct{}),
-		outputs: newOutputBus(), instances: newInstanceRegistry(), executions: map[string]*CueExecution{}, outputVisuals: map[string]Event{}, outputWindows: map[string]Event{}, runs: newCueRunTable(), safety: newSafetyLatch(), admission: &admissionGates{}, preview: &previewSession{},
+		ctx: ctx, cancel: cancel, done: make(chan struct{}),
+		runtime: newRuntimeState(ctx), hooks: &engineHooks{},
+		safety: newSafetyLatch(), admission: &admissionGates{}, preview: &previewSession{},
 		mediaCatalog: newMediaCatalog(ctx), stateEvent: make(chan struct{}, 1),
-		dispatch: newDispatchSequencer(), audit: newCommandAudit(),
 	}
-	engine.lifecycle = newLifecycleController(engine, &engine.mu, engine.instances, engine.outputs)
+	engine.outputs = newOutputCoordinator(engine.runtime)
+	engine.scheduler = newCommandCoordinator(engine)
+	engine.lifecycle = newLifecycleController(engine, engine.runtime, engine.outputs)
 	engine.cueExecutors = newCueExecutorSet(engine)
 	engine.links = newLinkNavigator(engine, showAccessCueSelection{show: showAccess})
 	engine.operator = newOperatorController(engine)
@@ -117,7 +100,7 @@ func NewEngineWithRemote(showAccess ShowAccess, settings SettingsAccess, remoteP
 	return engine
 }
 
-func (e *Engine) Start() { go e.run() }
+func (e *Engine) Start() { go e.scheduler.run() }
 
 func (e *Engine) Close() {
 	e.cancel()
@@ -151,15 +134,11 @@ func (e *Engine) goOwned(work func()) bool {
 func (e *Engine) RemoteHealth() []remote.TargetHealth { return e.remoteHealth.Health() }
 
 func (e *Engine) SetOnChange(callback func()) {
-	e.mu.Lock()
-	e.onChange = callback
-	e.mu.Unlock()
+	e.hooks.setOnChange(callback)
 }
 
 func (e *Engine) SetOperatorLog(store *operatorlog.Store) {
-	e.mu.Lock()
-	e.operatorLog = store
-	e.mu.Unlock()
+	e.hooks.setOperatorLog(store)
 	if store == nil {
 		e.outputs.setOnResync(nil)
 		return
@@ -172,23 +151,17 @@ func (e *Engine) SetOperatorLog(store *operatorlog.Store) {
 }
 
 func (e *Engine) operatorLogStore() *operatorlog.Store {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	return e.operatorLog
+	return e.hooks.operatorLogStore()
 }
 
 // SetRemoteAuthorityExecutor keeps distributed command ownership held across
 // the complete remote dispatch, avoiding a release between check and send.
 func (e *Engine) SetRemoteAuthorityExecutor(executor func(func() error) error) {
-	e.mu.Lock()
-	e.remoteAuthority = executor
-	e.mu.Unlock()
+	e.hooks.setRemoteAuthority(executor)
 }
 
 func (e *Engine) SetTimeline(timeline Timeline) {
-	e.mu.Lock()
-	e.timeline = timeline
-	e.mu.Unlock()
+	e.runtime.setTimeline(timeline)
 }
 
 func (e *Engine) SetDurationProbe(probe func(string) (int64, error)) {

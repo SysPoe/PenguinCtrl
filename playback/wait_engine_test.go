@@ -8,11 +8,11 @@ import (
 
 func TestWaitEngineEvaluatesRuntimeSnapshot(t *testing.T) {
 	engine := newLifecycleTestEngine(t)
-	engine.mu.Lock()
-	engine.instances.register(&liveInstance{Instance: Instance{
+	engine.runtime.mu.Lock()
+	engine.runtime.instances.register(&liveInstance{Instance: Instance{
 		ID: "audio", MediaType: "audio", FadeInComplete: false,
 	}})
-	engine.mu.Unlock()
+	engine.runtime.mu.Unlock()
 
 	waits := newWaitEngine(engine)
 	target := show.MediaTarget{Kind: show.MediaTargetInstance, InstanceID: "audio"}
@@ -22,9 +22,9 @@ func TestWaitEngineEvaluatesRuntimeSnapshot(t *testing.T) {
 	if waits.satisfied(show.WaitPlay{Kind: show.WaitFadeInComplete, Media: target}) {
 		t.Fatal("fade-in wait completed before runtime transition")
 	}
-	engine.mu.Lock()
-	engine.instances.get("audio").FadeInComplete = true
-	engine.mu.Unlock()
+	engine.runtime.mu.Lock()
+	engine.runtime.instances.get("audio").FadeInComplete = true
+	engine.runtime.mu.Unlock()
 	if !waits.satisfied(show.WaitPlay{Kind: show.WaitFadeInComplete, Media: target}) {
 		t.Fatal("fade-in wait did not observe completed runtime transition")
 	}

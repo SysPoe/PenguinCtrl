@@ -1,6 +1,9 @@
 package playback
 
-import "github.com/syspoe/cusus/show"
+import (
+	"github.com/syspoe/cusus/preflight"
+	"github.com/syspoe/cusus/show"
+)
 
 // CueAnalysis evaluates show-document problems against media metadata and an
 // optional live runtime snapshot without exposing playback controls.
@@ -24,7 +27,7 @@ func (analyzer *cueAnalyzer) Problems(cue show.Cue) []show.CueProblem {
 	source, start, end, configured, _ := durationDetails(cue, settings)
 	key := durationCacheKey(cue.Type, source, start, end, configured)
 	metadata := analyzer.media.warning(cue.ID, key)
-	context := show.WarningContext{
+	context := preflight.WarningContext{
 		Settings: settings, KnownDurationMs: metadata.durationMs, MediaProbeError: metadata.probeError,
 		TrackMediaCheck: metadata.trackValidation, MediaCheckPending: metadata.validationPending, MediaChecked: metadata.validationChecked,
 	}
@@ -36,7 +39,7 @@ func (analyzer *cueAnalyzer) Problems(cue show.Cue) []show.CueProblem {
 		context.HasRuntimeState = true
 		context.ActiveMediaMatches = analyzer.activeMatches(cue.Play.Wait.Media)
 	}
-	return show.CueProblemsWithContext(cue, analyzer.show.Snapshot(), context)
+	return preflight.CueProblemsWithContext(cue, analyzer.show.Snapshot(), context)
 }
 
 func (analyzer *cueAnalyzer) activeMatches(target show.MediaTarget) int {

@@ -20,9 +20,9 @@ func (e *Engine) replaceSingleLayerVisual(presented liveInstance) {
 		return
 	}
 
-	e.mu.Lock()
+	e.runtime.mu.Lock()
 	var newest *liveInstance
-	e.instances.visit(func(candidate *liveInstance) {
+	e.runtime.instances.visit(func(candidate *liveInstance) {
 		if candidate.Preview || !candidate.Presented || candidate.OutputID != presented.OutputID || !visualInstance(candidate) {
 			return
 		}
@@ -33,13 +33,13 @@ func (e *Engine) replaceSingleLayerVisual(presented liveInstance) {
 		}
 	})
 	if newest == nil {
-		e.mu.Unlock()
+		e.runtime.mu.Unlock()
 		return
 	}
 
 	now := time.Now()
 	outgoing := make([]liveInstance, 0)
-	e.instances.visit(func(candidate *liveInstance) {
+	e.runtime.instances.visit(func(candidate *liveInstance) {
 		if candidate.ID == newest.ID || candidate.Preview || !candidate.Presented || candidate.OutputID != presented.OutputID ||
 			!visualInstance(candidate) || candidate.replacementScheduled {
 			return
@@ -52,7 +52,7 @@ func (e *Engine) replaceSingleLayerVisual(presented liveInstance) {
 		startInstanceFade(candidate, silenceFloorDB, max(int64(0), candidate.FadeOutMs), now)
 		outgoing = append(outgoing, *candidate)
 	})
-	e.mu.Unlock()
+	e.runtime.mu.Unlock()
 
 	for _, instance := range outgoing {
 		fadeMs := max(int64(0), instance.FadeOutMs)
@@ -81,10 +81,10 @@ func (e *Engine) HandleOutputError(instanceID string, err error) {
 	if err == nil {
 		return
 	}
-	e.mu.RLock()
-	instance := e.instances.get(instanceID)
+	e.runtime.mu.RLock()
+	instance := e.runtime.instances.get(instanceID)
 	if instance == nil {
-		e.mu.RUnlock()
+		e.runtime.mu.RUnlock()
 		// Output workers can finish after a stop/removal has already retired the
 		// instance. Their late close/superseded errors are stale lifecycle noise;
 		// recording them here can create an unbounded operator-log flood.
@@ -92,7 +92,7 @@ func (e *Engine) HandleOutputError(instanceID string, err error) {
 	}
 	// TODO(micro): rename copy (shadows builtin copy)
 	copy := *instance
-	e.mu.RUnlock()
+	e.runtime.mu.RUnlock()
 	e.recordCueError(show.Cue{ID: copy.CueID, CueNumber: copy.CueNumber}, "FFmpeg / media output", err)
 	e.HandleOutputReport(instanceID, "stopped")
 }
@@ -102,16 +102,16 @@ func (e *Engine) HandleOutputWarning(instanceID string, err error) {
 	if err == nil || log == nil {
 		return
 	}
-	e.mu.RLock()
-	instance := e.instances.get(instanceID)
+	e.runtime.mu.RLock()
+	instance := e.runtime.instances.get(instanceID)
 	if instance == nil {
-		e.mu.RUnlock()
+		e.runtime.mu.RUnlock()
 		log.Add(operatorlog.Recoverable, "FFmpeg / media output", err.Error(), show.CueID{}, "")
 		return
 	}
 	// TODO(micro): rename copy (shadows builtin copy); use snapshot or inst
 	copy := *instance
-	e.mu.RUnlock()
+	e.runtime.mu.RUnlock()
 	log.Add(operatorlog.Recoverable, "FFmpeg / media output", err.Error(), copy.CueID, copy.CueNumber)
 	e.changed()
 }
@@ -123,10 +123,10 @@ func (e *Engine) HandleOutputDuration(instanceID string, durationMs int64) {
 	if durationMs <= 0 {
 		return
 	}
-	e.mu.Lock()
-	instance := e.instances.get(instanceID)
+	e.runtime.mu.Lock()
+	instance := e.runtime.instances.get(instanceID)
 	if instance == nil {
-		e.mu.Unlock()
+		e.runtime.mu.Unlock()
 		return
 	}
 	instance.DurationMs = durationMs
@@ -136,7 +136,7 @@ func (e *Engine) HandleOutputDuration(instanceID string, durationMs int64) {
 		instance.endScheduled = false
 		instance.lifecycleGeneration++
 	}
-	e.mu.Unlock()
+	e.runtime.mu.Unlock()
 	if started {
 		e.scheduleInstanceLifecycle(instanceID)
 	}
@@ -144,14 +144,7 @@ func (e *Engine) HandleOutputDuration(instanceID string, durationMs int64) {
 }
 
 func (e *Engine) Subscribe(outputID string) (<-chan Event, func()) {
-	ch, release := e.outputs.subscribePaused(outputID)
-	// TODO(micro): sequence return is discarded; either use it or change OutputSnapshot to return only events when unused
-	events, _ := e.OutputSnapshot(outputID)
-	for _, event := range events {
-		ch <- event
-	}
-	release()
-	return ch, func() { e.outputs.unsubscribe(outputID, ch) }
+	return e.outputs.subscribeSnapshot(outputID)
 }
 
 // OutputSnapshot returns a complete desired state for an output plus the event
@@ -159,54 +152,17 @@ func (e *Engine) Subscribe(outputID string) (<-chan Event, func()) {
 // overload or window recreation applies this state, then ignores older queued
 // sequences and continues incrementally.
 func (e *Engine) OutputSnapshot(outputID string) ([]Event, uint64) {
-	sequence := e.outputs.currentSequence()
-	e.mu.RLock()
-	instances := e.instances.matching(show.MediaTarget{Kind: show.MediaTargetOutput, OutputID: outputID}, time.Now())
-	visual, hasVisual := e.outputVisuals[outputID]
-	window, hasWindow := e.outputWindows[outputID]
-	e.mu.RUnlock()
-	snapshots := make([]MediaSnapshot, 0, len(instances))
-	for _, instance := range instances {
-		snapshots = append(snapshots, snapshotMedia(instance))
-	}
-	syncEvent := syncOutputEvent{outputID: outputID, instances: snapshots}.compatibilityEvent()
-	syncEvent.Sequence = sequence
-	events := []Event{syncEvent}
-	if hasVisual {
-		visual.Sequence = sequence
-		events = append(events, visual)
-	}
-	if hasWindow {
-		window.Sequence = sequence
-		events = append(events, window)
-	}
-	return events, sequence
+	return e.outputs.snapshot(outputID)
 }
 
 func (e *Engine) OutputResyncCount() uint64 { return e.outputs.resyncCount() }
 
 func (e *Engine) ActiveInstances() []Instance {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	return e.instances.snapshots(time.Now(), nil)
+	return e.runtime.snapshots()
 }
 
 func (e *Engine) ActiveExecutions() []CueExecution {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	now := time.Now()
-	result := make([]CueExecution, 0, len(e.executions))
-	for _, execution := range e.executions {
-		// TODO(micro): rename copy (shadows builtin copy)
-		copy := *execution
-		copy.ElapsedMs = max(int64(0), now.Sub(copy.PhaseAt).Milliseconds())
-		if copy.DurationMs > 0 {
-			copy.ElapsedMs = min(copy.ElapsedMs, copy.DurationMs)
-			copy.RemainingMs = max(int64(0), copy.DurationMs-copy.ElapsedMs)
-		}
-		result = append(result, copy)
-	}
-	return result
+	return e.scheduler.executions.snapshot()
 }
 
 func (e *Engine) KnownDurations() map[show.CueID]int64 {

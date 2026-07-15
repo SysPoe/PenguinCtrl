@@ -51,7 +51,7 @@ func TestCommandHistoryCapturesAcceptedDispatchAndCompletion(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	if !engine.audit.waitForCompletion(ctx, 1) {
+	if !engine.scheduler.audit.waitForCompletion(ctx, 1) {
 		t.Fatal("command audit did not report completion")
 	}
 	record := engine.CommandHistory()[0]
@@ -66,7 +66,7 @@ func TestCommandHistoryCapturesAcceptedDispatchAndCompletion(t *testing.T) {
 func TestCommandHistoryIsBoundedAndReturnsCopies(t *testing.T) {
 	engine := newLifecycleTestEngine(t)
 	for sequence := uint64(1); sequence <= 520; sequence++ {
-		engine.audit.accept(command{
+		engine.scheduler.audit.accept(command{
 			cue: show.Cue{ID: show.NewCueID()}, sequence: sequence, acceptedAt: time.Now(),
 		})
 	}

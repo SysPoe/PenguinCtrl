@@ -24,7 +24,7 @@ type cueRunEntry struct {
 	cancel context.CancelFunc
 }
 
-// cueRunTable owns run identity and cancellation. Engine.mu guards every call
+// cueRunTable owns run identity and cancellation. runtimeState guards every call
 // so beginning a successor remains atomic with retiring the prior instances.
 type cueRunTable struct {
 	nextID uint64
@@ -79,30 +79,20 @@ func (r *cueRunTable) reset() {
 // run of the same cue is cancelled and its live media is removed without
 // firing the old run's end links.
 func (e *Engine) beginCueRun(cueID show.CueID) (cueRunToken, []Instance) {
-	e.mu.Lock()
-	run := e.runs.begin(e.runCtx, cueID)
-	stopped := e.instances.removeCue(cueID)
-	e.mu.Unlock()
-	return run, stopped
+	return e.runtime.beginRun(cueID)
 }
 
 func (e *Engine) finishCueRun(run cueRunToken, finalization runFinalization) {
-	e.mu.Lock()
-	e.runs.finish(run, finalization)
-	e.mu.Unlock()
+	e.runtime.finishRun(run, finalization)
 	e.changed()
 }
 
 func (e *Engine) cueRunCurrent(run cueRunToken) bool {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	return e.runs.current(run)
+	return e.runtime.runCurrent(run)
 }
 
 // CueActive reports whether a cue is in pre-wait, executing a wait/control
 // action, loading media, playing, or paused.
 func (e *Engine) CueActive(cueID show.CueID) bool {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	return e.runs.cueActive(cueID)
+	return e.runtime.cueActive(cueID)
 }

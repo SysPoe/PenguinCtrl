@@ -64,21 +64,21 @@ func (runtime *cueMediaRuntime) start(next command) error {
 	instance.PositionMs = max(0, instance.ClipStartMs)
 	durationSource, durationStartMs, durationEndMs, configuredDurationMs, _ := durationDetails(cue, settings)
 	durationKey := durationCacheKey(cue.Type, durationSource, durationStartMs, durationEndMs, configuredDurationMs)
-	e.mu.Lock()
-	if next.run.id != 0 && (!e.runs.current(next.run) || next.run.ctx.Err() != nil) {
-		e.mu.Unlock()
+	e.runtime.mu.Lock()
+	if next.run.id != 0 && (!e.runtime.runs.current(next.run) || next.run.ctx.Err() != nil) {
+		e.runtime.mu.Unlock()
 		return context.Canceled
 	}
 	if instance.DurationMs <= 0 {
 		instance.DurationMs = e.mediaCatalog.duration(cue.ID, durationKey)
 	}
 	instance.FadeInComplete = instance.FadeInMs <= 0
-	e.instances.register(instance)
+	e.runtime.instances.register(instance)
 	if instance.DurationMs > 0 {
 		e.mediaCatalog.recordDuration(instance.CueID, instance.DurationMs)
 	}
 	snapshot := instance.Instance
-	e.mu.Unlock()
+	e.runtime.mu.Unlock()
 	e.outputs.publish(playOutputEvent{outputID: snapshot.OutputID, instance: snapshotMedia(snapshot)})
 	e.signalState()
 	return nil
@@ -94,10 +94,10 @@ func applyTimedMedia(instance *Instance, mediaType string, play show.MediaClip, 
 // freezeImages stops elapsed display time once blackout has fully faded.
 func (runtime *cueMediaRuntime) freezeImages(outputID string) {
 	e := runtime.engine
-	e.mu.Lock()
+	e.runtime.mu.Lock()
 	now := time.Now()
 	changed := false
-	e.instances.visit(func(instance *liveInstance) {
+	e.runtime.instances.visit(func(instance *liveInstance) {
 		if instance.OutputID != outputID || instance.MediaType != "image" || instance.positionAt.IsZero() {
 			return
 		}
@@ -105,7 +105,7 @@ func (runtime *cueMediaRuntime) freezeImages(outputID string) {
 		instance.positionAt = time.Time{}
 		changed = true
 	})
-	e.mu.Unlock()
+	e.runtime.mu.Unlock()
 	if changed {
 		e.signalState()
 	}

@@ -52,14 +52,16 @@ func TestPostWaitIsExposedAsCueExecution(t *testing.T) {
 
 func TestActiveExecutionsMeasureElapsedFromCurrentPhase(t *testing.T) {
 	now := time.Now()
-	engine := &Engine{executions: map[string]*CueExecution{
+	tracker := newExecutionTracker()
+	tracker.active = map[string]*CueExecution{
 		"execution": {
 			ID:         "execution",
 			StartedAt:  now.Add(-2 * time.Second),
 			PhaseAt:    now.Add(-200 * time.Millisecond),
 			DurationMs: 1000,
 		},
-	}}
+	}
+	engine := &Engine{scheduler: &commandCoordinator{executions: tracker}}
 
 	executions := engine.ActiveExecutions()
 	if len(executions) != 1 {

@@ -57,6 +57,7 @@ func TestRemoteDispatchRunsInsideAuthorityExecutor(t *testing.T) {
 	})
 	cue := show.NewRemoteCue()
 	cue.Play.Remote.Action = show.RemoteActionGo
+	cue.Play.Remote.Playback = "1"
 	if err := engine.enqueueCommand(cue, 0, liveCommand, "Operator GO", rejectBlockers); err != nil {
 		t.Fatal(err)
 	}

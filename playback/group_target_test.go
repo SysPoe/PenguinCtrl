@@ -1,6 +1,7 @@
 package playback
 
 import (
+	"context"
 	"testing"
 
 	"github.com/syspoe/cusus/show"
@@ -9,11 +10,11 @@ import (
 func TestMatchingInstancesByCueGroup(t *testing.T) {
 	groupID := show.NewGroupID()
 	otherGroupID := show.NewGroupID()
-	engine := &Engine{instances: newInstanceRegistry()}
-	engine.instances.register(&liveInstance{Instance: Instance{ID: "first", GroupID: groupID, MediaType: "audio"}})
-	engine.instances.register(&liveInstance{Instance: Instance{ID: "second", GroupID: groupID, MediaType: "video"}})
-	engine.instances.register(&liveInstance{Instance: Instance{ID: "other", GroupID: otherGroupID, MediaType: "audio"}})
-	engine.instances.register(&liveInstance{Instance: Instance{ID: "none", MediaType: "audio"}})
+	engine := &Engine{runtime: newRuntimeState(context.Background())}
+	engine.runtime.instances.register(&liveInstance{Instance: Instance{ID: "first", GroupID: groupID, MediaType: "audio"}})
+	engine.runtime.instances.register(&liveInstance{Instance: Instance{ID: "second", GroupID: groupID, MediaType: "video"}})
+	engine.runtime.instances.register(&liveInstance{Instance: Instance{ID: "other", GroupID: otherGroupID, MediaType: "audio"}})
+	engine.runtime.instances.register(&liveInstance{Instance: Instance{ID: "none", MediaType: "audio"}})
 
 	matches := engine.matchingInstances(show.MediaTarget{Kind: show.MediaTargetGroup, GroupID: groupID})
 	if len(matches) != 2 {

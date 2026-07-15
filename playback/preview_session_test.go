@@ -21,7 +21,7 @@ func TestPreviewStartCreatesSanitizedIsolatedCommand(t *testing.T) {
 	if err != nil || !playing {
 		t.Fatalf("TogglePreview = playing %v, error %v", playing, err)
 	}
-	next := <-engine.commands
+	next := <-engine.scheduler.queue
 	if next.intent != previewCommand || next.cue.ID == cue.ID || next.cue.GroupID != (show.GroupID{}) || next.cue.GroupTitle != "" {
 		t.Fatalf("preview command identity = %#v", next)
 	}
@@ -38,21 +38,21 @@ func TestPreviewTogglePausesAndResumesSameSession(t *testing.T) {
 	engine := newLifecycleTestEngine(t)
 	previewID := show.NewCueID()
 	engine.preview.begin(previewID)
-	engine.mu.Lock()
-	engine.instances.register(&liveInstance{
+	engine.runtime.mu.Lock()
+	engine.runtime.instances.register(&liveInstance{
 		Instance: Instance{ID: "preview", CueID: previewID, Preview: true, MediaType: "audio", OutputID: "main"},
-		run:      cueRunToken{ctx: engine.runCtx},
+		run:      cueRunToken{ctx: engine.runtime.runCtx},
 	})
-	engine.mu.Unlock()
+	engine.runtime.mu.Unlock()
 	cue := show.NewSoundCue()
 
 	if playing, err := engine.TogglePreview(cue); err != nil || playing {
 		t.Fatalf("pause preview = playing %v, error %v", playing, err)
 	}
 	_, pausedState := engine.preview.snapshot()
-	engine.mu.RLock()
-	pausedInstance := engine.instances.get("preview").Paused
-	engine.mu.RUnlock()
+	engine.runtime.mu.RLock()
+	pausedInstance := engine.runtime.instances.get("preview").Paused
+	engine.runtime.mu.RUnlock()
 	if !pausedState || !pausedInstance {
 		t.Fatalf("paused preview state = session %v instance %v", pausedState, pausedInstance)
 	}
@@ -61,9 +61,9 @@ func TestPreviewTogglePausesAndResumesSameSession(t *testing.T) {
 		t.Fatalf("resume preview = playing %v, error %v", playing, err)
 	}
 	_, pausedState = engine.preview.snapshot()
-	engine.mu.RLock()
-	pausedInstance = engine.instances.get("preview").Paused
-	engine.mu.RUnlock()
+	engine.runtime.mu.RLock()
+	pausedInstance = engine.runtime.instances.get("preview").Paused
+	engine.runtime.mu.RUnlock()
 	if pausedState || pausedInstance {
 		t.Fatalf("resumed preview state = session paused %v instance paused %v", pausedState, pausedInstance)
 	}
@@ -87,12 +87,12 @@ func TestStopPreviewClearsSessionAndStopsOwnedInstance(t *testing.T) {
 	engine := newLifecycleTestEngine(t)
 	previewID := show.NewCueID()
 	engine.preview.begin(previewID)
-	engine.mu.Lock()
-	engine.instances.register(&liveInstance{
+	engine.runtime.mu.Lock()
+	engine.runtime.instances.register(&liveInstance{
 		Instance: Instance{ID: "preview", CueID: previewID, Preview: true, MediaType: "audio", OutputID: "main"},
-		run:      cueRunToken{ctx: engine.runCtx},
+		run:      cueRunToken{ctx: engine.runtime.runCtx},
 	})
-	engine.mu.Unlock()
+	engine.runtime.mu.Unlock()
 
 	engine.StopPreview()
 

@@ -39,15 +39,15 @@ func TestOutputReportLifecycleTransitionsAreIdempotent(t *testing.T) {
 	changes := 0
 	engine.SetOnChange(func() { changes++ })
 	requested := time.Now().Add(-25 * time.Millisecond)
-	engine.instances.register(&liveInstance{
+	engine.runtime.instances.register(&liveInstance{
 		Instance:    Instance{ID: "instance", CueID: show.NewCueID(), OutputID: "main", MediaType: "audio", FadeInMs: 10},
 		requestedAt: requested,
 	})
 
 	engine.HandleOutputReport("instance", "started")
-	engine.mu.RLock()
-	started := *engine.instances.get("instance")
-	engine.mu.RUnlock()
+	engine.runtime.mu.RLock()
+	started := *engine.runtime.instances.get("instance")
+	engine.runtime.mu.RUnlock()
 	if !started.BackendStarted || started.LoadState != "playing" || started.StartedAt.IsZero() || started.positionAt.IsZero() || started.StartLatencyMs < 0 {
 		t.Fatalf("started transition = %#v", started)
 	}
@@ -60,9 +60,9 @@ func TestOutputReportLifecycleTransitionsAreIdempotent(t *testing.T) {
 	engine.HandleOutputReport("instance", "fade-in-complete")
 	engine.HandleOutputReport("instance", "fade-out-start")
 	engine.HandleOutputReport("instance", "presented")
-	engine.mu.RLock()
-	transitioned := *engine.instances.get("instance")
-	engine.mu.RUnlock()
+	engine.runtime.mu.RLock()
+	transitioned := *engine.runtime.instances.get("instance")
+	engine.runtime.mu.RUnlock()
 	if !transitioned.FadeInComplete || !transitioned.fadeOutStarted || !transitioned.Presented {
 		t.Fatalf("lifecycle flags = %#v", transitioned)
 	}
@@ -74,7 +74,7 @@ func TestOutputReportRetiresInstanceAndPublishesRemoval(t *testing.T) {
 		t.Fatal(err)
 	}
 	engine := NewEngine(show.NewShowManager(), settings)
-	engine.instances.register(&liveInstance{Instance: Instance{ID: "instance", CueID: show.NewCueID(), OutputID: "main"}})
+	engine.runtime.instances.register(&liveInstance{Instance: Instance{ID: "instance", CueID: show.NewCueID(), OutputID: "main"}})
 	events := engine.outputs.subscribe("main")
 
 	engine.HandleOutputReport("instance", "ended")
@@ -100,7 +100,7 @@ func TestUnknownOutputReportPreservesExistingBehavior(t *testing.T) {
 	engine := NewEngine(show.NewShowManager(), settings)
 	changes := 0
 	engine.SetOnChange(func() { changes++ })
-	engine.instances.register(&liveInstance{Instance: Instance{ID: "instance"}})
+	engine.runtime.instances.register(&liveInstance{Instance: Instance{ID: "instance"}})
 
 	engine.HandleOutputReport("instance", "future-report")
 

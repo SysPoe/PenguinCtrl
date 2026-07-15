@@ -30,12 +30,12 @@ func TestMediaMarkerDispatchPreservesParentCueRunAndIsAudited(t *testing.T) {
 	}
 	parentRun, _ := engine.beginCueRun(cue.ID)
 	instanceID := "parent-timecode"
-	engine.mu.Lock()
-	engine.instances.register(&liveInstance{
+	engine.runtime.mu.Lock()
+	engine.runtime.instances.register(&liveInstance{
 		Instance: Instance{ID: instanceID, CueID: cue.ID, MediaType: "image", OutputID: "main"},
 		run:      parentRun,
 	})
-	engine.mu.Unlock()
+	engine.runtime.mu.Unlock()
 	events := engine.outputs.subscribe("main")
 
 	engine.scheduleTimecode(instanceID, cue, 0)
@@ -49,9 +49,9 @@ func TestMediaMarkerDispatchPreservesParentCueRunAndIsAudited(t *testing.T) {
 		t.Fatal("timecode marker was not dispatched")
 	}
 
-	engine.mu.RLock()
-	instanceActive := engine.instances.has(instanceID)
-	engine.mu.RUnlock()
+	engine.runtime.mu.RLock()
+	instanceActive := engine.runtime.instances.has(instanceID)
+	engine.runtime.mu.RUnlock()
 	if !engine.cueRunCurrent(parentRun) || parentRun.ctx.Err() != nil || !instanceActive {
 		t.Fatalf("marker replaced parent run: current=%v context=%v instance=%v", engine.cueRunCurrent(parentRun), parentRun.ctx.Err(), instanceActive)
 	}
@@ -83,12 +83,12 @@ func TestMediaMarkerUsesPreflightAdmissionWithoutStoppingParent(t *testing.T) {
 	}
 	parentRun, _ := engine.beginCueRun(cue.ID)
 	instanceID := "blocked-parent-timecode"
-	engine.mu.Lock()
-	engine.instances.register(&liveInstance{
+	engine.runtime.mu.Lock()
+	engine.runtime.instances.register(&liveInstance{
 		Instance: Instance{ID: instanceID, CueID: cue.ID, MediaType: "image", OutputID: "main"},
 		run:      parentRun,
 	})
-	engine.mu.Unlock()
+	engine.runtime.mu.Unlock()
 	events := engine.outputs.subscribe("main")
 
 	engine.scheduleTimecode(instanceID, cue, 0)
@@ -105,9 +105,9 @@ func TestMediaMarkerUsesPreflightAdmissionWithoutStoppingParent(t *testing.T) {
 		}
 	}
 drained:
-	engine.mu.RLock()
-	instanceActive := engine.instances.has(instanceID)
-	engine.mu.RUnlock()
+	engine.runtime.mu.RLock()
+	instanceActive := engine.runtime.instances.has(instanceID)
+	engine.runtime.mu.RUnlock()
 	if !engine.cueRunCurrent(parentRun) || parentRun.ctx.Err() != nil || !instanceActive {
 		t.Fatalf("blocked marker disturbed parent run: current=%v context=%v instance=%v", engine.cueRunCurrent(parentRun), parentRun.ctx.Err(), instanceActive)
 	}
@@ -127,9 +127,9 @@ func TestMediaMarkersUseConfiguredExternalTimeline(t *testing.T) {
 	timeline := &timelineStub{base: 10 * time.Second, targets: make(chan time.Duration, 1)}
 	engine.SetTimeline(timeline)
 	instanceID := "external-timecode"
-	engine.mu.Lock()
-	engine.instances.register(&liveInstance{Instance: Instance{ID: instanceID}, run: cueRunToken{ctx: engine.runCtx}})
-	engine.mu.Unlock()
+	engine.runtime.mu.Lock()
+	engine.runtime.instances.register(&liveInstance{Instance: Instance{ID: instanceID}, run: cueRunToken{ctx: engine.runtime.runCtx}})
+	engine.runtime.mu.Unlock()
 	cue := show.Cue{ID: show.NewCueID(), Type: show.CueTypeImage, Play: show.CuePlay{Image: &show.ImagePlay{Timecode: []show.TimecodeMarker{{
 		TimeMs: 250, Action: show.NewTimecodeOutputAction(&show.OutputControlPlay{Action: show.OutputControlBlackout}),
 	}}}}}

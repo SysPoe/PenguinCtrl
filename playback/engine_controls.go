@@ -8,13 +8,7 @@ import (
 
 func (e *Engine) StopAll() { e.operator.stopAll() }
 
-func (e *Engine) resetPlaybackRuns() {
-	e.mu.Lock()
-	e.runCancel()
-	e.runCtx, e.runCancel = context.WithCancel(e.ctx)
-	e.runs.reset()
-	e.mu.Unlock()
-}
+func (e *Engine) resetPlaybackRuns() { e.runtime.resetRuns() }
 
 // BlackoutAll immediately asserts black on every configured/active output.
 // It is deliberately independent from cue selection and keyboard focus.
@@ -28,9 +22,7 @@ func (e *Engine) ControlMedia(target show.MediaTarget, action show.MediaControlA
 }
 
 func (e *Engine) currentRunContext() context.Context {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	return e.runCtx
+	return e.runtime.currentRunContext()
 }
 
 // FadeInstance performs the fixed two-second fade used by the operator panel.
@@ -46,7 +38,5 @@ func (e *Engine) EndInstance(instanceID string) { e.operator.endInstance(instanc
 func (e *Engine) publishOutput(event outputEvent) { e.outputs.publish(event) }
 
 func (e *Engine) rememberOutputVisual(outputID string, event Event) {
-	e.mu.Lock()
-	e.outputVisuals[outputID] = event
-	e.mu.Unlock()
+	e.outputs.rememberVisual(outputID, event)
 }

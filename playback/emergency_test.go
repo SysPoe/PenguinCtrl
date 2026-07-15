@@ -14,9 +14,7 @@ func TestBlackoutAllPublishesImmediateStateForEveryOutput(t *testing.T) {
 	default:
 		t.Fatal("blackout did not publish immediately")
 	}
-	engine.mu.RLock()
-	state := engine.outputVisuals["main"]
-	engine.mu.RUnlock()
+	state := engine.outputs.desired.snapshot("main").visual
 	if state.Control != "blackout" {
 		t.Fatalf("authoritative output state = %+v", state)
 	}

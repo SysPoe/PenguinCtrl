@@ -43,12 +43,7 @@ func (e *Engine) signalState() {
 }
 
 func (e *Engine) changed() {
-	e.mu.RLock()
-	callback := e.onChange
-	e.mu.RUnlock()
-	if callback != nil {
-		callback()
-	}
+	e.hooks.changed()
 }
 
 func materializeLiveInstance(instance *liveInstance, now time.Time) {

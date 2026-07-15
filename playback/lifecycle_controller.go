@@ -2,7 +2,6 @@ package playback
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/syspoe/cusus/show"
@@ -19,15 +18,18 @@ type lifecycleHost interface {
 	signalState()
 }
 
-type lifecycleController struct {
-	host      lifecycleHost
-	mu        *sync.RWMutex
-	instances *instanceRegistry
-	outputs   *outputBus
+type outputPublisher interface {
+	publish(outputEvent)
 }
 
-func newLifecycleController(host lifecycleHost, mu *sync.RWMutex, instances *instanceRegistry, outputs *outputBus) *lifecycleController {
-	return &lifecycleController{host: host, mu: mu, instances: instances, outputs: outputs}
+type lifecycleController struct {
+	host    lifecycleHost
+	runtime *runtimeState
+	outputs outputPublisher
+}
+
+func newLifecycleController(host lifecycleHost, runtime *runtimeState, outputs outputPublisher) *lifecycleController {
+	return &lifecycleController{host: host, runtime: runtime, outputs: outputs}
 }
 
 type instanceLifecycleSchedule struct {
@@ -57,9 +59,9 @@ func prepareInstanceLifecycle(instance *liveInstance, now time.Time) (instanceLi
 }
 
 func (c *lifecycleController) schedule(instanceID string) {
-	c.mu.Lock()
-	schedule, ok := prepareInstanceLifecycle(c.instances.get(instanceID), time.Now())
-	c.mu.Unlock()
+	c.runtime.mu.Lock()
+	schedule, ok := prepareInstanceLifecycle(c.runtime.instances.get(instanceID), time.Now())
+	c.runtime.mu.Unlock()
 	if !ok {
 		return
 	}
@@ -73,13 +75,13 @@ func (c *lifecycleController) schedule(instanceID string) {
 				outputID: schedule.instance.OutputID, instanceIDs: []string{schedule.instance.ID},
 				command: mediaCommandFadeOut, fadeMs: schedule.fadeFor,
 			})
-			c.mu.Lock()
-			if active := c.instances.get(schedule.instance.ID); active != nil && active.lifecycleGeneration == schedule.generation && !active.Paused {
+			c.runtime.mu.Lock()
+			if active := c.runtime.instances.get(schedule.instance.ID); active != nil && active.lifecycleGeneration == schedule.generation && !active.Paused {
 				now := time.Now()
 				materializeLiveInstance(active, now)
 				startInstanceFade(active, silenceFloorDB, schedule.fadeFor, now)
 			}
-			c.mu.Unlock()
+			c.runtime.mu.Unlock()
 			c.handleOutputReport(schedule.instance.ID, outputReportFadeOutStart)
 		})
 	}
@@ -91,26 +93,26 @@ func (c *lifecycleController) schedule(instanceID string) {
 }
 
 func (c *lifecycleController) current(instanceID string, generation uint64) bool {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.instances.lifecycleCurrent(instanceID, generation)
+	c.runtime.mu.RLock()
+	defer c.runtime.mu.RUnlock()
+	return c.runtime.instances.lifecycleCurrent(instanceID, generation)
 }
 
 func (c *lifecycleController) handleOutputReport(instanceID string, report outputReport) {
-	c.mu.Lock()
-	instance := c.instances.get(instanceID)
+	c.runtime.mu.Lock()
+	instance := c.runtime.instances.get(instanceID)
 	if instance == nil {
-		c.mu.Unlock()
+		c.runtime.mu.Unlock()
 		return
 	}
 	if applied, retire := reduceInstanceLifecycle(instance, report, time.Now()); !applied {
-		c.mu.Unlock()
+		c.runtime.mu.Unlock()
 		return
 	} else if retire {
-		c.instances.retire(instanceID)
+		c.runtime.instances.retire(instanceID)
 	}
 	snapshot := *instance
-	c.mu.Unlock()
+	c.runtime.mu.Unlock()
 
 	switch report {
 	case outputReportStarted:
