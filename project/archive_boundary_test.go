@@ -53,6 +53,13 @@ func TestPortableArchiveExtractionHydrationRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	cache, err := currentCacheLayout()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if relative, err := filepath.Rel(cache.Shows, extracted.root); err != nil || relative == "." || strings.HasPrefix(relative, "..") {
+		t.Fatalf("extraction root %q is outside shows cache %q", extracted.root, cache.Shows)
+	}
 	assertPortableCuePaths(t, extracted.Manifest.Show)
 	portableBefore := mediaCuePaths(extracted.Manifest.Show)
 	runtimeShow := extracted.HydrateShow()

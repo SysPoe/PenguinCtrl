@@ -97,7 +97,7 @@ func Extract(path string) (result ExtractedArchive, resultErr error) {
 	if err := validateManifestSchema(manifest); err != nil {
 		return ExtractedArchive{}, err
 	}
-	cacheRoot, err := os.UserCacheDir()
+	cache, err := currentCacheLayout()
 	if err != nil {
 		return ExtractedArchive{}, err
 	}
@@ -105,7 +105,7 @@ func Extract(path string) (result ExtractedArchive, resultErr error) {
 	if err != nil {
 		return ExtractedArchive{}, err
 	}
-	root := filepath.Join(cacheRoot, "CuSus", "shows", digest[:archiveHashPrefixLength])
+	root := filepath.Join(cache.Shows, digest[:archiveHashPrefixLength])
 	parent := filepath.Dir(root)
 	if err := os.MkdirAll(parent, 0o755); err != nil {
 		return ExtractedArchive{}, err

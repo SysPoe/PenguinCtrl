@@ -137,11 +137,11 @@ func resolveLoadedPaths(loaded *show.Show, root string) {
 // codec choices, which is media-pipeline work nested inside project I/O.
 func transcode(ffmpegPath, source, kind, sourceHash string) (string, error) {
 	ext := map[string]string{"audio": ".opus", "video": ".webm", "image": ".webp"}[kind]
-	cacheRoot, err := os.UserCacheDir()
+	cache, err := currentCacheLayout()
 	if err != nil {
 		return "", err
 	}
-	cacheDir := filepath.Join(cacheRoot, "CuSus", "transcoded")
+	cacheDir := cache.Transcoded
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		return "", err
 	}

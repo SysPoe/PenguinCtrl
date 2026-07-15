@@ -14,6 +14,8 @@ import (
 	"time"
 )
 
+const cacheMaintenanceInterval = 5 * time.Minute
+
 // TODO(macro): CacheMaintainer is a background reaper of published media cache
 // but its protected-path policy is closed over from window_loop via callbacks into
 // show/settings. Push protection policy into the project session (or archive
@@ -31,8 +33,7 @@ func StartCacheMaintainer(active func() bool, protected func() []string, limits 
 	m.wg.Add(1)
 	go func() {
 		defer m.wg.Done()
-		// TODO(micro): name cache maintenance interval (5m) as a constant
-		ticker := time.NewTicker(5 * time.Minute)
+		ticker := time.NewTicker(cacheMaintenanceInterval)
 		defer ticker.Stop()
 		for {
 			if !active() {
@@ -66,16 +67,12 @@ type cacheObject struct {
 	used time.Time
 }
 
-// TODO(macro): Give cache roots a single policy owner — extracted shows and
-// transcodes both live under UserCacheDir/CuSus but are written from archive
-// load/transcode and reclaimed here via ad-hoc path conventions, without a
-// shared cache index or lease model tied to the open document.
 func MaintainCache(quotaBytes, reserveBytes uint64, protected []string) error {
-	root, err := os.UserCacheDir()
+	cache, err := currentCacheLayout()
 	if err != nil {
 		return err
 	}
-	return maintainCacheRoot(filepath.Join(root, "CuSus"), quotaBytes, reserveBytes, protected, cacheAvailableBytes)
+	return maintainCacheRoot(cache.Root, quotaBytes, reserveBytes, protected, cacheAvailableBytes)
 }
 
 func maintainCacheRoot(root string, quotaBytes, reserveBytes uint64, protected []string, available func(string) (uint64, error)) error {
@@ -119,8 +116,8 @@ func maintainCacheRoot(root string, quotaBytes, reserveBytes uint64, protected [
 
 func cacheObjects(root string) ([]cacheObject, error) {
 	var result []cacheObject
-	for _, directory := range []string{"shows", "transcoded"} {
-		entries, err := os.ReadDir(filepath.Join(root, directory))
+	for _, directory := range cacheLayoutFromRoot(root).objectRoots() {
+		entries, err := os.ReadDir(directory)
 		if errors.Is(err, fs.ErrNotExist) {
 			continue
 		}
@@ -131,7 +128,7 @@ func cacheObjects(root string) ([]cacheObject, error) {
 			if strings.HasPrefix(entry.Name(), ".") || strings.HasSuffix(entry.Name(), ".previous") {
 				continue
 			}
-			path := filepath.Join(root, directory, entry.Name())
+			path := filepath.Join(directory, entry.Name())
 			object, err := inspectCacheObject(path)
 			if err != nil {
 				return nil, err
