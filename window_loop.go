@@ -651,7 +651,7 @@ func (a *App) run(window *app.Window) error {
 					return topBar.LayoutFileMenu(th, gtx)
 				}),
 				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-					return layoutWarnings(th, gtx, windowFocused, audioWarning, videoWarning, playbackEngine.SafetyLatchReason(), audioWarningSettings, &safetyResume)
+					return ui.LayoutWarnings(th, gtx, windowFocused, audioWarning, videoWarning, playbackEngine.SafetyLatchReason(), audioWarningSettings, &safetyResume)
 				}),
 				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 					return operatorPanel.LayoutOverlay(th, gtx, operatorEvents, preflight, func(cueID show.CueID, edit bool, field string) {
