@@ -12,6 +12,7 @@ import (
 // selected Source adapters under Service.Configure (matching the comment) or
 // drop the Service layer and let callers own per-source adapters explicitly.
 type Service struct {
+	configureMu sync.Mutex
 	mu          sync.Mutex
 	coordinator *Coordinator
 	cancel      context.CancelFunc
@@ -29,7 +30,9 @@ func NewService(config Config, listenAddress string) *Service {
 func (s *Service) Coordinator() *Coordinator { return s.coordinator }
 
 func (s *Service) Configure(config Config, listenAddress string) {
-	// TODO(micro): lock/unlock/wait/re-lock race window allows concurrent Configure to interleave cancel+start; hold one lock or use a generation token
+	s.configureMu.Lock()
+	defer s.configureMu.Unlock()
+
 	s.mu.Lock()
 	if s.cancel != nil {
 		s.cancel()
@@ -69,6 +72,9 @@ func (s *Service) LastError() error {
 }
 
 func (s *Service) Close() {
+	s.configureMu.Lock()
+	defer s.configureMu.Unlock()
+
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
