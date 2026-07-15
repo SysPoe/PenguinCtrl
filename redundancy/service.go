@@ -1,4 +1,3 @@
-// TODO(micro): Add Go-style documentation for Service and each exported constructor/lifecycle method in this file.
 package redundancy
 
 import (
@@ -28,6 +27,7 @@ func (systemInterlockAdapter) Acquire(path string) (authorityInterlock, error) {
 	return acquireSystemInterlock(path)
 }
 
+// Service coordinates peer heartbeats, fingerprint fencing, and command authority.
 type Service struct {
 	mu sync.RWMutex
 
@@ -42,12 +42,14 @@ type Service struct {
 	transport *peerTransport
 }
 
+// NewService constructs and configures a redundancy service.
 func NewService(config Config) *Service {
 	service := &Service{bootID: randomID(), interlock: systemInterlockAdapter{}}
 	_ = service.Configure(config)
 	return service
 }
 
+// Configure replaces the active redundancy configuration and peer transport.
 func (s *Service) Configure(config Config) error {
 	config = normalizeConfig(config)
 	s.mu.RLock()
@@ -85,6 +87,7 @@ func (s *Service) Configure(config Config) error {
 	return nil
 }
 
+// UpdateFingerprint replaces the local readiness fingerprint and reconciles authority.
 func (s *Service) UpdateFingerprint(fingerprint Fingerprint) {
 	s.mu.Lock()
 	s.policy.fingerprint = fingerprint
@@ -92,6 +95,7 @@ func (s *Service) UpdateFingerprint(fingerprint Fingerprint) {
 	s.mu.Unlock()
 }
 
+// Gate reports whether this node may currently issue commands.
 func (s *Service) Gate() error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -117,6 +121,7 @@ func (s *Service) gateLocked() error {
 	return s.policy.gate()
 }
 
+// RequestTakeover attempts to acquire command authority for this node.
 func (s *Service) RequestTakeover() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -134,6 +139,7 @@ func (s *Service) RequestTakeover() error {
 	return nil
 }
 
+// ReleaseAuthority relinquishes this node's command interlock.
 func (s *Service) ReleaseAuthority() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -144,12 +150,14 @@ func (s *Service) ReleaseAuthority() error {
 	return s.releaseAuthorityLocked()
 }
 
+// Status returns an immutable snapshot of current redundancy state.
 func (s *Service) Status() Status {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.policy.status(s.config, time.Now(), s.lastSent)
 }
 
+// Close stops peer transport and releases any owned authority.
 func (s *Service) Close() {
 	s.stopListener()
 	s.mu.Lock()

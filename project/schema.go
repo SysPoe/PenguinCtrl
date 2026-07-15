@@ -72,7 +72,9 @@ func normalizeShowSchema(current *show.Show, version int) {
 	for index := range current.Cues {
 		cue := &current.Cues[index]
 		if cue.ID == (show.CueID{}) {
-			// TODO(micro): SHA1 name-space ID for missing cue IDs is deterministic but non-V7; document stability contract or use NewCueID when inventing IDs is acceptable
+			// Legacy cues without IDs receive a deterministic namespace UUID so
+			// loading the same archive repeatedly preserves link identity. These
+			// migration IDs intentionally differ from V7 IDs minted for new cues.
 			seed := fmt.Sprintf("cusus-v%d-cue-%d-%s-%s", version, index, cue.CueNumber, cue.Description)
 			cue.ID = show.CueID(uuid.NewSHA1(uuid.NameSpaceOID, []byte(seed)))
 		}

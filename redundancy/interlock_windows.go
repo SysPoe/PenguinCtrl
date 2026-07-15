@@ -27,7 +27,8 @@ func acquireSystemInterlock(path string) (*systemInterlock, error) {
 	err = windows.LockFileEx(windows.Handle(file.Fd()), windows.LOCKFILE_EXCLUSIVE_LOCK|windows.LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, &lock.overlapped)
 	if err != nil {
 		_ = file.Close()
-		// TODO(micro): map additional Windows lock errors if observed in the field; currently only LOCK/SHARING_VIOLATION → ErrInterlockBusy
+		// Windows documents lock and sharing violations as contention. Preserve
+		// every other error so callers retain its diagnostic detail.
 		if errors.Is(err, windows.ERROR_LOCK_VIOLATION) || errors.Is(err, windows.ERROR_SHARING_VIOLATION) {
 			return nil, ErrInterlockBusy
 		}

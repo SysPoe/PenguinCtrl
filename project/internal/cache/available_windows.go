@@ -10,7 +10,8 @@ func AvailableBytes(path string) (uint64, error) {
 		return 0, err
 	}
 	var available uint64
-	// TODO(micro): total/free-for-caller out-params are nil; if diagnostics need total capacity later, capture them once here
+	// Only caller-available bytes are part of this package's contract; total
+	// capacity and raw free-space diagnostics are intentionally not collected.
 	err = windows.GetDiskFreeSpaceEx(root, &available, nil, nil)
 	return available, err
 }

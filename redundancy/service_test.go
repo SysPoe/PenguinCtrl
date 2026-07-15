@@ -118,8 +118,11 @@ func TestInterlockPreventsConcurrentOwners(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// TODO(micro): Register a cleanup that reports first.Close failure instead of ignoring it.
-	defer first.Close()
+	t.Cleanup(func() {
+		if err := first.Close(); err != nil {
+			t.Errorf("close first interlock: %v", err)
+		}
+	})
 	if _, err := acquireSystemInterlock(path); err != ErrInterlockBusy {
 		t.Fatalf("second interlock acquisition = %v", err)
 	}
@@ -247,18 +250,16 @@ func testUDPAddress(t *testing.T) string {
 	return address
 }
 
-// TODO(micro): Remove the Status result; all test callers use this helper only as a wait barrier.
-func waitStatus(t *testing.T, service *Service, ready func(Status) bool) Status {
+func waitStatus(t *testing.T, service *Service, ready func(Status) bool) {
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
 		status := service.Status()
 		if ready(status) {
-			return status
+			return
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 	status := service.Status()
 	t.Fatalf("timed out waiting for redundancy status: %+v", status)
-	return status
 }

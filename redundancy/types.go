@@ -1,4 +1,4 @@
-// TODO(micro): Add Go-style documentation for the exported redundancy types, constants, error, and summary methods.
+// Package redundancy coordinates command authority between primary and standby nodes.
 package redundancy
 
 import (
@@ -9,24 +9,43 @@ import (
 	"time"
 )
 
+// Role identifies a node's configured redundancy responsibility.
 type Role string
+
+// State summarizes a node's current redundancy readiness.
 type State string
 
 const (
-	RoleOff     Role = "off"
+	// RoleOff disables redundancy coordination.
+	RoleOff Role = "off"
+	// RolePrimary identifies the preferred command-authority node.
 	RolePrimary Role = "primary"
+	// RoleStandby identifies the warm-spare node.
 	RoleStandby Role = "standby"
 
-	StateOff      State = "off"
-	StateWaiting  State = "waiting"
-	StateReady    State = "ready"
-	StateActive   State = "active"
+	// StateOff indicates redundancy is disabled.
+	StateOff State = "off"
+	// StateWaiting indicates the node is waiting for peer readiness.
+	StateWaiting State = "waiting"
+	// StateReady indicates the node is synchronized but does not own authority.
+	StateReady State = "ready"
+	// StateActive indicates the node owns command authority.
+	StateActive State = "active"
+	// StateMismatch indicates the peer fingerprints differ.
 	StateMismatch State = "mismatch"
-	StateFailed   State = "failed"
+	// StateFailed indicates redundancy coordination encountered an error.
+	StateFailed State = "failed"
+
+	defaultHeartbeatInterval     = 500 * time.Millisecond
+	minimumPeerTimeoutHeartbeats = 3
+	defaultPeerTimeoutHeartbeats = 5
+	minimumSharedKeyLength       = 16
 )
 
+// ErrInterlockBusy indicates another node owns the shared command interlock.
 var ErrInterlockBusy = errors.New("redundancy interlock is already owned")
 
+// Config describes peer transport, authentication, and fencing settings.
 type Config struct {
 	Role              Role
 	NodeID            string
@@ -38,6 +57,7 @@ type Config struct {
 	PeerTimeout       time.Duration
 }
 
+// Fingerprint identifies the show, media, and routing state used for command fencing.
 type Fingerprint struct {
 	Show    string `json:"show"`
 	Media   string `json:"media"`
@@ -45,14 +65,17 @@ type Fingerprint struct {
 	Ready   bool   `json:"ready"`
 }
 
+// Complete reports whether all fingerprint components are populated and ready.
 func (f Fingerprint) Complete() bool {
 	return f.Ready && strings.TrimSpace(f.Show) != "" && strings.TrimSpace(f.Media) != "" && strings.TrimSpace(f.Routing) != ""
 }
 
+// Equal reports whether f and other describe identical readiness state.
 func (f Fingerprint) Equal(other Fingerprint) bool {
 	return f.Show == other.Show && f.Media == other.Media && f.Routing == other.Routing && f.Ready == other.Ready
 }
 
+// Status is an immutable snapshot of local and peer redundancy state.
 type Status struct {
 	Role               Role
 	State              State
@@ -91,11 +114,10 @@ func normalizeConfig(config Config) Config {
 		}
 	}
 	if config.HeartbeatInterval <= 0 {
-		// TODO(micro): name default heartbeat interval (500ms) and peer-timeout multipliers (3x/5x) as constants
-		config.HeartbeatInterval = 500 * time.Millisecond
+		config.HeartbeatInterval = defaultHeartbeatInterval
 	}
-	if config.PeerTimeout < config.HeartbeatInterval*3 {
-		config.PeerTimeout = config.HeartbeatInterval * 5
+	if config.PeerTimeout < config.HeartbeatInterval*minimumPeerTimeoutHeartbeats {
+		config.PeerTimeout = config.HeartbeatInterval * defaultPeerTimeoutHeartbeats
 	}
 	return config
 }
@@ -114,8 +136,7 @@ func validateConfig(config Config) error {
 	if config.PeerAddress == "" {
 		missing = append(missing, "peer address")
 	}
-	// TODO(micro): name minimum shared-key length (16) as a constant
-	if len(config.SharedKey) < 16 {
+	if len(config.SharedKey) < minimumSharedKeyLength {
 		missing = append(missing, "shared key (minimum 16 characters)")
 	}
 	if config.InterlockPath == "" {

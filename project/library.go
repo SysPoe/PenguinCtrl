@@ -7,7 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 
@@ -59,24 +59,25 @@ func (l *Library) Add(source, kind string) (File, bool, error) {
 func (l *Library) Files(kind string) []File {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
-	// TODO(micro): pre-size files with len(l.files) when kind=="" to avoid growth from zero
-	var files []File
+	capacity := 0
+	if kind == "" {
+		capacity = len(l.files)
+	}
+	files := make([]File, 0, capacity)
 	for _, file := range l.files {
 		if kind == "" || file.Kind == kind {
 			files = append(files, file)
 		}
 	}
-	// TODO(micro): prefer slices.SortFunc with strings.Compare on lowercased names
-	sort.SliceStable(files, func(i, j int) bool {
-		return strings.ToLower(files[i].Name) < strings.ToLower(files[j].Name)
+	slices.SortStableFunc(files, func(first, second File) int {
+		return strings.Compare(strings.ToLower(first.Name), strings.ToLower(second.Name))
 	})
 	return files
 }
 
 func (l *Library) Replace(files []File) {
 	l.mu.Lock()
-	// TODO(micro): prefer slices.Clone(files)
-	l.files = append([]File(nil), files...)
+	l.files = slices.Clone(files)
 	l.mu.Unlock()
 }
 
@@ -85,8 +86,11 @@ func HashFile(path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("open media %q: %w", path, err)
 	}
-	// TODO(micro): Explicitly discard or return this read-only Close error so the cleanup policy is clear.
-	defer file.Close()
+	defer func() {
+		// HashFile is read-only; read errors carry the useful path context, while
+		// a close error cannot invalidate bytes already consumed by the hasher.
+		_ = file.Close()
+	}()
 	hash := sha256.New()
 	if _, err := io.Copy(hash, file); err != nil {
 		return "", fmt.Errorf("hash media %q: %w", path, err)
