@@ -19,8 +19,8 @@ import (
 	"github.com/syspoe/cusus/utils"
 )
 
-// TODO(macro): CueEditUI is a multi-file god object (shell, tabs, form rows, string-keyed
-// page state, and the full timecode timeline). Carve the timeline into its own component
+// TODO(macro): CueEditUI is a multi-file god object (shell, tabs, typed page state,
+// and the full timecode timeline). Carve the timeline into its own component
 // with an explicit cue/media adapter, keep tab forms as pure field binders, and stop
 // hanging waveform/preview/history methods on the editor shell.
 type CueEditUI struct {
@@ -413,7 +413,7 @@ func (ctx *CueEditUI) Layout(th *material.Theme, gtx layout.Context, manager *sh
 	}.Layout(gtx,
 		ctx.drawTopBar(th, gtx),
 		ctx.drawProblemBar(th, gtx, manager),
-		ctx.drawBody(th, gtx, manager),
+		ctx.drawBody(th, manager),
 		ctx.drawBottomBar(th, gtx, manager, saveShortcut, cancelShortcut),
 	)
 }

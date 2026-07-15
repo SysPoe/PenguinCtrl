@@ -6,7 +6,7 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
-func (ctx *CueEditUI) drawBody(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.FlexChild {
+func (ctx *CueEditUI) drawBody(th *material.Theme, manager *show.ShowManager) layout.FlexChild {
 	ctx.ensurePageInputs()
 	if ctx.focusFirstInput {
 		ctx.focusActiveTab()
@@ -15,23 +15,23 @@ func (ctx *CueEditUI) drawBody(th *material.Theme, gtx layout.Context, manager *
 
 	switch ctx.activeTab {
 	case tabGeneral:
-		return ctx.renderGeneralTab(th, gtx)
+		return ctx.renderGeneralTab(th)
 	case tabTiming:
-		return ctx.renderTimingTab(th, gtx)
+		return ctx.renderTimingTab(th)
 	case tabLink:
-		return ctx.renderLinkTab(th, gtx, manager)
+		return ctx.renderLinkTab(th, manager)
 	case tabMedia:
-		return ctx.renderMediaTab(th, gtx)
+		return ctx.renderMediaTab(th)
 	case tabTimecode:
-		return ctx.renderTimecodeTab(th, gtx, manager)
+		return ctx.renderTimecodeTab(th, manager)
 	case tabRemote:
-		return ctx.renderRemoteTab(th, gtx)
+		return ctx.renderRemoteTab(th)
 	case tabWait:
-		return ctx.renderWaitTab(th, gtx, manager)
+		return ctx.renderWaitTab(th, manager)
 	case tabMediaCtrl:
-		return ctx.renderMediaCtrlTab(th, gtx, manager)
+		return ctx.renderMediaCtrlTab(th, manager)
 	case tabOutputCtrl:
-		return ctx.renderOutputCtrlTab(th, gtx)
+		return ctx.renderOutputCtrlTab(th)
 	}
 	// TODO(micro): default branch returns empty flexed layout for invalid tab; return empty dims or log the bad tab id.
 	return layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
@@ -67,7 +67,7 @@ type cueEditFormRow struct {
 	layout func(gtx layout.Context) layout.Dimensions
 }
 
-// TODO(macro): Enum label catalogs, form-row type, focus routing, and ensureCuePlay/ensurePageInputs share one file with no domain owner. Move labels next to show enums (or a single UI catalog), keep page routing thin, and stop re-listing the same action/kind labels in the timecode marker editor.
+// TODO(macro): Enum label catalogs, form-row type, focus routing, and ensureCuePlay/ensurePageInputs share one file with no domain owner. Move labels next to show enums (or a single UI catalog) and keep page routing thin.
 var (
 	cueLinkModeLabels = []string{
 		"Manual",
