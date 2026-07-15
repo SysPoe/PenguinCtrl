@@ -74,51 +74,6 @@ type Status struct {
 	InterlockPath      string
 }
 
-// TODO(macro): Summary() embeds operator-facing copy in the domain Status type
-// (also consumed by health_service). Keep Status machine-readable fields only
-// and move prose formatting to UI/health presentation so protocol/state changes
-// do not require editing user-visible strings here.
-func (s Status) Summary() string {
-	if s.Role == RoleOff {
-		return "Redundancy is disabled; this node has local command authority"
-	}
-	if s.LastError != "" && s.State == StateFailed {
-		return "Redundancy failed: " + s.LastError
-	}
-	if s.Authority && s.CanIssueCommands {
-		if s.PeerFresh {
-			return fmt.Sprintf("%s owns command authority; peer %s is validated", titleRole(s.Role), s.PeerNodeID)
-		}
-		// TODO(micro): Use string concatenation for this fixed-prefix/suffix message instead of fmt.Sprintf.
-		return fmt.Sprintf("%s owns command authority; validated peer heartbeat is stale", titleRole(s.Role))
-	}
-	if s.Authority {
-		// TODO(micro): Use string concatenation for this fixed-prefix/suffix message instead of fmt.Sprintf.
-		return fmt.Sprintf("%s owns the interlock but command issue is blocked until both nodes match", titleRole(s.Role))
-	}
-	if s.PeerActive && s.PeerFresh {
-		return fmt.Sprintf("Warm spare ready; %s owns command authority", s.PeerNodeID)
-	}
-	if s.PeerSeen && !s.FingerprintsMatch {
-		return "Warm-spare fingerprints do not match"
-	}
-	if s.PeerSeen && !s.InterlockMatch {
-		return "Warm-spare nodes do not use the same interlock"
-	}
-	return "Waiting for a validated peer and command authority"
-}
-
-func titleRole(role Role) string {
-	switch role {
-	case RolePrimary:
-		return "Primary"
-	case RoleStandby:
-		return "Standby"
-	default:
-		return "Node"
-	}
-}
-
 func normalizeConfig(config Config) Config {
 	switch config.Role {
 	case RolePrimary, RoleStandby:

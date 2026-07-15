@@ -16,6 +16,7 @@ import (
 	"gioui.org/widget/material"
 
 	"github.com/syspoe/cusus/config"
+	"github.com/syspoe/cusus/health"
 	"github.com/syspoe/cusus/internal/buildinfo"
 	"github.com/syspoe/cusus/internal/crashreport"
 	"github.com/syspoe/cusus/media"
@@ -218,7 +219,7 @@ func newApp(reporter *crashreport.Reporter) (*App, error) {
 		return path, err
 	})
 	settingsPage.SetRedundancyControl(
-		func() string { return spare.Status().Summary() },
+		func() string { return health.RedundancySummary(spare.Status()) },
 		func() error {
 			if len(application.Playback.ActiveInstances()) > 0 || len(application.Playback.ActiveExecutions()) > 0 {
 				return errors.New("STOP all local cues before taking command authority")

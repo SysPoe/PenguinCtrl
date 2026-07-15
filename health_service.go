@@ -47,7 +47,7 @@ func redundancyHealth(service *redundancy.Service) health.Component {
 	status := service.Status()
 	component := health.Component{
 		ID: "redundancy", Kind: "redundancy", Name: "Warm spare", State: health.Normal,
-		Summary: status.Summary(), Action: "Open Settings > Warm-spare redundancy and follow the handoff status",
+		Summary: health.RedundancySummary(status), Action: "Open Settings > Warm-spare redundancy and follow the handoff status",
 		Details: map[string]any{
 			"role": status.Role, "nodeId": status.NodeID, "authority": status.Authority, "canIssueCommands": status.CanIssueCommands,
 			"peerNodeId": status.PeerNodeID, "peerRole": status.PeerRole, "peerSeen": status.PeerSeen, "peerFresh": status.PeerFresh,
