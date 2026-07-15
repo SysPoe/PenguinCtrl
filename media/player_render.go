@@ -1,6 +1,7 @@
 package media
 
 import (
+	"image"
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
@@ -9,17 +10,20 @@ import (
 
 	"gioui.org/layout"
 	"gioui.org/op"
-	"gioui.org/op/paint"
-	"gioui.org/widget"
 	_ "golang.org/x/image/webp"
 )
 
-// TODO(macro): Layout advances the decode clock and paints, while LayoutScaled
-// records Layout only to discard its draw ops then reimplements opacity/paint.
-// That dual render path couples frame advancement to Gio layout and duplicates
-// presentation policy. Extract "pull frame for clock" from drawing, and make
-// scaling a pure paint concern used by output stages.
+const frameInvalidateInterval = time.Second / 60
+
 func (p *Player) Layout(gtx layout.Context) layout.Dimensions {
+	frame, opacity, refresh := p.presentationFrame()
+	if refresh {
+		scheduleFrameRefresh(gtx)
+	}
+	return layoutImageFrame(gtx, frame, scalingContain, opacity)
+}
+
+func (p *Player) presentationFrame() (image.Image, float32, bool) {
 	p.mu.RLock()
 	frame, clock, session := p.frame, p.clock, p.session
 	p.mu.RUnlock()
@@ -32,25 +36,21 @@ func (p *Player) Layout(gtx layout.Context) layout.Dimensions {
 		}
 	}
 	if frame == nil {
-		if session != nil && session.State() != LoadEnded {
-			// TODO(micro): time.Second/60 invalidate cadence is duplicated with LayoutScaled/output_layout; extract frameInvalidateInterval.
-			gtx.Execute(op.InvalidateCmd{At: time.Now().Add(time.Second / 60)})
-		}
-		return layout.Dimensions{Size: gtx.Constraints.Max}
+		return nil, 1, session != nil && playbackNeedsRefresh(session.State())
 	}
 	p.reportPresented()
 	opacity := float32(1)
+	refresh := session != nil && playbackNeedsRefresh(session.State())
 	if clock != nil {
 		elapsed := clock.Position() - time.Duration(max(0, p.instance.ClipStartMs))*time.Millisecond
 		opacity = p.visualOpacity(elapsed)
-		if opacity < 1 {
-			// TODO(micro): second identical 60fps InvalidateCmd; share helper with the empty-frame path above.
-			gtx.Execute(op.InvalidateCmd{At: time.Now().Add(time.Second / 60)})
-		}
+		refresh = refresh || opacity < 1
 	}
-	stack := paint.PushOpacity(gtx.Ops, opacity)
-	defer stack.Pop()
-	return widget.Image{Src: paint.NewImageOp(frame), Fit: widget.Contain, Position: layout.Center}.Layout(gtx)
+	return frame, opacity, refresh
+}
+
+func scheduleFrameRefresh(gtx layout.Context) {
+	gtx.Execute(op.InvalidateCmd{At: time.Now().Add(frameInvalidateInterval)})
 }
 
 // visualOpacity is controlled only by the picture fade. Audio level is sent

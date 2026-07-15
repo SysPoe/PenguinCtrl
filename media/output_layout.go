@@ -12,7 +12,6 @@ import (
 	"gioui.org/app"
 	"gioui.org/io/system"
 	"gioui.org/layout"
-	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
@@ -54,8 +53,7 @@ func (o *outputWindow) layout(gtx layout.Context) layout.Dimensions {
 	gtx.Constraints.Min = gtx.Constraints.Max
 	o.advanceTransition()
 	if o.transition != nil {
-		// TODO(micro): time.Second/60 (~60fps invalidate) is repeated across player/output layout; extract a frameInvalidateInterval constant.
-		gtx.Execute(op.InvalidateCmd{At: time.Now().Add(time.Second / 60)})
+		scheduleFrameRefresh(gtx)
 	}
 	return layout.Stack{}.Layout(gtx,
 		layout.Expanded(func(gtx layout.Context) layout.Dimensions {
@@ -233,10 +231,8 @@ func paintRectOutline(gtx layout.Context, rect image.Rectangle, width int, fill 
 	paint.FillShape(gtx.Ops, fill, clip.Rect{Min: image.Pt(rect.Max.X-width, rect.Min.Y), Max: rect.Max}.Op())
 }
 
-// TODO(micro): layoutFrame allocates a throwaway *Player just to call LayoutScaled; extract a free function that paints an image with scaling.
 func layoutFrame(gtx layout.Context, frame image.Image, scaling string) layout.Dimensions {
-	player := &Player{playerPresentationState: playerPresentationState{frame: frame}}
-	return player.LayoutScaled(gtx, scaling)
+	return layoutImageFrame(gtx, frame, scaling, 1)
 }
 
 func (o *outputWindow) handleEvent(event playback.Event) {
