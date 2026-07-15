@@ -10,19 +10,18 @@ import (
 
 func TestFrameSelectionDropsStaleFramesAndKeepsNewestDue(t *testing.T) {
 	session := &ffmpegSession{
-		state:  LoadPlaying,
-		info:   mediaInfo{FPS: 25},
-		frames: make(chan decodedFrame, 3),
+		state: LoadPlaying,
+		video: videoPipeline{info: mediaInfo{FPS: 25}, frames: make(chan decodedFrame, 3)},
 	}
 	for i := range 3 {
-		session.frames <- decodedFrame{
+		session.video.frames <- decodedFrame{
 			image: image.NewRGBA(image.Rect(0, 0, 1, 1)),
 			pts:   time.Duration(i) * 40 * time.Millisecond,
 		}
 	}
 	got := session.Frame(90 * time.Millisecond)
-	if got == nil || session.current == nil || session.current.pts != 80*time.Millisecond {
-		t.Fatalf("selected frame = %#v", session.current)
+	if got == nil || session.video.current == nil || session.video.current.pts != 80*time.Millisecond {
+		t.Fatalf("selected frame = %#v", session.video.current)
 	}
 	metrics := session.Metrics()
 	if metrics.DroppedFrames != 2 {

@@ -19,13 +19,13 @@ func (s *ffmpegSession) Start(clock *PlaybackClock) error {
 		s.mu.Unlock()
 		return fmt.Errorf("media is not ready (state %s)", state)
 	}
-	audio := s.audio
+	audio := s.audio.player
 	s.clock = clock
 	s.mu.Unlock()
 	clock.Start()
 	if audio != nil {
 		if err := audio.Start(); err != nil {
-			return s.fail(err)
+			return s.fail("start audio endpoint", err)
 		}
 		clock.SetMaster(audio.RenderedPosition)
 		go s.watchAudioDevice(audio)
@@ -44,8 +44,8 @@ func (s *ffmpegSession) watchAudioDevice(audio *devicePlayer) {
 			return
 		}
 		s.mu.RLock()
-		current := s.audio == audio
-		cmd := s.audioCmd
+		current := s.audio.player == audio
+		cmd := s.audio.command
 		s.mu.RUnlock()
 		if !current {
 			return
@@ -60,39 +60,46 @@ func (s *ffmpegSession) watchAudioDevice(audio *devicePlayer) {
 }
 
 func (s *ffmpegSession) Frame(position time.Duration) image.Image {
-	s.frameMu.Lock()
-	defer s.frameMu.Unlock()
-	if s.pending == nil {
+	s.video.mu.Lock()
+	defer s.video.mu.Unlock()
+	if s.video.pending == nil {
 		select {
-		case frame := <-s.frames:
-			s.pending = &frame
+		case frame := <-s.video.frames:
+			s.video.pending = &frame
 		default:
 		}
 	}
-	interval := s.info.FrameInterval()
+	interval := s.video.info.FrameInterval()
 	due := 0
-	for s.pending != nil && s.pending.pts <= position+interval/2 {
-		previous := s.current
-		s.current, s.pending = s.pending, nil
+	for s.video.pending != nil && s.video.pending.pts <= position+interval/2 {
+		previous := s.video.current
+		s.video.current, s.video.pending = s.video.pending, nil
 		if previous != nil && previous.image != nil {
-			s.framePool.Put(previous.image)
+			s.video.framePool.Put(previous.image)
 		}
 		due++
 		select {
-		case next := <-s.frames:
-			s.pending = &next
+		case next := <-s.video.frames:
+			s.video.pending = &next
 		default:
+		}
+	}
+	var drift time.Duration
+	if s.video.current != nil {
+		drift = position - s.video.current.pts
+		if drift < 0 {
+			drift = -drift
 		}
 	}
 	s.mu.Lock()
 	if due > 1 {
 		s.metrics.DroppedFrames += uint64(due - 1)
 	}
-	s.metrics.BufferedFrames = len(s.frames)
-	if s.pending != nil {
+	s.metrics.BufferedFrames = len(s.video.frames)
+	if s.video.pending != nil {
 		s.metrics.BufferedFrames++
 	}
-	buffering := s.current == nil || (position-s.current.pts > 2*interval && s.pending == nil)
+	buffering := s.video.current == nil || (position-s.video.current.pts > 2*interval && s.video.pending == nil)
 	if buffering && s.state == LoadPlaying {
 		s.state = LoadBuffering
 		s.metrics.BufferingCount++
@@ -100,38 +107,34 @@ func (s *ffmpegSession) Frame(position time.Duration) image.Image {
 		s.state = LoadPlaying
 	}
 	s.metrics.State = s.state
+	if s.video.current != nil {
+		s.metrics.AVDrift = drift
+	}
 	s.mu.Unlock()
-	if s.current == nil {
+	if s.video.current == nil {
 		return nil
 	}
-	drift := position - s.current.pts
-	if drift < 0 {
-		drift = -drift
-	}
-	s.mu.Lock()
-	// TODO(micro): metrics updates for DroppedFrames/BufferedFrames and AVDrift take separate Lock/Unlock pairs in one Frame call; merge into one critical section.
-	s.metrics.AVDrift = drift
-	s.mu.Unlock()
-	return s.current.image
+	return s.video.current.image
 }
 
 func (s *ffmpegSession) SetVolume(db float64) {
-	// TODO(micro): SetVolume/SetMuted duplicate the same lock+audio.SetVolume(dbVolume(...)) body; share one applyVolumeLocked helper.
 	s.mu.Lock()
 	s.volume = db
-	if s.audio != nil {
-		s.audio.SetVolume(dbVolume(db, s.muted))
-	}
+	s.applyVolumeLocked()
 	s.mu.Unlock()
 }
 
 func (s *ffmpegSession) SetMuted(muted bool) {
 	s.mu.Lock()
 	s.muted = muted
-	if s.audio != nil {
-		s.audio.SetVolume(dbVolume(s.volume, muted))
-	}
+	s.applyVolumeLocked()
 	s.mu.Unlock()
+}
+
+func (s *ffmpegSession) applyVolumeLocked() {
+	if s.audio.player != nil {
+		s.audio.player.SetVolume(dbVolume(s.volume, s.muted))
+	}
 }
 
 func (s *ffmpegSession) State() LoadState {
@@ -144,8 +147,8 @@ func (s *ffmpegSession) Metrics() PlaybackMetrics {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	metrics := s.metrics
-	if s.audio != nil {
-		metrics.AudioUnderruns = s.audio.Underruns()
+	if s.audio.player != nil {
+		metrics.AudioUnderruns = s.audio.player.Underruns()
 	}
 	metrics.State = s.state
 	return metrics
@@ -160,10 +163,10 @@ func (s *ffmpegSession) Close() {
 		return
 	}
 	s.closed, s.state, s.metrics.State = true, LoadClosed, LoadClosed
-	videoCmd, audioCmd, audio := s.videoCmd, s.audioCmd, s.audio
+	videoCmd, audioCmd, audio := s.video.command, s.audio.command, s.audio.player
 	admitted, admittedBytes := s.admitted, s.admittedBytes
 	s.admitted = false
-	s.audio = nil
+	s.audio.player = nil
 	s.mu.Unlock()
 	s.doneOnce.Do(func() { close(s.done) })
 	s.cancel()
@@ -188,8 +191,10 @@ func (s *ffmpegSession) setState(state LoadState) {
 	s.mu.Unlock()
 }
 
-// TODO(micro): fail wraps setState without enriching err; either wrap with context or have callers setState and return err directly.
-func (s *ffmpegSession) fail(err error) error { s.setState(LoadFailed); return err }
+func (s *ffmpegSession) fail(operation string, err error) error {
+	s.setState(LoadFailed)
+	return fmt.Errorf("%s: %w", operation, err)
+}
 
 func (s *ffmpegSession) setRuntimeError(err error) {
 	if err == nil {

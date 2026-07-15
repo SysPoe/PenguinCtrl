@@ -193,7 +193,7 @@ func (b *FFmpegBackend) openFresh(request PlaybackRequest) (PlaybackSession, err
 	ctx, cancel := context.WithCancel(context.Background())
 	session := &ffmpegSession{
 		backend: b, request: request, path: path, state: LoadIdle,
-		frames: make(chan decodedFrame, decodedFrameBuffer), done: make(chan struct{}),
+		video: videoPipeline{frames: make(chan decodedFrame, decodedFrameBuffer)}, done: make(chan struct{}),
 		ctx: ctx, cancel: cancel,
 	}
 	b.warmMu.Lock()
@@ -322,38 +322,42 @@ type decodedFrame struct {
 	pts   time.Duration
 }
 
-// TODO(macro): ffmpegSession still owns both video decode state and the adopted
-// audio command/player. Extract those remaining fields into video and audio
-// pipelines that share only request/lifecycle/clock; endpoint respawn itself is
-// already isolated behind audioEndpointRecovery.
+type videoPipeline struct {
+	info      mediaInfo
+	command   *exec.Cmd
+	frames    chan decodedFrame
+	mu        sync.Mutex
+	current   *decodedFrame
+	pending   *decodedFrame
+	framePool sync.Pool
+}
+
+type audioPipeline struct {
+	command    *exec.Cmd
+	player     *devicePlayer
+	generation uint64
+}
+
 type ffmpegSession struct {
 	backend *FFmpegBackend
 	request PlaybackRequest
 	path    string
-	info    mediaInfo
+	video   videoPipeline
+	audio   audioPipeline
 
-	mu              sync.RWMutex
-	state           LoadState
-	metrics         PlaybackMetrics
-	muted           bool
-	volume          float64
-	videoCmd        *exec.Cmd
-	audioCmd        *exec.Cmd
-	audio           *devicePlayer
-	clock           *PlaybackClock
-	audioGeneration uint64
-	closed          bool
-	done            chan struct{}
-	doneOnce        sync.Once
-	component       sync.WaitGroup
-	ctx             context.Context
-	cancel          context.CancelFunc
+	mu        sync.RWMutex
+	state     LoadState
+	metrics   PlaybackMetrics
+	muted     bool
+	volume    float64
+	clock     *PlaybackClock
+	closed    bool
+	done      chan struct{}
+	doneOnce  sync.Once
+	component sync.WaitGroup
+	ctx       context.Context
+	cancel    context.CancelFunc
 
-	frames        chan decodedFrame
-	frameMu       sync.Mutex
-	current       *decodedFrame
-	pending       *decodedFrame
-	framePool     sync.Pool
 	admitted      bool
 	admittedBytes int64
 }

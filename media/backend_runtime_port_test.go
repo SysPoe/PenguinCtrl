@@ -55,7 +55,7 @@ func TestSessionDelegatesAudioEndpointRespawn(t *testing.T) {
 		path:    "cue.wav",
 		ctx:     t.Context(),
 		clock:   clock,
-		audio:   new(devicePlayer),
+		audio:   audioPipeline{player: new(devicePlayer)},
 		volume:  -6,
 	}
 	if err := session.recoverAudio("backup"); !errors.Is(err, wantErr) {

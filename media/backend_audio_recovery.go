@@ -112,14 +112,14 @@ func pcmDecodeArgs(position time.Duration, clipEndMs int64, path string) []strin
 // performs all FFmpeg respawn and device-route work.
 func (s *ffmpegSession) recoverAudio(targetDeviceID string) error {
 	s.mu.Lock()
-	if s.closed || s.clock == nil || s.audio == nil || s.backend == nil || s.backend.recovery == nil {
+	if s.closed || s.clock == nil || s.audio.player == nil || s.backend == nil || s.backend.recovery == nil {
 		s.mu.Unlock()
 		return errors.New("media session is not available for audio recovery")
 	}
 	position := s.clock.Position()
-	oldCommand, oldPlayer := s.audioCmd, s.audio
-	s.audioGeneration++
-	generation := s.audioGeneration
+	oldCommand, oldPlayer := s.audio.command, s.audio.player
+	s.audio.generation++
+	generation := s.audio.generation
 	request := audioRecoveryRequest{
 		ctx: s.ctx, path: s.path, position: position, clipEndMs: s.request.Instance.ClipEndMs,
 		preview: s.request.Instance.Preview, volumeDB: dbVolume(s.volume, s.muted), onRecovery: s.recoverAudio,
@@ -145,13 +145,13 @@ func (s *ffmpegSession) recoverAudio(targetDeviceID string) error {
 		return errors.New("audio endpoint recovery returned an incomplete replacement")
 	}
 	s.mu.Lock()
-	if s.closed || s.audioGeneration != generation {
+	if s.closed || s.audio.generation != generation {
 		s.mu.Unlock()
 		replacement.close()
 		s.component.Done()
 		return errors.New("audio recovery was superseded")
 	}
-	s.audioCmd, s.audio = replacement.command, replacement.player
+	s.audio.command, s.audio.player = replacement.command, replacement.player
 	replacement.bindClock(clock)
 	s.mu.Unlock()
 	_ = oldPlayer.Close()

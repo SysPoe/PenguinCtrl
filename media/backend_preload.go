@@ -32,16 +32,16 @@ func (s *ffmpegSession) Preload(ctx context.Context) error {
 	settings := s.backend.settings.Snapshot()
 	info, err := probeMediaInfo(settings.FFmpegPath, s.path)
 	if err != nil {
-		return s.fail(err)
+		return s.fail("probe media", err)
 	}
-	s.info = info
+	s.video.info = info
 	bufferBytes := int64(0)
 	if s.request.Instance.MediaType == "video" && info.HasVideo {
 		width, height := decodeSize(info.Width, info.Height, config.VideoOutputFor(settings, s.request.Instance.OutputID))
 		bufferBytes = int64(width) * int64(height) * 4 * (decodedFrameBuffer + 2)
 	}
 	if !s.backend.admission.acquire(ctx, s.ctx, bufferBytes) {
-		return s.fail(errors.New("decoder admission cancelled or resource budget exhausted"))
+		return s.fail("admit decoder", errors.New("resource budget exhausted or request cancelled"))
 	}
 	s.mu.Lock()
 	s.admitted, s.admittedBytes = true, bufferBytes
@@ -58,7 +58,7 @@ func (s *ffmpegSession) Preload(ctx context.Context) error {
 	}
 	if components == 0 {
 		s.Close()
-		return s.fail(errors.New("media has no usable audio or video stream"))
+		return s.fail("preload media", errors.New("no usable audio or video stream"))
 	}
 	timer := time.NewTimer(mediaPreloadTimeout)
 	defer timer.Stop()
@@ -67,14 +67,14 @@ func (s *ffmpegSession) Preload(ctx context.Context) error {
 		case err := <-results:
 			if err != nil {
 				s.Close()
-				return s.fail(err)
+				return s.fail("preload media component", err)
 			}
 		case <-ctx.Done():
 			s.Close()
-			return s.fail(ctx.Err())
+			return s.fail("preload media", ctx.Err())
 		case <-timer.C:
 			s.Close()
-			return s.fail(errors.New("media preload timed out"))
+			return s.fail("preload media", errors.New("timed out"))
 		}
 	}
 	s.mu.Lock()
@@ -99,8 +99,8 @@ func (s *ffmpegSession) Preload(ctx context.Context) error {
 }
 
 func (s *ffmpegSession) preloadVideo(settings config.Settings) error {
-	width, height := decodeSize(s.info.Width, s.info.Height, config.VideoOutputFor(settings, s.request.Instance.OutputID))
-	s.info.Width, s.info.Height = width, height
+	width, height := decodeSize(s.video.info.Width, s.video.info.Height, config.VideoOutputFor(settings, s.request.Instance.OutputID))
+	s.video.info.Width, s.video.info.Height = width, height
 	args := mediaInputArgs(s.request.Position, s.request.Instance.ClipEndMs)
 	args = append(args, "-i", s.path, "-map", "0:v:0", "-an")
 	if width > 0 && height > 0 {
@@ -118,7 +118,7 @@ func (s *ffmpegSession) preloadVideo(settings config.Settings) error {
 		return err
 	}
 	s.mu.Lock()
-	s.videoCmd = cmd
+	s.video.command = cmd
 	s.mu.Unlock()
 	first := make(chan error, 1)
 	s.component.Add(1)
@@ -142,8 +142,8 @@ func decodeSize(sourceWidth, sourceHeight int, output config.VideoOutput) (int, 
 
 func (s *ffmpegSession) decodeVideo(cmd *exec.Cmd, reader io.Reader, first chan<- error, stderr *bytes.Buffer) {
 	defer s.component.Done()
-	frameSize := s.info.Width * s.info.Height * 4
-	interval := s.info.FrameInterval()
+	frameSize := s.video.info.Width * s.video.info.Height * 4
+	interval := s.video.info.FrameInterval()
 	var index int64
 	firstSent := false
 	for {
@@ -161,7 +161,7 @@ func (s *ffmpegSession) decodeVideo(cmd *exec.Cmd, reader io.Reader, first chan<
 		}
 		decoded := decodedFrame{image: frame, pts: s.request.Position + time.Duration(index)*interval}
 		select {
-		case s.frames <- decoded:
+		case s.video.frames <- decoded:
 			index++
 			s.mu.Lock()
 			s.metrics.DecodedFrames++
@@ -180,13 +180,13 @@ func (s *ffmpegSession) decodeVideo(cmd *exec.Cmd, reader io.Reader, first chan<
 }
 
 func (s *ffmpegSession) acquireFrame() *image.RGBA {
-	if pooled := s.framePool.Get(); pooled != nil {
+	if pooled := s.video.framePool.Get(); pooled != nil {
 		frame := pooled.(*image.RGBA)
-		if frame.Rect.Dx() == s.info.Width && frame.Rect.Dy() == s.info.Height {
+		if frame.Rect.Dx() == s.video.info.Width && frame.Rect.Dy() == s.video.info.Height {
 			return frame
 		}
 	}
-	return image.NewRGBA(image.Rect(0, 0, s.info.Width, s.info.Height))
+	return image.NewRGBA(image.Rect(0, 0, s.video.info.Width, s.video.info.Height))
 }
 
 func (s *ffmpegSession) preloadAudio(settings config.Settings) error {
@@ -217,10 +217,10 @@ func (s *ffmpegSession) preloadAudio(settings config.Settings) error {
 		return err
 	}
 	s.mu.Lock()
-	s.audioGeneration++
-	generation := s.audioGeneration
-	s.audioCmd, s.audio = cmd, player
-	s.audio.SetVolume(dbVolume(s.volume, s.muted))
+	s.audio.generation++
+	generation := s.audio.generation
+	s.audio.command, s.audio.player = cmd, player
+	s.audio.player.SetVolume(dbVolume(s.volume, s.muted))
 	player.SetRecoveryHandler(s.recoverAudio)
 	s.mu.Unlock()
 	s.component.Add(1)
@@ -232,7 +232,7 @@ func (s *ffmpegSession) waitAudioCommand(cmd *exec.Cmd, stderr *bytes.Buffer, ge
 	defer s.component.Done()
 	err := cmd.Wait()
 	s.mu.RLock()
-	current, closed := s.audioGeneration == generation, s.closed
+	current, closed := s.audio.generation == generation, s.closed
 	s.mu.RUnlock()
 	if err != nil && current && !closed {
 		s.setRuntimeError(ffmpegCommandError("audio decoder", err, stderr.String()))
