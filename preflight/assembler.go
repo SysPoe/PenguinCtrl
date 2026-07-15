@@ -85,16 +85,17 @@ func routeChecks(cues []show.Cue, settings config.Settings, audioWarning, videoW
 	if len(remoteCueIDs) > 0 && len(settings.RemoteTargets) == 0 {
 		checks = append(checks, Check{Severity: operatorlog.ShowStopping, Source: "Network / remote control", Message: "Remote cues exist but no remote targets are configured", AffectedCues: remoteCueIDs})
 	}
-	if affected := audioWarningAffectedCues(cues, audioWarning); len(affected) > 0 {
+	if affected := AudioWarningAffectedCues(cues, audioWarning); len(affected) > 0 {
 		checks = append(checks, Check{Severity: operatorlog.ShowStopping, Source: "Audio output", Message: audioWarning, AffectedCues: affected})
 	}
-	if affected := videoWarningAffectedCues(cues, settings, videoWarning); len(affected) > 0 {
+	if affected := VideoWarningAffectedCues(cues, settings, videoWarning); len(affected) > 0 {
 		checks = append(checks, Check{Severity: operatorlog.ShowStopping, Source: "Video output", Message: videoWarning, AffectedCues: affected})
 	}
 	return checks
 }
 
-func audioWarningAffectedCues(cues []show.Cue, warning string) []show.CueID {
+// AudioWarningAffectedCues scopes a playback-route warning to media cues.
+func AudioWarningAffectedCues(cues []show.Cue, warning string) []show.CueID {
 	lower := strings.ToLower(strings.TrimSpace(warning))
 	if lower == "" || (strings.Contains(lower, "preview audio") && !strings.Contains(lower, "playback")) {
 		return nil
@@ -102,7 +103,8 @@ func audioWarningAffectedCues(cues []show.Cue, warning string) []show.CueID {
 	return cueIDs(cues, func(cue show.Cue) bool { return cue.Type == show.CueTypeSound || cue.Type == show.CueTypeVideo })
 }
 
-func videoWarningAffectedCues(cues []show.Cue, settings config.Settings, warning string) []show.CueID {
+// VideoWarningAffectedCues scopes a stage warning to cues routed to that stage.
+func VideoWarningAffectedCues(cues []show.Cue, settings config.Settings, warning string) []show.CueID {
 	lower := strings.ToLower(strings.TrimSpace(warning))
 	if lower == "" {
 		return nil

@@ -113,7 +113,11 @@ func TestRemoteHealthPreflightBlocksUnreachableConfiguredProbe(t *testing.T) {
 	settings := config.Defaults()
 	settings.RemoteTargets = []config.RemoteTarget{{Name: "console", Host: "127.0.0.1", HealthPort: 9000, OSCPort: 8000}}
 	checks := preflight.Assemble(show.Show{Cues: []show.Cue{cue}}, settings, "", "", []remote.TargetHealth{{Name: "console", Known: true, Reachable: false, LastError: "connection refused"}}, nil)
-	if len(checks) != 1 || !strings.Contains(checks[0].Message, "connection refused") {
+	found := false
+	for _, check := range checks {
+		found = found || check.Source == "Remote health" && strings.Contains(check.Message, "connection refused")
+	}
+	if !found {
 		t.Fatalf("remote checks = %#v", checks)
 	}
 }

@@ -24,6 +24,7 @@ import (
 	"github.com/syspoe/cusus/media"
 	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/playback"
+	"github.com/syspoe/cusus/preflight"
 	"github.com/syspoe/cusus/project"
 	"github.com/syspoe/cusus/show"
 	"github.com/syspoe/cusus/ui"
@@ -525,7 +526,7 @@ func (a *App) run(window *app.Window) error {
 			videoWarning := videoRoutingWarning(mediaManager)
 			if audioWarning != "" && audioWarning != lastAudioOperatorWarning {
 				severity := operatorlog.Warning
-				if len(audioWarningAffectedCues(manager.Snapshot(), audioWarning)) > 0 {
+				if len(preflight.AudioWarningAffectedCues(manager.Snapshot(), audioWarning)) > 0 {
 					severity = operatorlog.CueFailure
 				}
 				operatorEvents.Add(severity, "Audio output", audioWarning, show.CueID{}, "")
@@ -534,7 +535,7 @@ func (a *App) run(window *app.Window) error {
 			}
 			if videoWarning != "" && videoWarning != lastVideoOperatorWarning {
 				severity := operatorlog.Warning
-				if len(videoWarningAffectedCues(manager.Snapshot(), settingsStore.Snapshot(), videoWarning)) > 0 {
+				if len(preflight.VideoWarningAffectedCues(manager.Snapshot(), settingsStore.Snapshot(), videoWarning)) > 0 {
 					severity = operatorlog.CueFailure
 				}
 				operatorEvents.Add(severity, "Video output", videoWarning, show.CueID{}, "")
