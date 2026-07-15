@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/hex"
-	"errors"
 	"log"
 	"os"
 	"path/filepath"
@@ -113,10 +112,6 @@ func runMain() (exitCode int) {
 	return 0
 }
 
-// TODO(macro): newApp is the composition root mixed with runtime policy (authority handoff
-// stop-all, settings fan-out reconfigure, support-bundle paths, UI provider adapters). Keep
-// construction/wiring here; move handoff and "STOP before takeover" rules into redundancy or a
-// dedicated app/settings policy type so SettingsPage only receives domain ports.
 func newApp(reporter *crashreport.Reporter) (*App, error) {
 	settings, err := config.Open("")
 	if err != nil {
@@ -184,6 +179,10 @@ func newApp(reporter *crashreport.Reporter) (*App, error) {
 			ProjectLibrary: project.NewLibrary(),
 		},
 	}
+	hasActivePlayback := func() bool {
+		return len(application.Playback.ActiveInstances()) > 0 || len(application.Playback.ActiveExecutions()) > 0
+	}
+	authorityControl := redundancy.NewAuthorityControl(spare, hasActivePlayback, application.Playback.StopAll)
 	settingsPage.SetAudioDeviceProvider(func() ([]ui.AudioDevice, error) {
 		devices, err := application.Media.AudioDevices()
 		// TODO(micro): On err, still builds result from (likely nil) devices and returns both; prefer early `return nil, err` (same as videoRouting).
@@ -197,12 +196,11 @@ func newApp(reporter *crashreport.Reporter) (*App, error) {
 	settingsPage.SetOnSaved(func() {
 		current := settings.Snapshot()
 		timecodeInput.Configure(timecodeConfig(current), current.TimecodeListenAddress)
-		wasAuthority := spare.Status().Authority
-		if err := spare.Configure(redundancyConfig(current)); err != nil {
+		stopped, err := authorityControl.Configure(redundancyConfig(current))
+		if err != nil {
 			operatorEvents.Add(operatorlog.ShowStopping, "Warm-spare redundancy", err.Error(), show.CueID{}, "")
 		}
-		if wasAuthority && !spare.Status().Authority && (len(application.Playback.ActiveInstances()) > 0 || len(application.Playback.ActiveExecutions()) > 0) {
-			application.Playback.StopAll()
+		if stopped {
 			operatorEvents.Add(operatorlog.ShowStopping, "Warm-spare redundancy", "Command authority changed while cues were active; local outputs were stopped", show.CueID{}, "")
 		}
 		application.Playback.RefreshDurations()
@@ -225,20 +223,14 @@ func newApp(reporter *crashreport.Reporter) (*App, error) {
 	settingsPage.SetRedundancyControl(
 		func() string { return health.RedundancySummary(spare.Status()) },
 		func() error {
-			if len(application.Playback.ActiveInstances()) > 0 || len(application.Playback.ActiveExecutions()) > 0 {
-				return errors.New("STOP all local cues before taking command authority")
-			}
-			if err := spare.RequestTakeover(); err != nil {
+			if err := authorityControl.RequestTakeover(); err != nil {
 				return err
 			}
 			operatorEvents.Diagnostic("Warm-spare redundancy", "Command authority acquired", map[string]any{"nodeId": spare.Status().NodeID})
 			return nil
 		},
 		func() error {
-			if len(application.Playback.ActiveInstances()) > 0 || len(application.Playback.ActiveExecutions()) > 0 {
-				return errors.New("STOP all local cues before releasing command authority")
-			}
-			if err := spare.ReleaseAuthority(); err != nil {
+			if err := authorityControl.ReleaseAuthority(); err != nil {
 				return err
 			}
 			operatorEvents.Diagnostic("Warm-spare redundancy", "Command authority released for handoff", map[string]any{"nodeId": spare.Status().NodeID})
