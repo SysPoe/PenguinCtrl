@@ -76,3 +76,21 @@ func TestFloatRejectsMalformedInputButAllowsEditingStates(t *testing.T) {
 		t.Fatalf("valid value = %f", field.Value)
 	}
 }
+
+func TestChangeListenerReplacesModelBindingWithoutReplacingObservers(t *testing.T) {
+	field := NewInteger("Value", 1)
+	firstBinding, secondBinding, observations := 0, 0, 0
+	field.AddEventListener(func(int) { observations++ })
+	field.SetChangeListener(func(int) { firstBinding++ })
+
+	field.applyText("2")
+	field.SetChangeListener(func(int) { secondBinding++ })
+	field.applyText("3")
+
+	if firstBinding != 1 || secondBinding != 1 {
+		t.Fatalf("model bindings = first %d, second %d; want 1 each", firstBinding, secondBinding)
+	}
+	if observations != 2 {
+		t.Fatalf("observer notifications = %d, want 2", observations)
+	}
+}

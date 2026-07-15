@@ -21,6 +21,7 @@ type Dropdown struct {
 	focus       bool
 	choicesBtns []widget.Clickable
 
+	changeListener func(selectedIndex int, selectedValue DropdownItem)
 	eventListeners []func(selectedIndex int, selectedValue DropdownItem)
 }
 
@@ -70,9 +71,17 @@ func (d *Dropdown) AddEventListener(listener func(selectedIndex int, selectedVal
 	d.eventListeners = append(d.eventListeners, listener)
 }
 
+// SetChangeListener replaces the field's single model-binding callback.
+func (d *Dropdown) SetChangeListener(listener func(selectedIndex int, selectedValue DropdownItem)) {
+	d.changeListener = listener
+}
+
 func (d *Dropdown) notifyEventListeners() {
 	if d.Selected < 0 || d.Selected >= len(d.Items) {
 		return
+	}
+	if d.changeListener != nil {
+		d.changeListener(d.Selected, d.Items[d.Selected])
 	}
 	for _, listener := range d.eventListeners {
 		listener(d.Selected, d.Items[d.Selected])

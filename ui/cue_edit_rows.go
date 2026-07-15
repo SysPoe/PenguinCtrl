@@ -14,6 +14,14 @@ import (
 )
 
 func (ctx *CueEditUI) fileRow(th *material.Theme, label, kind string, field *input.Text, projectFiles *input.Dropdown, browse *widget.Clickable, extensions []string, apply func(value string)) cueEditFormRow {
+	field.SetChangeListener(apply)
+	projectFiles.SetChangeListener(func(_ int, selected input.DropdownItem) {
+		path := selected.Value
+		if path != "" && !sameFilePath(path, field.Value) {
+			field.Value = path
+			apply(path)
+		}
+	})
 	return cueEditFormRow{label: label, layout: func(gtx layout.Context) layout.Dimensions {
 		if browse.Clicked(gtx) && ctx.pickFile != nil {
 			ctx.pickFile(kind, extensions, func(path string) {
@@ -69,13 +77,6 @@ func (ctx *CueEditUI) fileRow(th *material.Theme, label, kind string, field *inp
 				)
 			}),
 		)
-		if projectFiles.Selected >= 0 && projectFiles.Selected < len(projectFiles.Items) {
-			path := projectFiles.Items[projectFiles.Selected].Value
-			if path != "" && !sameFilePath(path, field.Value) {
-				field.Value = path
-			}
-		}
-		apply(field.Value)
 		return dims
 	}}
 }
@@ -106,55 +107,46 @@ func selectedFileName(source string) string {
 	return name
 }
 
-// TODO(macro): Form row helpers mutate the domain cue during Layout via apply() every frame. Separate view (paint widgets) from commit (read widgets into cue on change/save) so rendering is not the model-binding path and dual-bound fields (Media vs Timecode) stop fighting through side effects.
 func multilineRow(th *material.Theme, label string, field *input.Multiline, apply func(value string)) cueEditFormRow {
+	field.SetChangeListener(apply)
 	return cueEditFormRow{label: label, layout: func(gtx layout.Context) layout.Dimensions {
-		dims := field.Layout(th, gtx)
-		apply(field.Value)
-		return dims
+		return field.Layout(th, gtx)
 	}}
 }
 
 func checkboxRow(th *material.Theme, label string, field *input.Checkbox, apply func(value bool)) cueEditFormRow {
+	field.SetChangeListener(apply)
 	return cueEditFormRow{label: label, layout: func(gtx layout.Context) layout.Dimensions {
-		dims := field.Layout(th, gtx)
-		apply(field.Checked)
-		return dims
+		return field.Layout(th, gtx)
 	}}
 }
 
 func colourRow(th *material.Theme, label string, field *input.ColourPicker, apply func(value color.NRGBA)) cueEditFormRow {
+	field.SetChangeListener(apply)
 	return cueEditFormRow{label: label, layout: func(gtx layout.Context) layout.Dimensions {
-		dims := field.Layout(th, gtx)
-		apply(field.Value)
-		return dims
+		return field.Layout(th, gtx)
 	}}
 }
 
 func integerRow(th *material.Theme, label string, field *input.Integer, apply func(value int)) cueEditFormRow {
+	field.SetChangeListener(apply)
 	return cueEditFormRow{label: label, layout: func(gtx layout.Context) layout.Dimensions {
-		dims := field.Layout(th, gtx)
-		apply(field.Value)
-		return dims
+		return field.Layout(th, gtx)
 	}}
 }
 
 // TODO(micro): Remove label while every caller passes "Level dB", or rename this to levelDBRow.
 func floatRow(th *material.Theme, label string, field *input.Float, apply func(value float64)) cueEditFormRow {
+	field.SetChangeListener(apply)
 	return cueEditFormRow{label: label, layout: func(gtx layout.Context) layout.Dimensions {
-		dims := field.Layout(th, gtx)
-		apply(field.Value)
-		return dims
+		return field.Layout(th, gtx)
 	}}
 }
 
 func dropdownRow(th *material.Theme, label string, field *input.Dropdown, apply func(selected int)) cueEditFormRow {
+	field.SetChangeListener(func(selected int, _ input.DropdownItem) { apply(selected) })
 	return cueEditFormRow{label: label, layout: func(gtx layout.Context) layout.Dimensions {
-		dims := field.Layout(th, gtx)
-		if field.Selected >= 0 && field.Selected < len(field.Items) {
-			apply(field.Selected)
-		}
-		return dims
+		return field.Layout(th, gtx)
 	}}
 }
 

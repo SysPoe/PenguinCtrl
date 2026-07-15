@@ -81,6 +81,36 @@ func mediaControlActionUsesLevel(action show.MediaControlAction) bool {
 		action == show.MediaControlSetVolume
 }
 
+// normalizeCueEditModel applies the invariants that the old frame-by-frame row
+// binding established on first paint. Doing this once keeps row layout pure
+// without changing the working cue produced by opening the editor.
+func normalizeCueEditModel(cue *show.Cue) {
+	if cue == nil {
+		return
+	}
+	if cue.Link.Mode != show.CueLinkManual && cue.Link.Target.Kind == show.CueTargetNone {
+		cue.Link.Target.Kind = show.CueTargetNext
+	}
+	play := cue.Play.MediaControl
+	if play == nil {
+		return
+	}
+	if mediaControlActionUsesLevel(play.Action) {
+		if play.LevelDB == nil {
+			play.LevelDB = ptr(0.0)
+		}
+	} else {
+		play.LevelDB = nil
+	}
+	if play.Action == show.MediaControlSeek {
+		if play.SeekToMs == nil {
+			play.SeekToMs = ptr(int64(0))
+		}
+	} else {
+		play.SeekToMs = nil
+	}
+}
+
 func syncMediaControlOptionals(play *show.MediaControlPlay, fields *cueMediaControlInputs) {
 	if mediaControlActionUsesLevel(play.Action) {
 		play.LevelDB = &fields.levelDB.Value

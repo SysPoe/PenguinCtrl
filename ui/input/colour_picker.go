@@ -28,6 +28,7 @@ type ColourPicker struct {
 	expanded bool
 	preview  widget.Clickable
 
+	changeListener func(value color.NRGBA)
 	eventListeners []func(value color.NRGBA)
 }
 
@@ -54,7 +55,15 @@ func (c *ColourPicker) AddEventListener(listener func(value color.NRGBA)) {
 	c.eventListeners = append(c.eventListeners, listener)
 }
 
+// SetChangeListener replaces the field's single model-binding callback.
+func (c *ColourPicker) SetChangeListener(listener func(value color.NRGBA)) {
+	c.changeListener = listener
+}
+
 func (c *ColourPicker) notifyEventListeners() {
+	if c.changeListener != nil {
+		c.changeListener(c.Value)
+	}
 	for _, listener := range c.eventListeners {
 		listener(c.Value)
 	}

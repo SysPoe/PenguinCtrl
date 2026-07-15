@@ -18,6 +18,7 @@ type Float struct {
 	editor widget.Editor
 	text   string
 
+	changeListener func(value float64)
 	eventListeners []func(value float64)
 }
 
@@ -39,7 +40,15 @@ func (f *Float) AddEventListener(listener func(value float64)) {
 	f.eventListeners = append(f.eventListeners, listener)
 }
 
+// SetChangeListener replaces the field's single model-binding callback.
+func (f *Float) SetChangeListener(listener func(value float64)) {
+	f.changeListener = listener
+}
+
 func (f *Float) notifyEventListeners() {
+	if f.changeListener != nil {
+		f.changeListener(f.Value)
+	}
 	for _, listener := range f.eventListeners {
 		listener(f.Value)
 	}

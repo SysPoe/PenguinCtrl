@@ -22,6 +22,7 @@ type Integer struct {
 	empty    bool
 	focus    bool
 
+	changeListener func(value int)
 	eventListeners []func(value int)
 }
 
@@ -63,7 +64,15 @@ func (i *Integer) AddEventListener(listener func(value int)) {
 	i.eventListeners = append(i.eventListeners, listener)
 }
 
+// SetChangeListener replaces the field's single model-binding callback.
+func (i *Integer) SetChangeListener(listener func(value int)) {
+	i.changeListener = listener
+}
+
 func (i *Integer) notifyEventListeners() {
+	if i.changeListener != nil {
+		i.changeListener(i.Value)
+	}
 	for _, listener := range i.eventListeners {
 		listener(i.Value)
 	}

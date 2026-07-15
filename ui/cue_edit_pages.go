@@ -163,6 +163,7 @@ func (ctx *CueEditUI) ensurePageInputs() {
 	}
 
 	ctx.ensureCuePlay()
+	normalizeCueEditModel(&ctx.cue)
 	ctx.cType = ctx.cue.Type
 	ctx.activeTab = tabGeneral
 	ctx.page = newCueEditPageState(ctx.cue)

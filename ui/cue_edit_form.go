@@ -53,10 +53,9 @@ func (ctx *CueEditUI) layoutFormRows(th *material.Theme, gtx layout.Context, row
 }
 
 func textRow(th *material.Theme, label string, field *input.Text, apply func(value string)) cueEditFormRow {
+	field.SetChangeListener(apply)
 	return cueEditFormRow{label: label, layout: func(gtx layout.Context) layout.Dimensions {
-		dims := field.Layout(th, gtx)
-		apply(field.Value)
-		return dims
+		return field.Layout(th, gtx)
 	}}
 }
 

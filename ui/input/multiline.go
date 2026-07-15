@@ -15,6 +15,7 @@ type Multiline struct {
 
 	editor widget.Editor
 
+	changeListener func(value string)
 	eventListeners []func(value string)
 }
 
@@ -33,7 +34,15 @@ func (m *Multiline) AddEventListener(listener func(value string)) {
 	m.eventListeners = append(m.eventListeners, listener)
 }
 
+// SetChangeListener replaces the field's single model-binding callback.
+func (m *Multiline) SetChangeListener(listener func(value string)) {
+	m.changeListener = listener
+}
+
 func (m *Multiline) notifyEventListeners() {
+	if m.changeListener != nil {
+		m.changeListener(m.Value)
+	}
 	for _, listener := range m.eventListeners {
 		listener(m.Value)
 	}

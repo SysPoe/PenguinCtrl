@@ -17,6 +17,7 @@ type Text struct {
 	editor widget.Editor
 	focus  bool
 
+	changeListener func(value string)
 	eventListeners []func(value string)
 }
 
@@ -36,6 +37,11 @@ func (t *Text) AddEventListener(listener func(value string)) {
 	t.eventListeners = append(t.eventListeners, listener)
 }
 
+// SetChangeListener replaces the field's single model-binding callback.
+func (t *Text) SetChangeListener(listener func(value string)) {
+	t.changeListener = listener
+}
+
 // Focus selects the field contents and requests keyboard focus.
 func (t *Text) Focus() {
 	t.editor.SetCaret(0, t.editor.Len())
@@ -43,6 +49,9 @@ func (t *Text) Focus() {
 }
 
 func (t *Text) notifyEventListeners() {
+	if t.changeListener != nil {
+		t.changeListener(t.Value)
+	}
 	for _, listener := range t.eventListeners {
 		listener(t.Value)
 	}

@@ -14,6 +14,7 @@ type Checkbox struct {
 	checkbox    widget.Bool
 	lastChecked bool
 
+	changeListener func(checked bool)
 	eventListeners []func(checked bool)
 }
 
@@ -32,7 +33,15 @@ func (c *Checkbox) AddEventListener(listener func(checked bool)) {
 	c.eventListeners = append(c.eventListeners, listener)
 }
 
+// SetChangeListener replaces the field's single model-binding callback.
+func (c *Checkbox) SetChangeListener(listener func(checked bool)) {
+	c.changeListener = listener
+}
+
 func (c *Checkbox) notifyEventListeners() {
+	if c.changeListener != nil {
+		c.changeListener(c.Checked)
+	}
 	for _, listener := range c.eventListeners {
 		listener(c.Checked)
 	}
