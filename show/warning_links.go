@@ -2,50 +2,8 @@ package show
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 )
-
-// TODO(macro): warning_links.go is named for links but also owns cue-number and
-// payload-union structural problems (cueNumberProblems/cuePayloadProblems). Keep
-// link graph validation here; move structural payload/number rules next to the
-// cue model or the structured validation entry so file names match concerns.
-func cueNumberProblems(cue Cue, cues []Cue) []CueProblem {
-	number := strings.TrimSpace(cue.CueNumber)
-	if number == "" {
-		return []CueProblem{{Code: "cue.number.missing", Severity: ProblemCaution, Message: "Missing cue number", Consequence: "Operator references and {cueNumber} templates are ambiguous.", Fix: "Enter a unique cue number", Field: "general.cueNumber"}}
-	}
-	if _, err := strconv.ParseFloat(number, 64); err != nil {
-		return []CueProblem{{Code: "cue.number.invalid", Severity: ProblemCaution, Message: fmt.Sprintf("Cue number %q is not numeric", number), Consequence: "Cue-number offsets and remote commands may not resolve.", Fix: "Enter a numeric cue number", Field: "general.cueNumber"}}
-	}
-	count := 0
-	for _, candidate := range cues {
-		if strings.EqualFold(strings.TrimSpace(candidate.CueNumber), number) {
-			count++
-		}
-	}
-	if count > 1 {
-		return []CueProblem{{Code: "cue.number.duplicate", Severity: ProblemCaution, Message: fmt.Sprintf("Cue number %s is duplicated", number), Consequence: "Human and remote references may select the wrong cue.", Fix: "Assign a unique cue number", Field: "general.cueNumber"}}
-	}
-	return nil
-}
-
-func cuePayloadProblems(cue Cue) []CueProblem {
-	present := 0
-	for _, ok := range []bool{cue.Play.Sound != nil, cue.Play.Video != nil, cue.Play.Image != nil, cue.Play.Remote != nil, cue.Play.Wait != nil, cue.Play.MediaControl != nil, cue.Play.OutputControl != nil} {
-		if ok {
-			present++
-		}
-	}
-	expected := (cue.Type == CueTypeSound && cue.Play.Sound != nil) || (cue.Type == CueTypeVideo && cue.Play.Video != nil) ||
-		(cue.Type == CueTypeImage && cue.Play.Image != nil) || (cue.Type == CueTypeRemote && cue.Play.Remote != nil) ||
-		(cue.Type == CueTypeWait && cue.Play.Wait != nil) || (cue.Type == CueTypeMediaControl && cue.Play.MediaControl != nil) ||
-		(cue.Type == CueTypeOutputControl && cue.Play.OutputControl != nil)
-	if present == 1 && expected {
-		return nil
-	}
-	return []CueProblem{{Code: "cue.payload.integrity", Severity: ProblemAdvisory, Message: "Cue data does not match its cue type", Consequence: "Hidden legacy data can make imported cues behave unpredictably.", Fix: "Repair cue data by resaving its type", Field: "general.type"}}
-}
 
 func isMediaCue(cue Cue) bool {
 	return cue.Type == CueTypeSound || cue.Type == CueTypeVideo || cue.Type == CueTypeImage
