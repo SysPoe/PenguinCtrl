@@ -33,15 +33,14 @@ type packetSender interface {
 
 type udpSender struct{}
 
-func (udpSender) Send(ctx context.Context, host string, port int, payload []byte) error {
+func (udpSender) Send(ctx context.Context, host string, port int, payload []byte) (err error) {
 	address := net.JoinHostPort(host, strconv.Itoa(port))
 	// TODO(micro): (&net.Dialer{}) is equivalent to net.Dialer{} zero value; use a shared dialer field
 	conn, err := (&net.Dialer{}).DialContext(ctx, "udp", address)
 	if err != nil {
 		return err
 	}
-	// TODO(micro): Explicitly mark this UDP close as best effort or return its error when no earlier send error exists.
-	defer conn.Close()
+	defer func() { err = errors.Join(err, conn.Close()) }()
 	if deadline, ok := ctx.Deadline(); ok {
 		_ = conn.SetWriteDeadline(deadline)
 	}
@@ -226,13 +225,12 @@ func (d *Dispatcher) dispatchTarget(parent context.Context, target config.Remote
 	return protocol, acknowledged, nil
 }
 
-func sendAcknowledged(ctx context.Context, host string, port int, id string, payload []byte) error {
+func sendAcknowledged(ctx context.Context, host string, port int, id string, payload []byte) (err error) {
 	conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", net.JoinHostPort(host, strconv.Itoa(port)))
 	if err != nil {
 		return err
 	}
-	// TODO(micro): Explicitly mark this TCP close as best effort or combine it with the result.
-	defer conn.Close()
+	defer func() { err = errors.Join(err, conn.Close()) }()
 	if deadline, ok := ctx.Deadline(); ok {
 		_ = conn.SetDeadline(deadline)
 	}
@@ -252,6 +250,7 @@ func sendAcknowledged(ctx context.Context, host string, port int, id string, pay
 	}
 	return nil
 }
+
 // TODO(micro): merge recordHealth/recordProbeHealth - only Acknowledged differs
 
 func (d *Dispatcher) recordHealth(target config.RemoteTarget, err error, acknowledged bool, roundTrip time.Duration) {

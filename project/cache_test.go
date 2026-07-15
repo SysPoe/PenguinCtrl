@@ -35,3 +35,13 @@ func TestCacheMaintenanceEvictsLRUAndProtectsActiveAssets(t *testing.T) {
 		t.Fatalf("newer cache object was removed: %v", err)
 	}
 }
+
+func TestCacheInspectionAndTouchReportFilesystemFailures(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "missing")
+	if _, err := inspectCacheObject(missing); err == nil {
+		t.Fatal("missing cache object inspection unexpectedly succeeded")
+	}
+	if err := touchCachePath(missing); err == nil {
+		t.Fatal("touching a missing cache path unexpectedly succeeded")
+	}
+}

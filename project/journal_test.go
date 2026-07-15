@@ -1,6 +1,7 @@
 package project
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -27,6 +28,17 @@ func TestEditJournalRecoversLatestDirtyGeneration(t *testing.T) {
 	}
 	if recovered.Show.Title != "second" || recovered.DocumentPath != "second.cusus" || len(recovered.Show.Cues) != 1 {
 		t.Fatalf("recovered wrong generation: %#v", recovered)
+	}
+}
+
+func TestEditJournalRejectsUndigestibleShow(t *testing.T) {
+	journal, err := OpenEditJournal(filepath.Join(t.TempDir(), "recovery.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	current := show.Show{Extensions: map[string]json.RawMessage{"broken": json.RawMessage(`{`)}}
+	if err := journal.RecordDirty(current, "show.cusus"); err == nil {
+		t.Fatal("invalid show JSON unexpectedly produced a journal digest")
 	}
 }
 

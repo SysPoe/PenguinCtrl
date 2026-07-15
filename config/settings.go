@@ -150,12 +150,6 @@ func DefaultPath() (string, error) {
 	return filepath.Join(dir, "CuSus", "settings.json"), nil
 }
 
-// TODO(macro): Isolate secret-bearing redundancy fields from generic settings
-// clone/persist/fingerprint flows — RedundancySharedKey rides the same Store as
-// window geometry and is copied wholesale into show problem fingerprints and
-// other snapshots. Also split this ~500-line file: model DTOs, Store persistence,
-// and Resolve helpers so domain packages that only need Resolve do not import
-// the full persistence surface.
 type Store struct {
 	mu       sync.RWMutex
 	path     string
@@ -250,8 +244,7 @@ func (s *Store) UpdateVideoOutputGeometry(stage string, x, y, width, height int)
 			return nil
 		}
 	}
-	// TODO(micro): return an error when stage is unknown instead of silently succeeding
-	return nil
+	return fmt.Errorf("video output stage %q is not configured", stage)
 }
 
 func (s *Store) saveLocked(settings Settings) error {

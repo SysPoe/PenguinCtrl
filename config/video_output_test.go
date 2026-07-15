@@ -1,6 +1,10 @@
 package config
 
-import "testing"
+import (
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 func TestNormalizeVideoOutputs(t *testing.T) {
 	settings := normalize(Settings{
@@ -38,5 +42,16 @@ func TestNormalizeAddsDefaultVideoStage(t *testing.T) {
 	output := VideoOutputFor(settings, "projection")
 	if output.Stage != "projection" || !output.Fullscreen {
 		t.Fatalf("default stage not created: %+v", output)
+	}
+}
+
+func TestUpdateVideoOutputGeometryRejectsUnknownStage(t *testing.T) {
+	store, err := Open(filepath.Join(t.TempDir(), "settings.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = store.UpdateVideoOutputGeometry("missing", 1, 2, 640, 480)
+	if err == nil || !strings.Contains(err.Error(), "missing") {
+		t.Fatalf("unknown stage error = %v", err)
 	}
 }

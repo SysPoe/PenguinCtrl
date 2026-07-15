@@ -75,7 +75,11 @@ func (j *EditJournal) Recover() (RecoveryRecord, bool, error) {
 	if err != nil || !found || !record.Dirty {
 		return record, false, err
 	}
-	if record.Version != journalVersion || record.Digest != showStateDigest(record.Show) {
+	digest, digestErr := showStateDigest(record.Show)
+	if digestErr != nil {
+		return RecoveryRecord{}, false, fmt.Errorf("digest recovered show: %w", digestErr)
+	}
+	if record.Version != journalVersion || record.Digest != digest {
 		return RecoveryRecord{}, false, errors.New("edit journal recovery record failed validation")
 	}
 	return record, true, nil
@@ -84,9 +88,13 @@ func (j *EditJournal) Recover() (RecoveryRecord, bool, error) {
 func (j *EditJournal) append(current show.Show, documentPath string, dirty bool) error {
 	j.mu.Lock()
 	defer j.mu.Unlock()
+	digest, err := showStateDigest(current)
+	if err != nil {
+		return fmt.Errorf("digest edit journal show: %w", err)
+	}
 	record := RecoveryRecord{
 		Version: journalVersion, WrittenAt: time.Now().UTC(), DocumentPath: documentPath,
-		Digest: showStateDigest(current), Dirty: dirty, Show: current,
+		Digest: digest, Dirty: dirty, Show: current,
 	}
 	raw, err := json.Marshal(record)
 	if err != nil {
@@ -154,9 +162,11 @@ func readLastJournalRecord(path string) (RecoveryRecord, bool, error) {
 	return last, found, nil
 }
 
-func showStateDigest(current show.Show) string {
-	// TODO(micro): handle json.Marshal error in showStateDigest instead of discarding with _
-	raw, _ := json.Marshal(current)
+func showStateDigest(current show.Show) (string, error) {
+	raw, err := json.Marshal(current)
+	if err != nil {
+		return "", err
+	}
 	digest := sha256.Sum256(raw)
-	return hex.EncodeToString(digest[:])
+	return hex.EncodeToString(digest[:]), nil
 }

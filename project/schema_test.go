@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/syspoe/cusus/show"
 )
 
 func TestReleasedManifestFixturesMigrateAndValidate(t *testing.T) {
@@ -78,6 +80,46 @@ func TestFutureManifestVersionIsRejectedWithUpdateGuidance(t *testing.T) {
 	err := migrateManifest(&manifest)
 	if err == nil || !strings.Contains(err.Error(), "update CuSus") || !strings.Contains(err.Error(), "only copy") {
 		t.Fatalf("future-version error = %v", err)
+	}
+}
+
+func TestManifestValidationRejectsDomainInvariantViolations(t *testing.T) {
+	first := show.NewSoundCue()
+	first.CueNumber = "1"
+	second := show.NewWaitCue()
+	second.CueNumber = "2"
+	base := Manifest{Format: Format, Version: Version, Show: show.Show{Cues: []show.Cue{first, second}}}
+
+	tests := []struct {
+		name   string
+		mutate func(*Manifest)
+		want   string
+	}{
+		{"payload mismatch", func(manifest *Manifest) { manifest.Show.Cues[0].Play.Video = &show.VideoPlay{} }, "payload"},
+		{"inconsistent group title", func(manifest *Manifest) {
+			id := show.NewGroupID()
+			manifest.Show.Cues[0].GroupID, manifest.Show.Cues[0].GroupTitle = id, "Act One"
+			manifest.Show.Cues[1].GroupID, manifest.Show.Cues[1].GroupTitle = id, "Act 1"
+		}, "inconsistent title"},
+		{"unknown link target", func(manifest *Manifest) {
+			manifest.Show.Cues[0].Link = show.CueLink{Mode: show.CueLinkStartPlay, Target: show.CueTarget{Kind: show.CueTargetCue, CueID: show.NewCueID()}}
+		}, "unknown cue ID"},
+		{"unknown media group", func(manifest *Manifest) {
+			manifest.Show.Cues[1].Play.Wait.Kind = show.WaitMediaEnd
+			manifest.Show.Cues[1].Play.Wait.Media = show.MediaTarget{Kind: show.MediaTargetGroup, GroupID: show.NewGroupID()}
+		}, "unknown media group"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			manifest := base
+			manifest.Show = show.CloneShow(base.Show)
+			test.mutate(&manifest)
+			err := validateManifestSchema(manifest)
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("validation error = %v, want %q", err, test.want)
+			}
+		})
 	}
 }
 

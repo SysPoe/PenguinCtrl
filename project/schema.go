@@ -85,10 +85,6 @@ func normalizeShowSchema(current *show.Show, version int) {
 	}
 }
 
-// TODO(macro): Align archive schema validation with show domain invariants —
-// validateManifestSchema only checks IDs/types/timing bounds while cue payload
-// integrity, group denormalization, and link targets are left to optional
-// warnings/repair, so invalid shows can still be "valid" archives.
 func validateManifestSchema(manifest Manifest) error {
 	if manifest.Format != Format || manifest.Version != Version {
 		return fmt.Errorf("manifest schema is %q version %d; expected %q version %d", manifest.Format, manifest.Version, Format, Version)
@@ -97,6 +93,7 @@ func validateManifestSchema(manifest Manifest) error {
 		return fmt.Errorf("show contains %d cues; limit is %d", len(manifest.Show.Cues), maxShowCues)
 	}
 	seen := make(map[show.CueID]struct{}, len(manifest.Show.Cues))
+	groups := make(map[show.GroupID]string)
 	for index, cue := range manifest.Show.Cues {
 		if cue.ID == (show.CueID{}) {
 			return fmt.Errorf("cue %d has no stable ID", index+1)
@@ -111,6 +108,108 @@ func validateManifestSchema(manifest Manifest) error {
 		if cue.Timing.PreWaitMs < 0 || cue.Timing.PostWaitMs < 0 {
 			return fmt.Errorf("cue %d has negative timing", index+1)
 		}
+		if !cuePayloadMatchesType(cue) {
+			return fmt.Errorf("cue %d payload does not match type %d", index+1, cue.Type)
+		}
+		if cue.GroupID == (show.GroupID{}) {
+			if cue.GroupTitle != "" {
+				return fmt.Errorf("cue %d has a group title without a group ID", index+1)
+			}
+		} else if title, exists := groups[cue.GroupID]; exists && title != cue.GroupTitle {
+			return fmt.Errorf("cue %d has inconsistent title for its group", index+1)
+		} else {
+			groups[cue.GroupID] = cue.GroupTitle
+		}
+	}
+	for index, cue := range manifest.Show.Cues {
+		if cue.Link.Mode != show.CueLinkManual && cue.Link.Target.Kind == show.CueTargetCue {
+			if _, exists := seen[cue.Link.Target.CueID]; !exists {
+				return fmt.Errorf("cue %d links to an unknown cue ID", index+1)
+			}
+		}
+		for _, target := range cueMediaTargets(cue) {
+			switch target.Kind {
+			case show.MediaTargetCue:
+				if _, exists := seen[target.CueID]; !exists {
+					return fmt.Errorf("cue %d targets an unknown media cue ID", index+1)
+				}
+			case show.MediaTargetGroup:
+				if _, exists := groups[target.GroupID]; !exists {
+					return fmt.Errorf("cue %d targets an unknown media group ID", index+1)
+				}
+			}
+		}
 	}
 	return nil
+}
+
+func cuePayloadMatchesType(cue show.Cue) bool {
+	present := 0
+	for _, configured := range []bool{
+		cue.Play.Sound != nil, cue.Play.Video != nil, cue.Play.Image != nil,
+		cue.Play.Remote != nil, cue.Play.Wait != nil, cue.Play.MediaControl != nil,
+		cue.Play.OutputControl != nil,
+	} {
+		if configured {
+			present++
+		}
+	}
+	if present != 1 {
+		return false
+	}
+	switch cue.Type {
+	case show.CueTypeSound:
+		return cue.Play.Sound != nil
+	case show.CueTypeVideo:
+		return cue.Play.Video != nil
+	case show.CueTypeImage:
+		return cue.Play.Image != nil
+	case show.CueTypeRemote:
+		return cue.Play.Remote != nil
+	case show.CueTypeWait:
+		return cue.Play.Wait != nil
+	case show.CueTypeMediaControl:
+		return cue.Play.MediaControl != nil
+	case show.CueTypeOutputControl:
+		return cue.Play.OutputControl != nil
+	default:
+		return false
+	}
+}
+
+func cueMediaTargets(cue show.Cue) []show.MediaTarget {
+	var targets []show.MediaTarget
+	if cue.Play.Wait != nil && cue.Play.Wait.Kind >= show.WaitMediaStart && cue.Play.Wait.Kind <= show.WaitInstanceStopped {
+		targets = append(targets, cue.Play.Wait.Media)
+	}
+	if cue.Play.MediaControl != nil {
+		targets = append(targets, cue.Play.MediaControl.Target)
+	}
+	for _, markers := range [][]show.TimecodeMarker{
+		func() []show.TimecodeMarker {
+			if cue.Play.Sound != nil {
+				return cue.Play.Sound.Timecode
+			}
+			return nil
+		}(),
+		func() []show.TimecodeMarker {
+			if cue.Play.Video != nil {
+				return cue.Play.Video.Timecode
+			}
+			return nil
+		}(),
+		func() []show.TimecodeMarker {
+			if cue.Play.Image != nil {
+				return cue.Play.Image.Timecode
+			}
+			return nil
+		}(),
+	} {
+		for _, marker := range markers {
+			if marker.Action.MediaControl != nil {
+				targets = append(targets, marker.Action.MediaControl.Target)
+			}
+		}
+	}
+	return targets
 }

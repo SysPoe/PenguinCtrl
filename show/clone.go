@@ -9,17 +9,10 @@ import "encoding/json"
 // so archive/edit/duplicate paths cannot silently share nested pointers.
 func CloneShow(current Show) Show {
 	clone := Show{
-		Title:      current.Title,
-		Cues:       cloneCues(current.Cues),
-		Extensions: cloneExtensions(current.Extensions),
-	}
-	// TODO(micro): Reuse cloneAcknowledgements instead of a second map-copy path with different empty/false semantics.
-	if current.AcknowledgedProblems != nil {
-		// TODO(micro): replace m[k]=v loop with maps.Copy
-		clone.AcknowledgedProblems = make(map[string]bool, len(current.AcknowledgedProblems))
-		for fingerprint, acknowledged := range current.AcknowledgedProblems {
-			clone.AcknowledgedProblems[fingerprint] = acknowledged
-		}
+		Title:                current.Title,
+		Cues:                 cloneCues(current.Cues),
+		Extensions:           cloneExtensions(current.Extensions),
+		AcknowledgedProblems: cloneAcknowledgements(current.AcknowledgedProblems),
 	}
 	return clone
 }

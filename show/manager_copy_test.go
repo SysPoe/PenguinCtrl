@@ -39,3 +39,20 @@ func TestManagerReadAPIsReturnDeepCopies(t *testing.T) {
 		t.Fatalf("read API mutated manager state: %#v", stored)
 	}
 }
+
+func TestAcknowledgementCopiesCanonicalizeAndLookupsTrim(t *testing.T) {
+	current := Show{AcknowledgedProblems: map[string]bool{"accepted": true, "ignored": false}}
+	clone := CloneShow(current)
+	if !clone.AcknowledgedProblems["accepted"] {
+		t.Fatal("true acknowledgement was not cloned")
+	}
+	if _, exists := clone.AcknowledgedProblems["ignored"]; exists {
+		t.Fatal("false acknowledgement was retained")
+	}
+
+	manager := NewShowManager()
+	manager.ReplaceShow(clone)
+	if !manager.ProblemAcknowledged("  accepted  ") {
+		t.Fatal("trimmed acknowledgement lookup failed")
+	}
+}

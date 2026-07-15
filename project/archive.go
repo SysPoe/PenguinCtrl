@@ -3,6 +3,7 @@ package project
 import (
 	"archive/zip"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -165,8 +166,7 @@ func SaveWithProgress(dst io.Writer, current show.Show, ffmpegPath string, progr
 			input, err = os.Open(converted)
 			if err == nil {
 				_, err = io.Copy(entry, input)
-				// TODO(micro): Fold the input Close error into err instead of discarding a possible read/handle failure.
-				input.Close()
+				err = errors.Join(err, input.Close())
 			}
 		}
 		if err != nil {

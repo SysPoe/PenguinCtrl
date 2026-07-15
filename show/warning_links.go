@@ -115,7 +115,9 @@ func linkedCue(cue Cue, cues []Cue) (Cue, bool) {
 			break
 		}
 	}
-	// TODO(micro): When cue is absent, index stays -1 so CueTargetNext returns cues[0]; return false if index < 0 for relative targets.
+	if index < 0 && cue.Link.Target.Kind != CueTargetCue {
+		return Cue{}, false
+	}
 	target := index + 1
 	switch cue.Link.Target.Kind {
 	case CueTargetPrevious:

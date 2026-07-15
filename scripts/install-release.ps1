@@ -27,14 +27,22 @@ if (-not (Test-Path -LiteralPath (Join-Path $source "cusus.exe"))) {
 }
 $incoming = $install + ".incoming-" + [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
 New-Item -ItemType Directory -Force -Path $incoming | Out-Null
-# TODO(micro): Remove $incoming in a finally block so a failed copy does not leave a partial installation directory behind.
-Copy-Item -Path (Join-Path $source "*") -Destination $incoming -Recurse -Force
+$published = $false
+try {
+    Copy-Item -Path (Join-Path $source "*") -Destination $incoming -Recurse -Force
 
-if (Test-Path -LiteralPath $previous) {
-    Remove-Item -LiteralPath $previous -Recurse -Force
+    if (Test-Path -LiteralPath $previous) {
+        Remove-Item -LiteralPath $previous -Recurse -Force
+    }
+    if (Test-Path -LiteralPath $install) {
+        Move-Item -LiteralPath $install -Destination $previous
+    }
+    Move-Item -LiteralPath $incoming -Destination $install
+    $published = $true
 }
-if (Test-Path -LiteralPath $install) {
-    Move-Item -LiteralPath $install -Destination $previous
+finally {
+    if (-not $published -and (Test-Path -LiteralPath $incoming)) {
+        Remove-Item -LiteralPath $incoming -Recurse -Force
+    }
 }
-Move-Item -LiteralPath $incoming -Destination $install
 Write-Host "Installed CuSus to $install. Previous version: $previous"

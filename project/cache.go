@@ -3,9 +3,11 @@ package project
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -19,6 +21,8 @@ import (
 type CacheMaintainer struct {
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
+	errMu  sync.RWMutex
+	err    error
 }
 
 func StartCacheMaintainer(active func() bool, protected func() []string, limits func() (quotaBytes, reserveBytes uint64)) *CacheMaintainer {
@@ -33,8 +37,9 @@ func StartCacheMaintainer(active func() bool, protected func() []string, limits 
 		for {
 			if !active() {
 				quota, reserve := limits()
-				// TODO(micro): Retain or report this error; recurring cache-maintenance failures are currently invisible to the caller.
-				_ = MaintainCache(quota, reserve, protected())
+				m.errMu.Lock()
+				m.err = MaintainCache(quota, reserve, protected())
+				m.errMu.Unlock()
 			}
 			select {
 			case <-ctx.Done():
@@ -47,6 +52,13 @@ func StartCacheMaintainer(active func() bool, protected func() []string, limits 
 }
 
 func (m *CacheMaintainer) Close() { m.cancel(); m.wg.Wait() }
+
+// Err returns the most recent cache-maintenance failure, if any.
+func (m *CacheMaintainer) Err() error {
+	m.errMu.RLock()
+	defer m.errMu.RUnlock()
+	return m.err
+}
 
 type cacheObject struct {
 	path string
@@ -73,9 +85,8 @@ func maintainCacheRoot(root string, quotaBytes, reserveBytes uint64, protected [
 	}
 	protectedAbs := make([]string, 0, len(protected))
 	for _, path := range protected {
-		// TODO(micro): only lower-case paths on Windows; ToLower breaks case-sensitive cache roots on Unix
 		if absolute, e := filepath.Abs(path); e == nil {
-			protectedAbs = append(protectedAbs, strings.ToLower(filepath.Clean(absolute)))
+			protectedAbs = append(protectedAbs, cachePathKey(absolute))
 		}
 	}
 	var total uint64
@@ -121,35 +132,43 @@ func cacheObjects(root string) ([]cacheObject, error) {
 				continue
 			}
 			path := filepath.Join(root, directory, entry.Name())
-			var size uint64
-			used := time.Time{}
-			// TODO(micro): Check WalkDir's result and child errors; treating unreadable files as zero bytes can evict the wrong cache entries.
-			_ = filepath.WalkDir(path, func(child string, item fs.DirEntry, walkErr error) error {
-				if walkErr != nil {
-					return nil
-				}
-				info, err := item.Info()
-				if err != nil {
-					return nil
-				}
-				if info.ModTime().After(used) {
-					used = info.ModTime()
-				}
-				if !item.IsDir() {
-					size += uint64(max(int64(0), info.Size()))
-				}
-				return nil
-			})
-			result = append(result, cacheObject{path: path, size: size, used: used})
+			object, err := inspectCacheObject(path)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, object)
 		}
 	}
 	return result, nil
 }
 
+func inspectCacheObject(path string) (cacheObject, error) {
+	object := cacheObject{path: path}
+	if err := filepath.WalkDir(path, func(child string, item fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		info, err := item.Info()
+		if err != nil {
+			return err
+		}
+		if info.ModTime().After(object.used) {
+			object.used = info.ModTime()
+		}
+		if !item.IsDir() {
+			object.size += uint64(max(int64(0), info.Size()))
+		}
+		return nil
+	}); err != nil {
+		return cacheObject{}, fmt.Errorf("inspect cache object %q: %w", path, err)
+	}
+	return object, nil
+}
+
 func cacheObjectProtected(object string, protected []string) bool {
-	// TODO(micro): only lower-case paths on Windows; ToLower breaks case-sensitive cache roots on Unix
-	object = strings.ToLower(filepath.Clean(object))
+	object = cachePathKey(object)
 	for _, path := range protected {
+		path = cachePathKey(path)
 		if path == object || strings.HasPrefix(path, object+string(os.PathSeparator)) {
 			return true
 		}
@@ -157,5 +176,15 @@ func cacheObjectProtected(object string, protected []string) bool {
 	return false
 }
 
-// TODO(micro): Return the Chtimes error so callers can distinguish a refreshed cache entry from a failed timestamp update.
-func touchCachePath(path string) { now := time.Now(); _ = os.Chtimes(path, now, now) }
+func cachePathKey(path string) string {
+	path = filepath.Clean(path)
+	if runtime.GOOS == "windows" {
+		return strings.ToLower(path)
+	}
+	return path
+}
+
+func touchCachePath(path string) error {
+	now := time.Now()
+	return os.Chtimes(path, now, now)
+}

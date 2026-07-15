@@ -38,8 +38,11 @@ func resolvedMediaProblems(cue Cue, context WarningContext) []CueProblem {
 		return []CueProblem{{Code: "media.path.variable.unknown", Severity: ProblemBlocker, Message: "Unknown media variable: " + strings.Join(unknown, ", "), Consequence: "The media path cannot be resolved.", Fix: "Define the variable in Settings or edit the path", Field: "media.file"}}
 	}
 	if warnings := mediaFileWarnings(resolved); len(warnings) > 0 {
-		// TODO(micro): Drops all but warnings[0]; either join them or make mediaFileWarnings return a single structured problem.
-		return []CueProblem{problemForMessage(warnings[0])}
+		problems := make([]CueProblem, 0, len(warnings))
+		for _, warning := range warnings {
+			problems = append(problems, problemForMessage(warning))
+		}
+		return problems
 	}
 	if strings.TrimSpace(context.MediaProbeError) != "" {
 		return []CueProblem{{Code: "media.probe.failed", Severity: ProblemBlocker, Message: "Media could not be opened: " + strings.TrimSpace(context.MediaProbeError), Consequence: "GO would fail after being accepted.", Fix: "Replace the file or repair FFmpeg", Field: "media.file"}}
@@ -260,19 +263,52 @@ func uniqueProblems(input []CueProblem) []CueProblem {
 	return result
 }
 
-// TODO(macro): Narrow ProblemFingerprint inputs — hashing the entire Cue plus
-// full config.Settings couples acknowledgement identity to unrelated settings
-// churn and forces show to depend on the whole settings blob for operator state.
 // ProblemFingerprint changes whenever the cue, problem code, or relevant
 // settings snapshot changes, so deliberate acknowledgements clear themselves
 // after an edit without allowing blockers to be dismissed.
 func ProblemFingerprint(cue Cue, problem CueProblem, settings config.Settings) string {
-	// TODO(micro): json.Marshal error is discarded; a failure yields the hash of empty input and can collide acknowledgements.
-	raw, _ := json.Marshal(struct {
-		Cue      Cue             `json:"cue"`
-		Code     string          `json:"code"`
-		Settings config.Settings `json:"settings"`
-	}{cue, problem.Code, settings})
+	payload := struct {
+		Cue      problemFingerprintCue      `json:"cue"`
+		Code     string                     `json:"code"`
+		Settings problemFingerprintSettings `json:"settings"`
+	}{newProblemFingerprintCue(cue), problem.Code, newProblemFingerprintSettings(settings)}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		raw = []byte("problem-fingerprint-json-error:" + err.Error() + "\n" + fmt.Sprintf("%#v", payload))
+	}
 	digest := sha256.Sum256(raw)
 	return hex.EncodeToString(digest[:])
+}
+
+type problemFingerprintCue struct {
+	ID        CueID     `json:"id"`
+	CueNumber string    `json:"cueNumber"`
+	GroupID   GroupID   `json:"groupId"`
+	Type      CueType   `json:"type"`
+	Timing    CueTiming `json:"timing"`
+	Play      CuePlay   `json:"play"`
+	Link      CueLink   `json:"link"`
+}
+
+func newProblemFingerprintCue(cue Cue) problemFingerprintCue {
+	return problemFingerprintCue{
+		ID: cue.ID, CueNumber: cue.CueNumber, GroupID: cue.GroupID, Type: cue.Type,
+		Timing: cue.Timing, Play: cue.Play, Link: cue.Link,
+	}
+}
+
+type problemFingerprintSettings struct {
+	DefaultPlayback     string                `json:"defaultPlayback"`
+	DefaultMediaOutput  string                `json:"defaultMediaOutput"`
+	Variables           map[string]string     `json:"variables"`
+	RemoteTargets       []config.RemoteTarget `json:"remoteTargets"`
+	RemoteSuccessPolicy string                `json:"remoteSuccessPolicy"`
+}
+
+func newProblemFingerprintSettings(settings config.Settings) problemFingerprintSettings {
+	return problemFingerprintSettings{
+		DefaultPlayback: settings.DefaultPlayback, DefaultMediaOutput: settings.DefaultMediaOutput,
+		Variables: settings.Variables, RemoteTargets: settings.RemoteTargets,
+		RemoteSuccessPolicy: settings.RemoteSuccessPolicy,
+	}
 }

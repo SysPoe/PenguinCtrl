@@ -31,6 +31,11 @@ type heartbeat struct {
 	Signature    string      `json:"signature,omitempty"`
 }
 
+type authorityInterlock interface {
+	Touch([]byte) error
+	Close() error
+}
+
 // TODO(macro): Extract a pure authority/peer state machine from the UDP
 // heartbeat transport and OS interlock ownership. Keeping protocol I/O,
 // reconciliation policy, and takeover state under one mutex makes exhaustive
@@ -48,7 +53,7 @@ type Service struct {
 	bootID      string
 	sequence    uint64
 	interlockID string
-	lock        *systemInterlock
+	lock        authorityInterlock
 	authority   bool
 	released    bool
 	closed      bool
@@ -86,8 +91,10 @@ func (s *Service) Configure(config Config) error {
 	if s.closed {
 		return errors.New("redundancy service is closed")
 	}
-	// TODO(micro): Handle release failure before replacing config; discarding it can leave stale authority/interlock state.
-	s.releaseAuthorityLocked()
+	if err := s.releaseAuthorityLocked(); err != nil {
+		s.lastError = "release redundancy interlock before reconfigure: " + err.Error()
+		return fmt.Errorf("%s", s.lastError)
+	}
 	s.config = config
 	s.interlockID = interlockIdentity(config.InterlockPath)
 	s.peer, s.peerSeen, s.lastPeer, s.peerSentUnixNano = heartbeat{}, false, time.Time{}, 0

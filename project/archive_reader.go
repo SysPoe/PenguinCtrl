@@ -3,6 +3,7 @@ package project
 import (
 	"archive/zip"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -17,7 +18,7 @@ import (
 // archive extraction (cache root + Manifest) from ProjectSession hydration so
 // path rewriting and library rebuild are explicit session steps, not Load
 // byproducts.
-func Load(path string) (Manifest, []File, error) {
+func Load(path string) (resultManifest Manifest, resultFiles []File, resultErr error) {
 	zr, err := zip.OpenReader(path)
 	if err != nil {
 		return Manifest{}, nil, fmt.Errorf("open .cusus archive: %w", err)
@@ -59,8 +60,7 @@ func Load(path string) (Manifest, []File, error) {
 		return Manifest{}, nil, err
 	}
 	err = decodeManifest(io.LimitReader(reader, maxManifestBytes+1), &manifest)
-	// TODO(micro): Combine the manifest reader's Close error with decode failure instead of discarding it.
-	reader.Close()
+	err = errors.Join(err, reader.Close())
 	if err != nil {
 		return Manifest{}, nil, fmt.Errorf("decode show manifest: %w", err)
 	}
@@ -88,8 +88,9 @@ func Load(path string) (Manifest, []File, error) {
 	if err != nil {
 		return Manifest{}, nil, fmt.Errorf("create extraction directory: %w", err)
 	}
-	// TODO(micro): Explicitly mark failed temporary-tree cleanup as best effort or report it for cache hygiene.
-	defer os.RemoveAll(temporary)
+	defer func() {
+		resultErr = errors.Join(resultErr, os.RemoveAll(temporary))
+	}()
 	if err := os.MkdirAll(filepath.Join(temporary, "media"), 0o755); err != nil {
 		return Manifest{}, nil, err
 	}
@@ -138,8 +139,7 @@ func Load(path string) (Manifest, []File, error) {
 				err = closeErr
 			}
 		}
-		// TODO(micro): Fold the archive entry reader's Close error into err before deciding extraction succeeded.
-		reader.Close()
+		err = errors.Join(err, reader.Close())
 		if err != nil {
 			return Manifest{}, nil, fmt.Errorf("extract %q: %w", asset.Name, err)
 		}
@@ -163,7 +163,9 @@ func Load(path string) (Manifest, []File, error) {
 	if err := publishExtractedShow(temporary, root); err != nil {
 		return Manifest{}, nil, err
 	}
-	touchCachePath(root)
+	if err := touchCachePath(root); err != nil {
+		return Manifest{}, nil, fmt.Errorf("refresh extracted show cache: %w", err)
+	}
 	resolveLoadedPaths(&manifest.Show, root)
 	return manifest, files, nil
 }

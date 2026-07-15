@@ -147,7 +147,9 @@ func transcode(ffmpegPath, source, kind, sourceHash string) (string, error) {
 	}
 	output := filepath.Join(cacheDir, sourceHash+"-"+kind+ext)
 	if info, err := os.Stat(output); err == nil && info.Size() > 0 {
-		touchCachePath(output)
+		if err := touchCachePath(output); err != nil {
+			return "", fmt.Errorf("refresh transcoded cache: %w", err)
+		}
 		return output, nil
 	}
 	tmp, err := os.CreateTemp(cacheDir, "cusus-media-*"+ext)
@@ -155,8 +157,9 @@ func transcode(ffmpegPath, source, kind, sourceHash string) (string, error) {
 		return "", err
 	}
 	temporary := tmp.Name()
-	// TODO(micro): Check Close before removing/reusing the temporary path; a handle failure is currently ignored.
-	tmp.Close()
+	if err := tmp.Close(); err != nil {
+		return "", fmt.Errorf("close temporary transcode output: %w", err)
+	}
 	_ = os.Remove(temporary)
 
 	common := []string{"-hide_banner", "-loglevel", "error", "-y", "-i", source, "-map_metadata", "-1"}
@@ -186,7 +189,9 @@ func transcode(ffmpegPath, source, kind, sourceHash string) (string, error) {
 				_ = os.Remove(temporary)
 				return "", err
 			}
-			touchCachePath(output)
+			if err := touchCachePath(output); err != nil {
+				return "", fmt.Errorf("refresh transcoded cache: %w", err)
+			}
 			return output, nil
 		}
 		_ = os.Remove(temporary)

@@ -1,12 +1,18 @@
 package redundancy
 
 import (
+	"errors"
 	"net"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
+
+type failingInterlock struct{}
+
+func (failingInterlock) Touch([]byte) error { return nil }
+func (failingInterlock) Close() error       { return errors.New("release failed") }
 
 func TestWarmSparePlannedHandoffAndReturnToPrimary(t *testing.T) {
 	primary, standby := newTestPair(t)
@@ -116,6 +122,21 @@ func TestInterlockPreventsConcurrentOwners(t *testing.T) {
 	defer first.Close()
 	if _, err := acquireSystemInterlock(path); err != ErrInterlockBusy {
 		t.Fatalf("second interlock acquisition = %v", err)
+	}
+}
+
+func TestConfigureStopsWhenExistingInterlockCannotBeReleased(t *testing.T) {
+	oldConfig := Config{Role: RolePrimary, NodeID: "primary"}
+	service := &Service{config: oldConfig, lock: failingInterlock{}, authority: true}
+	err := service.Configure(Config{Role: RoleOff})
+	if err == nil || !strings.Contains(err.Error(), "release failed") {
+		t.Fatalf("Configure() error = %v", err)
+	}
+	if service.config != oldConfig {
+		t.Fatalf("configuration changed after failed release: %+v", service.config)
+	}
+	if !strings.Contains(service.lastError, "release failed") {
+		t.Fatalf("last error = %q", service.lastError)
 	}
 }
 

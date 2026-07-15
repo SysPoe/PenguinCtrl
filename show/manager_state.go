@@ -5,7 +5,6 @@ import (
 )
 
 func cloneAcknowledgements(input map[string]bool) map[string]bool {
-	// TODO(micro): CloneShow copies the map verbatim (including false); this drops false entries and nils empty maps — pick one acknowledgement-clone policy and reuse it.
 	if len(input) == 0 {
 		return nil
 	}
@@ -37,7 +36,7 @@ func (sm *ShowManager) AcknowledgeProblem(fingerprint string) bool {
 }
 
 func (sm *ShowManager) ProblemAcknowledged(fingerprint string) bool {
-	// TODO(micro): AcknowledgeProblem trims fingerprint; this lookup does not — spaced keys can store true and read back false.
+	fingerprint = strings.TrimSpace(fingerprint)
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 	return sm.show.AcknowledgedProblems[fingerprint]

@@ -1,9 +1,12 @@
 package show
 
 import (
+	"encoding/json"
+	"math"
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/syspoe/cusus/config"
 )
 
@@ -96,8 +99,57 @@ func TestIntegrityDurationAndAcknowledgementFingerprint(t *testing.T) {
 	problem, _ := problemWithCode(problems, "cue.payload.integrity")
 	before := ProblemFingerprint(cue, problem, settings)
 	cue.Description = "changed"
-	after := ProblemFingerprint(cue, problem, settings)
-	if before == after {
-		t.Fatal("problem acknowledgement did not clear after cue edit")
+	settings.RedundancySharedKey = "unrelated-secret-change"
+	if after := ProblemFingerprint(cue, problem, settings); before != after {
+		t.Fatal("unrelated presentation or secret settings churn changed the problem fingerprint")
+	}
+	cue.Play.Sound.LevelDB = 3
+	if after := ProblemFingerprint(cue, problem, settings); before == after {
+		t.Fatal("relevant cue edit did not clear the problem acknowledgement")
+	}
+}
+
+func TestProblemFingerprintHandlesUnencodableCueData(t *testing.T) {
+	cue := validSound("1", "track.wav")
+	cue.Play.Sound.LevelDB = math.NaN()
+	first := ProblemFingerprint(cue, CueProblem{Code: "first"}, config.Defaults())
+	second := ProblemFingerprint(cue, CueProblem{Code: "second"}, config.Defaults())
+	if first == "" || second == "" || first == second {
+		t.Fatalf("fallback fingerprints = %q / %q", first, second)
+	}
+}
+
+func TestMediaWarningsUseMediaFieldAndMissingRelativeCueDoesNotResolve(t *testing.T) {
+	cue := validSound("1", "")
+	problem, ok := problemWithCode(CueProblems(cue, []Cue{cue}), "cue.missing.media.file")
+	if !ok || problem.Field != "media" {
+		t.Fatalf("missing media problem = %#v", problem)
+	}
+	absolute := cue
+	absolute.Link = CueLink{Mode: CueLinkStartPlay, Target: CueTarget{Kind: CueTargetNext}}
+	if linked, ok := linkedCue(absolute, []Cue{cue}); ok {
+		t.Fatalf("absent relative cue resolved to %#v", linked)
+	}
+}
+
+func TestGeneratedIDsAreNonZeroVersionSeven(t *testing.T) {
+	for name, id := range map[string]uuid.UUID{"cue": uuid.UUID(NewCueID()), "group": uuid.UUID(NewGroupID())} {
+		if id == uuid.Nil || id.Version() != 7 {
+			t.Fatalf("%s ID = %v (version %d)", name, id, id.Version())
+		}
+	}
+}
+
+func TestLegacyMediaTargetPresentationFieldsAreNotRepersisted(t *testing.T) {
+	var target MediaTarget
+	if err := json.Unmarshal([]byte(`{"kind":0,"cueId":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"number":"1","title":"Old"}`), &target); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "number") || strings.Contains(string(raw), "title") {
+		t.Fatalf("stale presentation cache was persisted: %s", raw)
 	}
 }

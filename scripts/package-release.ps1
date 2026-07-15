@@ -38,16 +38,31 @@ $windresCommand = Get-Command windres.exe -ErrorAction SilentlyContinue
 if (-not $windresCommand) { throw "windres.exe is required to embed the pinned Windows manifests and resources." }
 $mainResource = Join-Path $root "resource_windows_amd64.syso"
 $supervisorResource = Join-Path $root "cmd/cusus-supervisor/resource_windows_amd64.syso"
-# TODO(macro): Generate both resource/version inputs from $version so Explorer
-# metadata, assembly identity, buildinfo, and release-manifest.json cannot drift.
+$versionParts = $version.Split('-', 2)[0].Split('.')
+$versionCommas = "{0},{1},{2},0" -f $versionParts[0], $versionParts[1], $versionParts[2]
+$generatedMainRC = Join-Path $root "build/windows/.cusus-$PID.rc"
+$generatedSupervisorRC = Join-Path $root "build/windows/.cusus-supervisor-$PID.rc"
+
+function New-VersionResource([string]$Template, [string]$Destination) {
+    (Get-Content -Raw $Template).
+        Replace('@VERSION_COMMAS@', $versionCommas).
+        Replace('@VERSION_STRING@', $version) |
+        Set-Content -Encoding ascii $Destination
+}
+
 Push-Location (Join-Path $root "build/windows")
 try {
-    & $windresCommand.Source --input-format=rc --output-format=coff --target=pe-x86-64 cusus.rc $mainResource
+    New-VersionResource (Join-Path $root "build/windows/cusus.rc") $generatedMainRC
+    New-VersionResource (Join-Path $root "build/windows/supervisor.rc") $generatedSupervisorRC
+    & $windresCommand.Source --input-format=rc --output-format=coff --target=pe-x86-64 $generatedMainRC $mainResource
     if ($LASTEXITCODE -ne 0) { throw "CuSus Windows resource compilation failed." }
-    & $windresCommand.Source --input-format=rc --output-format=coff --target=pe-x86-64 supervisor.rc $supervisorResource
+    & $windresCommand.Source --input-format=rc --output-format=coff --target=pe-x86-64 $generatedSupervisorRC $supervisorResource
     if ($LASTEXITCODE -ne 0) { throw "Supervisor Windows resource compilation failed." }
 }
-finally { Pop-Location }
+finally {
+    Pop-Location
+    Remove-Item -LiteralPath $generatedMainRC, $generatedSupervisorRC -Force -ErrorAction SilentlyContinue
+}
 
 $buildTime = $commitTime.UtcDateTime.ToString("yyyy-MM-ddTHH:mm:ssZ")
 $ldflags = "-s -w -buildid= -X github.com/syspoe/cusus/internal/buildinfo.Version=v$version -X github.com/syspoe/cusus/internal/buildinfo.Commit=$commit -X github.com/syspoe/cusus/internal/buildinfo.BuildTime=$buildTime"
@@ -65,7 +80,6 @@ finally {
 }
 
 Copy-Item (Join-Path $root "scripts/install-release.ps1") (Join-Path $stage "install.ps1")
-# TODO(micro): Add or generate docs/release-notes.md before copying it; this path is absent from the repository, so packaging currently stops here.
 Copy-Item (Join-Path $root "docs/release-notes.md") (Join-Path $stage "RELEASE-NOTES.md")
 
 $modules = & go -C $root list -m -f '{{if not .Main}}{{.Path}}|{{.Version}}|{{.Sum}}{{end}}' all

@@ -57,8 +57,7 @@ func targetCueWarnings(id CueID, cues []Cue) []string {
 func mediaFileWarnings(source string) []string {
 	source = strings.TrimSpace(source)
 	if source == "" {
-		// TODO(micro): Message says "output file" for a media path, so problemForMessage/warningField route Field/Fix to output instead of media.
-		return []string{"Missing output file"}
+		return []string{"Missing media file"}
 	}
 	// A templated path cannot be checked until it is resolved at playback.
 	if strings.Contains(source, "{") {
@@ -67,8 +66,7 @@ func mediaFileWarnings(source string) []string {
 
 	path, err := outputFilePath(source)
 	if err != nil {
-		// TODO(micro): Same mislabel as above — "Invalid output file" should be "Invalid media file" (or a structured CueProblem).
-		return []string{"Invalid output file"}
+		return []string{"Invalid media file"}
 	}
 	if strings.TrimSpace(path) == "" {
 		// TODO(micro): Dead after a successful outputFilePath — Abs("") is non-empty and parse errors already returned above.

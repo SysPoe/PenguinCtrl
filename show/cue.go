@@ -36,15 +36,11 @@ type CueID uuid.UUID
 type GroupID uuid.UUID
 
 func NewCueID() CueID {
-	// TODO(micro): Ignoring uuid.NewV7 error can yield a zero CueID (then flagged as "Missing cue ID"); panic/retry or surface the error.
-	id, _ := uuid.NewV7()
-	return CueID(id)
+	return CueID(uuid.Must(uuid.NewV7()))
 }
 
 func NewGroupID() GroupID {
-	// TODO(micro): Same as NewCueID — ignored NewV7 error can mint a zero GroupID.
-	id, _ := uuid.NewV7()
-	return GroupID(id)
+	return GroupID(uuid.Must(uuid.NewV7()))
 }
 
 type CueType int
