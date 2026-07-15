@@ -16,7 +16,7 @@ func TestAuthorityGateCannotBeOverridden(t *testing.T) {
 	defer engine.Close()
 	engine.SetAuthorityGate(func() error { return errors.New("standby has no command authority") })
 	cue := show.NewWaitCue()
-	if err := engine.enqueueCommand(cue, 0, false, "Operator GO", true); err == nil || !strings.Contains(err.Error(), "no command authority") {
+	if err := engine.enqueueCommand(cue, 0, liveCommand, "Operator GO", overrideBlockers); err == nil || !strings.Contains(err.Error(), "no command authority") {
 		t.Fatalf("override authority result = %v", err)
 	}
 }
@@ -34,7 +34,7 @@ func TestAuthorityIsRecheckedAfterPreWait(t *testing.T) {
 	})
 	cue := show.NewWaitCue()
 	cue.Timing.PreWaitMs = 50
-	if err := engine.enqueueCommand(cue, 0, false, "Operator GO", false); err != nil {
+	if err := engine.enqueueCommand(cue, 0, liveCommand, "Operator GO", rejectBlockers); err != nil {
 		t.Fatal(err)
 	}
 	deadline := time.Now().Add(time.Second)
@@ -57,7 +57,7 @@ func TestRemoteDispatchRunsInsideAuthorityExecutor(t *testing.T) {
 	})
 	cue := show.NewRemoteCue()
 	cue.Play.Remote.Action = show.RemoteActionGo
-	if err := engine.enqueueCommand(cue, 0, false, "Operator GO", false); err != nil {
+	if err := engine.enqueueCommand(cue, 0, liveCommand, "Operator GO", rejectBlockers); err != nil {
 		t.Fatal(err)
 	}
 	select {

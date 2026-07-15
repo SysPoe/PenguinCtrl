@@ -10,7 +10,7 @@ func TestEmergencyResetLatchOnlyRearmsAfterSuccess(t *testing.T) {
 	engine := newLifecycleTestEngine(t)
 
 	engine.BeginEmergencyReset()
-	if !engine.safetyLatched.Load() {
+	if !engine.safety.active() {
 		t.Fatal("emergency reset did not latch playback")
 	}
 	if got := engine.SafetyLatchReason(); got != emergencyResetSafetyReason {
@@ -27,7 +27,7 @@ func TestEmergencyResetLatchOnlyRearmsAfterSuccess(t *testing.T) {
 	if got := engine.SafetyLatchReason(); got != "" {
 		t.Fatalf("successful reset left safety latch active: %q", got)
 	}
-	if engine.safetyLatched.Load() {
+	if engine.safety.active() {
 		t.Fatal("successful reset did not rearm playback")
 	}
 }

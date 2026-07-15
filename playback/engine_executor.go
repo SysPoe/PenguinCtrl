@@ -45,7 +45,7 @@ func (e *Engine) execute(next command) {
 	if !e.cueRunCurrent(next.run) {
 		return
 	}
-	if !next.preview {
+	if !next.intent.preview() {
 		if err := e.checkAuthority(next.cue, next.origin); err != nil {
 			return
 		}
@@ -242,7 +242,7 @@ func (e *Engine) scheduleLink(source show.Cue, sourceIndex int, delayMs int64, m
 		}
 		e.manager.SelectCue(targetIndex)
 		e.changed()
-		if err := e.enqueue(target, targetIndex, "Cue link from "+cueDisplayNumber(source)); err != nil {
+		if err := e.enqueueCommand(target, targetIndex, liveCommand, "Cue link from "+cueDisplayNumber(source), rejectBlockers); err != nil {
 			return
 		}
 	})

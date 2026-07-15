@@ -46,7 +46,7 @@ func TestCommandHistoryCapturesAcceptedDispatchAndCompletion(t *testing.T) {
 	cue.Link.Mode = show.CueLinkManual
 	cue.Play.Wait.DurationMs = 1
 
-	if err := engine.enqueueCommand(cue, 0, false, "Audit test", false); err != nil {
+	if err := engine.enqueueCommand(cue, 0, liveCommand, "Audit test", rejectBlockers); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)

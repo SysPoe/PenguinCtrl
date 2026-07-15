@@ -4,17 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
-	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/show"
 )
 
-// TODO(macro): engine_scheduler.go still conflates the command worker, GO admission
-// (gates/validation/override), preview session state, and safety latch / E-STOP
-// policy. Extract Admission and SafetyLatch so "scheduler" is only the queue worker
-// and sequence assignment, not show-stopping safety and preview UX.
+// TODO(macro): engine_scheduler.go still mixes command queueing with preview
+// session state. Extract PreviewSession so the scheduler owns only the worker,
+// sequence assignment, and accepted-command handoff.
 func (e *Engine) run() {
 	defer close(e.done)
 	for {
@@ -28,23 +25,23 @@ func (e *Engine) run() {
 }
 
 func (e *Engine) PlaySelected() error {
-	return e.playSelected(false)
+	return e.playSelected(rejectBlockers)
 }
 
 // PlaySelectedOverride accepts the selected cue even when validation or the
 // signed readiness barrier reports blockers.
 func (e *Engine) PlaySelectedOverride() error {
-	return e.playSelected(true)
+	return e.playSelected(overrideBlockers)
 }
 
-func (e *Engine) playSelected(override bool) error {
+func (e *Engine) playSelected(blocker blockerPolicy) error {
 	cue, index, ok := e.manager.SelectedCueCopy()
 	if !ok {
 		err := errors.New("no cue is selected")
 		e.recordError("Operator GO", err)
 		return err
 	}
-	return e.enqueueCommand(cue, index, false, "Operator GO", override)
+	return e.enqueueCommand(cue, index, liveCommand, "Operator GO", blocker)
 }
 
 func (e *Engine) PlayIndex(index int) error {
@@ -54,7 +51,7 @@ func (e *Engine) PlayIndex(index int) error {
 		e.recordError("Operator GO", err)
 		return err
 	}
-	return e.enqueue(cues[index], index, "Operator GO")
+	return e.enqueueCommand(cues[index], index, liveCommand, "Operator GO", rejectBlockers)
 }
 
 func (e *Engine) PlayCueID(id show.CueID) error {
@@ -64,7 +61,7 @@ func (e *Engine) PlayCueID(id show.CueID) error {
 		e.recordError("Operator GO", err)
 		return err
 	}
-	return e.enqueue(cue, index, "Operator GO")
+	return e.enqueueCommand(cue, index, liveCommand, "Operator GO", rejectBlockers)
 }
 
 // TogglePreview starts or pauses a sound-cue preview. Timecode and cue links
@@ -100,7 +97,7 @@ func (e *Engine) TogglePreview(cue show.Cue) (bool, error) {
 	e.mu.Lock()
 	e.previewCueID, e.previewPaused = preview.ID, false
 	e.mu.Unlock()
-	if err := e.enqueueCommand(preview, -1, true, "Preview", false); err != nil {
+	if err := e.enqueueCommand(preview, -1, previewCommand, "Preview", rejectBlockers); err != nil {
 		e.mu.Lock()
 		e.previewCueID = show.CueID{}
 		e.mu.Unlock()
@@ -119,13 +116,8 @@ func (e *Engine) StopPreview() {
 	}
 }
 
-// TODO(micro): one-line wrapper of enqueueCommand(..., false); inline at call sites if call count stays tiny
-func (e *Engine) enqueue(cue show.Cue, index int, origin string) error {
-	return e.enqueueCommand(cue, index, false, origin, false)
-}
-
-func (e *Engine) enqueueCommand(cue show.Cue, index int, preview bool, origin string, override bool) error {
-	if err := e.admitCommand(cue, preview, origin, override); err != nil {
+func (e *Engine) enqueueCommand(cue show.Cue, index int, intent commandIntent, origin string, blocker blockerPolicy) error {
+	if err := e.admitCommand(admissionRequest{cue: cue, origin: origin, intent: intent, blocker: blocker}); err != nil {
 		return err
 	}
 	run, stopped := e.beginCueRun(cue.ID)
@@ -137,12 +129,12 @@ func (e *Engine) enqueueCommand(cue show.Cue, index int, preview bool, origin st
 		e.signalState()
 	}
 	err := e.enqueueAcceptedCommand(command{
-		cue: cue, index: index, run: run, preview: preview,
+		cue: cue, index: index, run: run, intent: intent,
 		origin: origin, runOwner: commandOwnsRun,
 	})
 	if err != nil {
 		e.finishCueRun(run, runAborted)
-		if !preview {
+		if !intent.preview() {
 			e.recordCueError(cue, origin, err)
 		}
 	}
@@ -156,65 +148,17 @@ func (e *Engine) enqueueEmbeddedCommand(cue show.Cue, index int, origin string, 
 	if run.ctx == nil || run.ctx.Err() != nil || !e.cueRunCurrent(run) {
 		return context.Canceled
 	}
-	if err := e.admitCommand(cue, false, origin, false); err != nil {
+	if err := e.admitCommand(admissionRequest{cue: cue, origin: origin, intent: liveCommand, blocker: rejectBlockers}); err != nil {
 		return err
 	}
 	err := e.enqueueAcceptedCommand(command{
-		cue: cue, index: index, run: run,
+		cue: cue, index: index, run: run, intent: liveCommand,
 		origin: origin, runOwner: commandSharesRun,
 	})
 	if err != nil {
 		e.recordCueError(cue, origin, err)
 	}
 	return err
-}
-
-func (e *Engine) admitCommand(cue show.Cue, preview bool, origin string, override bool) error {
-	if e.safetyLatched.Load() {
-		err := errors.New("playback safety latch is active: " + e.SafetyLatchReason())
-		if !preview {
-			e.recordCueError(cue, origin, err)
-		}
-		return err
-	}
-	// TODO(micro): merge consecutive if !preview { ... } blocks (authority, preflight, validation) into one non-preview gate
-	if !preview {
-		if err := e.checkAuthority(cue, origin); err != nil {
-			return err
-		}
-	}
-	if !preview {
-		e.mu.RLock()
-		gate := e.preflightGate
-		e.mu.RUnlock()
-		if gate != nil {
-			if err := gate(cue); err != nil {
-				if !override {
-					e.recordCueError(cue, origin+" · preflight", err)
-					return err
-				}
-				if log := e.operatorLogStore(); log != nil {
-					log.Add(operatorlog.Warning, origin+" · preflight override", "GO override accepted despite: "+err.Error(), cue.ID, cue.CueNumber)
-				}
-			}
-		}
-	}
-	if !preview {
-		problems := e.CueProblems(cue)
-		blockers, cautions := problemMessages(problems, show.ProblemBlocker), problemMessages(problems, show.ProblemCaution)
-		if len(blockers) > 0 && !override {
-			err := fmt.Errorf("cue blocked: %s", strings.Join(blockers, "; "))
-			e.recordCueError(cue, origin+" · validation", err)
-			return err
-		}
-		if log := e.operatorLogStore(); len(blockers) > 0 && override && log != nil {
-			log.Add(operatorlog.Warning, origin+" · override", "GO override accepted despite: "+strings.Join(blockers, "; "), cue.ID, cue.CueNumber)
-		}
-		if log := e.operatorLogStore(); len(cautions) > 0 && log != nil {
-			log.Add(operatorlog.Warning, origin+" · caution", strings.Join(cautions, "; "), cue.ID, cue.CueNumber)
-		}
-	}
-	return nil
 }
 
 func (e *Engine) enqueueAcceptedCommand(next command) error {
@@ -234,87 +178,4 @@ func (e *Engine) enqueueAcceptedCommand(next command) error {
 		e.enqueueMu.Unlock()
 		return errors.New("playback command queue is full")
 	}
-}
-
-func (e *Engine) checkAuthority(cue show.Cue, origin string) error {
-	e.mu.RLock()
-	gate := e.authorityGate
-	e.mu.RUnlock()
-	if gate == nil {
-		return nil
-	}
-	if err := gate(); err != nil {
-		e.recordCueError(cue, origin+" · command authority", err)
-		return err
-	}
-	return nil
-}
-
-func (e *Engine) LatchClockDiscontinuity(gap time.Duration) {
-	if !e.safetyLatched.CompareAndSwap(false, true) {
-		return
-	}
-	reason := fmt.Sprintf("system resume or scheduler gap detected (%s); outputs stopped", gap.Round(time.Millisecond))
-	e.safetyReason.Store(reason)
-	e.StopAll()
-	e.recordOperatorError(operatorlog.ShowStopping, "Playback safety", errors.New(reason), show.CueID{}, "")
-}
-
-const emergencyResetSafetyReason = "E-STOP active; media outputs are reinitializing"
-
-// BeginEmergencyReset prevents new playback from starting while the media
-// manager force-closes and recreates its decoder and audio resources.
-func (e *Engine) BeginEmergencyReset() {
-	e.mu.Lock()
-	if !e.resetActive {
-		e.resetPrior = e.SafetyLatchReason()
-		e.resetActive = true
-	}
-	e.mu.Unlock()
-	e.safetyLatched.Store(true)
-	e.safetyReason.Store(emergencyResetSafetyReason)
-	e.StopAll()
-	e.changed()
-}
-
-// CompleteEmergencyReset rearms playback only when the E-STOP reset succeeded.
-// A failed reset remains latched so GO cannot target a broken backend.
-func (e *Engine) CompleteEmergencyReset(err error) {
-	if err != nil {
-		reason := "E-STOP reset failed: " + err.Error()
-		e.safetyReason.Store(reason)
-		e.recordOperatorError(operatorlog.ShowStopping, "E-STOP", errors.New(reason), show.CueID{}, "")
-		return
-	}
-	e.mu.Lock()
-	prior := e.resetPrior
-	e.resetPrior = ""
-	e.resetActive = false
-	e.mu.Unlock()
-	if e.SafetyLatchReason() == emergencyResetSafetyReason {
-		if prior != "" {
-			e.safetyLatched.Store(true)
-			e.safetyReason.Store(prior)
-			e.changed()
-			return
-		}
-		e.safetyLatched.Store(false)
-		e.safetyReason.Store("")
-		e.changed()
-	}
-}
-
-func (e *Engine) SafetyLatchReason() string {
-	value := e.safetyReason.Load()
-	if value == nil {
-		return ""
-	}
-	// TODO(micro): use comma-ok type assert; a non-string store would panic
-	return value.(string)
-}
-
-func (e *Engine) AcknowledgeSafetyLatch() {
-	e.safetyLatched.Store(false)
-	e.safetyReason.Store("")
-	e.changed()
 }

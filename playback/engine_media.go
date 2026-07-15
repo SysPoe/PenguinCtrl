@@ -26,7 +26,7 @@ func (e *Engine) startMedia(next command) error {
 	instance := &Instance{
 		ID: uuid.NewString(), CueID: cue.ID, GroupID: cue.GroupID, CueNumber: cue.CueNumber, CueIndex: cueIndex, Link: cue.Link, PostWaitMs: cue.Timing.PostWaitMs,
 		LayerOrder: next.sequence,
-		Preview:    next.preview, run: next.run,
+		Preview:    next.intent.preview(), run: next.run,
 		// TODO(micro): "loading" magic string; share media.LoadLoading (or a playback const) instead of free text
 		StartedAt: now, RequestedAt: now, PositionAt: now, LoadState: "loading", Cue: show.CloneCue(cue),
 	}

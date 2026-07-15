@@ -106,7 +106,7 @@ func (a *commandAudit) accept(next command) {
 	}
 	a.history = append(a.history, CommandRecord{
 		Sequence: next.sequence, CueID: next.cue.ID, CueNumber: next.cue.CueNumber,
-		Origin: next.origin, Preview: next.preview, AcceptedAt: next.acceptedAt,
+		Origin: next.origin, Preview: next.intent.preview(), AcceptedAt: next.acceptedAt,
 	})
 	if len(a.history) > commandHistoryLimit {
 		copy(a.history, a.history[len(a.history)-commandHistoryLimit:])

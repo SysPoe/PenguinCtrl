@@ -18,7 +18,7 @@ type command struct {
 	cue        show.Cue
 	index      int
 	run        cueRunToken
-	preview    bool
+	intent     commandIntent
 	origin     string
 	sequence   uint64
 	acceptedAt time.Time
@@ -32,14 +32,14 @@ type Timeline interface {
 }
 
 // TODO(macro): Keep Engine as a facade, but move scheduling, runtime instances,
-// media validation, output state, and safety gates into owned components with
-// explicit snapshots. One broad state lock and 80+ methods currently couple
-// otherwise independent policies and make their lifecycle ordering implicit.
-// TODO(macro): Engine is a god object (~50 fields) spanning command admission,
-// instance registry, output pub/sub, media-metadata caches, dispatch sequencing,
-// safety latch, preview, remote I/O ownership, and validation context. Compose
-// named collaborators (registry, sequencer, mediaCache, safety, outputs) instead
-// of growing one mutex-guarded bag; the engine_*.go split only partitions methods.
+// media validation, and output state into owned components with explicit
+// snapshots. One broad state lock still couples otherwise independent policies
+// and makes their lifecycle ordering implicit.
+// TODO(macro): Engine remains a god object spanning the instance registry, output
+// pub/sub, media-metadata caches, dispatch sequencing, preview, remote I/O
+// ownership, and validation context. Compose named collaborators (registry,
+// mediaCache, outputs) instead of growing one mutex-guarded bag; the engine_*.go
+// split only partitions methods.
 // TODO(macro): Consumers (ui/, media/, health) depend on *Engine concrete type
 // with no read-only vs control ports. Introduce narrow interfaces (e.g. RuntimeQuery,
 // OperatorControls, OutputBus) so UI snapshots and media backends stop coupling to
@@ -87,16 +87,12 @@ type Engine struct {
 	previewCueID        show.CueID
 	previewPaused       bool
 	runs                *cueRunTable
-	safetyLatched       atomic.Bool
-	safetyReason        atomic.Value
-	resetActive         bool
-	resetPrior          string
+	safety              *safetyLatch
 	enqueueMu           sync.Mutex
 	nextCommandSequence uint64
 	dispatch            *dispatchSequencer
 	audit               *commandAudit
-	preflightGate       func(show.Cue) error
-	authorityGate       func() error
+	admission           *admissionGates
 	remoteAuthority     func(func() error) error
 	timeline            Timeline
 }
@@ -107,7 +103,7 @@ func NewEngine(manager *show.ShowManager, settings *config.Store) *Engine {
 	return &Engine{
 		manager: manager, settings: settings, remote: remote.NewDispatcher(settings),
 		commands: make(chan command, 64), ctx: ctx, cancel: cancel, runCtx: runCtx, runCancel: runCancel, done: make(chan struct{}),
-		hub: newEventHub(), instances: map[string]*Instance{}, executions: map[string]*CueExecution{}, outputVisuals: map[string]Event{}, outputWindows: map[string]Event{}, durations: map[show.CueID]int64{}, runs: newCueRunTable(),
+		hub: newEventHub(), instances: map[string]*Instance{}, executions: map[string]*CueExecution{}, outputVisuals: map[string]Event{}, outputWindows: map[string]Event{}, durations: map[show.CueID]int64{}, runs: newCueRunTable(), safety: newSafetyLatch(), admission: &admissionGates{},
 		durationKeys: map[show.CueID]string{}, durationPending: map[show.CueID]string{}, durationErrors: map[show.CueID]string{},
 		mediaValidated: map[show.CueID]string{}, mediaPending: map[show.CueID]string{}, mediaErrors: map[show.CueID]string{}, stateEvent: make(chan struct{}, 1),
 		mediaProbeSlots: make(chan struct{}, 1),
@@ -171,20 +167,6 @@ func (e *Engine) operatorLogStore() *operatorlog.Store {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	return e.operatorLog
-}
-
-func (e *Engine) SetPreflightGate(gate func(show.Cue) error) {
-	e.mu.Lock()
-	e.preflightGate = gate
-	e.mu.Unlock()
-}
-
-// SetAuthorityGate installs a non-overridable command-ownership barrier. It
-// is checked both when a cue is accepted and immediately before execution.
-func (e *Engine) SetAuthorityGate(gate func() error) {
-	e.mu.Lock()
-	e.authorityGate = gate
-	e.mu.Unlock()
 }
 
 // SetRemoteAuthorityExecutor keeps distributed command ownership held across
