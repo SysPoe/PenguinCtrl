@@ -8,12 +8,13 @@ import (
 
 	"github.com/syspoe/cusus/config"
 	"github.com/syspoe/cusus/project"
+	"github.com/syspoe/cusus/redundancy"
 	"github.com/syspoe/cusus/show"
 )
 
 func TestRedundancyFingerprintRejectsUnencodableShow(t *testing.T) {
 	current := show.Show{Extensions: map[string]json.RawMessage{"invalid": json.RawMessage(`{`)}}
-	if _, err := buildRedundancyFingerprint(current, config.Defaults(), nil, true); err == nil {
+	if _, err := redundancy.BuildFingerprint(current, config.Defaults(), nil, true); err == nil {
 		t.Fatal("invalid show produced a redundancy fingerprint")
 	}
 }
@@ -25,14 +26,14 @@ func TestRedundancyFingerprintRequiresEveryReferencedMediaHash(t *testing.T) {
 		Play: show.CuePlay{Sound: &show.SoundPlay{MediaClip: show.MediaClip{File: path}}},
 	}}}
 	settings := config.Defaults()
-	missing, err := buildRedundancyFingerprint(current, settings, nil, true)
+	missing, err := redundancy.BuildFingerprint(current, settings, nil, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if missing.Ready {
 		t.Fatal("fingerprint was ready without a content hash for referenced media")
 	}
-	ready, err := buildRedundancyFingerprint(current, settings, []project.File{{Source: path, Hash: strings.Repeat("a", 64), Kind: "audio"}}, true)
+	ready, err := redundancy.BuildFingerprint(current, settings, []project.File{{Source: path, Hash: strings.Repeat("a", 64), Kind: "audio"}}, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +48,7 @@ func TestRedundancyFingerprintUsesContentNotMachineLocalPath(t *testing.T) {
 	settings := config.Defaults()
 	cueID := show.NewCueID()
 	contentHash := strings.Repeat("b", 64)
-	first, err := buildRedundancyFingerprint(
+	first, err := redundancy.BuildFingerprint(
 		show.Show{Cues: []show.Cue{{ID: cueID, Type: show.CueTypeSound, Play: show.CuePlay{Sound: &show.SoundPlay{MediaClip: show.MediaClip{File: firstPath}}}}}},
 		settings, []project.File{{Source: firstPath, Hash: contentHash, Kind: "audio"}}, true,
 	)
@@ -55,7 +56,7 @@ func TestRedundancyFingerprintUsesContentNotMachineLocalPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	secondShow := show.Show{Cues: []show.Cue{{ID: cueID, Type: show.CueTypeSound, Play: show.CuePlay{Sound: &show.SoundPlay{MediaClip: show.MediaClip{File: secondPath}}}}}}
-	second, err := buildRedundancyFingerprint(secondShow, settings, []project.File{{Source: secondPath, Hash: contentHash, Kind: "audio"}}, true)
+	second, err := redundancy.BuildFingerprint(secondShow, settings, []project.File{{Source: secondPath, Hash: contentHash, Kind: "audio"}}, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +67,7 @@ func TestRedundancyFingerprintUsesContentNotMachineLocalPath(t *testing.T) {
 		t.Fatalf("machine-local extracted paths changed logical show digest: %s != %s", first.Show, second.Show)
 	}
 	secondShow.AcknowledgedProblems = map[string]bool{"operator-local-warning": true}
-	acknowledged, err := buildRedundancyFingerprint(secondShow, settings, []project.File{{Source: secondPath, Hash: contentHash, Kind: "audio"}}, true)
+	acknowledged, err := redundancy.BuildFingerprint(secondShow, settings, []project.File{{Source: secondPath, Hash: contentHash, Kind: "audio"}}, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,16 +78,16 @@ func TestRedundancyFingerprintUsesContentNotMachineLocalPath(t *testing.T) {
 
 func TestRedundancyRoutingFingerprintChangesWithOutputMapping(t *testing.T) {
 	settings := config.Defaults()
-	first, err := redundancyRoutingDigest(settings)
+	first, err := redundancy.BuildFingerprint(show.Show{}, settings, nil, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	settings.VideoOutputs[0].DisplayID = "projector-b"
-	second, err := redundancyRoutingDigest(settings)
+	second, err := redundancy.BuildFingerprint(show.Show{}, settings, nil, true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first == second {
+	if first.Routing == second.Routing {
 		t.Fatal("display mapping change did not alter routing fingerprint")
 	}
 }
