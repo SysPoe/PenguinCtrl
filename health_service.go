@@ -12,6 +12,7 @@ import (
 	"github.com/syspoe/cusus/media"
 	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/playback"
+	"github.com/syspoe/cusus/project"
 	"github.com/syspoe/cusus/redundancy"
 	"github.com/syspoe/cusus/timecode"
 )
@@ -225,10 +226,6 @@ func remoteTargetHealth(engine *playback.Engine) []health.Component {
 	return result
 }
 
-// TODO(macro): diskHealth (and diskPreflight) call package-main diskAvailableBytes while
-// project already has cache_space_* free-space helpers — platform disk I/O is duplicated across
-// main and project. Own free-space under project/cache or internal/platform and have both health
-// and preflight call that single boundary.
 func diskHealth(settings config.Settings) health.Component {
 	component := health.Component{ID: "disk-cache", Kind: "disk", Name: "Cache volume", State: health.Normal, Summary: "Free-space reserve is available", Action: "Close playback, clear unreferenced cache, or move shows to a volume with more free space"}
 	root, err := os.UserCacheDir()
@@ -236,7 +233,7 @@ func diskHealth(settings config.Settings) health.Component {
 		root = filepath.Join(root, "CuSus")
 		if err = os.MkdirAll(root, 0o755); err == nil {
 			var available uint64
-			available, err = diskAvailableBytes(root)
+			available, err = project.AvailableBytes(root)
 			reserve := uint64(settings.CacheReserveGB) << 30
 			component.Details = map[string]any{"path": root, "availableBytes": available, "reserveBytes": reserve}
 			if err == nil && available < reserve {

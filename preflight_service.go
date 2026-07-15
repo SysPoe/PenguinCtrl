@@ -240,7 +240,7 @@ func diskPreflight(cues []show.Cue, settings config.Settings) []operatorlog.Pref
 			}
 		}
 	}
-	available, err := diskAvailableBytes(cacheRoot)
+	available, err := project.AvailableBytes(cacheRoot)
 	if err != nil {
 		return diskCaution("Free space could not be measured: " + err.Error())
 	}
