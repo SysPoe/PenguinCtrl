@@ -136,7 +136,7 @@ func (s *preflightService) Gate(current show.Show, selected show.Cue) error {
 	if snapshot.Key != expected || snapshot.ShowDigest != digest || !hmac.Equal(snapshot.Signature[:], expectedSignature[:]) {
 		return errors.New("signed preflight is stale or still computing")
 	}
-	reachable := reachableCueIDs(current.Cues, selected.ID)
+	reachable := show.ReachableCueIDs(current.Cues, selected.ID)
 	for _, check := range snapshot.Checks {
 		if check.Severity == operatorlog.ShowStopping && preflightCheckApplies(check, reachable) {
 			return fmt.Errorf("preflight blocked: %s: %s", check.Source, check.Message)
@@ -159,38 +159,6 @@ func preflightCheckApplies(check operatorlog.PreflightCheck, reachable map[show.
 		}
 	}
 	return false
-}
-
-func reachableCueIDs(cues []show.Cue, start show.CueID) map[show.CueID]struct{} {
-	result := make(map[show.CueID]struct{})
-	indexByID := make(map[show.CueID]int, len(cues))
-	for index := range cues {
-		indexByID[cues[index].ID] = index
-	}
-	index, ok := indexByID[start]
-	for ok && index >= 0 && index < len(cues) {
-		cue := cues[index]
-		if _, seen := result[cue.ID]; seen {
-			break
-		}
-		result[cue.ID] = struct{}{}
-		switch cue.Link.Mode {
-		case show.CueLinkStartPlay, show.CueLinkFadeInPlay, show.CueLinkFadeOutPlay, show.CueLinkEndPlay:
-		default:
-			return result
-		}
-		switch cue.Link.Target.Kind {
-		case show.CueTargetNone, show.CueTargetNext:
-			index++
-		case show.CueTargetPrevious:
-			index--
-		case show.CueTargetCue:
-			index, ok = indexByID[cue.Link.Target.CueID]
-		default:
-			return result
-		}
-	}
-	return result
 }
 
 func (s *preflightService) sign(snapshot preflightSnapshot) ([sha256.Size]byte, error) {
