@@ -2,14 +2,12 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
 	"image"
 	"io"
 	"log"
 	"os"
 	"strings"
-	"sync"
 	"time"
 
 	"gioui.org/app"
@@ -78,27 +76,11 @@ func (a *App) run(window *app.Window) error {
 			return false
 		}
 	}
-	// TODO(macro): Document path, lastSavedDigest, suppressJournal, and saveMu are ad-hoc
-	// session state closed over by nested load/save/new closures. Promote to an explicit type
-	// owned by project/document so dirty tracking and journal coordination are not reimplemented
-	// inside the UI loop and health provider.
-	var documentMu sync.RWMutex
-	var saveMu sync.Mutex
-	digestShow := func(current show.Show) [sha256.Size]byte {
-		digest, err := current.Digest()
-		if err == nil {
-			return digest
-		}
-		return sha256.Sum256([]byte("invalid-show:" + err.Error()))
-	}
-	currentShowPath := a.RecoveredPath
-	lastSavedDigest := digestShow(manager.ShowSnapshot())
+	document := newDocumentSession(a.RecoveredPath, manager.ShowSnapshot(), a.Recovered)
 	if a.Recovered {
-		lastSavedDigest = [sha256.Size]byte{}
 		operatorPanel.SetStatus("Recovered unsaved show edits · save to confirm recovery")
-		operatorEvents.Diagnostic("Edit recovery", "Recovered unsaved show edits", map[string]any{"documentPath": currentShowPath})
+		operatorEvents.Diagnostic("Edit recovery", "Recovered unsaved show edits", map[string]any{"documentPath": document.pathSnapshot()})
 	}
-	var suppressJournal bool
 	var documentGuard ui.DocumentGuard
 	var closeInterceptor windowCloseInterceptor
 	closeRequests := make(chan struct{}, 1)
@@ -109,9 +91,7 @@ func (a *App) run(window *app.Window) error {
 	var safetyResume widget.Clickable
 	lastFrameAt := time.Now()
 	healthMonitor := newHealthService(func() []health.Component {
-		documentMu.RLock()
-		path, dirty := currentShowPath, digestShow(manager.ShowSnapshot()) != lastSavedDigest
-		documentMu.RUnlock()
+		path, dirty, _ := document.status(manager.ShowSnapshot())
 		return collectHealthComponents(playbackEngine, mediaManager, a.Timecode, a.Redundancy, settingsStore.Snapshot(), path, dirty)
 	})
 	defer healthMonitor.Close()
@@ -164,9 +144,7 @@ func (a *App) run(window *app.Window) error {
 	operatorEvents.SetOnChange(window.Invalidate)
 	manager.SetOnChange(func() {
 		snapshot := manager.ShowSnapshot()
-		documentMu.RLock()
-		path, suppressed, dirty := currentShowPath, suppressJournal, digestShow(snapshot) != lastSavedDigest
-		documentMu.RUnlock()
+		path, dirty, suppressed := document.status(snapshot)
 		if !suppressed && dirty && a.Journal != nil {
 			if err := a.Journal.RecordDirty(snapshot, path); err != nil {
 				operatorEvents.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
@@ -197,14 +175,7 @@ func (a *App) run(window *app.Window) error {
 			}
 			defer func() { _ = file.Close() }()
 
-			// TODO(micro): Duplicates explorerPath type-switch without LocalPath; use explorerPath(file) and drop this branch.
-			path := ""
-			switch f := file.(type) {
-			case *explorer.File:
-				path = f.URI()
-			case *os.File:
-				path = f.Name()
-			}
+			path := explorerPath(file)
 			if path == "" || selected == nil {
 				return
 			}
@@ -264,15 +235,9 @@ func (a *App) run(window *app.Window) error {
 			postUI(ctx, func() {
 				playbackEngine.StopAll()
 				projectLibrary.Replace(files)
-				documentMu.Lock()
-				suppressJournal = true
-				documentMu.Unlock()
+				document.beginReplace()
 				manager.ReplaceShow(manifest.Show)
-				documentMu.Lock()
-				currentShowPath = loadedPath
-				lastSavedDigest = digestShow(manifest.Show)
-				suppressJournal = false
-				documentMu.Unlock()
+				document.finishReplace(loadedPath, manifest.Show)
 				if a.Journal != nil {
 					if err := a.Journal.MarkSaved(manifest.Show, loadedPath); err != nil {
 						operatorEvents.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
@@ -316,22 +281,20 @@ func (a *App) run(window *app.Window) error {
 			}
 			postUI(ctx, func() { operatorPanel.SetStatus("Saving and optimizing bundled media…") })
 			snapshot := manager.ShowSnapshot()
-			saveMu.Lock()
-			manifest, err := project.SaveAtPathWithProgress(path, snapshot, settingsStore.Snapshot().FFmpegPath, func(progress project.SaveProgress) {
-				status := formatSaveProgress(path, progress)
-				postUI(ctx, func() { operatorPanel.SetStatus(status) })
+			var manifest project.Manifest
+			document.serializeSave(func() {
+				manifest, err = project.SaveAtPathWithProgress(path, snapshot, settingsStore.Snapshot().FFmpegPath, func(progress project.SaveProgress) {
+					status := formatSaveProgress(path, progress)
+					postUI(ctx, func() { operatorPanel.SetStatus(status) })
+				})
 			})
-			saveMu.Unlock()
 			if err != nil {
 				operatorEvents.Add(operatorlog.Recoverable, "FFmpeg / save show", err.Error(), show.CueID{}, "")
 				postUI(ctx, func() { operatorPanel.SetStatus("Save failed: " + err.Error()) })
 				complete(ctx, false)
 				return
 			}
-			documentMu.Lock()
-			currentShowPath = path
-			lastSavedDigest = digestShow(snapshot)
-			documentMu.Unlock()
+			document.markSaved(path, snapshot)
 			if a.Journal != nil {
 				if err := a.Journal.MarkSaved(snapshot, path); err != nil {
 					operatorEvents.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
@@ -346,9 +309,7 @@ func (a *App) run(window *app.Window) error {
 	}
 
 	saveShow = func(done func(bool)) {
-		documentMu.RLock()
-		path := currentShowPath
-		documentMu.RUnlock()
+		path := document.pathSnapshot()
 		if path == "" {
 			saveAsShow(done)
 			return
@@ -356,12 +317,13 @@ func (a *App) run(window *app.Window) error {
 		tasks.Go("save-show", func(ctx context.Context) {
 			snapshot := manager.ShowSnapshot()
 			postUI(ctx, func() { operatorPanel.SetStatus("Saving " + documentName(path) + "…") })
-			saveMu.Lock()
-			manifest, err := project.SaveAtPathWithProgress(path, snapshot, settingsStore.Snapshot().FFmpegPath, func(progress project.SaveProgress) {
-				status := formatSaveProgress(path, progress)
-				postUI(ctx, func() { operatorPanel.SetStatus(status) })
+			var manifest project.Manifest
+			document.serializeSave(func() {
+				manifest, err = project.SaveAtPathWithProgress(path, snapshot, settingsStore.Snapshot().FFmpegPath, func(progress project.SaveProgress) {
+					status := formatSaveProgress(path, progress)
+					postUI(ctx, func() { operatorPanel.SetStatus(status) })
+				})
 			})
-			saveMu.Unlock()
 			if err != nil {
 				operatorEvents.Add(operatorlog.Recoverable, "Save show", err.Error(), show.CueID{}, "")
 				postUI(ctx, func() { operatorPanel.SetStatus("Save failed: " + err.Error()) })
@@ -370,9 +332,7 @@ func (a *App) run(window *app.Window) error {
 				}
 				return
 			}
-			documentMu.Lock()
-			lastSavedDigest = digestShow(snapshot)
-			documentMu.Unlock()
+			document.markSaved("", snapshot)
 			if a.Journal != nil {
 				if err := a.Journal.MarkSaved(snapshot, path); err != nil {
 					operatorEvents.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
@@ -391,15 +351,9 @@ func (a *App) run(window *app.Window) error {
 	performNew := func() {
 		playbackEngine.StopAll()
 		projectLibrary.Replace(nil)
-		documentMu.Lock()
-		suppressJournal = true
-		documentMu.Unlock()
+		document.beginReplace()
 		manager.ReplaceShow(show.Show{})
-		documentMu.Lock()
-		currentShowPath = ""
-		lastSavedDigest = digestShow(show.Show{})
-		suppressJournal = false
-		documentMu.Unlock()
+		document.finishReplace("", show.Show{})
 		if a.Journal != nil {
 			_ = a.Journal.MarkSaved(show.Show{}, "")
 		}
@@ -442,9 +396,7 @@ func (a *App) run(window *app.Window) error {
 		select {
 		case <-closeRequests:
 			snapshot := manager.ShowSnapshot()
-			documentMu.RLock()
-			dirty := digestShow(snapshot) != lastSavedDigest
-			documentMu.RUnlock()
+			_, dirty, _ := document.status(snapshot)
 			if documentGuard.Request(ui.DocumentActionClose, dirty) {
 				if err := closeInterceptor.AllowAndClose(); err != nil {
 					operatorEvents.Add(operatorlog.Recoverable, "Close protection", err.Error(), show.CueID{}, "")
@@ -456,9 +408,7 @@ func (a *App) run(window *app.Window) error {
 		switch e := e.(type) {
 		case app.DestroyEvent:
 			snapshot := manager.ShowSnapshot()
-			documentMu.RLock()
-			path, dirty := currentShowPath, digestShow(snapshot) != lastSavedDigest
-			documentMu.RUnlock()
+			path, dirty, _ := document.status(snapshot)
 			if dirty && a.Journal != nil {
 				if err := a.Journal.RecordDirty(snapshot, path); err != nil {
 					operatorEvents.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
@@ -609,9 +559,7 @@ func (a *App) run(window *app.Window) error {
 				preflight[i].Acknowledged = manager.ProblemAcknowledged(preflight[i].Fingerprint)
 			}
 			a.handleCueListShortcuts(gtx)
-			documentMu.RLock()
-			dirty := digestShow(showState) != lastSavedDigest
-			documentMu.RUnlock()
+			_, dirty, _ := document.status(showState)
 			if !documentGuard.Visible() {
 				if topBar.TakeNewRequest() && documentGuard.Request(ui.DocumentActionNew, dirty) {
 					performNew()

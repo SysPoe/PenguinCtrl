@@ -42,7 +42,6 @@ func formatSaveProgress(path string, progress project.SaveProgress) string {
 
 func explorerPath(file any) string {
 	var source string
-	// TODO(micro): window_loop PickFile/loadShow reimplement this *explorer.File/*os.File switch; call explorerPath instead.
 	switch file := file.(type) {
 	case *explorer.File:
 		source = file.URI()
