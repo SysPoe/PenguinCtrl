@@ -43,13 +43,13 @@ func (a *App) run(window *app.Window) error {
 	topBar := &a.UI.TopBar
 	playbackSidebar := &a.UI.PlaybackSidebar
 	tbCtx := &a.UI.TBContext
-	manager := a.Show
-	settingsStore := a.Settings
-	playbackEngine := a.Playback
-	mediaManager := a.Media
+	manager := a.Document.Show
+	settingsStore := a.Document.Settings
+	playbackEngine := a.Playback.Engine
+	mediaManager := a.Playback.Media
 	settingsPage := a.UI.SettingsPage
 	projectLibrary := a.UI.ProjectLibrary
-	operatorEvents := a.OperatorLog
+	operatorEvents := a.Operator.Log
 	operatorPanel := &a.UI.OperatorPanel
 	topBar.SetStatusSink(operatorPanel.SetStatus)
 	audioWarningSettings := &a.UI.AudioWarningSettings
@@ -76,8 +76,8 @@ func (a *App) run(window *app.Window) error {
 			return false
 		}
 	}
-	document := newDocumentSession(a.RecoveredPath, manager.ShowSnapshot(), a.Recovered)
-	if a.Recovered {
+	document := newDocumentSession(a.Recovery.Path, manager.ShowSnapshot(), a.Recovery.Recovered)
+	if a.Recovery.Recovered {
 		operatorPanel.SetStatus("Recovered unsaved show edits · save to confirm recovery")
 		operatorEvents.Diagnostic("Edit recovery", "Recovered unsaved show edits", map[string]any{"documentPath": document.pathSnapshot()})
 	}
@@ -91,7 +91,7 @@ func (a *App) run(window *app.Window) error {
 	var safetyResume widget.Clickable
 	lastFrameAt := time.Now()
 	healthCollectors := newHealthCollectors(
-		playbackEngine, mediaManager, a.Timecode, a.Redundancy, settingsStore.Snapshot,
+		playbackEngine, mediaManager, a.Playback.Timecode, a.Playback.Redundancy, settingsStore.Snapshot,
 		func() (string, bool) {
 			path, dirty, _ := document.status(manager.ShowSnapshot())
 			return path, dirty
@@ -99,8 +99,8 @@ func (a *App) run(window *app.Window) error {
 	)
 	healthMonitor := health.NewMonitor(func() []health.Component { return health.CollectAll(healthCollectors...) }, readinessRefreshInterval)
 	defer healthMonitor.Close()
-	defer a.Timecode.Close()
-	defer a.Redundancy.Close()
+	defer a.Playback.Timecode.Close()
+	defer a.Playback.Redundancy.Close()
 	power := startPowerKeeper(func(err error) {
 		operatorEvents.Add(operatorlog.ShowStopping, "Power management", "Windows could not keep the show computer awake: "+err.Error(), show.CueID{}, "")
 	})
@@ -111,8 +111,8 @@ func (a *App) run(window *app.Window) error {
 	}
 	defer preflightService.Close()
 	playbackEngine.SetPreflightGate(func(cue show.Cue) error { return preflightService.Gate(manager.ShowSnapshot(), cue) })
-	playbackEngine.SetAuthorityGate(a.Redundancy.Gate)
-	playbackEngine.SetRemoteAuthorityExecutor(a.Redundancy.WithAuthority)
+	playbackEngine.SetAuthorityGate(a.Playback.Redundancy.Gate)
+	playbackEngine.SetRemoteAuthorityExecutor(a.Playback.Redundancy.WithAuthority)
 	cacheMaintainer := project.StartCacheMaintainer(
 		func() bool {
 			return len(playbackEngine.ActiveInstances()) > 0 || len(playbackEngine.ActiveExecutions()) > 0
@@ -149,8 +149,8 @@ func (a *App) run(window *app.Window) error {
 	manager.SetOnChange(func() {
 		snapshot := manager.ShowSnapshot()
 		path, dirty, suppressed := document.status(snapshot)
-		if !suppressed && dirty && a.Journal != nil {
-			if err := a.Journal.RecordDirty(snapshot, path); err != nil {
+		if !suppressed && dirty && a.Document.Journal != nil {
+			if err := a.Document.Journal.RecordDirty(snapshot, path); err != nil {
 				operatorEvents.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
 			}
 		}
@@ -242,8 +242,8 @@ func (a *App) run(window *app.Window) error {
 				document.beginReplace()
 				manager.ReplaceShow(manifest.Show)
 				document.finishReplace(loadedPath, manifest.Show)
-				if a.Journal != nil {
-					if err := a.Journal.MarkSaved(manifest.Show, loadedPath); err != nil {
+				if a.Document.Journal != nil {
+					if err := a.Document.Journal.MarkSaved(manifest.Show, loadedPath); err != nil {
 						operatorEvents.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
 					}
 				}
@@ -299,8 +299,8 @@ func (a *App) run(window *app.Window) error {
 				return
 			}
 			document.markSaved(path, snapshot)
-			if a.Journal != nil {
-				if err := a.Journal.MarkSaved(snapshot, path); err != nil {
+			if a.Document.Journal != nil {
+				if err := a.Document.Journal.MarkSaved(snapshot, path); err != nil {
 					operatorEvents.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
 				}
 			}
@@ -337,8 +337,8 @@ func (a *App) run(window *app.Window) error {
 				return
 			}
 			document.markSaved("", snapshot)
-			if a.Journal != nil {
-				if err := a.Journal.MarkSaved(snapshot, path); err != nil {
+			if a.Document.Journal != nil {
+				if err := a.Document.Journal.MarkSaved(snapshot, path); err != nil {
 					operatorEvents.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
 				}
 			}
@@ -358,8 +358,8 @@ func (a *App) run(window *app.Window) error {
 		document.beginReplace()
 		manager.ReplaceShow(show.Show{})
 		document.finishReplace("", show.Show{})
-		if a.Journal != nil {
-			_ = a.Journal.MarkSaved(show.Show{}, "")
+		if a.Document.Journal != nil {
+			_ = a.Document.Journal.MarkSaved(show.Show{}, "")
 		}
 		operatorPanel.SetStatus("New untitled show · recovery journal on")
 	}
@@ -413,8 +413,8 @@ func (a *App) run(window *app.Window) error {
 		case app.DestroyEvent:
 			snapshot := manager.ShowSnapshot()
 			path, dirty, _ := document.status(snapshot)
-			if dirty && a.Journal != nil {
-				if err := a.Journal.RecordDirty(snapshot, path); err != nil {
+			if dirty && a.Document.Journal != nil {
+				if err := a.Document.Journal.RecordDirty(snapshot, path); err != nil {
 					operatorEvents.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
 				}
 			}
@@ -430,10 +430,10 @@ func (a *App) run(window *app.Window) error {
 				operatorEvents.Diagnostic("Shutdown", err.Error(), nil)
 			}
 			healthMonitor.Close()
-			a.Timecode.Close()
-			a.Redundancy.Close()
+			a.Playback.Timecode.Close()
+			a.Playback.Redundancy.Close()
 			playbackEngine.Close()
-			a.Remote.Close()
+			a.Playback.Remote.Close()
 			mediaManager.Close()
 			return e.Err
 
@@ -480,7 +480,7 @@ func (a *App) run(window *app.Window) error {
 				if emergencyResetting {
 					operatorPanel.SetStatus("E-STOP reset is still running; playback remains latched")
 				} else {
-					a.Timecode.Coordinator().Acknowledge(true)
+					a.Playback.Timecode.Coordinator().Acknowledge(true)
 					playbackEngine.AcknowledgeSafetyLatch()
 					operatorPanel.SetStatus("Playback re-armed after operator acknowledgement · press GO when ready")
 				}
@@ -545,7 +545,7 @@ func (a *App) run(window *app.Window) error {
 			operatorPanel.SetHealth(operatorHealthState(healthSnapshot).String())
 			showState, settingsState := manager.ShowSnapshot(), settingsStore.Snapshot()
 			preflight := preflightService.Request(showState, settingsState, audioWarning, videoWarning, playbackEngine.RemoteHealth(), playbackEngine.CueProblems)
-			lastRedundancyFingerprintError = updateRedundancyFingerprint(a.Redundancy, showState, settingsState, projectLibrary.Files(""), redundancyPreflightReady(preflight), lastRedundancyFingerprintError, func(message string) {
+			lastRedundancyFingerprintError = updateRedundancyFingerprint(a.Playback.Redundancy, showState, settingsState, projectLibrary.Files(""), redundancyPreflightReady(preflight), lastRedundancyFingerprintError, func(message string) {
 				operatorEvents.Add(operatorlog.ShowStopping, "Warm spare", "Could not calculate the production fingerprint: "+message, show.CueID{}, "")
 			})
 			preflight = append(preflight, healthPreflightChecks(healthSnapshot)...)

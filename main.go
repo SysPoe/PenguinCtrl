@@ -31,24 +31,34 @@ import (
 	"github.com/syspoe/cusus/ui"
 )
 
-// TODO(macro): App is a process-wide service locator (domain services + recovery flags + UIState).
-// Split into a composition-root factory that returns typed collaborators (document session,
-// playback stack, operator UI shell) so window_loop and settings callbacks stop reaching through
-// one god object for unrelated concerns.
 type App struct {
-	Show          *show.ShowManager
-	Playback      *playback.Engine
-	Remote        *remote.Dispatcher
-	Media         media.Host
-	Settings      *config.Store
-	OperatorLog   *operatorlog.Store
-	Journal       *project.EditJournal
-	Timecode      *timecode.Service
-	Redundancy    *redundancy.Service
+	Document      DocumentServices
+	Playback      PlaybackServices
+	Operator      OperatorServices
 	CrashReporter *crashreport.Reporter
-	Recovered     bool
-	RecoveredPath string
+	Recovery      RecoveryState
 	UI            UIState
+}
+
+type DocumentServices struct {
+	Show     *show.ShowManager
+	Settings *config.Store
+	Journal  *project.EditJournal
+}
+
+type PlaybackServices struct {
+	Engine     *playback.Engine
+	Remote     *remote.Dispatcher
+	Media      media.Host
+	Timecode   *timecode.Service
+	Redundancy *redundancy.Service
+}
+
+type OperatorServices struct{ Log *operatorlog.Store }
+
+type RecoveryState struct {
+	Recovered bool
+	Path      string
 }
 
 type UIState struct {
@@ -87,7 +97,7 @@ func runMain() (exitCode int) {
 	defer func() { reporter.CloseFatalOutput(cleanExit) }()
 	runResult := make(chan error, 1)
 	reporter.Go("operator-window", func() {
-		placement := application.Settings.Snapshot().OperatorWindow
+		placement := application.Document.Settings.Snapshot().OperatorWindow
 		window := new(app.Window)
 		window.Option(
 			app.Title("CuSus "+buildinfo.Identity()),
@@ -162,29 +172,25 @@ func newApp(reporter *crashreport.Reporter) (*App, error) {
 	mediaBackend.SyncOutputs(engine.OutputIDs())
 	settingsPage := ui.NewSettingsPage(settings)
 	application := &App{
-		Show:          showManager,
-		Playback:      engine,
-		Remote:        remotePort,
-		Media:         mediaBackend,
-		Settings:      settings,
-		OperatorLog:   operatorEvents,
-		Journal:       journal,
-		Timecode:      timecodeInput,
-		Redundancy:    spare,
+		Document: DocumentServices{Show: showManager, Settings: settings, Journal: journal},
+		Playback: PlaybackServices{
+			Engine: engine, Remote: remotePort, Media: mediaBackend,
+			Timecode: timecodeInput, Redundancy: spare,
+		},
+		Operator:      OperatorServices{Log: operatorEvents},
 		CrashReporter: reporter,
-		Recovered:     hasRecovery,
-		RecoveredPath: recovered.DocumentPath,
+		Recovery:      RecoveryState{Recovered: hasRecovery, Path: recovered.DocumentPath},
 		UI: UIState{
 			SettingsPage:   settingsPage,
 			ProjectLibrary: project.NewLibrary(),
 		},
 	}
 	hasActivePlayback := func() bool {
-		return len(application.Playback.ActiveInstances()) > 0 || len(application.Playback.ActiveExecutions()) > 0
+		return len(application.Playback.Engine.ActiveInstances()) > 0 || len(application.Playback.Engine.ActiveExecutions()) > 0
 	}
-	authorityControl := redundancy.NewAuthorityControl(spare, hasActivePlayback, application.Playback.StopAll)
+	authorityControl := redundancy.NewAuthorityControl(spare, hasActivePlayback, application.Playback.Engine.StopAll)
 	settingsPage.SetAudioDeviceProvider(func() ([]ui.AudioDevice, error) {
-		devices, err := application.Media.AudioDevices()
+		devices, err := application.Playback.Media.AudioDevices()
 		// TODO(micro): On err, still builds result from (likely nil) devices and returns both; prefer early `return nil, err` (same as videoRouting).
 		result := make([]ui.AudioDevice, len(devices))
 		for i, device := range devices {
@@ -192,7 +198,7 @@ func newApp(reporter *crashreport.Reporter) (*App, error) {
 		}
 		return result, err
 	})
-	configureVideoRoutingSettings(settingsPage, application.Media)
+	configureVideoRoutingSettings(settingsPage, application.Playback.Media)
 	settingsPage.SetOnSaved(func() {
 		current := settings.Snapshot()
 		timecodeInput.Configure(timecodeConfig(current), current.TimecodeListenAddress)
@@ -203,13 +209,13 @@ func newApp(reporter *crashreport.Reporter) (*App, error) {
 		if stopped {
 			operatorEvents.Add(operatorlog.ShowStopping, "Warm-spare redundancy", "Command authority changed while cues were active; local outputs were stopped", show.CueID{}, "")
 		}
-		application.Playback.RefreshDurations()
-		application.Media.SyncOutputs(application.Playback.OutputIDs())
-		application.Media.RefreshAudioDeviceStatus()
-		refreshVideoRouting(application.Media)
+		application.Playback.Engine.RefreshDurations()
+		application.Playback.Media.SyncOutputs(application.Playback.Engine.OutputIDs())
+		application.Playback.Media.RefreshAudioDeviceStatus()
+		refreshVideoRouting(application.Playback.Media)
 	})
 	settingsPage.SetOnReopenOutputs(func() {
-		application.Media.EnsureOutputs(application.Playback.OutputIDs())
+		application.Playback.Media.EnsureOutputs(application.Playback.Engine.OutputIDs())
 	})
 	settingsPage.SetOnSupportBundle(func() (string, error) {
 		directory := filepath.Dir(settings.Path())
@@ -239,9 +245,9 @@ func newApp(reporter *crashreport.Reporter) (*App, error) {
 	)
 	application.UI.TBContext = ui.TBContext{
 		TopBar:         &application.UI.TopBar,
-		TogglePreview:  application.Playback.TogglePreview,
-		StopPreview:    application.Playback.StopPreview,
-		ProblemsForCue: application.Playback.CueProblems,
+		TogglePreview:  application.Playback.Engine.TogglePreview,
+		StopPreview:    application.Playback.Engine.StopPreview,
+		ProblemsForCue: application.Playback.Engine.CueProblems,
 	}
 	return application, nil
 }

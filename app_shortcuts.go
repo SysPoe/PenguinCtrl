@@ -13,8 +13,8 @@ func (a *App) handleCueListShortcuts(gtx layout.Context) {
 	topBar := &a.UI.TopBar
 	playbackSidebar := &a.UI.PlaybackSidebar
 	tbCtx := &a.UI.TBContext
-	manager := a.Show
-	playbackEngine := a.Playback
+	manager := a.Document.Show
+	playbackEngine := a.Playback.Engine
 	for {
 		event, ok := gtx.Event(
 			key.Filter{Name: key.NameF12},
