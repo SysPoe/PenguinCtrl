@@ -29,6 +29,8 @@ const (
 	maxAssetBytes     = 16 << 30
 	maxArchiveBytes   = 128 << 30
 	maxExpansionRatio = 1000
+
+	archiveHashPrefixLength = 24
 )
 
 type Asset struct {
@@ -141,8 +143,7 @@ func SaveWithProgress(dst io.Writer, current show.Show, ffmpegPath string, progr
 		pending, ok := assets[key]
 		if !ok {
 			ext, format := archiveAssetFormat(kind, path)
-			// TODO(micro): name content-hash path prefix width (24) as a constant shared with Load
-			id := hash[:24] + "-" + kind
+			id := hash[:archiveHashPrefixLength] + "-" + kind
 			pending = pendingAsset{asset: Asset{
 				ID: id, Name: filepath.Base(path), Kind: kind,
 				Path: uniqueAssetPath(path, ext, usedAssetPaths), SourceSHA256: hash, Format: format,
@@ -153,8 +154,6 @@ func SaveWithProgress(dst io.Writer, current show.Show, ffmpegPath string, progr
 	}
 
 	zw := zip.NewWriter(dst)
-	// TODO(micro): Remove this unchecked deferred Close; SaveWithProgress already performs and checks the final Close below.
-	defer zw.Close()
 	keys := make([]string, 0, len(assets))
 	for key := range assets {
 		keys = append(keys, key)
