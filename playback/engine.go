@@ -58,6 +58,12 @@ type Engine struct {
 	lifecycle                *lifecycleController
 	cueExecutors             *cueExecutorSet
 	links                    *linkNavigator
+	operator                 *operatorController
+	mediaRuntime             *cueMediaRuntime
+	timecodes                *timecodeTriggers
+	controls                 *controlActions
+	waits                    *waitEngine
+	analysis                 CueAnalysis
 	executions               map[string]*CueExecution
 	outputVisuals            map[string]Event
 	outputWindows            map[string]Event
@@ -102,6 +108,12 @@ func NewEngineWithRemote(showAccess ShowAccess, settings SettingsAccess, remoteP
 	engine.lifecycle = newLifecycleController(engine, &engine.mu, engine.instances, engine.outputs)
 	engine.cueExecutors = newCueExecutorSet(engine)
 	engine.links = newLinkNavigator(engine, showAccessCueSelection{show: showAccess})
+	engine.operator = newOperatorController(engine)
+	engine.mediaRuntime = newCueMediaRuntime(engine)
+	engine.timecodes = newTimecodeTriggers(engine)
+	engine.controls = newControlActions(engine)
+	engine.waits = newWaitEngine(engine)
+	engine.analysis = newCueAnalyzer(settings, showAccess, engine.mediaCatalog, engine.matchingInstances)
 	return engine
 }
 

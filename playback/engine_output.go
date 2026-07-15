@@ -213,31 +213,13 @@ func (e *Engine) KnownDurations() map[show.CueID]int64 {
 	return e.mediaCatalog.knownDurations()
 }
 
-// CueProblems evaluates a cue against the exact settings, duration cache, and
-// cue-list snapshot used by the engine. UI, preflight, and GO call this same
-// method so severity cannot drift between surfaces.
-// TODO(macro): Making Engine the sole validation façade couples show-document
-// problem analysis to the live runtime (matchingInstances, media caches). Prefer
-// a CueAnalysis service that takes a MediaCatalog + RuntimeSnapshot interface so
-// UI/preflight can validate without depending on the full playback Engine.
+// Analysis exposes the read-only problem service independently of Engine.
+func (e *Engine) Analysis() CueAnalysis { return e.analysis }
+
+// CueProblems is the compatibility façade used by existing UI and preflight
+// callers. New consumers can depend directly on CueAnalysis.
 func (e *Engine) CueProblems(cue show.Cue) []show.CueProblem {
-	settings := e.settings.Snapshot()
-	source, start, end, configured, _ := durationDetails(cue, settings)
-	key := durationCacheKey(cue.Type, source, start, end, configured)
-	metadata := e.mediaCatalog.warning(cue.ID, key)
-	context := show.WarningContext{
-		Settings: settings, KnownDurationMs: metadata.durationMs, MediaProbeError: metadata.probeError,
-		TrackMediaCheck: metadata.trackValidation, MediaCheckPending: metadata.validationPending, MediaChecked: metadata.validationChecked,
-	}
-	if cue.Type == show.CueTypeMediaControl && cue.Play.MediaControl != nil {
-		context.HasRuntimeState = true
-		context.ActiveMediaMatches = len(e.matchingInstances(cue.Play.MediaControl.Target))
-	}
-	if cue.Type == show.CueTypeWait && cue.Play.Wait != nil && cue.Play.Wait.Kind != show.WaitDuration {
-		context.HasRuntimeState = true
-		context.ActiveMediaMatches = len(e.matchingInstances(cue.Play.Wait.Media))
-	}
-	return show.CueProblemsWithContext(cue, e.show.Snapshot(), context)
+	return e.analysis.Problems(cue)
 }
 
 func problemMessages(problems []show.CueProblem, severity show.ProblemSeverity) []string {
