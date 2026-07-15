@@ -1,17 +1,20 @@
 package media
 
 import (
+	"context"
 	"image"
 	"image/color"
 	"image/png"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/syspoe/cusus/config"
 	"github.com/syspoe/cusus/playback"
 )
 
-func TestLoadImageAllowsNilWindow(t *testing.T) {
+func TestImageSessionLoadsStillWithoutWindow(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "still.png")
 	file, err := os.Create(path)
 	if err != nil {
@@ -27,11 +30,25 @@ func TestLoadImageAllowsNilWindow(t *testing.T) {
 		t.Fatalf("close image: %v", err)
 	}
 
-	player := &Player{instance: playback.Instance{MediaType: "image", Source: path}}
-	if err := player.loadImage(); err != nil {
-		t.Fatalf("load image without window: %v", err)
+	settings, err := config.Open(filepath.Join(t.TempDir(), "settings.json"))
+	if err != nil {
+		t.Fatal(err)
 	}
-	if player.frame == nil {
-		t.Fatal("image frame was not retained")
+	backend := NewFFmpegBackend(settings, nil)
+	defer backend.Close()
+	session, err := backend.Open(PlaybackRequest{Instance: playback.Instance{MediaType: playback.MediaTypeImage, Source: path}, RequestedAt: time.Now()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer session.Close()
+	if err := session.Preload(context.Background()); err != nil {
+		t.Fatalf("preload image session: %v", err)
+	}
+	clock := NewPlaybackClock(0)
+	if err := session.Start(clock); err != nil {
+		t.Fatalf("start image session: %v", err)
+	}
+	if session.Frame(0) == nil {
+		t.Fatal("image session did not retain its frame")
 	}
 }

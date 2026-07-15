@@ -1,44 +1,11 @@
 package media
 
 import (
-	"bufio"
 	"context"
 	"errors"
-	"image"
-	_ "image/gif"
-	_ "image/jpeg"
-	_ "image/png"
-	"os"
 	"strconv"
 	"time"
-
-	_ "golang.org/x/image/webp"
 )
-
-func (p *Player) loadImage() error {
-	path, err := sourcePath(p.instance.Source)
-	if err != nil {
-		return err
-	}
-	file, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-	// TODO(micro): image.Decode format string is discarded; include it in error path for operator diagnostics
-	img, _, err := image.Decode(bufio.NewReader(file))
-	if err != nil {
-		return err
-	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.closed {
-		return errors.New("player is closed")
-	}
-	p.frame = img
-	p.invalidate()
-	return nil
-}
 
 func (p *Player) restart(position time.Duration) error {
 	p.mu.Lock()

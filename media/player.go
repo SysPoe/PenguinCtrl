@@ -54,14 +54,6 @@ type Player struct {
 	initialFadeIn bool
 }
 
-// TODO(macro): NewPlayer minting a private FFmpegBackend bypasses Manager's
-// shared admission, prewarm cache, and EmergencyReset surface. Production uses
-// NewPlayerWithBackend(shared); delete or fence the private-backend constructor
-// so there is one ownership model for decoder resources.
-func NewPlayer(instance playback.Instance, settings *config.Store, audio *AudioSystem, window *app.Window, report func(string), duration func(int64), failure func(error)) *Player {
-	return NewPlayerWithBackend(instance, settings, NewFFmpegBackend(settings, audio), window, report, duration, failure)
-}
-
 func NewPlayerWithBackend(instance playback.Instance, settings *config.Store, backend PlaybackBackend, window *app.Window, report func(string), duration func(int64), failure func(error)) *Player {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Player{
@@ -132,10 +124,6 @@ func (p *Player) StartedAt() time.Time {
 	return p.started
 }
 
-// TODO(macro): Image cues bypass PlaybackBackend entirely (loadImage + local
-// clock) while audio/video go through Open/Preload/Start — dual media pipelines
-// with different failure, metrics, and visibility semantics. Represent stills as
-// a session implementation (or a trivial backend) so Player has one start path.
 func (p *Player) Start() error {
 	p.mu.Lock()
 	startMs := max(int64(0), p.instance.ClipStartMs)
@@ -145,16 +133,7 @@ func (p *Player) Start() error {
 	p.position = time.Duration(startMs) * time.Millisecond
 	p.muted = p.instance.Muted
 	p.mu.Unlock()
-	if p.instance.MediaType == "image" {
-		if err := p.loadImage(); err != nil {
-			return err
-		}
-		p.mu.Lock()
-		p.clock = NewPlaybackClock(0)
-		p.started = p.clock.Start()
-		p.mu.Unlock()
-		p.report("started")
-	} else if err := p.restart(p.position); err != nil {
+	if err := p.restart(p.position); err != nil {
 		return err
 	}
 	if p.instance.Muted {

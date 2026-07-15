@@ -190,6 +190,15 @@ func (b *FFmpegBackend) openFresh(request PlaybackRequest) (PlaybackSession, err
 	if request.RequestedAt.IsZero() {
 		request.RequestedAt = time.Now()
 	}
+	if request.Instance.MediaType == playback.MediaTypeImage {
+		b.warmMu.Lock()
+		closed := b.closed
+		b.warmMu.Unlock()
+		if closed {
+			return nil, errors.New("media backend is closed")
+		}
+		return newImageSession(path, request.RequestedAt), nil
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	session := &ffmpegSession{
 		backend: b, request: request, path: path, state: LoadIdle,

@@ -34,7 +34,9 @@ func TestRealAudioFirstStartCompletes(t *testing.T) {
 		ID: "real-audio", CueID: show.NewCueID(), MediaType: "audio", Source: mediaPath,
 		OutputID: "main", DurationMs: 500,
 	}
-	player := NewPlayer(instance, settings, audio, new(app.Window), func(string) {}, func(int64) {}, func(error) {})
+	backend := NewFFmpegBackend(settings, audio)
+	defer backend.Close()
+	player := NewPlayerWithBackend(instance, settings, backend, new(app.Window), func(string) {}, func(int64) {}, func(error) {})
 	done := make(chan error, 1)
 	go func() { done <- player.Start() }()
 	select {
@@ -69,7 +71,9 @@ func TestRealVideoFirstStartCompletes(t *testing.T) {
 		ID: "real-video", CueID: show.NewCueID(), MediaType: "video", Source: mediaPath,
 		OutputID: "main", DurationMs: 500,
 	}
-	player := NewPlayer(instance, settings, audio, new(app.Window), func(string) {}, func(int64) {}, func(error) {})
+	backend := NewFFmpegBackend(settings, audio)
+	defer backend.Close()
+	player := NewPlayerWithBackend(instance, settings, backend, new(app.Window), func(string) {}, func(int64) {}, func(error) {})
 	done := make(chan error, 1)
 	go func() { done <- player.Start() }()
 	select {
