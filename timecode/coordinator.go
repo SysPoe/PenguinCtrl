@@ -48,6 +48,10 @@ type Status struct {
 	Discontinuity time.Duration
 }
 
+// TODO(macro): Coordinator mixes the master-clock state machine (position,
+// hold/chase/resync, WaitUntil) with LTC/MTC wire-frame reassembly and rate
+// decoding. Keep Coordinator as source-agnostic Update/Status; move IngestLTC
+// / IngestMTC / MTC quarter-frame state into source adapters next to ListenOSC.
 type Coordinator struct {
 	mu         sync.RWMutex
 	now        func() time.Time
@@ -88,6 +92,7 @@ func normalizeConfig(config Config) Config {
 		config.Policy = PolicyHold
 	}
 	if config.FrameRate <= 0 || math.IsNaN(config.FrameRate) || math.IsInf(config.FrameRate, 0) {
+		// TODO(micro): name default FrameRate (30) and JumpTolerance (500ms) as constants
 		config.FrameRate = 30
 	}
 	if config.JumpTolerance <= 0 {
@@ -206,6 +211,7 @@ func (c *Coordinator) WaitUntil(ctx context.Context, target time.Duration) bool 
 		if !held && position >= target {
 			return true
 		}
+		// TODO(micro): name WaitUntil poll interval (20ms) as a constant
 		timer := time.NewTimer(20 * time.Millisecond)
 		select {
 		case <-ctx.Done():

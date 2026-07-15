@@ -48,6 +48,7 @@ func Write(path string, data []byte, perm os.FileMode) error {
 	// TODO(micro): Make cleanup explicit if Remove failure matters, or assign it to _ to document intentional best effort.
 	defer os.Remove(tmpPath)
 	// TODO(micro): Stop shadowing the outer err here; both Chmod and Write failures are currently discarded before the Sync check.
+	// TODO(micro): `if err := tmp.Chmod` shadows outer err, so Write failures never propagate and Sync/Close run as if Write succeeded - use a single err variable
 	if err := tmp.Chmod(perm); err == nil {
 		_, err = tmp.Write(data)
 	}

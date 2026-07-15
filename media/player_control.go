@@ -13,6 +13,11 @@ import (
 	_ "golang.org/x/image/webp"
 )
 
+// TODO(macro): Control is a flat string switch that co-drives transport
+// (pause/seek/stop), audio gain, and visual opacity on the same Player. As
+// media types diverge (audio-only, image, video), this becomes a mixed concern
+// hub. Split transport vs audio parameter vs visual parameter handlers (or
+// type-specific controllers) so stop/fade policy is not one combined path.
 func (p *Player) Control(event playback.Event) {
 	switch event.Control {
 	case "pause":
@@ -21,6 +26,7 @@ func (p *Player) Control(event playback.Event) {
 		p.resume()
 	case "seek":
 		if event.PositionMs != nil {
+			// TODO(micro): seek discards restart error; report via p.failure.
 			_ = p.restart(time.Duration(max(0, *event.PositionMs)) * time.Millisecond)
 		}
 	case "set-volume", "fade-to":
@@ -33,10 +39,12 @@ func (p *Player) Control(event playback.Event) {
 		p.setMuted(false)
 	case "fade-out":
 		p.startVisualFadeOut(time.Duration(event.FadeMs) * time.Millisecond)
+		// TODO(micro): mute-floor -80 is repeated in fade-out/stop and fadeVolumeDB; name muteFloorDB and reuse.
 		p.setVolume(-80, time.Duration(event.FadeMs)*time.Millisecond, event.Curve)
 	case "stop":
 		if event.FadeMs > 0 {
 			p.startVisualFadeOut(time.Duration(event.FadeMs) * time.Millisecond)
+			// TODO(micro): fade-out and stop>0 paths are identical (visual fade + setVolume -80); extract one helper.
 			p.setVolume(-80, time.Duration(event.FadeMs)*time.Millisecond, event.Curve)
 		} else {
 			p.Close(true)
@@ -52,6 +60,7 @@ func (p *Player) startVisualFadeOut(duration time.Duration) {
 	p.visualFadeAt, p.visualFadeFor = time.Now(), max(time.Duration(0), duration)
 	p.mu.Unlock()
 	if p.window != nil {
+		// TODO(micro): applyFadeVolume/applyVolume call p.window.Invalidate without nil-check while startVisualFadeOut guards; guard or document that window is always non-nil for audio-bearing players.
 		p.window.Invalidate()
 	}
 }
@@ -103,6 +112,7 @@ func (p *Player) resume() {
 	position, paused := p.position, p.paused
 	p.mu.RUnlock()
 	if paused {
+		// TODO(micro): resume discards restart error; report via p.failure like Start does.
 		_ = p.restart(position)
 	}
 }
@@ -128,6 +138,7 @@ func (p *Player) setVolume(target float64, duration time.Duration, curve show.Fa
 	}
 	p.goOwned(func(ctx context.Context) {
 		started := time.Now()
+		// TODO(micro): 20ms volume-fade tick is magic; name a volumeFadeTick constant.
 		ticker := time.NewTicker(20 * time.Millisecond)
 		defer ticker.Stop()
 		for {
@@ -162,6 +173,7 @@ func fadeVolumeDB(startDB, targetDB, progress float64, curve show.FadeCurve) flo
 	}
 	gain := startGain + (targetGain-startGain)*progress
 	if gain <= 0 {
+		// TODO(micro): hard-coded -80 mute floor; share muteFloorDB with dbVolume/setVolume.
 		return -80
 	}
 	return max(-80.0, 20*math.Log10(gain))
@@ -177,6 +189,7 @@ func (p *Player) applyFadeVolume(db float64, fadeID uint64) bool {
 	if p.session != nil {
 		p.session.SetVolume(db)
 	}
+	// TODO(micro): applyVolume Invalidate also lacks the nil window guard used by startVisualFadeOut; align nil-safety.
 	p.window.Invalidate()
 	return true
 }

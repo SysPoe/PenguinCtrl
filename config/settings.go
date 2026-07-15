@@ -57,6 +57,11 @@ type WindowPlacement struct {
 // (media, routing, timecode, redundancy, and operator UI), with one migration
 // boundary preserving the on-disk JSON contract. The flat aggregate makes every
 // new option fan out through defaults, normalization, UI binding, and consumers.
+// TODO(macro): Decompose the Settings blob by domain — one struct owns ffmpeg,
+// audio recovery, video stages, template variables, remote targets, cache
+// quotas, operator window geometry, timecode, and redundancy secrets, so every
+// subsystem snapshots/clones/hashes unrelated machine policy. Group nested
+// sub-settings (Media, Audio, Outputs, Remote, Timecode, Redundancy, UI).
 type Settings struct {
 	FFmpegPath                string            `json:"ffmpegPath"`
 	DefaultPlayback           string            `json:"defaultPlayback"`
@@ -145,6 +150,12 @@ func DefaultPath() (string, error) {
 	return filepath.Join(dir, "CuSus", "settings.json"), nil
 }
 
+// TODO(macro): Isolate secret-bearing redundancy fields from generic settings
+// clone/persist/fingerprint flows — RedundancySharedKey rides the same Store as
+// window geometry and is copied wholesale into show problem fingerprints and
+// other snapshots. Also split this ~500-line file: model DTOs, Store persistence,
+// and Resolve helpers so domain packages that only need Resolve do not import
+// the full persistence surface.
 type Store struct {
 	mu       sync.RWMutex
 	path     string
@@ -239,6 +250,7 @@ func (s *Store) UpdateVideoOutputGeometry(stage string, x, y, width, height int)
 			return nil
 		}
 	}
+	// TODO(micro): return an error when stage is unknown instead of silently succeeding
 	return nil
 }
 
@@ -280,6 +292,7 @@ func normalize(in Settings) Settings {
 			continue
 		}
 		seenStages[output.Stage] = struct{}{}
+		// TODO(micro): name min/default video geometry (320/180/960/540) and resolution (1920x1080) as constants
 		if output.Width < 320 {
 			output.Width = 960
 		}
@@ -300,6 +313,7 @@ func normalize(in Settings) Settings {
 		if output.IdleBehavior != "hold" {
 			output.IdleBehavior = "black"
 		}
+		// TODO(micro): name SafeAreaPercent/Layers clamp bounds (0..20, 1..8) as constants
 		output.SafeAreaPercent = min(20, max(0, output.SafeAreaPercent))
 		output.Layers = min(8, max(1, output.Layers))
 		if output.ExpectedRefresh < 0 || output.ExpectedRefresh > 1000 {
@@ -340,6 +354,7 @@ func normalize(in Settings) Settings {
 	if in.RemoteSuccessPolicy != RemoteSuccessAny {
 		in.RemoteSuccessPolicy = RemoteSuccessAll
 	}
+	// TODO(micro): name cache quota/reserve clamp bounds (1..500 GB, 1..100 GB) as constants
 	in.CacheQuotaGB = min(500, max(1, in.CacheQuotaGB))
 	in.CacheReserveGB = min(100, max(1, in.CacheReserveGB))
 	if in.OperatorWindow.Width <= 0 && in.OperatorWindow.Height <= 0 {
@@ -386,6 +401,7 @@ func normalize(in Settings) Settings {
 }
 
 func normalizeAudioRecovery(policy string) string {
+	// TODO(micro): TrimSpace once into a local; the switch and both returns re-trim the same string
 	switch strings.TrimSpace(policy) {
 	case AudioRecoveryFollowDefault, AudioRecoveryNamedBackup:
 		return strings.TrimSpace(policy)
@@ -428,6 +444,9 @@ var templatePattern = regexp.MustCompile(`\{([A-Za-z_][A-Za-z0-9_.-]*)([+-]\d+(?
 
 func ValidVariableName(name string) bool { return variableNamePattern.MatchString(name) }
 
+// TODO(macro): Decide whether template resolution belongs in config — Resolve
+// encodes show cue-number arithmetic and built-in variable policy used by cue
+// media/remote fields, pulling show semantics into the machine-settings package.
 func Resolve(template string, settings Settings, cueNumber string) string {
 	values := make(map[string]string, len(settings.Variables)+3)
 	for key, value := range settings.Variables {
@@ -438,6 +457,7 @@ func Resolve(template string, settings Settings, cueNumber string) string {
 	values["cueNumber"] = cueNumber
 
 	resolved := template
+	// TODO(micro): name the max template-expansion depth (8) as a constant
 	for range 8 {
 		next := templatePattern.ReplaceAllStringFunc(resolved, func(match string) string {
 			parts := templatePattern.FindStringSubmatch(match)

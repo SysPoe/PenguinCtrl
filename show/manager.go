@@ -10,6 +10,9 @@ type CueGroup struct {
 	Count int
 }
 
+// TODO(macro): Separate document ownership from operator selection — SelectedCueIndex
+// is UI focus state co-owned with the show document, so every list mutation must
+// also recompute selection and callers can reach into the field directly.
 type ShowManager struct {
 	mu               sync.RWMutex
 	show             Show
@@ -41,6 +44,7 @@ func (sm *ShowManager) AddCueAndSelect(cue Cue) int {
 
 func (sm *ShowManager) InsertCue(index int, cue Cue) {
 	sm.mu.Lock()
+	// TODO(micro): Bounds clamp is duplicated in Show.InsertCue; clamp once (or use insertMovedCue) so selection math and insert share one path.
 	if index < 0 {
 		index = 0
 	}
@@ -124,6 +128,7 @@ func (sm *ShowManager) MoveSelectedCueBefore(targetIndex int) bool {
 		targetIndex--
 	}
 	cue.GroupID, cue.GroupTitle = targetGroupID, targetGroupTitle
+	// TODO(micro): Reuse insertMovedCue(targetIndex, cue) instead of hand-rolled append/copy/select.
 	sm.show.Cues = append(sm.show.Cues, Cue{})
 	copy(sm.show.Cues[targetIndex+1:], sm.show.Cues[targetIndex:])
 	sm.show.Cues[targetIndex] = cue
@@ -173,6 +178,7 @@ func (sm *ShowManager) DuplicateSelectedCue() bool {
 	duplicate := CloneCue(sm.show.Cues[index])
 	duplicate.ID = NewCueID()
 	insertAt := index + 1
+	// TODO(micro): Reuse insertMovedCue(insertAt, duplicate) instead of reimplementing append/copy/select.
 	sm.show.Cues = append(sm.show.Cues, Cue{})
 	copy(sm.show.Cues[insertAt+1:], sm.show.Cues[insertAt:])
 	sm.show.Cues[insertAt] = duplicate
@@ -194,6 +200,7 @@ func (sm *ShowManager) PasteCueBeforeSelected(cue Cue) bool {
 	pasted.ID = NewCueID()
 	pasted.GroupID = sm.show.Cues[index].GroupID
 	pasted.GroupTitle = sm.show.Cues[index].GroupTitle
+	// TODO(micro): Reuse insertMovedCue(index, pasted) instead of a third hand-rolled insert.
 	sm.show.Cues = append(sm.show.Cues, Cue{})
 	copy(sm.show.Cues[index+1:], sm.show.Cues[index:])
 	sm.show.Cues[index] = pasted
@@ -229,6 +236,10 @@ func (sm *ShowManager) GetCueByID(id CueID) *Cue {
 	return nil
 }
 
+// TODO(macro): Collapse the read API surface — Cues/Snapshot/ShowSnapshot/
+// SelectedCue/GetCue/GetCueByID/*Copy all return defensive clones with
+// overlapping purposes; pick one snapshot style and make selection-aware reads
+// derive from it so callers cannot depend on pointer-to-slice quirks.
 func (sm *ShowManager) Cues() *[]Cue {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
@@ -311,6 +322,7 @@ func (sm *ShowManager) SelectedCue() *Cue {
 }
 
 func (sm *ShowManager) HasSelectedCue() bool {
+	// TODO(micro): SelectedCue() deep-clones the cue just to test non-nil; check SelectedCueIndex bounds under RLock instead.
 	return sm.SelectedCue() != nil
 }
 

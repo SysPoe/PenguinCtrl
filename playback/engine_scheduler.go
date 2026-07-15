@@ -11,6 +11,11 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
+// TODO(macro): engine_scheduler.go conflates the command worker, GO admission
+// (gates/validation/override), preview session state, safety latch / E-STOP policy,
+// and per-cue run cancellation. Those are separate policy layers—extract Admission
+// (enqueueCommand), SafetyLatch, and CueRunTable so "scheduler" is only the queue
+// worker and sequence assignment, not show-stopping safety and preview UX.
 func (e *Engine) run() {
 	defer close(e.done)
 	for {
@@ -115,6 +120,7 @@ func (e *Engine) StopPreview() {
 	}
 }
 
+// TODO(micro): one-line wrapper of enqueueCommand(..., false); inline at call sites if call count stays tiny
 func (e *Engine) enqueue(cue show.Cue, index int, origin string) error {
 	return e.enqueueCommand(cue, index, false, origin, false)
 }
@@ -127,6 +133,7 @@ func (e *Engine) enqueueCommand(cue show.Cue, index int, preview bool, origin st
 		}
 		return err
 	}
+	// TODO(micro): merge consecutive if !preview { ... } blocks (authority, preflight, validation) into one non-preview gate
 	if !preview {
 		if err := e.checkAuthority(cue, origin); err != nil {
 			return err
@@ -271,6 +278,7 @@ func (e *Engine) SafetyLatchReason() string {
 	if value == nil {
 		return ""
 	}
+	// TODO(micro): use comma-ok type assert; a non-string store would panic
 	return value.(string)
 }
 

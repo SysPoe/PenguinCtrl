@@ -8,6 +8,7 @@ import (
 	"gioui.org/widget/material"
 )
 
+// TODO(macro): Text/Integer/Float/Multiline each reimplement Value↔editor sync, focus request, and listener fan-out with only the parse step differing. Introduce a shared editor-field base (or generic) so the input kit's contract is one pattern, then keep typed wrappers thin.
 type Text struct {
 	Label string
 	Hint  string
@@ -54,6 +55,7 @@ func (t *Text) Layout(th *material.Theme, gtx layout.Context) layout.Dimensions 
 
 	previous := t.editor.Text()
 	editor := material.Editor(th, &t.editor, t.Hint)
+	// TODO(micro): TextSize Sp(18) and inset Dp(8) are duplicated across Text/Integer/Float/Multiline; name shared editorTextSize/editorInset consts
 	editor.TextSize = unit.Sp(18)
 	dims := editorField(th, gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(8)).Layout(gtx, editor.Layout)

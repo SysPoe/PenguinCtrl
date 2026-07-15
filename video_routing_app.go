@@ -6,6 +6,10 @@ import (
 	"github.com/syspoe/cusus/ui"
 )
 
+// TODO(macro): Optional videoRoutingBackend type-asserts a partial media.Backend surface for
+// settings wiring. Fold display enumeration/warning/refresh into media.Backend (or a named
+// media.VideoRouting port) so composition root adapters stop inventing private capability
+// interfaces that only package main can satisfy-check.
 type videoRoutingBackend interface {
 	VideoDisplays() ([]media.VideoDisplay, error)
 	VideoOutputWarning() string
@@ -19,6 +23,7 @@ func configureVideoRoutingSettings(page *ui.SettingsPage, backend media.Backend)
 	}
 	page.SetVideoDisplayProvider(func() ([]ui.VideoDisplay, error) {
 		displays, err := routing.VideoDisplays()
+		// TODO(micro): On err, still builds result from (likely nil) displays and returns both; prefer early `return nil, err`.
 		result := make([]ui.VideoDisplay, len(displays))
 		for i, display := range displays {
 			name := fmt.Sprintf("%s · %dx%d @ %d Hz · %d DPI", display.Name, display.Width, display.Height, display.RefreshRate, display.DPI)

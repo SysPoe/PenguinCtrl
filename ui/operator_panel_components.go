@@ -77,6 +77,7 @@ func operatorSeverityColor(severity operatorlog.Severity) color.NRGBA {
 	case operatorlog.Warning:
 		return palette.Warning
 	case operatorlog.Recoverable:
+		// TODO(micro): hard-coded severity colors; move to palette (e.g. palette.Recoverable / palette.ShowStopping).
 		return color.NRGBA{R: 0xB7, G: 0x58, B: 0x35, A: 0xFF}
 	case operatorlog.CueFailure:
 		return palette.Danger
@@ -88,6 +89,7 @@ func operatorSeverityColor(severity operatorlog.Severity) color.NRGBA {
 }
 
 func preflightCount(checks []operatorlog.PreflightCheck) string {
+	// TODO(micro): active-count loop duplicates preflightRequiresAttention predicate; extract shared active-check helper.
 	active := 0
 	for _, check := range checks {
 		if !check.Acknowledged && check.Severity >= operatorlog.Warning {

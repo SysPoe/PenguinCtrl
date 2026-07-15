@@ -1,5 +1,9 @@
 package show
 
+// TODO(macro): Define a single cue-invariant repair pass — this only strips
+// extra CuePlay arms and does not create missing payloads, normalize groups,
+// clear invalid links/targets, or align Type with content, so "repair" is not a
+// complete domain boundary for import/save.
 // RepairCueData removes stale play payloads that do not belong to the cue's
 // selected type. It is safe to apply when saving an imported or legacy cue.
 func RepairCueData(cue *Cue) bool {
@@ -7,6 +11,7 @@ func RepairCueData(cue *Cue) bool {
 		return false
 	}
 	original := cue.Play
+	// TODO(micro): comparison cue.Play != original is shallow; pointer identity only detects arm swaps, not deep field changes — fine for strip-only but document that
 	switch cue.Type {
 	case CueTypeSound:
 		cue.Play = CuePlay{Sound: original.Sound}

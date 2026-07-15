@@ -12,6 +12,10 @@ import (
 	"time"
 )
 
+// TODO(macro): CacheMaintainer is a background reaper of published media cache
+// but its protected-path policy is closed over from window_loop via callbacks into
+// show/settings. Push protection policy into the project session (or archive
+// package) so cache lifetime is not orchestrated from the Gio event loop.
 type CacheMaintainer struct {
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -23,6 +27,7 @@ func StartCacheMaintainer(active func() bool, protected func() []string, limits 
 	m.wg.Add(1)
 	go func() {
 		defer m.wg.Done()
+		// TODO(micro): name cache maintenance interval (5m) as a constant
 		ticker := time.NewTicker(5 * time.Minute)
 		defer ticker.Stop()
 		for {
@@ -49,6 +54,10 @@ type cacheObject struct {
 	used time.Time
 }
 
+// TODO(macro): Give cache roots a single policy owner — extracted shows and
+// transcodes both live under UserCacheDir/CuSus but are written from archive
+// load/transcode and reclaimed here via ad-hoc path conventions, without a
+// shared cache index or lease model tied to the open document.
 func MaintainCache(quotaBytes, reserveBytes uint64, protected []string) error {
 	root, err := os.UserCacheDir()
 	if err != nil {
@@ -64,6 +73,7 @@ func maintainCacheRoot(root string, quotaBytes, reserveBytes uint64, protected [
 	}
 	protectedAbs := make([]string, 0, len(protected))
 	for _, path := range protected {
+		// TODO(micro): only lower-case paths on Windows; ToLower breaks case-sensitive cache roots on Unix
 		if absolute, e := filepath.Abs(path); e == nil {
 			protectedAbs = append(protectedAbs, strings.ToLower(filepath.Clean(absolute)))
 		}
@@ -137,6 +147,7 @@ func cacheObjects(root string) ([]cacheObject, error) {
 }
 
 func cacheObjectProtected(object string, protected []string) bool {
+	// TODO(micro): only lower-case paths on Windows; ToLower breaks case-sensitive cache roots on Unix
 	object = strings.ToLower(filepath.Clean(object))
 	for _, path := range protected {
 		if path == object || strings.HasPrefix(path, object+string(os.PathSeparator)) {

@@ -29,6 +29,7 @@ func applyOperatorPlacement(handle uintptr, placement config.WindowPlacement) {
 	}
 	const noActivate = 0x0010
 	// TODO(micro): Check SetWindowPos's return value so failed operator-window restoration is not reported as success.
+	// TODO(micro): Ignoring SetWindowPos last-error; failed placement is silent. Also no validation that Width/Height > 0.
 	operatorSetWindowPos.Call(handle, 0, uintptr(placement.X), uintptr(placement.Y), uintptr(placement.Width), uintptr(placement.Height), noActivate)
 }
 

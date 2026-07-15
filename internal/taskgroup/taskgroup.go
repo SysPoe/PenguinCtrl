@@ -34,6 +34,12 @@ func New(parent context.Context, concurrency int) *Group {
 
 func (g *Group) Context() context.Context { return g.ctx }
 
+// TODO(macro): Go accepts a task name then discards it, and has no panic
+// fencing—unlike crashreport.Go, which records then re-panics for the
+// supervisor. Unify background-work policy (named tasks, bounded concurrency,
+// crash reports, shutdown) so callers are not forced to pick between two
+// incomplete concurrency helpers.
+// TODO(micro): name param is discarded (_ string); remove it or use it in panic/log labels
 func (g *Group) Go(_ string, work func(context.Context)) bool {
 	g.mu.Lock()
 	if g.closed {

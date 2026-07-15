@@ -40,6 +40,18 @@ type Timeline interface {
 // media validation, output state, and safety gates into owned components with
 // explicit snapshots. One broad state lock and 80+ methods currently couple
 // otherwise independent policies and make their lifecycle ordering implicit.
+// TODO(macro): Engine is a god object (~50 fields) spanning command admission,
+// instance registry, output pub/sub, media-metadata caches, dispatch sequencing,
+// safety latch, preview, remote I/O ownership, and validation context. Compose
+// named collaborators (registry, sequencer, mediaCache, safety, outputs) instead
+// of growing one mutex-guarded bag; the engine_*.go split only partitions methods.
+// TODO(macro): Consumers (ui/, media/, health) depend on *Engine concrete type
+// with no read-only vs control ports. Introduce narrow interfaces (e.g. RuntimeQuery,
+// OperatorControls, OutputBus) so UI snapshots and media backends stop coupling to
+// the full runtime surface.
+// TODO(macro): Owning *remote.Dispatcher pulls network transport into the playback
+// package. Prefer injecting a RemoteDispatcher interface constructed outside playback
+// so cue execution stays domain-local and remote lifecycle is not Engine.Close's job.
 type Engine struct {
 	manager             *show.ShowManager
 	settings            *config.Store
@@ -59,6 +71,10 @@ type Engine struct {
 	executions          map[string]*CueExecution
 	outputVisuals       map[string]Event
 	outputWindows       map[string]Event
+	// TODO(macro): durations/mediaValidated and their pending/error/key maps form a
+	// complete media-metadata subsystem (probe, validate, cache invalidation) with
+	// its own concurrency (mediaProbeSlots). Extract a MediaCatalog type rather than
+	// six parallel maps on Engine plus RefreshDurations as a top-level engine API.
 	durations           map[show.CueID]int64
 	durationKeys        map[show.CueID]string
 	durationPending     map[show.CueID]string
@@ -83,6 +99,10 @@ type Engine struct {
 	resetPrior          string
 	enqueueMu           sync.Mutex
 	nextCommandSequence uint64
+	// TODO(macro): dispatchNext/Skipped/Notify is an ordered-start sequencer with no
+	// type boundary—logic lives in engine_executor.go while fields sit on Engine.
+	// Extract a DispatchSequencer so execute() awaits a collaborator instead of
+	// inlining barrier primitives into the cue worker.
 	dispatchMu          sync.Mutex
 	dispatchNext        uint64
 	dispatchSkipped     map[uint64]struct{}
@@ -121,6 +141,7 @@ func (e *Engine) Close() {
 }
 
 // TODO(micro): Remove the bool result or make callers handle it; every current caller discards the shutdown rejection signal.
+// TODO(micro): goOwned pattern is duplicated with media.Player / taskgroup; share one owned-worker helper
 func (e *Engine) goOwned(work func()) bool {
 	e.workerMu.Lock()
 	if e.closing {
@@ -138,8 +159,10 @@ func (e *Engine) goOwned(work func()) bool {
 
 func (e *Engine) RemoteHealth() []remote.TargetHealth { return e.remote.Health() }
 
+// TODO(micro): write onChange under e.mu like other setters; changed() reads it unlocked and races with concurrent SetOnChange
 func (e *Engine) SetOnChange(callback func()) { e.onChange = callback }
 
+// TODO(micro): write operatorLog/hub.onResync under a lock; concurrent reads in execute paths race with this setter
 func (e *Engine) SetOperatorLog(store *operatorlog.Store) {
 	e.operatorLog = store
 	e.hub.onResync = func(outputID string, sequence uint64, queueCapacity int) {
@@ -220,6 +243,7 @@ func (e *Engine) RefreshDurations() {
 	for _, cue := range cues {
 		seen[cue.ID] = struct{}{}
 		source, clipStartMs, clipEndMs, configuredMs, canProbe := durationDetails(cue, settings)
+		// TODO(micro): extract durationCacheKey(cueType, source, start, end, configured); same fmt is copy-pasted in startMedia and CueProblems
 		key := fmt.Sprintf("%d|%s|%d|%d|%d", cue.Type, source, clipStartMs, clipEndMs, configuredMs)
 		if e.mediaValidated[cue.ID] != "" && e.mediaValidated[cue.ID] != key {
 			delete(e.mediaValidated, cue.ID)
@@ -267,6 +291,7 @@ func (e *Engine) RefreshDurations() {
 	}
 	for _, next := range tasks {
 		// TODO(micro): Remove this pre-Go-1.22 closure workaround; next is already a per-iteration variable.
+		// TODO(micro): redundant per-iteration capture; Go 1.22+ loop vars are already unique (module is go 1.26)
 		next := next
 		e.goOwned(func() {
 			if !e.acquireMediaProbe() {
@@ -295,6 +320,7 @@ func (e *Engine) RefreshDurations() {
 	}
 	for _, next := range validationTasks {
 		// TODO(micro): Remove this pre-Go-1.22 closure workaround; next is already a per-iteration variable.
+		// TODO(micro): redundant per-iteration capture; Go 1.22+ loop vars are already unique (module is go 1.26)
 		next := next
 		e.goOwned(func() {
 			if !e.acquireMediaProbe() {
@@ -373,6 +399,10 @@ func durationDetails(cue show.Cue, settings config.Settings) (source string, cli
 // PreloadCandidates returns the selected and following playable media cues in
 // cue-list order. They contain only the immutable routing/decode fields needed
 // to warm a session; GO still creates the authoritative runtime instance.
+// TODO(macro): Returning []Instance for warm-up overloads the live playback
+// runtime type with a preload DTO (partial fields, no ID/run state). Define a
+// dedicated PreloadSpec (or share a MediaSource value object) so media.Prewarm
+// does not depend on the full instance lifecycle model.
 func (e *Engine) PreloadCandidates(limit int) []Instance {
 	_, selected, ok := e.manager.SelectedCueCopy()
 	if !ok || limit <= 0 {
@@ -386,6 +416,7 @@ func (e *Engine) PreloadCandidates(limit int) []Instance {
 			continue
 		}
 		instance := Instance{CueID: cue.ID, CueNumber: cue.CueNumber, CueIndex: index}
+		// TODO(micro): sound/video preload branches are nearly identical; factor a shared fill from play.File/OutputID/clip bounds
 		switch cue.Type {
 		case show.CueTypeSound:
 			if cue.Play.Sound == nil {

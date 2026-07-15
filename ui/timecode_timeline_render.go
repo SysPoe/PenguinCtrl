@@ -16,8 +16,10 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
+// TODO(micro): unused manager param; drop from signature and call site in renderNativeTimecodeEditor.
 func (ctx *CueEditUI) drawTimeline(th *material.Theme, gtx layout.Context, markers *[]show.TimecodeMarker, _ *show.ShowManager) layout.Dimensions {
 	t := &ctx.timeline
+	// TODO(micro): 190 timeline height is a magic Dp; name timelineHeightDp const.
 	size := image.Pt(gtx.Constraints.Max.X, gtx.Dp(unit.Dp(190)))
 	if size.X < 1 {
 		size.X = 1
@@ -71,6 +73,7 @@ func (ctx *CueEditUI) drawTimeline(th *material.Theme, gtx layout.Context, marke
 	return layout.Dimensions{Size: size}
 }
 
+// TODO(macro): Timecode tab re-binds clip/fade/duration fields that the Media tab already owns, plus a parallel MediaControl/Remote/OutputControl form for markers. Share one media-range binder and one action-form builder so Media and Timecode stop dual-editing the same cue fields through separate integer widgets.
 func (ctx *CueEditUI) timecodeEditorRows(th *material.Theme, markers *[]show.TimecodeMarker) []cueEditFormRow {
 	rows := []cueEditFormRow{timecodeSectionRow(th, "Clip and fades")}
 	if play := ctx.cue.Play.Sound; play != nil {
@@ -227,6 +230,7 @@ func (ctx *CueEditUI) drawWaveformBars(gtx layout.Context, size image.Point) {
 			}
 		}
 		h := max(1, int(float64(peak)*amp*gain))
+		// TODO(micro): waveform alpha 0xD0 and 0.40 amp are magic; name waveformAlpha/waveformAmplitude consts.
 		paint.FillShape(gtx.Ops, palette.WithAlpha(palette.Success, 0xD0), clip.Rect{Min: image.Pt(x, center-h), Max: image.Pt(x+1, center+h)}.Op())
 	}
 }

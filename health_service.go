@@ -18,6 +18,12 @@ import (
 	"github.com/syspoe/cusus/timecode"
 )
 
+// TODO(macro): healthService (generic poller) cohabits with collectHealthComponents and every
+// subsystem probe (engine/audio/output/decoder/remote/disk/timecode/redundancy) plus
+// health→preflight and operator-banner severity policy. Move the poller into package health;
+// keep component collectors beside their domains (or health adapters), and extract
+// healthPreflightChecks/operatorHealthState into the preflight assembler so package main is not
+// the health domain.
 type healthService struct {
 	ctx      context.Context
 	cancel   context.CancelFunc
@@ -37,6 +43,7 @@ func newHealthService(provider func() []health.Component) *healthService {
 
 func (s *healthService) run() {
 	defer s.wg.Done()
+	// TODO(micro): 2s poll interval is a magic duration (also used as preflight cache TTL); name a shared constant.
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -56,12 +63,17 @@ func (s *healthService) Snapshot() health.Snapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	copyOf := s.latest
+	// TODO(micro): prefer slices.Clone(s.latest.Components) over append([]Component(nil), ...).
 	copyOf.Components = append([]health.Component(nil), s.latest.Components...)
 	return copyOf
 }
 
 func (s *healthService) Close() { s.cancel(); s.wg.Wait() }
 
+// TODO(macro): collectHealthComponents reaches across playback, media, timecode, redundancy,
+// config, and document dirty state — a composition-root concern that forces package main to
+// import every subsystem. Define a health.Provider/Collector interface implemented per package
+// and register collectors at newApp so this fan-in stays at the wiring boundary only.
 func collectHealthComponents(engine *playback.Engine, backend media.Backend, timeline *timecode.Service, spare *redundancy.Service, settings config.Settings, documentPath string, dirty bool) []health.Component {
 	// TODO(micro): Preallocate room beyond the four fixed entries to avoid repeated growth as each health domain is appended.
 	components := []health.Component{engineHealth(engine), archiveHealth(documentPath, dirty), timecodeHealth(timeline), redundancyHealth(spare)}
@@ -107,6 +119,7 @@ func redundancyHealth(service *redundancy.Service) health.Component {
 }
 
 func timecodeHealth(service *timecode.Service) health.Component {
+	// TODO(micro): No nil-guard unlike redundancyHealth; service.Coordinator() will panic if Timecode is ever unset.
 	status := service.Coordinator().Status()
 	component := health.Component{ID: "timecode", Kind: "timecode", Name: "Master timeline", State: health.Normal, Summary: "Manual cue stacks use the internal monotonic timeline", Action: "Open Settings > External timecode and verify source, rate, and discontinuity policy"}
 	if err := service.LastError(); err != nil {
@@ -258,11 +271,16 @@ func remoteTargetHealth(engine *playback.Engine) []health.Component {
 	return result
 }
 
+// TODO(macro): diskHealth (and diskPreflight) call package-main diskAvailableBytes while
+// project already has cache_space_* free-space helpers — platform disk I/O is duplicated across
+// main and project. Own free-space under project/cache or internal/platform and have both health
+// and preflight call that single boundary.
 func diskHealth(settings config.Settings) health.Component {
 	component := health.Component{ID: "disk-cache", Kind: "disk", Name: "Cache volume", State: health.Normal, Summary: "Free-space reserve is available", Action: "Close playback, clear unreferenced cache, or move shows to a volume with more free space"}
 	root, err := os.UserCacheDir()
 	if err == nil {
 		root = filepath.Join(root, "CuSus")
+		// TODO(micro): MkdirAll error is discarded; a non-writable cache root still proceeds to free-space checks and can misreport Normal.
 		_ = os.MkdirAll(root, 0o755)
 		var available uint64
 		available, err = diskAvailableBytes(root)
@@ -270,6 +288,7 @@ func diskHealth(settings config.Settings) health.Component {
 		component.Details = map[string]any{"path": root, "availableBytes": available, "reserveBytes": reserve}
 		if err == nil && available < reserve {
 			component.State, component.Summary = health.Failed, "Free space is below the configured reserve"
+			// TODO(micro): reserve*2 degraded threshold is a magic policy factor; name it (e.g. cacheReserveWarnFactor).
 		} else if err == nil && available < reserve*2 {
 			component.State, component.Summary = health.Degraded, "Free space is approaching the configured reserve"
 		}
@@ -306,6 +325,7 @@ func healthPreflightChecks(snapshot health.Snapshot) []operatorlog.PreflightChec
 }
 
 func healthPreflightSeverity(component health.Component) operatorlog.Severity {
+	// TODO(micro): hasAffectedCues is redundant — failed assert yields nil with len 0; `len(affectedCues) > 0` alone is enough.
 	affectedCues, hasAffectedCues := component.Details["affectedCues"].([]string)
 	if component.State == health.Failed && (component.Kind == "engine" || component.Kind == "timecode" || (hasAffectedCues && len(affectedCues) > 0)) {
 		return operatorlog.ShowStopping

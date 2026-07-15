@@ -39,6 +39,11 @@ type AudioMixerMetrics struct {
 	TotalUnderruns uint64
 }
 
+// TODO(macro): AudioSystem owns malgo context, per-endpoint mixers, device
+// enumeration, and prepared-player factory, while endpointMixer type starts here
+// and devicePlayer is declared in audio_mixer.go with methods in audio_player.go.
+// Re-cut files so system / mixer / source each have a single home, and keep the
+// realtime callback types free of FFmpeg recovery hooks (see devicePlayer.recovery).
 type AudioSystem struct {
 	settings *config.Store
 	context  *malgo.AllocatedContext
@@ -75,6 +80,7 @@ func (a *AudioSystem) Devices() ([]AudioDevice, error) {
 	return result, nil
 }
 
+// TODO(micro): NewPlayer only wraps NewPreparedPlayer+Start and is unused outside tests; keep one public construction path or move the convenience wrapper next to tests.
 func (a *AudioSystem) NewPlayer(reader io.Reader, preview bool) (*devicePlayer, error) {
 	player, err := a.NewPreparedPlayer(reader, preview)
 	if err != nil {
@@ -160,6 +166,7 @@ func (a *AudioSystem) Close() {
 		return
 	}
 	a.closed = true
+	// TODO(micro): Close and Metrics both snapshot mixers under a.mu; extract a lockedMixers() helper.
 	mixers := make([]*endpointMixer, 0, len(a.mixers))
 	for _, mixer := range a.mixers {
 		mixers = append(mixers, mixer)
@@ -178,6 +185,7 @@ func (a *AudioSystem) Close() {
 
 func (a *AudioSystem) Metrics() []AudioMixerMetrics {
 	a.mu.Lock()
+	// TODO(micro): same mixer snapshot as Close(); call shared lockedMixers() helper.
 	mixers := make([]*endpointMixer, 0, len(a.mixers))
 	for _, mixer := range a.mixers {
 		mixers = append(mixers, mixer)

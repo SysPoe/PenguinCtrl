@@ -16,6 +16,10 @@ import (
 	"github.com/syspoe/cusus/palette"
 )
 
+// TODO(macro): Button factories, fixed-width helpers, and layoutStableText are the
+// de-facto widget kit, but ui/input reimplements setFixedWidth/layoutStableText/
+// button chrome instead of importing a shared primitives package. Collapse common
+// + input styling into one kit boundary so pages don't fork layout primitives.
 func makeBtn(th *material.Theme, wid *widget.Clickable, txt string) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layoutButton(th, gtx, wid, txt, th.ContrastBg)
@@ -58,11 +62,13 @@ func makeFixedWidthBtnEnabled(th *material.Theme, wid *widget.Clickable, txt str
 	})
 }
 
+// TODO(micro): thin one-call wrapper; call palette.Opaque(th.Fg) at use sites or keep only if used widely enough to justify the alias.
 func opaqueForeground(th *material.Theme) color.NRGBA {
 	return palette.Opaque(th.Fg)
 }
 
 // TODO(micro): Remove this unused button variant until a caller needs it.
+// TODO(micro): unused helper; delete or adopt at call sites that need fixed-width colored buttons
 func makeFixedWidthBtnWithColor(th *material.Theme, wid *widget.Clickable, txt string, width int, bgColor color.NRGBA) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		setFixedWidth(&gtx, width)
@@ -89,6 +95,7 @@ func makeMeasuredBtn(th *material.Theme, wid *widget.Clickable, txt string, size
 }
 
 // TODO(micro): Remove this unused enabled-state variant; it only duplicates makeMeasuredBtn with a Disabled wrapper.
+// TODO(micro): unused helper; delete or merge with makeMeasuredBtn via an enabled flag
 func makeMeasuredBtnEnabled(th *material.Theme, wid *widget.Clickable, txt string, size *image.Point, enabled bool) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		if !enabled {
@@ -126,6 +133,7 @@ func menuButton(th *material.Theme, wid *widget.Clickable, bgColor color.NRGBA) 
 	return btn
 }
 
+// TODO(micro): nearly identical to layoutCenteredButtonLabel; share inset/label setup, differ only on Min.X stretch.
 func layoutButtonLabel(th *material.Theme, gtx layout.Context, txt string) layout.Dimensions {
 	return layout.Inset{Top: unit.Dp(10), Bottom: unit.Dp(10), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		label := material.Body2(th, txt)
@@ -170,6 +178,7 @@ func stableBody2(th *material.Theme, txt string) material.LabelStyle {
 	return label
 }
 
+// TODO(micro): no-op alias of palette.ContrastText; call the palette helper directly.
 func contrastColor(c color.NRGBA) color.NRGBA {
 	return palette.ContrastText(c)
 }
@@ -197,10 +206,12 @@ func makeFlexedTextHeader(th *material.Theme, txt string, weight float32, align 
 }
 
 // TODO(micro): Delete this unused separator helper and its now-unnecessary drawing imports.
+// TODO(micro): unused helper; delete or wire into layouts that need a rigid vertical divider
 func rigidVerticalSeparatorBar(height unit.Dp) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		// Create a vertical line with a fixed width of 1 dp
 		width := gtx.Dp(unit.Dp(1))
+		// TODO(micro): local height shadows the unit.Dp parameter; rename (e.g. heightPx).
 		height := gtx.Dp(height)
 
 		// Create a rectangle for the line

@@ -9,6 +9,7 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
+// TODO(micro): gtx is unused across tab renderers; drop the param or use it if layout needs constraints
 func (ctx *CueEditUI) renderGeneralTab(th *material.Theme, gtx layout.Context) layout.FlexChild {
 	return ctx.renderForm(th, []cueEditFormRow{
 		textRow(th, "Cue Number", ctx.page.text["cueNumber"], func(value string) { ctx.cue.CueNumber = value }),
@@ -45,6 +46,7 @@ func (ctx *CueEditUI) renderLinkTab(th *material.Theme, gtx layout.Context, mana
 	return ctx.renderForm(th, rows)
 }
 
+// TODO(macro): Media/Remote/Wait/MediaCtrl/OutputCtrl tabs are hand-written field lists that mirror show.Cue play payloads and partially duplicate timecode marker action forms. Generate tab schemas from typed field groups (or shared action-form builders) so cue-type coverage and marker editors stay in lockstep.
 func (ctx *CueEditUI) renderMediaTab(th *material.Theme, gtx layout.Context) layout.FlexChild {
 	rows := []cueEditFormRow{}
 	if play := ctx.cue.Play.Sound; play != nil {

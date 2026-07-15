@@ -10,6 +10,7 @@ func cacheAvailableBytes(path string) (uint64, error) {
 		return 0, err
 	}
 	var available uint64
+	// TODO(micro): total/free-for-caller out-params are nil; if diagnostics need total capacity later, capture them once here
 	err = windows.GetDiskFreeSpaceEx(root, &available, nil, nil)
 	return available, err
 }

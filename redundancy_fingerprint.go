@@ -15,6 +15,10 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
+// TODO(macro): Production identity / media content fingerprinting is pure redundancy domain
+// (show+media+routing digests) but lives in package main and depends on cueMediaSources from
+// preflight. Move buildRedundancyFingerprint and helpers into package redundancy (or project
+// identity) so warm-spare matching is not owned by the Gio composition root.
 func buildRedundancyFingerprint(current show.Show, settings config.Settings, files []project.File, preflightReady bool) redundancy.Fingerprint {
 	logicalShow, mediaHash, mediaReady := redundancyProductionIdentity(current, settings, files)
 	routingHash := redundancyRoutingDigest(settings)
@@ -62,6 +66,7 @@ func redundancyProductionIdentity(current show.Show, settings config.Settings, f
 }
 
 // TODO(micro): Remove this unused forwarding helper; all callers use redundancyProductionIdentity directly.
+// TODO(micro): Dead helper — no callers; delete or use instead of calling redundancyProductionIdentity directly.
 func redundancyMediaDigest(cues []show.Cue, settings config.Settings, files []project.File) (string, bool) {
 	_, digest, ready := redundancyProductionIdentity(show.Show{Cues: cues}, settings, files)
 	return digest, ready
@@ -155,6 +160,7 @@ func canonicalMediaPath(source string) (string, bool) {
 }
 
 func digestJSON(value any) string {
+	// TODO(micro): Ignoring Marshal error hashes nil/empty input (same class of bug as showDigest); handle or panic on err.
 	raw, _ := json.Marshal(value)
 	digest := sha256.Sum256(raw)
 	return hex.EncodeToString(digest[:])

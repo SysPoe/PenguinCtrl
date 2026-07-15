@@ -31,6 +31,10 @@ const (
 	DocumentChoiceCancel
 )
 
+// TODO(macro): DocumentGuard owns one dirty-save modal while TB dialogs, TopBar
+// E-STOP confirm, and CueEditUI each reimplement the same dimmer/panel shell.
+// Extract a shared Modal primitive and keep DocumentGuard as the dirty-document
+// state machine only (action/choice/saving), not a bespoke layout implementation.
 type DocumentGuard struct {
 	action  DocumentAction
 	saving  bool
@@ -108,6 +112,7 @@ func (g *DocumentGuard) Layout(th *material.Theme, gtx layout.Context) layout.Di
 		}
 	}
 	size := gtx.Constraints.Max
+	// TODO(micro): 0xB8 dimmer alpha and 480/620/10 panel sizes are magic; name modal-dimmer/panel consts.
 	paint.FillShape(gtx.Ops, palette.WithAlpha(palette.Black, 0xB8), clip.Rect{Max: size}.Op())
 	event.Op(gtx.Ops, &g.modal)
 	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {

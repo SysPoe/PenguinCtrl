@@ -39,6 +39,7 @@ type mediaInfo struct {
 
 func (i mediaInfo) frameInterval() time.Duration {
 	if i.fps <= 0 {
+		// TODO(micro): default 30 fps is a magic number; name a defaultVideoFPS constant shared with any other 30-fps assumptions.
 		return time.Second / 30
 	}
 	return time.Duration(float64(time.Second) / i.fps)
@@ -96,6 +97,7 @@ func parseMediaInfo(raw []byte) (mediaInfo, error) {
 				// frame dimensions in step with that output or each frame is
 				// interpreted with the wrong row stride.
 				quarterTurns := math.Round(rotation / 90)
+				// TODO(micro): 0.01 degree tolerance is magic; name a constant (e.g. rotationQuarterTurnEpsilon).
 				if math.Abs(rotation-quarterTurns*90) < 0.01 && int(quarterTurns)%2 != 0 {
 					info.width, info.height = info.height, info.width
 				}
@@ -123,6 +125,11 @@ func parseMediaInfo(raw []byte) (mediaInfo, error) {
 	return info, nil
 }
 
+// TODO(macro): Source validation and stream probing sit beside the live decoder
+// but duration probing (ProbeDurationMs) and sourcePath live under player_*.go
+// while waveform reuses them — scatter a single media-info/probe concern across
+// backend, player, and editor helpers. Consolidate probe/validate/path utilities
+// into one module and stop depending on show.CueType from the decoder layer.
 func ValidateSource(ffmpegPath, source string, cueType show.CueType) error {
 	if cueType == show.CueTypeImage {
 		path, err := sourcePath(source)

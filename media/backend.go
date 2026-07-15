@@ -64,6 +64,10 @@ type PlaybackRequest struct {
 
 // PlaybackBackend is the decoder seam used by Player. Implementations preload
 // bounded media data, then start all device output from a shared clock.
+// TODO(macro): Seam only covers Open; Prewarm/Close/admission live only on
+// *FFmpegBackend and are reached by Manager via concrete type. Either widen the
+// interface for the shared runtime lifecycle or keep a separate RuntimeBackend
+// so Player's seam and Manager's ownership seam are intentional, not accidental.
 type PlaybackBackend interface {
 	Open(PlaybackRequest) (PlaybackSession, error)
 }
@@ -208,6 +212,7 @@ func (b *FFmpegBackend) release(session *ffmpegSession) {
 func (b *FFmpegBackend) Prewarm(requests []PlaybackRequest) {
 	for _, request := range requests {
 		// TODO(micro): Remove this pre-Go-1.22 loop-variable copy; each iteration now has its own request variable.
+		// TODO(micro): request := request is a no-op under Go 1.22+ loop semantics (module is go 1.26.4); drop the rebinding.
 		request := request
 		key := b.warmKey(request)
 		b.warmMu.Lock()
@@ -218,6 +223,7 @@ func (b *FFmpegBackend) Prewarm(requests []PlaybackRequest) {
 		_, ready := b.warm[key]
 		_, running := b.warming[key]
 		failedAt := b.warmFailed[key]
+		// TODO(micro): 30s failure cooldown, 15s preload timeout, and warm cache size 4 are magic; name constants (and share the 15s timeout with ffmpegSession.Preload).
 		if ready || running || (!failedAt.IsZero() && time.Since(failedAt) < 30*time.Second) {
 			b.warmMu.Unlock()
 			continue
@@ -286,6 +292,7 @@ func (b *FFmpegBackend) Close() {
 	for session := range b.active {
 		sessions = append(sessions, session)
 	}
+	// TODO(micro): warm sessions are discarded without Close(); collect warm entries and Close them with active sessions so prewarmed decoders/audio are not leaked.
 	b.warm = map[string]warmSession{}
 	b.active = map[*ffmpegSession]struct{}{}
 	b.warmMu.Unlock()
@@ -299,6 +306,11 @@ type decodedFrame struct {
 	pts   time.Duration
 }
 
+// TODO(macro): ffmpegSession is a dual A/V process owner — separate FFmpeg
+// video/audio cmds, frame queue, devicePlayer, clock master binding, and full
+// audio-device recovery all live on one type. Split into a video demux/decode
+// pipeline and an audio pipeline that share only request/lifecycle/clock so
+// recovery and metrics do not drag video state through audio endpoint failures.
 type ffmpegSession struct {
 	backend *FFmpegBackend
 	request PlaybackRequest

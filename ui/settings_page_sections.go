@@ -11,6 +11,10 @@ import (
 	"github.com/syspoe/cusus/ui/input"
 )
 
+// TODO(macro): settings_page_sections.go / outputs / actions are file splits of
+// one SettingsPage type rather than section modules. Once section models exist,
+// each section should own its Layout + Collect/Validate in one place instead of
+// methods on the god page type spread across three files.
 func (p *SettingsPage) header(th *material.Theme, gtx layout.Context) layout.Dimensions {
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
@@ -29,6 +33,7 @@ func (p *SettingsPage) header(th *material.Theme, gtx layout.Context) layout.Dim
 				}),
 			)
 		}),
+		// TODO(micro): Reopen/Support buttons use makeBtn (ContrastBg) while Reload/Save use layoutButton with custom colors; unify chrome
 		makeBtn(th, &p.reopenOutputs, "Reopen output windows"),
 		makeBtn(th, &p.supportBundle, "Create support bundle"),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {

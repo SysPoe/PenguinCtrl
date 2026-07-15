@@ -1,5 +1,9 @@
 package show
 
+// TODO(macro): Extract a shared media clip payload — SoundPlay and VideoPlay
+// duplicate file/output/clip/fade/level/timecode fields, so archive path rewrite,
+// warnings, clone, and duration checks each switch on cue type instead of one
+// media shape with kind-specific extras.
 type SoundPlay struct {
 	File     string `json:"file"`
 	OutputID string `json:"outputId,omitempty"`
@@ -48,6 +52,10 @@ type ImagePlay struct {
 	Timecode []TimecodeMarker `json:"timecode,omitempty"`
 }
 
+// TODO(macro): Give marker actions their own sum type — reusing CueType+CuePlay
+// allows full cue payloads (sound/video/wait) inside markers even though only
+// media/output/remote control are valid, reusing the same dual-type integrity
+// problem one level down.
 type TimecodeMarker struct {
 	TimeMs   int64 `json:"timeMs"`
 	Disabled bool  `json:"disabled,omitempty"`

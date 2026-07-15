@@ -9,6 +9,11 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
+// TODO(macro): Instance is three roles in one type: wire/JSON snapshot for outputs,
+// engine-private lifecycle state (generations, RunContext, fade bookkeeping), and
+// a partial preload DTO. Split public MediaSnapshot from internal liveInstance so
+// media/ and ui/ cannot reach engine-only fields and preload stops minting hollow
+// runtime objects.
 type Instance struct {
 	ID             string          `json:"id"`
 	CueID          show.CueID      `json:"cueId"`
@@ -89,6 +94,11 @@ type CommandRecord struct {
 	CompletedAt  time.Time
 }
 
+// TODO(macro): Event is a single untyped kitchen-sink message (play/control/remove/
+// sync/resync/error/output) with many mutually exclusive optional fields. Model a
+// closed action set (typed variants or distinct structs) so media output handlers
+// stop switching on free-form Action/Control strings and invalid combinations are
+// unrepresentable at the package boundary.
 type Event struct {
 	Sequence    uint64         `json:"sequence,omitempty"`
 	Action      string         `json:"action"`
@@ -107,6 +117,10 @@ type Event struct {
 	Error       string         `json:"error,omitempty"`
 }
 
+// TODO(macro): events.go mixes domain/protocol types (Instance, Event, CueExecution)
+// with the pub/sub transport (eventHub). Keep wire/domain types here or in types.go
+// and isolate the hub as an OutputBus collaborator owned by the engine composition
+// root so sequencing/resync policy is not buried beside DTOs.
 type eventHub struct {
 	mu          sync.RWMutex
 	subscribers map[string]map[chan Event]struct{}
@@ -120,7 +134,9 @@ func newEventHub() *eventHub {
 }
 
 // TODO(micro): Drop outputID from this test-only helper while every caller passes "main", or add a non-main coverage case.
+// TODO(micro): subscribe is only used by tests; production uses subscribePaused - share map-ensure helper or drop if tests can use paused form
 func (h *eventHub) subscribe(outputID string) chan Event {
+	// TODO(micro): magic subscriber buffer 256; name a const (e.g. eventHubBuffer)
 	ch := make(chan Event, 256)
 	h.mu.Lock()
 	if h.subscribers[outputID] == nil {
@@ -135,6 +151,7 @@ func (h *eventHub) subscribe(outputID string) chan Event {
 // overtaking its initial authoritative snapshot. The returned release function
 // must be called after the snapshot has been queued.
 func (h *eventHub) subscribePaused(outputID string) (chan Event, func()) {
+	// TODO(micro): use same named eventHubBuffer const as subscribe
 	ch := make(chan Event, 256)
 	h.mu.Lock()
 	if h.subscribers[outputID] == nil {
@@ -147,6 +164,7 @@ func (h *eventHub) subscribePaused(outputID string) (chan Event, func()) {
 func (h *eventHub) unsubscribe(outputID string, ch chan Event) {
 	h.mu.Lock()
 	delete(h.subscribers[outputID], ch)
+	// TODO(micro): delete h.subscribers[outputID] when the inner map is empty to avoid leaking empty maps per outputID
 	h.mu.Unlock()
 }
 

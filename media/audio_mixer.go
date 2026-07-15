@@ -90,6 +90,7 @@ func (m *endpointMixer) deviceStopped() {
 
 func (m *endpointMixer) recover() {
 	defer m.recovering.Store(false)
+	// TODO(micro): recovery uses magic 250ms start backoff, 6 attempts, and 4s cap; name recovery constants.
 	backoff := 250 * time.Millisecond
 	for attempt := 0; attempt < 6; attempt++ {
 		time.Sleep(backoff)
@@ -151,6 +152,7 @@ func fallbackDeviceID(policy, backupID string) (string, bool) {
 	case config.AudioRecoveryFollowDefault:
 		return "", true
 	case config.AudioRecoveryNamedBackup:
+		// TODO(micro): strings.TrimSpace(backupID) is computed twice; bind once.
 		return strings.TrimSpace(backupID), strings.TrimSpace(backupID) != ""
 	default:
 		return "", false
@@ -172,6 +174,12 @@ func (m *endpointMixer) close() {
 	}
 }
 
+// TODO(macro): devicePlayer is the per-source PCM endpoint type but is declared
+// under audio_mixer.go while Start/fillRing/pcmRing live in audio_player.go —
+// inverted cohesion. Move the struct with its methods; leave mixer only with
+// multi-source mix/failover. Also: recovery func(string) error pulls decode
+// restart policy into the audio source — invert so mixers request failover and
+// a higher layer supplies a new reader without knowing FFmpeg.
 type devicePlayer struct {
 	reader         io.Reader
 	mixer          *endpointMixer

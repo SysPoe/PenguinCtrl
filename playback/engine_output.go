@@ -9,6 +9,11 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
+// TODO(macro): HandleOutputReport is the de-facto instance state machine (started/
+// presented/fade/end) but lives in engine_output.go beside Subscribe/snapshot/query
+// APIs. Separate the report-driven lifecycle reducer from the output bus and from
+// ActiveInstances/CueProblems query surface so "output package half" stops meaning
+// "everything that touches instances after play".
 func (e *Engine) HandleOutputReport(instanceID, report string) {
 	e.mu.Lock()
 	instance := e.instances[instanceID]
@@ -16,6 +21,7 @@ func (e *Engine) HandleOutputReport(instanceID, report string) {
 		e.mu.Unlock()
 		return
 	}
+	// TODO(micro): collapse mutation-side if report== cascade into one switch; name report string literals as consts
 	if report == "started" {
 		if instance.BackendStarted {
 			e.mu.Unlock()
@@ -48,6 +54,7 @@ func (e *Engine) HandleOutputReport(instanceID, report string) {
 		}
 		instance.Presented = true
 	}
+	// TODO(micro): rename copy (shadows builtin copy)
 	copy := *instance
 	if report == "ended" || report == "stopped" {
 		delete(e.instances, instanceID)
@@ -115,6 +122,7 @@ func (e *Engine) replaceSingleLayerVisual(presented Instance) {
 		candidate.FadeOutStarted = true
 		candidate.EndScheduled = false
 		candidate.LifecycleGeneration++
+		// TODO(micro): use shared silenceFloorDB const instead of bare -80
 		startInstanceFade(candidate, -80, max(int64(0), candidate.FadeOutMs), now)
 		outgoing = append(outgoing, *candidate)
 	}
@@ -156,6 +164,7 @@ func (e *Engine) HandleOutputError(instanceID string, err error) {
 		// recording them here can create an unbounded operator-log flood.
 		return
 	}
+	// TODO(micro): rename copy (shadows builtin copy)
 	copy := *instance
 	e.mu.RUnlock()
 	e.recordCueError(show.Cue{ID: copy.CueID, CueNumber: copy.CueNumber}, "FFmpeg / media output", err)
@@ -173,6 +182,7 @@ func (e *Engine) HandleOutputWarning(instanceID string, err error) {
 		e.operatorLog.Add(operatorlog.Recoverable, "FFmpeg / media output", err.Error(), show.CueID{}, "")
 		return
 	}
+	// TODO(micro): rename copy (shadows builtin copy); use snapshot or inst
 	copy := *instance
 	e.mu.RUnlock()
 	e.operatorLog.Add(operatorlog.Recoverable, "FFmpeg / media output", err.Error(), copy.CueID, copy.CueNumber)
@@ -208,6 +218,7 @@ func (e *Engine) HandleOutputDuration(instanceID string, durationMs int64) {
 
 func (e *Engine) Subscribe(outputID string) (<-chan Event, func()) {
 	ch, release := e.hub.subscribePaused(outputID)
+	// TODO(micro): sequence return is discarded; either use it or change OutputSnapshot to return only events when unused
 	events, _ := e.OutputSnapshot(outputID)
 	for _, event := range events {
 		ch <- event
@@ -229,6 +240,7 @@ func (e *Engine) OutputSnapshot(outputID string) ([]Event, uint64) {
 		if instance.OutputID != outputID {
 			continue
 		}
+		// TODO(micro): rename copy (shadows builtin copy)
 		copy := *instance
 		materializeInstance(&copy, now)
 		instances = append(instances, copy)
@@ -256,6 +268,7 @@ func (e *Engine) ActiveInstances() []Instance {
 	result := make([]Instance, 0, len(e.instances))
 	now := time.Now()
 	for _, instance := range e.instances {
+		// TODO(micro): rename copy (shadows builtin copy)
 		copy := *instance
 		materializeInstance(&copy, now)
 		result = append(result, copy)
@@ -269,6 +282,7 @@ func (e *Engine) ActiveExecutions() []CueExecution {
 	now := time.Now()
 	result := make([]CueExecution, 0, len(e.executions))
 	for _, execution := range e.executions {
+		// TODO(micro): rename copy (shadows builtin copy)
 		copy := *execution
 		copy.ElapsedMs = max(int64(0), now.Sub(copy.PhaseAt).Milliseconds())
 		if copy.DurationMs > 0 {
@@ -293,9 +307,14 @@ func (e *Engine) KnownDurations() map[show.CueID]int64 {
 // CueProblems evaluates a cue against the exact settings, duration cache, and
 // cue-list snapshot used by the engine. UI, preflight, and GO call this same
 // method so severity cannot drift between surfaces.
+// TODO(macro): Making Engine the sole validation façade couples show-document
+// problem analysis to the live runtime (matchingInstances, media caches). Prefer
+// a CueAnalysis service that takes a MediaCatalog + RuntimeSnapshot interface so
+// UI/preflight can validate without depending on the full playback Engine.
 func (e *Engine) CueProblems(cue show.Cue) []show.CueProblem {
 	settings := e.settings.Snapshot()
 	source, start, end, configured, _ := durationDetails(cue, settings)
+	// TODO(micro): use shared durationCacheKey helper; duplicates fmt in RefreshDurations/startMedia
 	key := fmt.Sprintf("%d|%s|%d|%d|%d", cue.Type, source, start, end, configured)
 	e.mu.RLock()
 	duration, probeError := int64(0), ""

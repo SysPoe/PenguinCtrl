@@ -14,6 +14,11 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
+// TODO(macro): engine_media.go is a residual "non-remote cues" file: media start,
+// automatic fade/end timers, embedded timecode re-entry into execute(), media
+// controls, output controls, and wait polling. Split by domain (MediaRuntime,
+// ControlActions, WaitEngine, TimecodeTriggers) so file scope matches cohesion
+// rather than historical extraction from Engine.
 func (e *Engine) startMedia(next command) error {
 	cue, cueIndex := next.cue, next.index
 	settings := e.settings.Snapshot()
@@ -22,8 +27,10 @@ func (e *Engine) startMedia(next command) error {
 		ID: uuid.NewString(), CueID: cue.ID, GroupID: cue.GroupID, CueNumber: cue.CueNumber, CueIndex: cueIndex, Link: cue.Link, PostWaitMs: cue.Timing.PostWaitMs,
 		LayerOrder: next.sequence,
 		Preview:    next.preview, RunID: next.runID,
+		// TODO(micro): "loading" magic string; share media.LoadLoading (or a playback const) instead of free text
 		StartedAt: now, RequestedAt: now, PositionAt: now, RunContext: next.ctx, LoadState: "loading", Cue: show.CloneCue(cue),
 	}
+	// TODO(micro): Sound/Video arms nearly identical (resolve file/output/clip/fade/level); extract shared media-play applier
 	switch cue.Type {
 	case show.CueTypeSound:
 		if cue.Play.Sound == nil {
@@ -60,6 +67,7 @@ func (e *Engine) startMedia(next command) error {
 	}
 	instance.PositionMs = max(0, instance.ClipStartMs)
 	durationSource, durationStartMs, durationEndMs, configuredDurationMs, _ := durationDetails(cue, settings)
+	// TODO(micro): use shared durationCacheKey helper; duplicates fmt in RefreshDurations/CueProblems
 	durationKey := fmt.Sprintf("%d|%s|%d|%d|%d", cue.Type, durationSource, durationStartMs, durationEndMs, configuredDurationMs)
 	e.mu.Lock()
 	if next.runID != 0 {
@@ -87,6 +95,10 @@ func (e *Engine) startMedia(next command) error {
 	return nil
 }
 
+// TODO(macro): Timecode markers synthesize embedded cues and call execute() directly,
+// bypassing the admission path (enqueueCommand gates, sequence numbers, command
+// history). Extract a TimecodeScheduler that enqueues through the same ports as GO
+// so authority/preflight/audit policy cannot be skipped by marker actions.
 func (e *Engine) scheduleTimecode(instanceID string, cue show.Cue, cueIndex int, runCtx context.Context) {
 	markers := mediaTimecode(cue)
 	sort.SliceStable(markers, func(i, j int) bool { return markers[i].TimeMs < markers[j].TimeMs })
@@ -100,6 +112,7 @@ func (e *Engine) scheduleTimecode(instanceID string, cue show.Cue, cueIndex int,
 	}
 	for _, marker := range markers {
 		// TODO(micro): Remove this obsolete loop-variable copy; Go 1.22+ closures capture marker safely.
+		// TODO(micro): redundant per-iteration capture; Go 1.22+ loop vars are already unique (module is go 1.26)
 		marker := marker
 		if marker.Disabled || marker.TimeMs < 0 {
 			continue
@@ -129,6 +142,7 @@ func (e *Engine) scheduleTimecode(instanceID string, cue show.Cue, cueIndex int,
 	}
 }
 
+// TODO(micro): factor shared Timecode field access; Sound/Video/Image cases only differ by which Play pointer is non-nil
 func mediaTimecode(cue show.Cue) []show.TimecodeMarker {
 	switch cue.Type {
 	case show.CueTypeSound:
@@ -147,6 +161,7 @@ func mediaTimecode(cue show.Cue) []show.TimecodeMarker {
 	return nil
 }
 
+// TODO(micro): guard ms < 0 (or use max(0,ms)); negative values produce ugly -01:... strings
 func formatPlaybackTime(ms int64) string {
 	return fmt.Sprintf("%02d:%02d.%03d", ms/60000, (ms%60000)/1000, ms%1000)
 }
@@ -158,6 +173,12 @@ func cueDisplayNumberAt(cues []show.Cue, index int) string {
 	return "cue " + cues[index].CueNumber
 }
 
+// TODO(macro): Instance lifecycle ownership is fragmented: beginCueRun deletes
+// instances (scheduler), startMedia registers them (media), scheduleInstanceLifecycle
+// arms fade/end timers (media), and HandleOutputReport retires them and fires links
+// (output). Concentrate live-instance state transitions in one InstanceRegistry/
+// LifecycleController so timer generations, end links, and stop-all cannot diverge
+// across four files.
 func (e *Engine) scheduleInstanceLifecycle(instanceID string) {
 	e.mu.Lock()
 	instance := e.instances[instanceID]
@@ -185,6 +206,7 @@ func (e *Engine) scheduleInstanceLifecycle(instanceID string) {
 			e.mu.Lock()
 			if active := e.instances[instance.ID]; active != nil && active.LifecycleGeneration == generation && !active.Paused {
 				materializeInstance(active, time.Now())
+				// TODO(micro): extract const silenceFloorDB = -80; same magic used in executeMediaControl and replaceSingleLayerVisual
 				startInstanceFade(active, -80, fadeMs, time.Now())
 			}
 			e.mu.Unlock()
@@ -273,9 +295,11 @@ func (e *Engine) executeMediaControl(cue show.Cue, runCtx context.Context) error
 				startInstanceFade(instance, *play.LevelDB, play.FadeMs, now)
 			}
 		case show.MediaControlFadeOut:
+			// TODO(micro): use shared silenceFloorDB const instead of bare -80
 			startInstanceFade(instance, -80, play.FadeMs, now)
 		case show.MediaControlStop:
 			if play.FadeMs > 0 {
+				// TODO(micro): use shared silenceFloorDB const instead of bare -80
 				startInstanceFade(instance, -80, play.FadeMs, now)
 			}
 		case show.MediaControlMute:
@@ -394,6 +418,7 @@ func (e *Engine) executeWait(cue show.Cue, runCtx context.Context) error {
 		case <-runCtx.Done():
 			return runCtx.Err()
 		case <-e.stateEvent:
+		// TODO(micro): time.After allocates a timer each poll (and 100ms is a magic poll interval); use NewTimer+Reset and name the interval const
 		case <-time.After(100 * time.Millisecond):
 		}
 	}

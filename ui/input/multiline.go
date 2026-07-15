@@ -46,6 +46,7 @@ func (m *Multiline) Layout(th *material.Theme, gtx layout.Context) layout.Dimens
 
 	previous := m.editor.Text()
 	editor := material.Editor(th, &m.editor, m.Hint)
+	// TODO(micro): TextSize Sp(18) and inset Dp(8) are duplicated across Text/Integer/Float/Multiline; name shared editorTextSize/editorInset consts
 	editor.TextSize = unit.Sp(18)
 	dims := editorField(th, gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(8)).Layout(gtx, editor.Layout)

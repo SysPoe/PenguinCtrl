@@ -60,6 +60,9 @@ const (
 	OutputControlExitFullscreen
 )
 
+// TODO(macro): Keep MediaTarget to identity only — Number/Title are presentation
+// cache fields persisted on the domain model and can stale relative to the
+// referenced cue/group without any owner responsible for refreshing them.
 type MediaTarget struct {
 	Kind MediaTargetKind `json:"kind"`
 

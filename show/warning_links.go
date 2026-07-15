@@ -6,6 +6,10 @@ import (
 	"strings"
 )
 
+// TODO(macro): warning_links.go is named for links but also owns cue-number and
+// payload-union structural problems (cueNumberProblems/cuePayloadProblems). Keep
+// link graph validation here; move structural payload/number rules next to the
+// cue model or the structured validation entry so file names match concerns.
 func cueNumberProblems(cue Cue, cues []Cue) []CueProblem {
 	number := strings.TrimSpace(cue.CueNumber)
 	if number == "" {
@@ -52,6 +56,7 @@ func linkContextProblems(cue Cue, cues []Cue) []CueProblem {
 		return nil
 	}
 	problems := make([]CueProblem, 0)
+	// TODO(micro): Cue-index scan is duplicated in linkedCue; share one index lookup (or have linkedCue return it).
 	index := -1
 	for i := range cues {
 		if cues[i].ID == cue.ID {
@@ -65,6 +70,7 @@ func linkContextProblems(cue Cue, cues []Cue) []CueProblem {
 	if (cue.Link.Mode == CueLinkFadeInAdvance || cue.Link.Mode == CueLinkFadeInPlay || cue.Link.Mode == CueLinkFadeOutAdvance || cue.Link.Mode == CueLinkFadeOutPlay) && !isMediaCue(cue) {
 		problems = append(problems, CueProblem{Code: "link.moment.unsupported", Severity: ProblemBlocker, Message: "This cue type never reaches the selected link moment", Consequence: "The linked cue will never run.", Fix: "Use Start or End, or set Manual", Field: "link.mode"})
 	}
+	// TODO(micro): linkModeName only returns "play" or "advance" — use == "play", not strings.HasSuffix.
 	if target, ok := linkedCue(cue, cues); ok && strings.HasSuffix(linkModeName(cue.Link.Mode), "play") {
 		for _, message := range cueWarningMessages(target, cues) {
 			problem := problemForMessage(message)
@@ -88,6 +94,7 @@ func immediateLinkCycle(start Cue, cues []Cue) bool {
 			return true
 		}
 		seen[current.ID] = true
+		// TODO(micro): CueLinkManual already yields linkModeName != "play"; drop the redundant Manual check.
 		if linkModeName(current.Link.Mode) != "play" || current.Link.Mode == CueLinkManual || current.Timing.PostWaitMs > 0 {
 			return false
 		}
@@ -108,6 +115,7 @@ func linkedCue(cue Cue, cues []Cue) (Cue, bool) {
 			break
 		}
 	}
+	// TODO(micro): When cue is absent, index stays -1 so CueTargetNext returns cues[0]; return false if index < 0 for relative targets.
 	target := index + 1
 	switch cue.Link.Target.Kind {
 	case CueTargetPrevious:
@@ -137,5 +145,6 @@ func displayCueNumber(cue Cue) string {
 	if strings.TrimSpace(cue.CueNumber) == "" {
 		return "(unnumbered)"
 	}
+	// TODO(micro): Return strings.TrimSpace(cue.CueNumber); empty check trims but display does not.
 	return cue.CueNumber
 }

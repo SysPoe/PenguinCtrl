@@ -25,6 +25,10 @@ type supportManifest struct {
 
 // ExportSupportBundle writes bounded operational logs, a redacted settings
 // snapshot, recent crash reports, and an identity manifest to a portable zip.
+// TODO(macro): Support-bundle assembly (settings redaction, crash-dir layout,
+// zip packaging) is a diagnostics/export feature bolted onto Store. Extract a
+// support/diagnostics package that takes a Store snapshot plus explicit
+// settings/crash inputs so operatorlog does not own foreign file formats.
 func (s *Store) ExportSupportBundle(destination, settingsPath, crashDirectory string) error {
 	destination = filepath.Clean(destination)
 	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
@@ -153,6 +157,7 @@ func addRecentCrashReports(archive *zip.Writer, directory string, limit int) err
 		return err
 	}
 	sort.Slice(entries, func(i, j int) bool {
+		// TODO(micro): handle Info() errors - nil left/right panics on ModTime(); also skip non-crash files
 		left, _ := entries[i].Info()
 		right, _ := entries[j].Info()
 		return left.ModTime().After(right.ModTime())

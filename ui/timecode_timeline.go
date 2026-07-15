@@ -29,6 +29,11 @@ const (
 // viewport, and asynchronous waveform state. A pure command model would make
 // undo/redo and marker/range edits testable without sharing lifecycle with
 // pointer capture and media-loading callbacks.
+// TODO(macro): Timecode timeline state + input + render + marker form editing are three
+// large files of CueEditUI methods fusing clip-edit model, viewport interaction, and
+// waveform loading. Promote to a TimecodeEditor component that owns markers/history/
+// waveform/view and exposes clip/fade/playhead changes via callbacks, so cue edit only
+// hosts it on the Timecode tab.
 type timecodeTimelineState struct {
 	tag struct{}
 
@@ -295,6 +300,7 @@ func (ctx *CueEditUI) updateTimelineDuration() {
 	if duration <= 0 {
 		if markers := cueTimecodeMarkers(&ctx.cue); markers != nil {
 			for _, marker := range *markers {
+				// TODO(micro): +1000 padding and max(1000,...) floor are magic ms; name timelineMinDurationMs const.
 				duration = max(duration, clipStart+marker.TimeMs+1000)
 			}
 		}
@@ -458,6 +464,7 @@ func cloneTimecodeMarkers(markers []show.TimecodeMarker) []show.TimecodeMarker {
 
 func (t *timecodeTimelineState) checkpoint(markers []show.TimecodeMarker) {
 	t.history = append(t.history, cloneTimecodeMarkers(markers))
+	// TODO(micro): history cap 100 is magic; name timelineHistoryLimit const.
 	if len(t.history) > 100 {
 		t.history = t.history[len(t.history)-100:]
 	}
@@ -527,4 +534,5 @@ func (ctx *CueEditUI) resetTimecodeInputs() {
 	}
 }
 
+// TODO(micro): obsolete comment — constructors live in timecode_timeline_input.go and are unused wrappers.
 // Tiny constructors keep timecode_timeline.go independent from input widget internals.

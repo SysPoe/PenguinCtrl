@@ -15,20 +15,28 @@ import (
 	"github.com/syspoe/cusus/playback"
 )
 
+// TODO(macro): outputWindow.run is a second Gio app loop (window events, geometry
+// persistence, engine subscription, player reconcile) living beside the operator
+// window_loop. Extract a StageWindowController so output lifecycle, recovery
+// reopen, and layout are not an anonymous method chain on a type declared in
+// manager.go.
 func (o *outputWindow) run() {
 	o.geometryUpdates = make(chan [4]int, 1)
 	defer func() {
 		o.manager.removed(o.id)
 		if o.reopening || o.manager.shouldRecoverOutput(o.id) {
+			// TODO(micro): 250ms reopen delay is duplicated with geometry debounce below; name a shared outputWindowSettle constant.
 			time.AfterFunc(250*time.Millisecond, func() { o.manager.ensureOutput(o.id) })
 		}
 	}()
 	log.Printf("opening media output %q", o.id)
 	route := o.route()
 	o.window = new(app.Window)
+	// TODO(micro): min window size 320x180 is magic; name constants.
 	o.window.Option(app.Title(o.id), app.Size(unit.Dp(route.Width), unit.Dp(route.Height)), app.MinSize(unit.Dp(320), unit.Dp(180)))
 	events, unsubscribe := o.manager.engine.Subscribe(o.id)
 	defer unsubscribe()
+	// TODO(micro): pending event buffer size 64 is magic; name a constant.
 	pending := make(chan playback.Event, 64)
 	done := make(chan struct{})
 	defer close(done)
@@ -131,6 +139,7 @@ func (o *outputWindow) applyRoute(force bool) {
 	o.routeMu.Lock()
 	o.displayMissing = route.DisplayID != "" && !found
 	o.routeMu.Unlock()
+	// TODO(micro): both branches only differ by fullscreen bool and Option; set o.fullscreen once and pick Fullscreen/Windowed.
 	if route.Fullscreen {
 		o.routeMu.Lock()
 		o.fullscreen = true

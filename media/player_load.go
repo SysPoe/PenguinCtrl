@@ -25,6 +25,7 @@ func (p *Player) loadImage() error {
 		return err
 	}
 	defer file.Close()
+	// TODO(micro): image.Decode format string is discarded; include it in error path for operator diagnostics
 	img, _, err := image.Decode(bufio.NewReader(file))
 	if err != nil {
 		return err
@@ -34,6 +35,7 @@ func (p *Player) loadImage() error {
 	if p.closed {
 		return errors.New("player is closed")
 	}
+	// TODO(micro): p.window is assumed non-nil; guard or document that image players always have a window
 	p.frame = img
 	p.window.Invalidate()
 	return nil
@@ -80,6 +82,7 @@ func (p *Player) restart(position time.Duration) error {
 		return err
 	}
 	p.mu.Lock()
+	// TODO(micro): session.Start already calls clock.Start(); this second Start is a no-op for the clock and only re-reads anchor -- use clock.Start() return from session.Start or Position path cleanly.
 	p.started = clock.Start()
 	p.mu.Unlock()
 	p.report("started")
@@ -106,6 +109,9 @@ func (p *Player) restart(position time.Duration) error {
 	return nil
 }
 
+// TODO(macro): mediaInputArgs is FFmpeg process-arg construction used only by
+// ffmpegSession preload/recovery, yet it lives in player_load.go. Keep decoder
+// CLI assembly with the backend so player_* files stay about Player lifecycle.
 func mediaInputArgs(position time.Duration, clipEndMs int64) []string {
 	args := []string{"-hide_banner", "-loglevel", "error"}
 	if position > 0 {

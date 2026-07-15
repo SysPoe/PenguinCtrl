@@ -13,6 +13,11 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
+// TODO(macro): execute() is the cue-type switchboard plus pre-wait, authority
+// recheck, ordered dispatch, command audit, and link scheduling. Extract per-type
+// executors (media/remote/wait/control) behind a CueHandler interface so adding a
+// cue type does not grow this central switch and remote/media concerns stop sharing
+// one procedural path.
 func (e *Engine) execute(next command) {
 	if next.ctx == nil || next.ctx.Err() != nil {
 		return
@@ -112,6 +117,7 @@ func (e *Engine) execute(next command) {
 		e.recordCueError(next.cue, source, err)
 		return
 	}
+	// TODO(micro): use isMediaCueType(next.cue.Type) instead of re-listing the three media types
 	if next.cue.Type != show.CueTypeSound && next.cue.Type != show.CueTypeVideo && next.cue.Type != show.CueTypeImage {
 		e.scheduleLink(next.cue, next.index, next.cue.Timing.PostWaitMs, linkEnd, next.ctx)
 	}
@@ -120,6 +126,7 @@ func (e *Engine) execute(next command) {
 func remoteDispatchMessage(result remote.DispatchResult, acknowledged bool) string {
 	protocols := make([]string, 0, len(result.Protocols))
 	for _, protocol := range result.Protocols {
+		// TODO(micro): unknown protocols are dropped silently; add default with protocol string or format via Stringer
 		switch protocol {
 		case show.RemoteProtocolOSC:
 			protocols = append(protocols, "OSC")
@@ -214,6 +221,7 @@ func (e *Engine) recordCommand(next command, dispatchedAt, completedAt time.Time
 		Origin: next.origin, Preview: next.preview, AcceptedAt: next.acceptedAt,
 		DispatchedAt: dispatchedAt, CompletedAt: completedAt,
 	})
+	// TODO(micro): name the 512 command-history cap (const commandHistoryLimit) instead of repeating the magic number thrice
 	if len(e.commandHistory) > 512 {
 		copy(e.commandHistory, e.commandHistory[len(e.commandHistory)-512:])
 		e.commandHistory = e.commandHistory[:512]
@@ -254,6 +262,7 @@ func (e *Engine) updateExecution(id, phase string, durationMs int64) {
 		execution.DurationMs = max(int64(0), durationMs)
 	}
 	e.mu.Unlock()
+	// TODO(micro): only call changed() when the execution existed; current path notifies even for a missing id
 	e.changed()
 }
 
@@ -273,6 +282,11 @@ const (
 	linkEnd
 )
 
+// TODO(macro): scheduleLink reaches into show.ShowManager (SelectCue/DeselectCue)
+// and re-enters enqueue from the executor layer-playback mutates list selection as
+// a side effect of runtime moments. Own link resolution in a Sequencer/Navigator
+// collaborator that receives selection+play ports, so cue-link policy is not
+// embedded in execute/lifecycle callbacks.
 func (e *Engine) scheduleLink(source show.Cue, sourceIndex int, delayMs int64, moment linkMoment, runCtx context.Context) {
 	if !linkMatches(source.Link.Mode, moment) {
 		return
@@ -309,6 +323,7 @@ func (e *Engine) scheduleLink(source show.Cue, sourceIndex int, delayMs int64, m
 		e.manager.SelectCue(targetIndex)
 		e.changed()
 		// TODO(micro): Build this fixed-prefix message with string concatenation instead of fmt.Sprintf.
+		// TODO(micro): reuse cues from resolveTarget (or source.CueNumber) instead of a third manager.Snapshot(); also don't discard enqueue error without logging
 		_ = e.enqueue(target, targetIndex, fmt.Sprintf("Cue link from %s", cueDisplayNumberAt(e.manager.Snapshot(), sourceIndex)))
 	})
 }
@@ -329,6 +344,7 @@ func (e *Engine) resolveTarget(target show.CueTarget, sourceIndex int) (show.Cue
 	cues := e.manager.Snapshot()
 	index := -1
 	switch target.Kind {
+	// TODO(micro): combine CueTargetNone and CueTargetNext - both assign sourceIndex+1
 	case show.CueTargetNone:
 		// Older cues can have a non-manual link mode but no explicit target.
 		// Treat that combination as the conventional "next cue" target.

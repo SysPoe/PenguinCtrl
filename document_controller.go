@@ -18,6 +18,11 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
+// TODO(macro): This file is named document_controller but owns three unrelated layers:
+// (1) archive save/path helpers, (2) showDigest hashing, (3) full preflight check assembly and
+// route-affected-cue scoping. Split save helpers into project (or a document session type) and
+// move buildPreflight* / *WarningAffectedCues into a preflight package next to preflightService
+// so document I/O does not import show-readiness policy.
 func formatFileCount(count int) string {
 	if count == 1 {
 		return "1 media file"
@@ -31,6 +36,7 @@ func formatSaveProgress(path string, progress project.SaveProgress) string {
 
 func explorerPath(file any) string {
 	var source string
+	// TODO(micro): window_loop PickFile/loadShow reimplement this *explorer.File/*os.File switch; call explorerPath instead.
 	switch file := file.(type) {
 	case *explorer.File:
 		source = file.URI()
@@ -51,11 +57,19 @@ func documentName(path string) string {
 	return filepath.Base(path)
 }
 
+// TODO(macro): showDigest is a cross-cutting identity helper used by journal dirty checks,
+// preflight cache keys, operator-log context, and recovery — not document-controller scope.
+// Own it on show.Show or project (canonical production digest) so main packages stop re-exporting
+// hashing policy.
 func showDigest(current show.Show) [sha256.Size]byte {
+	// TODO(micro): ignore json.Marshal error; marshal failure yields a hash of nil and silently corrupts digests
 	raw, _ := json.Marshal(current)
 	return sha256.Sum256(raw)
 }
 
+// TODO(macro): Atomic replace/backup save path belongs in project.Save/Publish (archive package
+// already owns bundling); keeping Windows rename fallback in package main duplicates document
+// durability policy outside the package that owns manifests.
 func saveShowAtPath(path string, current show.Show, ffmpegPath string, progress func(project.SaveProgress)) (project.Manifest, error) {
 	if strings.TrimSpace(path) == "" {
 		return project.Manifest{}, errors.New("show has no file path; use Save As")
@@ -86,6 +100,7 @@ func saveShowAtPath(path string, current show.Show, ffmpegPath string, progress 
 
 	// Windows does not consistently replace an existing file with Rename.
 	// Keep the old document as a short-lived backup until the new one lands.
+	// TODO(micro): backup suffix and rename fallback duplicate internal/atomicfile.Write; reuse that helper
 	backup := path + ".autosave-backup"
 	// TODO(micro): Check this removal error; otherwise a stale, undeletable backup is misreported later as a primary-file rename failure.
 	_ = os.Remove(backup)
@@ -100,6 +115,10 @@ func saveShowAtPath(path string, current show.Show, ffmpegPath string, progress 
 	return manifest, nil
 }
 
+// TODO(macro): Preflight aggregation is split across document_controller (cue/FFmpeg/route
+// checks), preflight_service (disk/remote/HMAC gate), and health_service (runtime components).
+// Collapse into one preflight domain package with a single assembler so GO-blocking policy is
+// not assembled ad-hoc in three package-main files.
 func buildPreflight(cues []show.Cue, settings config.Settings, audioWarning, videoWarning string) []operatorlog.PreflightCheck {
 	return buildPreflightWithProblems(cues, settings, audioWarning, videoWarning, func(cue show.Cue) []show.CueProblem {
 		return show.CueProblemsWithContext(cue, cues, show.WarningContext{Settings: settings})
@@ -121,6 +140,7 @@ func buildPreflightWithProblems(cues []show.Cue, settings config.Settings, audio
 		}
 		for _, problem := range problemsForCue(cue) {
 			if problem.Severity == show.ProblemState {
+				// TODO(micro): "media.check.pending"/".not-run" are magic strings duplicated from show/warning_runtime.go; share named constants.
 				if problem.Code != "media.check.pending" && problem.Code != "media.check.not-run" {
 					continue
 				}
@@ -161,6 +181,7 @@ func buildPreflightWithProblems(cues []show.Cue, settings config.Settings, audio
 
 func audioWarningAffectedCues(cues []show.Cue, warning string) []show.CueID {
 	lower := strings.ToLower(strings.TrimSpace(warning))
+	// TODO(micro): Heuristic string-matches "preview audio"/"playback" on free-text warnings; use a structured warning kind/code instead.
 	if lower == "" || (strings.Contains(lower, "preview audio") && !strings.Contains(lower, "playback")) {
 		return nil
 	}

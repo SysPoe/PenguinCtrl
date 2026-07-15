@@ -19,6 +19,10 @@ import (
 	"github.com/syspoe/cusus/utils"
 )
 
+// TODO(macro): CueEditUI is a multi-file god object (shell, tabs, form rows, string-keyed
+// page state, and the full timecode timeline). Carve the timeline into its own component
+// with an explicit cue/media adapter, keep tab forms as pure field binders, and stop
+// hanging waveform/preview/history methods on the editor shell.
 type CueEditUI struct {
 	cue   show.Cue
 	cType show.CueType
@@ -252,6 +256,7 @@ func (ctx *CueEditUI) toggleTimecodePreview() {
 	}
 	playing, err := ctx.togglePreview(ctx.cue)
 	if err == nil {
+		// TODO(micro): preview toggle error is ignored; surface err to operator status/bar.
 		ctx.timeline.previewing = playing
 	}
 }
@@ -277,6 +282,7 @@ func cueEditorShortcuts(gtx layout.Context) (save, preview bool, tabOffset int) 
 		}
 		if event, ok := event.(key.Event); ok && event.State == key.Press {
 			switch event.Name {
+			// TODO(micro): default branch treats Escape as save (only S should save); handle Escape separately or filter it out.
 			case key.NameSpace:
 				preview = true
 			case key.NameLeftArrow:
@@ -331,6 +337,7 @@ func (ctx *CueEditUI) Layout(th *material.Theme, gtx layout.Context, manager *sh
 		ctx.toggleTimecodePreview()
 	}
 
+	// TODO(micro): margin/padding/borderRadius are all zero — dead math; drop vars or document why reserved.
 	margin := image.Pt(0, 0)
 	widthHeight := image.Pt(gtx.Constraints.Max.X-margin.X*2, gtx.Constraints.Max.Y-margin.Y*2)
 	borderWidth := gtx.Dp(unit.Dp(2))
@@ -382,6 +389,7 @@ func (ctx *CueEditUI) Layout(th *material.Theme, gtx layout.Context, manager *sh
 	gtx.Constraints.Min.Y = widthHeight.Y - padding*2
 	gtx.Constraints.Max.Y = widthHeight.Y - padding*2
 
+	// TODO(micro): typo "acutal" → "actual"; comment is noise, can delete.
 	// Return acutal layout
 	return layout.Flex{
 		Axis: layout.Vertical,

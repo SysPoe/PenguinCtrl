@@ -23,6 +23,10 @@ const (
 	maxRecordBytes  = 4 << 20
 )
 
+// TODO(macro): Decide whether recovery owns full show documents or deltas —
+// EditJournal appends entire show.Show blobs (including media absolute paths and
+// acknowledgements) for every dirty mark, mixing crash recovery with document
+// persistence and exploding size as shows grow.
 // RecoveryRecord is a flushed show-state generation. Dirty records are
 // recoverable; clean records prove that the same state reached its document.
 type RecoveryRecord struct {
@@ -34,6 +38,10 @@ type RecoveryRecord struct {
 	Show         show.Show `json:"show"`
 }
 
+// TODO(macro): EditJournal digests/shows independently of package-main showDigest
+// and document dirty tracking in window_loop. Own dirty identity and recovery in
+// one document-session type so journal, save path, and UI dirty chrome cannot
+// disagree on what "saved" means.
 type EditJournal struct {
 	mu   sync.Mutex
 	path string
@@ -147,6 +155,7 @@ func readLastJournalRecord(path string) (RecoveryRecord, bool, error) {
 }
 
 func showStateDigest(current show.Show) string {
+	// TODO(micro): handle json.Marshal error in showStateDigest instead of discarding with _
 	raw, _ := json.Marshal(current)
 	digest := sha256.Sum256(raw)
 	return hex.EncodeToString(digest[:])

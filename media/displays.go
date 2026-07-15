@@ -66,6 +66,7 @@ func videoOutputWarning(settings config.Settings, displays []VideoDisplay) strin
 		}
 		if output.DisplayID != "" && !output.DisplayConfirmed {
 			unconfirmed = append(unconfirmed, output.Stage)
+		// TODO(micro): refresh-mismatch is only checked in the else of !DisplayConfirmed; confirmed mappings with wrong refresh are never reported -- invert so refresh is independent of confirmation.
 		} else if display, ok := available[output.DisplayID]; ok && output.ExpectedRefresh > 0 && display.RefreshRate != output.ExpectedRefresh {
 			refreshMismatch = append(refreshMismatch, fmt.Sprintf("%s expects %d Hz but found %d Hz", output.Stage, output.ExpectedRefresh, display.RefreshRate))
 		}
@@ -93,6 +94,7 @@ func (m *Manager) currentDisplays() []VideoDisplay {
 func displaySignature(ds []VideoDisplay) string {
 	var b strings.Builder
 	for _, d := range ds {
+		// TODO(micro): signature omits Primary and Name, which are used for sorting/warnings; include them or document why topology-only is enough.
 		fmt.Fprintf(&b, "%s:%d:%d:%d:%d:%d:%d;", d.ID, d.X, d.Y, d.Width, d.Height, d.RefreshRate, d.DPI)
 	}
 	return b.String()
@@ -127,6 +129,7 @@ func (m *Manager) refreshDisplays(force bool) {
 	}
 }
 func (m *Manager) monitorDisplays() {
+	// TODO(micro): 2s poll interval is duplicated with monitorAudioDevices; extract a shared devicePollInterval constant.
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 	for {

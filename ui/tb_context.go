@@ -9,6 +9,10 @@ import (
 	"github.com/syspoe/cusus/ui/input"
 )
 
+// TODO(macro): TBContext is a catch-all controller: top-bar menu widgets, clipboard/move
+// modes, delete/group modals, and the entire CueEditUI plus host deps (PickFile/waveform/
+// preview). Split menu actions, modal dialogs, and editor hosting; stop reading/writing
+// TopBar unexported menu flags from here so TopBar owns its open-state API.
 type TBContext struct {
 	TopBar *TopBar
 
@@ -99,6 +103,7 @@ func (ctx *TBContext) EditSelectedCueAt(manager *show.ShowManager, field string)
 	return true
 }
 
+// TODO(micro): name says CueEditorOpen but also true for group dialog; rename or split predicates.
 func (ctx *TBContext) CueEditorOpen() bool {
 	return ctx.cueEditUI.show || ctx.groupDialog != ""
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 )
 
+// TODO(micro): Useless wrapper — call cueIDCount(id, cues) > 1 at the single call site and delete this.
 func duplicateCueID(id CueID, cues []Cue) bool {
 	return cueIDCount(id, cues) > 1
 }
@@ -56,6 +57,7 @@ func targetCueWarnings(id CueID, cues []Cue) []string {
 func mediaFileWarnings(source string) []string {
 	source = strings.TrimSpace(source)
 	if source == "" {
+		// TODO(micro): Message says "output file" for a media path, so problemForMessage/warningField route Field/Fix to output instead of media.
 		return []string{"Missing output file"}
 	}
 	// A templated path cannot be checked until it is resolved at playback.
@@ -65,14 +67,20 @@ func mediaFileWarnings(source string) []string {
 
 	path, err := outputFilePath(source)
 	if err != nil {
+		// TODO(micro): Same mislabel as above — "Invalid output file" should be "Invalid media file" (or a structured CueProblem).
 		return []string{"Invalid output file"}
 	}
 	if strings.TrimSpace(path) == "" {
+		// TODO(micro): Dead after a successful outputFilePath — Abs("") is non-empty and parse errors already returned above.
 		return []string{"Invalid output file"}
 	}
 	return nil
 }
 
+// TODO(macro): Stop dual-owning media path parsing — outputFilePath duplicates
+// project.LocalPath rules (file://, Windows drive strip, abs resolution) inside
+// show validation, so path policy can diverge between archive/library and
+// warnings.
 func outputFilePath(source string) (string, error) {
 	if strings.HasPrefix(strings.ToLower(source), "file:") {
 		parsed, err := url.Parse(source)
@@ -148,6 +156,7 @@ func formatWarningTime(ms int64) string {
 }
 
 // TODO(micro): Delete this unused predicate; keeping a second definition of payload presence invites drift from cuePayloadProblems.
+// TODO(micro): Dead code — no callers; delete or use from cuePayloadProblems instead of re-counting arms.
 func cuePlayConfigured(play CuePlay) bool {
 	return play.Sound != nil || play.Video != nil || play.Image != nil || play.Remote != nil ||
 		play.Wait != nil || play.MediaControl != nil || play.OutputControl != nil

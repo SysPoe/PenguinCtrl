@@ -4,6 +4,10 @@ import (
 	"strings"
 )
 
+// TODO(macro): Decide whether groups are a first-class show aggregate or pure
+// denormalized cue fields — GroupID+GroupTitle on every cue avoids orphans, but
+// title edits fan out, move/ungroup rewrites membership ad hoc, and there is no
+// Group entity to own ordering invariants or validate MediaTargetGroup refs.
 // Groups returns cue groups in show order. A group exists only while it has at
 // least one cue, and its first cue supplies the display title.
 func (sm *ShowManager) Groups() []CueGroup {
@@ -80,6 +84,7 @@ func (sm *ShowManager) RenameSelectedGroup(title string) bool {
 		sm.mu.Unlock()
 		return false
 	}
+	// TODO(micro): Track whether any title actually changed; skip sm.changed() when rename is a no-op.
 	for index := range sm.show.Cues {
 		if sm.show.Cues[index].GroupID == id {
 			sm.show.Cues[index].GroupTitle = title
@@ -200,6 +205,9 @@ func (sm *ShowManager) insertMovedCue(index int, cue Cue) {
 	sm.SelectedCueIndex = index
 }
 
+// TODO(macro): Move change notification next to the manager core — SetOnChange/
+// changed are the mutation bus for the whole ShowManager but live in the groups
+// file, which obscures the package's event boundary.
 func (sm *ShowManager) SetOnChange(callback func()) {
 	sm.mu.Lock()
 	sm.onChange = callback

@@ -74,6 +74,10 @@ type Status struct {
 	InterlockPath      string
 }
 
+// TODO(macro): Summary() embeds operator-facing copy in the domain Status type
+// (also consumed by health_service). Keep Status machine-readable fields only
+// and move prose formatting to UI/health presentation so protocol/state changes
+// do not require editing user-visible strings here.
 func (s Status) Summary() string {
 	if s.Role == RoleOff {
 		return "Redundancy is disabled; this node has local command authority"
@@ -132,6 +136,7 @@ func normalizeConfig(config Config) Config {
 		}
 	}
 	if config.HeartbeatInterval <= 0 {
+		// TODO(micro): name default heartbeat interval (500ms) and peer-timeout multipliers (3x/5x) as constants
 		config.HeartbeatInterval = 500 * time.Millisecond
 	}
 	if config.PeerTimeout < config.HeartbeatInterval*3 {
@@ -154,6 +159,7 @@ func validateConfig(config Config) error {
 	if config.PeerAddress == "" {
 		missing = append(missing, "peer address")
 	}
+	// TODO(micro): name minimum shared-key length (16) as a constant
 	if len(config.SharedKey) < 16 {
 		missing = append(missing, "shared key (minimum 16 characters)")
 	}

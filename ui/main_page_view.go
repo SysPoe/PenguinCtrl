@@ -20,6 +20,11 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
+// TODO(macro): Main is a page-level god layout: engine snapshotting, selection/move/group
+// event handling, header chrome, and per-row cell rendering are one function with a long
+// callback surface (edit/move/group ports plus concrete *ShowManager/*Engine/*Store).
+// Split into a CueList model (state + event handling) and a view that only paints
+// rows/headers, and shrink the move/edit callbacks into a single command interface.
 func Main(
 	th *material.Theme,
 	gtx layout.Context,
@@ -56,6 +61,7 @@ func Main(
 		}
 		knownDurations = engine.KnownDurations()
 		if len(activeByCue) > 0 || len(executionByCue) > 0 {
+			// TODO(micro): 100ms invalidate cadence is magic; name a playbackRefreshInterval const.
 			gtx.Execute(op.InvalidateCmd{At: time.Now().Add(100 * time.Millisecond)})
 		}
 	}
@@ -236,6 +242,7 @@ func Main(
 						borderHeight := max(1, gtx.Dp(borderHeightDp))
 
 						cueTypeCol := typeCols[cue.Type]
+						// TODO(micro): selection/hover alpha 50/30 are magic; name cueSelectionAlpha/cueHoverAlpha consts.
 						selectedColor := applyAlpha(palette.WithAlpha(cue.Color, 50), th.ContrastBg)
 						hoverColor := applyAlpha(palette.WithAlpha(cue.Color, 30), th.Bg)
 
@@ -336,8 +343,10 @@ func Main(
 
 														return cueListCellInset().Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 															// TODO(micro): Drop the empty initializer; every switch arm, including default, overwrites str.
+															// TODO(micro): var str = "" is zero-value noise; declare str inside cases or use a map.
 															var str = ""
 															switch cue.Type {
+															// TODO(micro): cue type labels reimplemented as switch; map[show.CueType]string next to typeCols.
 															case show.CueTypeImage:
 																str = "Image"
 															case show.CueTypeWait:
@@ -365,6 +374,7 @@ func Main(
 											}),
 											// Description / live playback progress
 											makeDescriptionProgressCell(th, descriptionLabel(cue.Description), progress, cueTypeCol, weights[3]),
+											// TODO(micro): obsolete "// TODO Action" comment; remove or implement the missing action column.
 											// TODO Action
 											// Duration
 											makeRuntimeCell(th, duration, weights[4]),

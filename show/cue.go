@@ -6,6 +6,10 @@ import (
 	"github.com/google/uuid"
 )
 
+// TODO(macro): Make cue kind a single source of truth — Type and the CuePlay
+// optional-field union can disagree (repair/warnings exist because of this), so
+// either encode play as a typed sum or derive Type from the payload and stop
+// persisting both.
 type Cue struct {
 	ID          CueID   `json:"id"`
 	CueNumber   string  `json:"cueNumber"`
@@ -32,11 +36,13 @@ type CueID uuid.UUID
 type GroupID uuid.UUID
 
 func NewCueID() CueID {
+	// TODO(micro): Ignoring uuid.NewV7 error can yield a zero CueID (then flagged as "Missing cue ID"); panic/retry or surface the error.
 	id, _ := uuid.NewV7()
 	return CueID(id)
 }
 
 func NewGroupID() GroupID {
+	// TODO(micro): Same as NewCueID — ignored NewV7 error can mint a zero GroupID.
 	id, _ := uuid.NewV7()
 	return GroupID(id)
 }
@@ -58,6 +64,10 @@ const (
 // so each cue type addition must currently update parallel switches throughout
 // playback, validation, editing, repair, and archive code without compiler help.
 // Exactly one of these should be non-empty.
+// TODO(macro): Replace the multi-pointer CuePlay bag with an explicit sum type
+// (or sealed interface) so clone/repair/warnings/archive cannot leave multiple
+// payloads populated or the wrong one for Type.
+// Exactly one of these should be non-empty
 type CuePlay struct {
 	Sound         *SoundPlay         `json:"sound,omitempty"`
 	Video         *VideoPlay         `json:"video,omitempty"`

@@ -20,6 +20,12 @@ import (
 // lifecycle into separately owned services, and have output windows depend on a
 // narrow playback event port rather than *playback.Engine. Manager currently
 // coordinates several lock domains and background loops as one failure domain.
+// TODO(macro): Manager is a god object — owns stage window lifecycle, the shared
+// FFmpeg backend, AudioSystem, and both audio-device and display topology
+// monitors (each with their own caches/mutexes). Split into an output-window
+// controller, a media-runtime (decoder+audio) owner, and a device-topology
+// service so emergency reset, health polling, and stage routing stop contending
+// in one type.
 type Manager struct {
 	engine            *playback.Engine
 	settings          *config.Store
@@ -34,7 +40,8 @@ type Manager struct {
 	workers           sync.WaitGroup
 	audio             *AudioSystem
 	decoder           *FFmpegBackend
-	audioStatusMu     sync.Mutex
+	audioStatusMu sync.Mutex
+	// TODO(micro): lastAudioCheck is written in refreshAudioDevices but never read; drop the field or use it like lastDisplayCheck for a stale-cache path.
 	lastAudioCheck    time.Time
 	audioDeviceStatus string
 	audioDevices      []AudioDevice
@@ -112,6 +119,7 @@ func (m *Manager) RefreshAudioDeviceStatus() {
 }
 
 func (m *Manager) monitorAudioDevices() {
+	// TODO(micro): 2s poll interval is duplicated with monitorDisplays; extract a shared devicePollInterval constant.
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -345,6 +353,11 @@ func (m *Manager) playbackBackend() PlaybackBackend {
 	return m.decoder
 }
 
+// TODO(macro): outputWindow type lives in manager.go while its event loop,
+// routing, layout, player lifecycle, and transitions are spread across
+// output_window.go and output_layout.go. Move the type next to its methods and
+// give Manager only a narrower output-registry handle so window internals stop
+// leaking into the package root type file.
 type outputWindow struct {
 	id              string
 	manager         *Manager
@@ -370,6 +383,7 @@ type outputWindow struct {
 
 func (m *Manager) outputIDsWithConfiguredStages(outputIDs []string) []string {
 	seen := make(map[string]struct{}, len(outputIDs))
+	// TODO(micro): Snapshot() is called twice; bind settings := m.settings.Snapshot() once and reuse for capacity and VideoOutputs.
 	result := make([]string, 0, len(outputIDs)+len(m.settings.Snapshot().VideoOutputs))
 	for _, outputID := range outputIDs {
 		if outputID != "" {

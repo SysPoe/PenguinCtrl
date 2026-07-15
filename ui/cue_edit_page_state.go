@@ -14,6 +14,7 @@ import (
 // per-cue editor models or field descriptors. Misspelled/missing keys and
 // mismatches between initialization, rendering, and apply logic are currently
 // runtime failures that the compiler cannot expose.
+// TODO(macro): Page widgets are string-keyed bags rebuilt by magic keys across tabs, marker rows, and timeline resets. Replace with typed per-tab (or per-field-group) structs so field identity is compile-checked and marker editors don't share a global string namespace with the Media tab.
 type cueEditPageState struct {
 	initialized bool
 	cueID       show.CueID
@@ -59,10 +60,12 @@ func newCueEditPageState(cue show.Cue) cueEditPageState {
 		}
 	}
 
+	// TODO(micro): magic string field keys ("cueNumber","soundFile",…) are duplicated in tab renderers; share const keys or typed field structs
 	state.dropdown["linkMode"] = newEnumDropdown(cueLinkModeLabels, int(cue.Link.Mode))
 	state.dropdown["linkTargetKind"] = newEnumDropdown(cueTargetKindLabels, int(cue.Link.Target.Kind))
 
 	if cue.Play.Sound != nil {
+		// TODO(micro): Sound/Video/Image field init is nearly identical; extract mediaPlayInputs(kind, play) helper
 		state.text["soundFile"] = input.NewText("File", cue.Play.Sound.File)
 		state.dropdown["soundProjectFile"] = input.NewDropdown(nil, -1)
 		state.button["soundFileBrowse"] = new(widget.Clickable)

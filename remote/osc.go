@@ -63,6 +63,7 @@ func encodeOSC(address string, values []show.RemoteValue) ([]byte, error) {
 
 func oscString(value string) []byte {
 	raw := append([]byte(value), 0)
+	// TODO(micro): name OSC 4-byte alignment pad as a constant (or shared OSC helper)
 	for len(raw)%4 != 0 {
 		raw = append(raw, 0)
 	}

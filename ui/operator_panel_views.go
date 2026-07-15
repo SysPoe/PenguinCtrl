@@ -15,6 +15,10 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
+// TODO(macro): operator_panel_views/components are method files on OperatorPanel
+// rather than independent view types. When bar/log/preflight/blocker are split,
+// move each Layout* next to its state type so this file stops being a catch-all
+// for every overlay presentation.
 func (p *OperatorPanel) layoutBlocker(th *material.Theme, gtx layout.Context, event operatorlog.Event, navigate func(show.CueID, bool, string), openSettings func(), skip func()) layout.Dimensions {
 	if p.cancelBlocker.Clicked(gtx) {
 		p.showBlocker = false
@@ -32,6 +36,7 @@ func (p *OperatorPanel) layoutBlocker(th *material.Theme, gtx layout.Context, ev
 		p.showBlocker = false
 		skip()
 	}
+	// TODO(micro): 680 duplicates operator panel width in LayoutOverlay; share one const.
 	width := min(gtx.Constraints.Max.X, gtx.Dp(unit.Dp(680)))
 	gtx.Constraints.Min.X, gtx.Constraints.Max.X = width, width
 	return layout.E.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -179,6 +184,7 @@ func (p *OperatorPanel) layoutPreflight(th *material.Theme, gtx layout.Context, 
 
 func preflightFilterLabel(filter int) string {
 	switch filter {
+	// TODO(micro): magic ints 0/1/2 for filter; use named preflightFilterAll/Blockers/Warnings consts.
 	case 1:
 		return "FILTER · BLOCKERS"
 	case 2:
@@ -191,8 +197,10 @@ func filterPreflight(checks []operatorlog.PreflightCheck, filter int) []operator
 	if filter == 0 {
 		return checks
 	}
+	// TODO(micro): pre-size with len(checks) cap to avoid growth from zero-capacity slice.
 	result := make([]operatorlog.PreflightCheck, 0)
 	for _, check := range checks {
+		// TODO(micro): blockers filter omits CueFailure; include it or match preflightSeverityLabel blocker set.
 		if (filter == 1 && check.Severity == operatorlog.ShowStopping) || (filter == 2 && check.Severity == operatorlog.Warning) {
 			result = append(result, check)
 		}
@@ -201,6 +209,7 @@ func filterPreflight(checks []operatorlog.PreflightCheck, filter int) []operator
 }
 
 func navigableChecks(checks []operatorlog.PreflightCheck) []operatorlog.PreflightCheck {
+	// TODO(micro): pre-size with len(checks) cap to avoid growth from zero-capacity slice.
 	result := make([]operatorlog.PreflightCheck, 0)
 	for _, check := range checks {
 		if check.Acknowledged {

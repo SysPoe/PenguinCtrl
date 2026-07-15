@@ -20,6 +20,11 @@ import (
 const topBarHeight int = 40
 const menuWidth int = 200
 
+// TODO(macro): TopBar mixes menu chrome, file/page request flags, emergency-stop
+// confirmation modal, blackout, and a status sink. Extract E-STOP confirmation as a
+// shared modal (with DocumentGuard/TB dialogs), keep menus as one concern, and replace
+// the Take*/Request* flag bus with a single outbound command channel so hosts aren't
+// polling many booleans.
 type TopBar struct {
 	actionPos image.Point
 	addCuePos image.Point
@@ -71,6 +76,7 @@ func (tb *TopBar) AddCueMenuOpen() bool {
 
 func (tb *TopBar) FileMenuOpen() bool { return tb.showFile }
 
+// TODO(micro): identical to CloseMenus; delete one or make CloseAddCueMenu call CloseMenus.
 func (tb *TopBar) CloseAddCueMenu() {
 	tb.setAllFalse()
 }
@@ -139,6 +145,7 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, set
 		tb.showAction = !wasOpen
 	}
 	if !settingsPage && tb.btnAddCue.Clicked(gtx) {
+		// TODO(micro): misnamed var (wasOpen elsewhere); rename to wasOpen for consistency.
 		oval := tb.showAddCue
 		tb.setAllFalse()
 		tb.showAddCue = !oval
@@ -164,6 +171,7 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, set
 	var pageSize image.Point
 	var blackoutSize image.Point
 	windowWidth := gtx.Constraints.Max.X
+	// TODO(micro): 900 compact breakpoint is magic; name topBarCompactWidth const.
 	compact := windowWidth < gtx.Dp(unit.Dp(900))
 	if compact {
 		tb.showAction, tb.showAddCue = false, false
@@ -294,6 +302,7 @@ func (tb *TopBar) LayoutEmergencyStopConfirmation(th *material.Theme, gtx layout
 	}
 
 	size := gtx.Constraints.Max
+	// TODO(micro): 0xB8 dimmer alpha and 480/210/10 panel sizes duplicate DocumentGuard magic; share modal chrome consts.
 	paint.FillShape(gtx.Ops, palette.WithAlpha(palette.Black, 0xB8), clip.Rect{Max: size}.Op())
 	hitArea := clip.Rect{Max: size}.Push(gtx.Ops)
 	event.Op(gtx.Ops, &tb.eStopModal)

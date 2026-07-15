@@ -31,6 +31,7 @@ func (p *Player) LayoutScaled(gtx layout.Context, scaling string) layout.Dimensi
 		// Player.Layout's drawing and invalidation operations above are
 		// deliberately discarded. Schedule on the real operation list so the
 		// next decoded frame is requested even after the first frame appears.
+		// TODO(micro): time.Second/60 invalidate cadence is duplicated with Player.Layout/output_layout; extract frameInvalidateInterval.
 		gtx.Execute(op.InvalidateCmd{At: time.Now().Add(time.Second / 60)})
 	}
 	if frame == nil {
@@ -41,11 +42,13 @@ func (p *Player) LayoutScaled(gtx layout.Context, scaling string) layout.Dimensi
 	if !started.IsZero() {
 		opacity = p.visualOpacity(time.Since(started))
 		if opacity < 1 {
+			// TODO(micro): second identical 60fps InvalidateCmd in this function; share one helper for fade/playback refresh scheduling.
 			gtx.Execute(op.InvalidateCmd{At: time.Now().Add(time.Second / 60)})
 		}
 	}
 	stack := paint.PushOpacity(gtx.Ops, opacity)
 	defer stack.Pop()
+	// TODO(micro): scaling mode strings "stretch"/"cover"/"native" are magic; share constants with layoutFrame/output route config.
 	if scaling == "stretch" {
 		size := frame.Bounds().Size()
 		if size.X <= 0 || size.Y <= 0 {

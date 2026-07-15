@@ -29,11 +29,13 @@ func (ctx *CueEditUI) layoutFormRows(th *material.Theme, gtx layout.Context, row
 				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					label := stableBody2(th, row.label+":")
 					label.TextSize = unit.Sp(18)
+					// TODO(micro): 120 label width is a magic Dp; name a formLabelWidth const.
 					labelWidth := gtx.Dp(unit.Dp(120))
 					maxLabelWidth := gtx.Constraints.Max.X / 3
 					if maxLabelWidth > 0 && labelWidth > maxLabelWidth {
 						labelWidth = maxLabelWidth
 					}
+					// TODO(micro): labelWidth is Dp-converted so never negative; drop dead clamp.
 					if labelWidth < 0 {
 						labelWidth = 0
 					}
@@ -111,6 +113,7 @@ func (ctx *CueEditUI) groupTargetDropdownRow(th *material.Theme, label, key stri
 }
 
 func groupDropdownItems(manager *show.ShowManager) []input.DropdownItem {
+	// TODO(micro): nil and empty Groups() both return the same placeholder; collapse into one branch after manager.Groups().
 	if manager == nil {
 		return []input.DropdownItem{{Label: "No cue groups available", Value: ""}}
 	}
@@ -169,6 +172,7 @@ func (ctx *CueEditUI) ensureCueTargetDropdown(key string, manager *show.ShowMana
 }
 
 func cueDropdownItems(manager *show.ShowManager, excludeCueID show.CueID) []input.DropdownItem {
+	// TODO(micro): nil/empty/filtered-empty all return the same placeholder; extract emptyCueDropdownItems helper.
 	if manager == nil {
 		return []input.DropdownItem{{Label: "No other cues available", Value: ""}}
 	}

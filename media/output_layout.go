@@ -35,13 +35,20 @@ func resolveDisplayForGeometry(id string, displays []VideoDisplay) (VideoDisplay
 			return display, id == ""
 		}
 	}
+	// TODO(micro): panics if displays is empty; callers sometimes check len==0 but platformPlaceWindow can pass empty after early len check -- still unsafe if called elsewhere with empty slice.
 	return displays[0], id == ""
 }
 
+// TODO(macro): output_layout.go mixes stage presentation (canvas, layers,
+// guides, test pattern, hold frame) with engine event application and Player
+// create/start/reconcile/remove. Split layout from a stage session controller so
+// visual policy changes do not sit beside playback lifecycle and so audio-only
+// instances are not forced through a visual window's player map.
 func (o *outputWindow) layout(gtx layout.Context) layout.Dimensions {
 	gtx.Constraints.Min = gtx.Constraints.Max
 	o.advanceTransition()
 	if o.transition != nil {
+		// TODO(micro): time.Second/60 (~60fps invalidate) is repeated across player/output layout; extract a frameInvalidateInterval constant.
 		gtx.Execute(op.InvalidateCmd{At: time.Now().Add(time.Second / 60)})
 	}
 	return layout.Stack{}.Layout(gtx,
@@ -103,6 +110,7 @@ func (o *outputWindow) layoutContent(gtx layout.Context, route config.VideoOutpu
 		children := make([]layout.StackChild, 0, len(visible))
 		for _, player := range visible {
 			// TODO(micro): Remove this obsolete loop-variable copy; Go 1.22+ closures capture the per-iteration player.
+			// TODO(micro): player := player is a no-op under Go 1.22+ loop semantics; drop the rebinding.
 			player := player
 			children = append(children, layout.Expanded(func(gtx layout.Context) layout.Dimensions {
 				return player.LayoutScaled(gtx, route.Scaling)
@@ -114,6 +122,7 @@ func (o *outputWindow) layoutContent(gtx layout.Context, route config.VideoOutpu
 		return layoutFrame(gtx, o.heldFrame, route.Scaling)
 	}
 	if o.identify {
+		// TODO(micro): material.NewTheme() allocates a full theme per frame for identify/missing-display labels; cache a theme on the window or package.
 		th := material.NewTheme()
 		text := o.identifyMessage
 		if text == "" {
@@ -183,6 +192,7 @@ func (o *outputWindow) setVisibleDecoders(visible []*Player) {
 func (o *outputWindow) layoutGuides(gtx layout.Context, route config.VideoOutput) layout.Dimensions {
 	size := gtx.Constraints.Max
 	if route.TestGrid {
+		// TODO(micro): guide thickness divisors 360/240 and alpha 0x58/0xD0 are magic presentation constants; name them.
 		line := max(1, min(size.X, size.Y)/360)
 		grid := color.NRGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0x58}
 		for i := 1; i < 10; i++ {
@@ -202,6 +212,7 @@ func (o *outputWindow) layoutGuides(gtx layout.Context, route config.VideoOutput
 	displayMissing := o.displayMissing
 	o.routeMu.Unlock()
 	if displayMissing {
+		// TODO(micro): second per-frame material.NewTheme() for missing-display banner; share one cached theme with identify path.
 		th := material.NewTheme()
 		label := material.Body1(th, "ASSIGNED DISPLAY MISSING · TEMPORARY PRIMARY OUTPUT")
 		label.Color = palette.White
@@ -219,6 +230,7 @@ func paintRectOutline(gtx layout.Context, rect image.Rectangle, width int, fill 
 	paint.FillShape(gtx.Ops, fill, clip.Rect{Min: image.Pt(rect.Max.X-width, rect.Min.Y), Max: rect.Max}.Op())
 }
 
+// TODO(micro): layoutFrame allocates a throwaway *Player just to call LayoutScaled; extract a free function that paints an image with scaling.
 func layoutFrame(gtx layout.Context, frame image.Image, scaling string) layout.Dimensions {
 	player := &Player{frame: frame}
 	return player.LayoutScaled(gtx, scaling)
@@ -294,6 +306,7 @@ func (o *outputWindow) reconcile(instances []playback.Instance) {
 			continue
 		}
 		// TODO(micro): Remove this obsolete loop-variable copy; the module requires Go 1.26.
+		// TODO(micro): instance := instance is a no-op under Go 1.22+ loop semantics; drop the rebinding.
 		instance := instance
 		o.start(&instance)
 	}
@@ -431,6 +444,7 @@ func layoutTestPattern(gtx layout.Context) layout.Dimensions {
 	children := make([]layout.FlexChild, len(testPatternColors))
 	for i, barColor := range testPatternColors {
 		// TODO(micro): Remove this obsolete loop-variable copy; barColor is already scoped to this iteration.
+		// TODO(micro): barColor := barColor is a no-op under Go 1.22+ loop semantics; drop the rebinding.
 		barColor := barColor
 		children[i] = layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			paint.FillShape(gtx.Ops, barColor, clip.Rect{Max: gtx.Constraints.Max}.Op())

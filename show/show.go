@@ -2,6 +2,9 @@ package show
 
 import "encoding/json"
 
+// TODO(macro): Split the durable show document from operator session state —
+// AcknowledgedProblems is preflight/UI acknowledgement, not program content, yet
+// it is persisted on Show and travels through clone/save/recovery with cues.
 type Show struct {
 	Cues                 []Cue                      `json:"cues"`
 	Title                string                     `json:"title"`
@@ -10,6 +13,7 @@ type Show struct {
 }
 
 func (s *Show) InsertCue(index int, cue Cue) {
+	// TODO(micro): Same append/copy insert as insertMovedCue / Duplicate / Paste — extract one shared insert-at helper.
 	if index < 0 {
 		index = 0
 	}

@@ -24,6 +24,11 @@ type File struct {
 
 // Library keeps a content-addressed list of project media. Selecting the same
 // bytes twice returns the original entry rather than adding a duplicate.
+// TODO(macro): Clarify Library vs Manifest.Assets vs show File paths — Library is
+// a session-scoped content-addressed list independent of archive assets and the
+// on-disk cache, so open/save must manually Replace/republish between them. Make
+// the open project a single ProjectSession that owns library, archive path, and
+// cache protection set so asset identity is not re-derived at each boundary.
 type Library struct {
 	mu    sync.RWMutex
 	files []File
@@ -56,12 +61,14 @@ func (l *Library) Add(source, kind string) (File, bool, error) {
 func (l *Library) Files(kind string) []File {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
+	// TODO(micro): pre-size files with len(l.files) when kind=="" to avoid growth from zero
 	var files []File
 	for _, file := range l.files {
 		if kind == "" || file.Kind == kind {
 			files = append(files, file)
 		}
 	}
+	// TODO(micro): prefer slices.SortFunc with strings.Compare on lowercased names
 	sort.SliceStable(files, func(i, j int) bool {
 		return strings.ToLower(files[i].Name) < strings.ToLower(files[j].Name)
 	})
@@ -70,6 +77,7 @@ func (l *Library) Files(kind string) []File {
 
 func (l *Library) Replace(files []File) {
 	l.mu.Lock()
+	// TODO(micro): prefer slices.Clone(files)
 	l.files = append([]File(nil), files...)
 	l.mu.Unlock()
 }

@@ -15,6 +15,9 @@ import (
 	"github.com/syspoe/cusus/ui"
 )
 
+// TODO(macro): This file co-owns keyboard command routing and operator warning-bar layout
+// widgets. Split input/command map (cue list + document shortcuts → show/playback/topBar ports)
+// from ui warning chrome so layoutWarnings* can live under package ui next to OperatorPanel.
 func (a *App) handleCueListShortcuts(gtx layout.Context) {
 	topBar := &a.UI.TopBar
 	playbackSidebar := &a.UI.PlaybackSidebar
@@ -47,6 +50,7 @@ func (a *App) handleCueListShortcuts(gtx layout.Context) {
 		return
 	}
 	if topBar.AddCueMenuOpen() || topBar.ActionMenuOpen() || topBar.FileMenuOpen() {
+		// TODO(micro): Escape-drain loop is duplicated with MoveCueActive below; extract a one-shot helper (e.g. onEscapePress(gtx, fn)).
 		for {
 			event, ok := gtx.Event(key.Filter{Name: key.NameEscape})
 			if !ok {
@@ -63,6 +67,7 @@ func (a *App) handleCueListShortcuts(gtx layout.Context) {
 		return
 	}
 	if tbCtx.MoveCueActive() {
+		// TODO(micro): Same Escape-drain loop as AddCueMenuOpen/ActionMenuOpen/FileMenuOpen above; share one helper.
 		for {
 			event, ok := gtx.Event(key.Filter{Name: key.NameEscape})
 			if !ok {
@@ -131,6 +136,7 @@ func (a *App) handleCueListShortcuts(gtx layout.Context) {
 			manager.MoveSelection(-1)
 		case key.NameDownArrow:
 			manager.MoveSelection(1)
+		// TODO(micro): Page step ±10 is a magic number; name a constant (e.g. cueListPageStep).
 		case key.NamePageUp:
 			manager.MoveSelection(-10)
 		case key.NamePageDown:
@@ -289,6 +295,7 @@ func warningBar(gtx layout.Context, requestedHeight unit.Dp, content layout.Widg
 func layoutWarnings(th *material.Theme, gtx layout.Context, windowFocused bool, audioWarning, videoWarning, safetyWarning string, settingsButton, safetyResume *widget.Clickable) layout.Dimensions {
 	return layout.S.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.Y = 0
+		// TODO(micro): Cap is 2 but up to 4 bars can append (safety/focus/audio/video); prealloc 4 to avoid growth.
 		children := make([]layout.FlexChild, 0, 2)
 		if safetyWarning != "" {
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {

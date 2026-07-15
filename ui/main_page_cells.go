@@ -98,6 +98,7 @@ func layoutMoveCueToEndTarget(th *material.Theme, gtx layout.Context) layout.Dim
 }
 
 // TODO(micro): Remove this unused legacy formatter; problemTooltipText is the active tooltip path.
+// TODO(micro): unused; problemTooltipText supersedes it — delete or wire into a call site
 func warningTooltipText(warnings []string) string {
 	if len(warnings) == 0 {
 		return ""
@@ -105,6 +106,7 @@ func warningTooltipText(warnings []string) string {
 	return "• " + strings.Join(warnings, "\n• ")
 }
 
+// TODO(macro): Problem/runtime presentation (tooltips, badges, progress, configured duration/volume, time formatting) is cue-list-local but reappears in cue edit, operator preflight, and the playback sidebar. Extract a shared presentation layer so severity labels/colors and runtime math aren't reimplemented per page.
 func problemTooltipText(problems []show.CueProblem) string {
 	if len(problems) == 0 {
 		return ""
@@ -215,6 +217,7 @@ func makeRuntimeCell(th *material.Theme, value string, weight float32) layout.Fl
 	})
 }
 
+// TODO(micro): thin wrapper of makeProgressCell(..., text.Start); call makeProgressCell directly at use site.
 func makeDescriptionProgressCell(th *material.Theme, value string, progress float32, progressColor color.NRGBA, weight float32) layout.FlexChild {
 	return makeProgressCell(th, value, progress, progressColor, weight, text.Start)
 }
@@ -227,6 +230,7 @@ func makeProgressCell(th *material.Theme, value string, progress float32, progre
 				if progress > 0 && size.X > 0 && size.Y > 0 {
 					width := int(float32(size.X)*min(float32(1), max(float32(0), progress)) + 0.5)
 					fill := progressColor
+					// TODO(micro): progress fill alpha 0xD0 is magic; name cueProgressAlpha const.
 					fill.A = 0xD0
 					paint.FillShape(gtx.Ops, fill, clip.Rect{Max: image.Pt(width, size.Y)}.Op())
 				}
@@ -294,6 +298,7 @@ func cueWaitCellValues(cue show.Cue, execution playback.CueExecution, executing 
 
 func waitCountdownLabel(remainingMs int64) string {
 	remainingMs = max(int64(0), remainingMs)
+	// TODO(micro): 100ms countdown quantize threshold is magic; name waitCountdownQuantum const.
 	if remainingMs <= 100 {
 		return "0"
 	}

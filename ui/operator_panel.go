@@ -17,6 +17,10 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
+// TODO(macro): OperatorPanel bundles status bar, event log, preflight navigator, and
+// GO-blocker modal with one shared list widget and overlapping show* flags. Split bar /
+// log / preflight / blocker into nested views with their own scroll state so mode switches
+// don't share list position or clickable pools.
 type OperatorPanel struct {
 	logButton        widget.Clickable
 	preflightButton  widget.Clickable
@@ -81,6 +85,7 @@ func (p *OperatorPanel) LayoutBar(th *material.Theme, gtx layout.Context, store 
 		background = operatorSeverityColor(latest.Severity)
 		title, detail = latest.Severity.Label(), operatorEventSummary(latest)
 	}
+	// TODO(micro): 54 bar height is a magic Dp; name operatorBarHeight const.
 	gtx.Constraints.Min.Y = gtx.Dp(unit.Dp(54))
 	gtx.Constraints.Max.Y = gtx.Constraints.Min.Y
 	paint.FillShape(gtx.Ops, background, clip.Rect{Max: gtx.Constraints.Max}.Op())
@@ -114,6 +119,7 @@ func (p *OperatorPanel) LayoutBar(th *material.Theme, gtx layout.Context, store 
 
 func operatorStatusPresentation(status, healthStatus string) (color.NRGBA, string, string) {
 	status = strings.TrimSpace(status)
+	// TODO(micro): re-trims/uppercases health already normalized in SetHealth; drop redundant normalize here or in SetHealth.
 	healthStatus = strings.ToUpper(strings.TrimSpace(healthStatus))
 	if healthStatus != "" && healthStatus != "NORMAL" {
 		background := palette.Warning
@@ -156,6 +162,7 @@ func (p *OperatorPanel) LayoutOverlay(th *material.Theme, gtx layout.Context, st
 	}
 	if p.showPreflight {
 		if p.filterButton.Clicked(gtx) {
+			// TODO(micro): magic filter cycle 3; name preflightFilterCount or enum the filter values.
 			p.preflightFilter = (p.preflightFilter + 1) % 3
 			p.problemIndex = 0
 		}
@@ -176,6 +183,7 @@ func (p *OperatorPanel) LayoutOverlay(th *material.Theme, gtx layout.Context, st
 		}
 	}
 
+	// TODO(micro): 680 panel width is a magic Dp (also in layoutBlocker); name operatorPanelWidth const.
 	width := min(gtx.Constraints.Max.X, gtx.Dp(unit.Dp(680)))
 	height := gtx.Constraints.Max.Y
 	gtx.Constraints.Min, gtx.Constraints.Max = image.Pt(width, height), image.Pt(width, height)

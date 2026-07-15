@@ -28,6 +28,10 @@ type preflightSnapshot struct {
 	Checks     []operatorlog.PreflightCheck
 }
 
+// TODO(macro): preflightService mixes infrastructure (async cache, HMAC freshness gate) with
+// domain checks (disk forecast, remote health) and cue-link graph reachability. Extract the
+// signed gate/cache into preflight or playback as a reusable service; leave check builders as
+// pure functions in that package, and move reachableCueIDs next to show link semantics.
 type preflightService struct {
 	mu      sync.RWMutex
 	key     [sha256.Size]byte
@@ -43,6 +47,7 @@ func newPreflightService() *preflightService {
 	ctx, cancel := context.WithCancel(context.Background())
 	service := &preflightService{ctx: ctx, cancel: cancel}
 	// TODO(micro): Handle rand.Read failure rather than silently continuing with a predictable all-zero secret.
+	// TODO(micro): ignore rand.Read error; secret may stay zero and HMAC gate becomes deterministic
 	_, _ = rand.Read(service.secret[:])
 	return service
 }
@@ -52,6 +57,7 @@ func (s *preflightService) Close() { s.cancel(); s.wg.Wait() }
 func (s *preflightService) Request(showState show.Show, settings config.Settings, audioWarning, videoWarning string, health []remote.TargetHealth, problems func(show.Cue) []show.CueProblem) []operatorlog.PreflightCheck {
 	cues := showState.Cues
 	showDigest := showDigest(showState)
+	// TODO(micro): Ignoring Marshal error on environment key can collapse distinct settings/health into one cache key; handle err.
 	environment, _ := json.Marshal(struct {
 		Settings     config.Settings
 		Audio, Video string
@@ -62,6 +68,7 @@ func (s *preflightService) Request(showState show.Show, settings config.Settings
 
 	s.mu.Lock()
 	s.key = key
+	// TODO(micro): 2s freshness TTL is a magic duration (also health poll interval); name a shared const.
 	if s.latest.Key == key && time.Since(s.latest.Generated) < 2*time.Second {
 		checks := append([]operatorlog.PreflightCheck(nil), s.latest.Checks...)
 		s.mu.Unlock()
@@ -166,6 +173,7 @@ func (s *preflightService) sign(snapshot preflightSnapshot) [sha256.Size]byte {
 	mac := hmac.New(sha256.New, s.secret[:])
 	mac.Write(snapshot.Key[:])
 	mac.Write(snapshot.ShowDigest[:])
+	// TODO(micro): Ignoring Marshal error signs empty checks and can falsely accept a stale/corrupt gate; fail closed on err.
 	raw, _ := json.Marshal(snapshot.Checks)
 	mac.Write(raw)
 	var signature [sha256.Size]byte
@@ -201,6 +209,7 @@ func diskPreflight(cues []show.Cue, settings config.Settings) []operatorlog.Pref
 	if err != nil {
 		return diskCaution("Free space could not be measured: " + err.Error())
 	}
+	// TODO(micro): sourceBytes*2 + 2GiB forecast is magic policy; name packaging multiplier and fixed reserve consts.
 	required := sourceBytes*2 + 2<<30
 	if available < required {
 		return diskCaution(fmt.Sprintf("Only %.1f GiB free; packaging/cache forecast requires %.1f GiB", float64(available)/(1<<30), float64(required)/(1<<30)))
@@ -212,6 +221,10 @@ func diskCaution(message string) []operatorlog.PreflightCheck {
 	return []operatorlog.PreflightCheck{{Severity: operatorlog.Warning, Source: "Disk / cache", Message: message, Fingerprint: "disk:" + message}}
 }
 
+// TODO(macro): cueMediaSources is shared domain knowledge used by preflight disk checks, cache
+// maintenance (window_loop), and redundancy fingerprints, yet lives under preflight_service.
+// Move resolved media-source extraction onto show.Cue (or project media inventory) so packages
+// do not depend on preflight for path enumeration.
 func cueMediaSources(cue show.Cue, settings config.Settings) []string {
 	var source string
 	switch cue.Type {
@@ -235,6 +248,7 @@ func cueMediaSources(cue show.Cue, settings config.Settings) []string {
 }
 
 func remoteHealthPreflight(cues []show.Cue, settings config.Settings, health []remote.TargetHealth) []operatorlog.PreflightCheck {
+	// TODO(micro): hasRemote is redundant with len(affected); drop the bool and early-return on len(affected)==0.
 	hasRemote := false
 	var affected []show.CueID
 	for _, cue := range cues {

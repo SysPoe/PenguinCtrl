@@ -23,6 +23,11 @@ import (
 	_ "golang.org/x/image/webp"
 )
 
+// TODO(macro): Layout advances the decode clock and paints, while LayoutScaled
+// records Layout only to discard its draw ops then reimplements opacity/paint.
+// That dual render path couples frame advancement to Gio layout and duplicates
+// presentation policy. Extract "pull frame for clock" from drawing, and make
+// scaling a pure paint concern used by output stages.
 func (p *Player) Layout(gtx layout.Context) layout.Dimensions {
 	p.mu.RLock()
 	frame, clock, session := p.frame, p.clock, p.session
@@ -37,6 +42,7 @@ func (p *Player) Layout(gtx layout.Context) layout.Dimensions {
 	}
 	if frame == nil {
 		if session != nil && session.State() != LoadEnded {
+			// TODO(micro): time.Second/60 invalidate cadence is duplicated with LayoutScaled/output_layout; extract frameInvalidateInterval.
 			gtx.Execute(op.InvalidateCmd{At: time.Now().Add(time.Second / 60)})
 		}
 		return layout.Dimensions{Size: gtx.Constraints.Max}
@@ -47,6 +53,7 @@ func (p *Player) Layout(gtx layout.Context) layout.Dimensions {
 		elapsed := clock.Position() - time.Duration(max(0, p.instance.ClipStartMs))*time.Millisecond
 		opacity = p.visualOpacity(elapsed)
 		if opacity < 1 {
+			// TODO(micro): second identical 60fps InvalidateCmd; share helper with the empty-frame path above.
 			gtx.Execute(op.InvalidateCmd{At: time.Now().Add(time.Second / 60)})
 		}
 	}
@@ -150,6 +157,10 @@ func (p *Player) stopSessionLocked() {
 	}
 }
 
+// TODO(macro): sourcePath, ffprobePath, duration probing, and dbVolume are
+// package-wide media utilities parked in the Gio render file. Move path/probe
+// helpers next to backend_probe (or a mediainfo unit) and gain conversion next
+// to audio so player_render.go only owns frame presentation.
 func sourcePath(source string) (string, error) {
 	if strings.HasPrefix(source, "file:") {
 		parsed, err := url.Parse(source)
@@ -172,6 +183,7 @@ func sourcePath(source string) (string, error) {
 	return source, nil
 }
 
+// TODO(micro): probeMediaDuration is a thin Background wrapper only used by waveform; call probeMediaDurationContext directly or keep one public entry point.
 func probeMediaDuration(ffmpegPath, source string) (time.Duration, error) {
 	return probeMediaDurationContext(context.Background(), ffmpegPath, source)
 }
@@ -218,8 +230,10 @@ func ffprobePath(ffmpegPath string) string {
 }
 
 func dbVolume(db float64, muted bool) float64 {
+	// TODO(micro): -80 dB mute floor and 12.0/20 max gain are duplicated with devicePlayer.SetVolume; extract shared constants.
 	if muted || db <= -80 {
 		return 0
 	}
+	// TODO(micro): math.Pow(10, 12.0/20) is recomputed every call; precompute maxGainLinear once.
 	return min(math.Pow(10, 12.0/20), math.Pow(10, db/20))
 }

@@ -51,6 +51,7 @@ func (p *devicePlayer) Start() error {
 	return nil
 }
 
+// TODO(micro): readSamples is unused outside tests; remove production dead code or wire it if still intended as the malgo callback path.
 func (p *devicePlayer) readSamples(output, _ []byte, _ uint32) {
 	clear(output)
 	p.mixInto(output)
@@ -71,6 +72,7 @@ func (p *devicePlayer) RenderedPosition() time.Duration {
 }
 
 func (p *devicePlayer) fillRing() {
+	// TODO(micro): 32*1024 fill buffer size and 2ms backpressure sleep are magic; name constants next to audioPrebuffer/audioRingBytes.
 	buffer := make([]byte, 32*1024)
 	for {
 		n, err := p.reader.Read(buffer)
@@ -108,6 +110,7 @@ func (p *devicePlayer) UnexpectedStop() bool     { return !p.intentional.Load() 
 func (p *devicePlayer) Underruns() uint64        { return p.underruns.Load() }
 
 func (p *devicePlayer) SetVolume(volume float64) {
+	// TODO(micro): 12.0/20 max gain and -80 mute floor are duplicated with dbVolume; extract shared maxGainLinear / muteFloorDB constants.
 	p.volume.Store(float64Bits(max(0, min(math.Pow(10, 12.0/20), volume))))
 }
 
@@ -144,6 +147,7 @@ func (r *pcmRing) available() int {
 
 func (r *pcmRing) writeBytesAvailable() int { return len(r.data) - r.available() }
 
+// TODO(micro): writeBytes takes dst but always receives r.data from write; drop the dst param and write to r.data, or make it a package helper if reuse is intended.
 func (r *pcmRing) writeBytes(dst []byte, offset uint64, src []byte) int {
 	n := min(len(src), len(r.data))
 	start := int(offset % uint64(len(r.data)))
@@ -164,6 +168,7 @@ func (r *pcmRing) write(src []byte) int {
 	return n
 }
 
+// TODO(micro): pcmRing.read is only used by tests; production mixes via mix(). Move read to a test helper or delete if mix covers the API.
 func (r *pcmRing) read(dst []byte) int {
 	read := r.readPos.Load()
 	n := min(len(dst), r.available())
@@ -198,5 +203,6 @@ func (r *pcmRing) mix(output []byte, gain float64) int {
 	return n
 }
 
+// TODO(micro): float64Bits/float64FromBits only alias math.Float64bits/frombits; call math directly at the two call sites.
 func float64Bits(value float64) uint64     { return math.Float64bits(value) }
 func float64FromBits(value uint64) float64 { return math.Float64frombits(value) }

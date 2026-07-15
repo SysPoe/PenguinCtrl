@@ -15,6 +15,10 @@ const (
 	maximumFormerLargeFileLines = 500
 )
 
+// TODO(macro): Maintainability gate is LOC-only and omits window_loop.go / health_service.go /
+// document_controller.go cohesion problems that already concentrate orchestration in package main.
+// After splitting those god files, add them to formerLargeFiles (stricter cap) and consider a
+// package-boundary check (e.g. forbid package main from owning preflight/health collectors).
 var formerLargeFiles = map[string]struct{}{
 	"main.go":                    {},
 	"media/audio.go":             {},

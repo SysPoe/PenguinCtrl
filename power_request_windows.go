@@ -30,6 +30,7 @@ func startPowerKeeper() *powerKeeper {
 		defer keeper.wg.Done()
 		runtime.LockOSThread()
 		defer runtime.UnlockOSThread()
+		// TODO(micro): 30s re-assert interval is magic; name a const. Also ignore Call() last-error — failed ES requests leave sleep enabled silently.
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 		for {

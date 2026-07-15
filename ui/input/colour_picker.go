@@ -13,6 +13,7 @@ import (
 	"gioui.org/widget/material"
 )
 
+// TODO(macro): ColourPicker embeds full OKLCH conversion math inside the input widget kit. Move color-space conversion to palette (or a color util) and keep this type as a composed Slider UI over a color model so widget scope stays presentation-only.
 type ColourPicker struct {
 	Label string
 	Value color.NRGBA
@@ -78,6 +79,7 @@ func (c *ColourPicker) syncSliders() {
 	c.alpha.Value = float64(c.Value.A)
 }
 
+// TODO(micro): Layout never re-derives oklch from c.Value; external Value assignment won't update sliders until rebuild.
 func (c *ColourPicker) Layout(th *material.Theme, gtx layout.Context) layout.Dimensions {
 	c.syncSliders()
 

@@ -9,6 +9,11 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
+// TODO(macro): engine_controls.go mixes the operator control façade (StopAll,
+// BlackoutAll, FadeAll) with instance matching, OutputIDs discovery, operator-log
+// error fan-out, and pure helpers (materializeInstance, startInstanceFade,
+// waitContext). Split OperatorControls from InstanceQuery helpers and shared
+// time/fade utilities so this file is not the residual grab-bag for Engine methods.
 func (e *Engine) StopAll() {
 	if e.operatorLog != nil {
 		e.operatorLog.Diagnostic("Operator action", "STOP ALL dispatched", nil)
@@ -74,6 +79,7 @@ func (e *Engine) FadeInstance(instanceID string) error {
 // FadeAll performs the fixed two-second operator fade on every live instance.
 func (e *Engine) FadeAll() {
 	for _, instance := range e.ActiveInstances() {
+		// TODO(micro): surface or log FadeInstance errors instead of discarding; partial fade-all failures are silent
 		_ = e.FadeInstance(instance.ID)
 	}
 }
@@ -90,6 +96,7 @@ func (e *Engine) EndInstance(instanceID string) {
 	e.HandleOutputReport(instance.ID, "ended")
 }
 
+// TODO(micro): filter under e.mu.RLock over e.instances; ActiveInstances copies+materializes every instance before filtering
 func (e *Engine) matchingInstances(target show.MediaTarget) []Instance {
 	all := e.ActiveInstances()
 	result := make([]Instance, 0, len(all))
@@ -103,6 +110,7 @@ func (e *Engine) matchingInstances(target show.MediaTarget) []Instance {
 		case show.MediaTargetInstance:
 			matches = instance.ID == target.InstanceID
 		case show.MediaTargetAllAudio:
+			// TODO(micro): media type strings "audio"/"video"/"image" are free text; share package consts with media/player
 			matches = instance.MediaType == "audio"
 		case show.MediaTargetAllVideo:
 			matches = instance.MediaType == "video" || instance.MediaType == "image"
@@ -118,8 +126,10 @@ func (e *Engine) matchingInstances(target show.MediaTarget) []Instance {
 	return result
 }
 
+// TODO(micro): replace with matchingInstances(MediaTarget{Kind: MediaTargetOutput, OutputID: outputID}); body is a duplicate filter
 func (e *Engine) instancesForOutput(outputID string) []Instance {
 	all := e.ActiveInstances()
+	// TODO(micro): pre-size with len(all) cap to avoid growth from zero-capacity slice
 	result := make([]Instance, 0)
 	for _, instance := range all {
 		if instance.OutputID == outputID {
@@ -177,6 +187,7 @@ func (e *Engine) LastError() string {
 	if value == nil {
 		return ""
 	}
+	// TODO(micro): use comma-ok type assert; a non-string store would panic
 	return value.(string)
 }
 
@@ -248,6 +259,7 @@ func (e *Engine) changed() {
 	}
 }
 
+// TODO(micro): scan e.instances under RLock instead of allocating a full ActiveInstances copy
 func (e *Engine) hasMediaType(mediaType string) bool {
 	for _, instance := range e.ActiveInstances() {
 		if instance.MediaType == mediaType {
@@ -305,10 +317,12 @@ func startInstanceFade(instance *Instance, targetDB float64, durationMs int64, n
 	instance.FadeStartedAt = now
 }
 
+// TODO(micro): bounds-check or map lookup; bare index panics if Action is out of range (validation is only at call sites)
 func mediaControlName(action show.MediaControlAction) string {
 	return []string{"fade-to", "fade-out", "stop", "pause", "resume", "seek", "set-volume", "mute", "unmute"}[action]
 }
 
+// TODO(micro): bounds-check or map lookup; bare index panics if Action is out of range
 func outputControlName(action show.OutputControlAction) string {
 	return []string{"blackout", "clear", "test-pattern", "identify", "reopen", "fullscreen", "exit-fullscreen"}[action]
 }

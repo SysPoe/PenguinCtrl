@@ -33,6 +33,7 @@ func (ctx *CueEditUI) drawBody(th *material.Theme, gtx layout.Context, manager *
 	case tabOutputCtrl:
 		return ctx.renderOutputCtrlTab(th, gtx)
 	}
+	// TODO(micro): default branch returns empty flexed layout for invalid tab; return empty dims or log the bad tab id.
 	return layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 		return layout.Dimensions{}
 	})
@@ -71,6 +72,7 @@ type cueEditFormRow struct {
 	layout func(gtx layout.Context) layout.Dimensions
 }
 
+// TODO(macro): Enum label catalogs, form-row type, focus routing, and ensureCuePlay/ensurePageInputs share one file with no domain owner. Move labels next to show enums (or a single UI catalog), keep page routing thin, and stop re-listing the same action/kind labels in the timecode marker editor.
 var (
 	cueLinkModeLabels = []string{
 		"Manual",

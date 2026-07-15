@@ -12,6 +12,11 @@ import (
 
 // Load reads and extracts a .cusus file. Returned cue paths point at a stable
 // per-archive cache directory, ready for the playback engine.
+// TODO(macro): Load rewrites cue File paths to absolute cache locations and also
+// returns a []File library snapshot — two side effects for one call. Separate
+// archive extraction (cache root + Manifest) from ProjectSession hydration so
+// path rewriting and library rebuild are explicit session steps, not Load
+// byproducts.
 func Load(path string) (Manifest, []File, error) {
 	zr, err := zip.OpenReader(path)
 	if err != nil {
@@ -73,6 +78,7 @@ func Load(path string) (Manifest, []File, error) {
 	if err != nil {
 		return Manifest{}, nil, err
 	}
+	// TODO(micro): name content-hash path prefix width (24) as a constant shared with Save
 	root := filepath.Join(cacheRoot, "CuSus", "shows", digest[:24])
 	parent := filepath.Dir(root)
 	if err := os.MkdirAll(parent, 0o755); err != nil {

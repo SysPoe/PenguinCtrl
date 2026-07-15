@@ -35,6 +35,11 @@ type heartbeat struct {
 // heartbeat transport and OS interlock ownership. Keeping protocol I/O,
 // reconciliation policy, and takeover state under one mutex makes exhaustive
 // failover testing and future transport changes unnecessarily coupled.
+// TODO(macro): Service co-owns UDP transport, HMAC heartbeat protocol, system
+// interlock, and the authority state machine in one type (~400 lines). Split
+// PeerTransport (send/recv/sign), AuthorityPolicy (takeover/release/timeout), and
+// Interlock so protocol tests do not require a live interlock and authority policy
+// can evolve without reopening the socket layer.
 type Service struct {
 	mu sync.RWMutex
 
@@ -96,6 +101,7 @@ func (s *Service) Configure(config Config) error {
 	}
 	listenAddress, err := net.ResolveUDPAddr("udp", config.ListenAddress)
 	if err != nil {
+		// TODO(micro): use fmt.Errorf with %w instead of lastError string + errors.New to preserve wrap chains
 		s.lastError = "resolve redundancy listen address: " + err.Error()
 		return errors.New(s.lastError)
 	}
@@ -273,6 +279,7 @@ func (s *Service) stopListener() {
 func (s *Service) run(ctx context.Context, conn *net.UDPConn, peerAddress *net.UDPAddr) {
 	defer s.wg.Done()
 	nextHeartbeat := time.Now()
+	// TODO(micro): name heartbeat read buffer size (64KiB) as a constant
 	buffer := make([]byte, 64<<10)
 	for {
 		s.mu.RLock()
@@ -369,6 +376,7 @@ func (s *Service) reconcileLocked(now time.Time) {
 			_ = s.releaseAuthorityLocked()
 			return
 		}
+		// TODO(micro): handle json.Marshal error instead of discarding with _
 		record, _ := json.Marshal(struct {
 			NodeID      string      `json:"nodeId"`
 			BootID      string      `json:"bootId"`
@@ -431,6 +439,7 @@ func interlockIdentity(path string) string {
 
 func signHeartbeat(message heartbeat, key string) string {
 	message.Signature = ""
+	// TODO(micro): handle json.Marshal error in signHeartbeat instead of discarding with _
 	raw, _ := json.Marshal(message)
 	mac := hmac.New(sha256.New, []byte(key))
 	_, _ = mac.Write(raw)
@@ -447,6 +456,7 @@ func verifyHeartbeat(message heartbeat, key string) bool {
 }
 
 func sameUDPAddress(actual, expected *net.UDPAddr) bool {
+	// TODO(micro): compare IPs with Equal after To16()/canonical form so IPv4-mapped addresses match
 	if actual == nil || expected == nil || actual.Port != expected.Port {
 		return false
 	}

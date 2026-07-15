@@ -7,6 +7,7 @@ import (
 	"os/exec"
 )
 
+// TODO(micro): delete this no-value wrapper and call exec.CommandContext directly
 func CommandContext(ctx context.Context, name string, args ...string) *exec.Cmd {
 	return exec.CommandContext(ctx, name, args...)
 }

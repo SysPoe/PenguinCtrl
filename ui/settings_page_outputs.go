@@ -30,6 +30,7 @@ func (p *SettingsPage) videoOutputsSection(th *material.Theme, gtx layout.Contex
 	rows := make([]layout.Widget, 0, len(p.videoOutputs)+2)
 	for _, fields := range p.videoOutputs {
 		// TODO(micro): Remove this obsolete loop-variable copy; fields already has per-iteration scope on Go 1.22+.
+		// TODO(micro): pre-1.22 loop-var copy; modern Go already per-iteration scoped - drop if go.mod >= 1.22.
 		fields := fields
 		rows = append(rows, func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Bottom: unit.Dp(16)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -104,6 +105,7 @@ func pairedSettingsFields(th *material.Theme, gtx layout.Context, label string, 
 	return layout.Inset{Bottom: unit.Dp(7)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				// TODO(micro): 210 label width magic Dp (duplicated in settingsField); name settingsLabelWidth const.
 				gtx.Constraints.Min.X, gtx.Constraints.Max.X = gtx.Dp(unit.Dp(210)), gtx.Dp(unit.Dp(210))
 				return layoutStableText(gtx, stableBody1(th, label).Layout)
 			}),
@@ -138,6 +140,7 @@ func (p *SettingsPage) targetsSection(th *material.Theme, gtx layout.Context) la
 	})
 	for _, fields := range p.targets {
 		// TODO(micro): Remove this obsolete loop-variable copy; fields already has per-iteration scope on Go 1.22+.
+		// TODO(micro): pre-1.22 loop-var copy; modern Go already per-iteration scoped - drop if go.mod >= 1.22.
 		fields := fields
 		rows = append(rows, func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -172,6 +175,7 @@ func (p *SettingsPage) variablesSection(th *material.Theme, gtx layout.Context) 
 	})
 	for _, fields := range p.variables {
 		// TODO(micro): Remove this obsolete loop-variable copy; fields already has per-iteration scope on Go 1.22+.
+		// TODO(micro): pre-1.22 loop-var copy; modern Go already per-iteration scoped - drop if go.mod >= 1.22.
 		fields := fields
 		rows = append(rows, func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -210,6 +214,7 @@ func settingsField(th *material.Theme, gtx layout.Context, label string, field f
 	return layout.Inset{Bottom: unit.Dp(7)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				// TODO(micro): 210 label width magic Dp (duplicated in pairedSettingsFields); name settingsLabelWidth const.
 				gtx.Constraints.Min.X, gtx.Constraints.Max.X = gtx.Dp(unit.Dp(210)), gtx.Dp(unit.Dp(210))
 				return layoutStableText(gtx, stableBody1(th, label).Layout)
 			}),

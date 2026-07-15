@@ -45,6 +45,7 @@ func NewDropdown(items []DropdownItem, selected int) *Dropdown {
 		Items:       items,
 		Selected:    selected,
 		choicesBtns: make([]widget.Clickable, len(items)),
+		// TODO(micro): expandedBtn is already zero-value; omit this field from the literal.
 		expandedBtn: widget.Clickable{},
 	}
 }
@@ -54,6 +55,7 @@ func (d *Dropdown) SetItems(items []DropdownItem, selected int) {
 	if len(d.choicesBtns) != len(items) {
 		d.choicesBtns = make([]widget.Clickable, len(items))
 	}
+	// TODO(micro): when items is empty this assigns selected=0 then immediately overwrites with -1; clamp after the empty check.
 	if selected < 0 || selected >= len(items) {
 		selected = 0
 	}
@@ -69,12 +71,14 @@ func (d *Dropdown) AddEventListener(listener func(selectedIndex int, selectedVal
 }
 
 func (d *Dropdown) notifyEventListeners() {
+	// TODO(micro): panics when Selected is out of range (e.g. empty Items); guard or use getSelectedLabel-style bounds check.
 	for _, listener := range d.eventListeners {
 		listener(d.Selected, d.Items[d.Selected])
 	}
 }
 
 func (d *Dropdown) Layout(th *material.Theme, gtx layout.Context) layout.Dimensions {
+	// TODO(micro): regBg and nonSelBg are identical; use one variable.
 	regBg := inputSurface(th)
 	selBg := selectedInputSurface(th)
 	nonSelBg := inputSurface(th)
@@ -84,6 +88,7 @@ func (d *Dropdown) Layout(th *material.Theme, gtx layout.Context) layout.Dimensi
 	}
 
 	subs := []layout.FlexChild{
+		// TODO(micro): expanded/collapsed chevron strings have inconsistent spacing ("▼" vs " ▶"); normalize.
 		fixedWidthBtnWithColor(th, &d.expandedBtn, d.getSelectedLabel()+utils.Ter(d.expanded, "▼", " ▶"), inputDefaultWidth, regBg),
 	}
 

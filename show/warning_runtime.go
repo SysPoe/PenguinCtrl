@@ -38,6 +38,7 @@ func resolvedMediaProblems(cue Cue, context WarningContext) []CueProblem {
 		return []CueProblem{{Code: "media.path.variable.unknown", Severity: ProblemBlocker, Message: "Unknown media variable: " + strings.Join(unknown, ", "), Consequence: "The media path cannot be resolved.", Fix: "Define the variable in Settings or edit the path", Field: "media.file"}}
 	}
 	if warnings := mediaFileWarnings(resolved); len(warnings) > 0 {
+		// TODO(micro): Drops all but warnings[0]; either join them or make mediaFileWarnings return a single structured problem.
 		return []CueProblem{problemForMessage(warnings[0])}
 	}
 	if strings.TrimSpace(context.MediaProbeError) != "" {
@@ -67,6 +68,10 @@ func unresolvedVariables(value string) []string {
 	return result
 }
 
+// TODO(macro): Move settings-resolved remote/output policy out of show —
+// resolvedRemoteProblems / resolvedOutputProblems import config and encode
+// transport/success rules that belong with remote/output subsystems, not the
+// cue document package.
 func resolvedRemoteProblems(cue Cue, settings config.Settings) []CueProblem {
 	if cue.Type != CueTypeRemote || cue.Play.Remote == nil {
 		return nil
@@ -255,10 +260,14 @@ func uniqueProblems(input []CueProblem) []CueProblem {
 	return result
 }
 
+// TODO(macro): Narrow ProblemFingerprint inputs — hashing the entire Cue plus
+// full config.Settings couples acknowledgement identity to unrelated settings
+// churn and forces show to depend on the whole settings blob for operator state.
 // ProblemFingerprint changes whenever the cue, problem code, or relevant
 // settings snapshot changes, so deliberate acknowledgements clear themselves
 // after an edit without allowing blockers to be dismissed.
 func ProblemFingerprint(cue Cue, problem CueProblem, settings config.Settings) string {
+	// TODO(micro): json.Marshal error is discarded; a failure yields the hash of empty input and can collide acknowledgements.
 	raw, _ := json.Marshal(struct {
 		Cue      Cue             `json:"cue"`
 		Code     string          `json:"code"`

@@ -109,12 +109,14 @@ func (s *ffmpegSession) Frame(position time.Duration) image.Image {
 		drift = -drift
 	}
 	s.mu.Lock()
+	// TODO(micro): metrics updates for DroppedFrames/BufferedFrames and AVDrift take separate Lock/Unlock pairs in one Frame call; merge into one critical section.
 	s.metrics.AVDrift = drift
 	s.mu.Unlock()
 	return s.current.image
 }
 
 func (s *ffmpegSession) SetVolume(db float64) {
+	// TODO(micro): SetVolume/SetMuted duplicate the same lock+audio.SetVolume(dbVolume(...)) body; share one applyVolumeLocked helper.
 	s.mu.Lock()
 	s.volume = db
 	if s.audio != nil {
@@ -186,6 +188,7 @@ func (s *ffmpegSession) setState(state LoadState) {
 	s.mu.Unlock()
 }
 
+// TODO(micro): fail wraps setState without enriching err; either wrap with context or have callers setState and return err directly.
 func (s *ffmpegSession) fail(err error) error { s.setState(LoadFailed); return err }
 
 func (s *ffmpegSession) setRuntimeError(err error) {

@@ -7,6 +7,11 @@ import (
 
 // PlaybackClock is the monotonic timeline shared by audio, video, fades, and
 // playback reporting for one media instance.
+// TODO(macro): Clock ownership is split — Player constructs/starts/pauses it,
+// ffmpegSession.Start and recoverAudio call SetMaster with audio rendered
+// position. Make one owner of the timeline (session or player) and expose a
+// read-only position to the other so master rebinding during audio recovery
+// cannot race player pause/seek generation logic.
 type PlaybackClock struct {
 	mu       sync.RWMutex
 	now      func() time.Time
@@ -22,6 +27,7 @@ func NewPlaybackClock(position time.Duration) *PlaybackClock {
 }
 
 func newPlaybackClock(position time.Duration, now func() time.Time) *PlaybackClock {
+	// TODO(micro): max(time.Duration(0), position) is repeated in Seek; extract clampNonNegativeDuration helper or use max(0, position) consistently.
 	return &PlaybackClock{now: now, position: max(time.Duration(0), position)}
 }
 
@@ -47,6 +53,7 @@ func (c *PlaybackClock) Pause() time.Duration {
 
 func (c *PlaybackClock) Seek(position time.Duration) {
 	c.mu.Lock()
+	// TODO(micro): same non-negative clamp as constructor; share one helper.
 	c.position = max(time.Duration(0), position)
 	c.master = nil
 	if c.running {

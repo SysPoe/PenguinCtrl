@@ -37,6 +37,7 @@ func (s *ffmpegSession) Preload(ctx context.Context) error {
 	s.info = info
 	bufferBytes := int64(0)
 	if s.request.Instance.MediaType == "video" && info.hasVideo {
+		// TODO(micro): Snapshot() is called again below in preloadVideo; cache settings once in Preload and pass/reuse it.
 		width, height := decodeSize(info.width, info.height, config.VideoOutputFor(s.backend.settings.Snapshot(), s.request.Instance.OutputID))
 		bufferBytes = int64(width) * int64(height) * 4 * (decodedFrameBuffer + 2)
 	}
@@ -46,6 +47,7 @@ func (s *ffmpegSession) Preload(ctx context.Context) error {
 	s.mu.Lock()
 	s.admitted, s.admittedBytes = true, bufferBytes
 	s.mu.Unlock()
+	// TODO(micro): result is a one-field wrapper around error; use chan error instead of chan result.
 	type result struct{ err error }
 	results := make(chan result, 2)
 	components := 0
@@ -61,6 +63,7 @@ func (s *ffmpegSession) Preload(ctx context.Context) error {
 		s.Close()
 		return s.fail(errors.New("media has no usable audio or video stream"))
 	}
+	// TODO(micro): 15s preload timeout is duplicated with FFmpegBackend.Prewarm; extract a shared mediaPreloadTimeout constant.
 	timer := time.NewTimer(15 * time.Second)
 	defer timer.Stop()
 	for range components {
@@ -100,6 +103,7 @@ func (s *ffmpegSession) Preload(ctx context.Context) error {
 }
 
 func (s *ffmpegSession) preloadVideo() error {
+	// TODO(micro): another Snapshot() after Preload already snapped settings for admission; pass settings into preloadVideo/preloadAudio.
 	settings := s.backend.settings.Snapshot()
 	width, height := decodeSize(s.info.width, s.info.height, config.VideoOutputFor(settings, s.request.Instance.OutputID))
 	s.info.width, s.info.height = width, height
@@ -191,6 +195,7 @@ func (s *ffmpegSession) acquireFrame() *image.RGBA {
 	return image.NewRGBA(image.Rect(0, 0, s.info.width, s.info.height))
 }
 
+// TODO(micro): recycleFrame only nil-checks then Put; inline the Put at call sites or drop the wrapper if it stays this thin.
 func (s *ffmpegSession) recycleFrame(frame *image.RGBA) {
 	if frame != nil {
 		s.framePool.Put(frame)
@@ -248,6 +253,11 @@ func (s *ffmpegSession) waitAudioCommand(cmd *exec.Cmd, stderr *bytes.Buffer, ge
 	}
 }
 
+// TODO(macro): Audio endpoint recovery re-spawns FFmpeg, rebuilds a devicePlayer,
+// rebinds the PlaybackClock master, and is wired as a devicePlayer callback —
+// decode-session logic reaching deep into the audio device layer. Own recovery
+// at the AudioSystem/route boundary (or a dedicated audio pipeline) and let the
+// session only supply a seekable PCM source + volume.
 func (s *ffmpegSession) recoverAudio(targetDeviceID string) error {
 	s.mu.Lock()
 	if s.closed || s.clock == nil || s.audio == nil {

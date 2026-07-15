@@ -35,6 +35,12 @@ import (
 // command handling into a window-session controller, leaving run as a small Gio
 // event pump. This function currently owns enough unrelated lifetimes that save,
 // recovery, shutdown, and frame behavior cannot be exercised independently.
+// TODO(macro): App.run is the package-main god loop — Gio event pump, document session
+// (path/digest/journal/save/open/new/close), health+preflight+cache wiring, E-STOP orchestration,
+// operator-warning transitions, redundancy fingerprint updates, and full layout composition.
+// Extract a document.Session (or project.Controller) for load/save/dirty/journal, an
+// operator.Shell for frame-time status/preflight/fingerprint fan-out, and keep run() as a thin
+// event dispatcher + layout root so domain policy is unit-testable outside the frame loop.
 func (a *App) run(window *app.Window) error {
 	topBar := &a.UI.TopBar
 	playbackSidebar := &a.UI.PlaybackSidebar
@@ -56,6 +62,7 @@ func (a *App) run(window *app.Window) error {
 	th := newTheme()
 	expl := explorer.NewExplorer(window)
 	uiActions := make(chan func(), 16)
+	// TODO(micro): Task concurrency 4 and 3s Close timeout are magic; name consts (also duplicated on DestroyEvent Close).
 	tasks := taskgroup.New(context.Background(), 4)
 	defer func() {
 		if err := tasks.Close(3 * time.Second); err != nil {
@@ -71,6 +78,10 @@ func (a *App) run(window *app.Window) error {
 			return false
 		}
 	}
+	// TODO(macro): Document path, lastSavedDigest, suppressJournal, and saveMu are ad-hoc
+	// session state closed over by nested load/save/new closures. Promote to an explicit type
+	// owned by project/document so dirty tracking and journal coordination are not reimplemented
+	// inside the UI loop and health provider.
 	var documentMu sync.RWMutex
 	var saveMu sync.Mutex
 	currentShowPath := a.RecoveredPath
@@ -173,6 +184,7 @@ func (a *App) run(window *app.Window) error {
 			}
 			defer file.Close()
 
+			// TODO(micro): Duplicates explorerPath type-switch without LocalPath; use explorerPath(file) and drop this branch.
 			path := ""
 			switch f := file.(type) {
 			case *explorer.File:
@@ -201,6 +213,10 @@ func (a *App) run(window *app.Window) error {
 		})
 	}
 
+	// TODO(macro): loadShow/saveShow/saveAsShow/performNew embed explorer I/O, temp-file staging,
+	// project.Load/Save, library replace, journal mark, and playback StopAll. These are a
+	// document use-case layer (project package or document controller type), not frame-loop
+	// locals; extract so open/save policy can be tested without Gio explorer/window.
 	loadShow := func() {
 		tasks.Go("open-show", func(ctx context.Context) {
 			file, err := expl.ChooseFile(".cusus")
@@ -440,6 +456,7 @@ func (a *App) run(window *app.Window) error {
 					operatorEvents.Add(operatorlog.Recoverable, "Operator window", "Could not persist window placement: "+err.Error(), show.CueID{}, "")
 				}
 			}
+			// TODO(micro): tasks/health/timecode/redundancy already deferred Close above; this second Close is redundant on the destroy path.
 			if err := tasks.Close(3 * time.Second); err != nil {
 				operatorEvents.Diagnostic("Shutdown", err.Error(), nil)
 			}
@@ -465,14 +482,22 @@ func (a *App) run(window *app.Window) error {
 			}
 
 		case app.FrameEvent:
+			// TODO(macro): FrameEvent owns orchestration policy (clock-gap latch, prewarm,
+			// E-STOP media reset pipeline, audio/video warning edge logging, preflight+health
+			// merge, redundancy fingerprint) interleaved with layout. Split a per-frame
+			// operator controller from pure layout so show-control side effects are not
+			// order-dependent on paint path.
 			now := time.Now()
+			// TODO(micro): 3s clock-gap latch threshold is a magic duration; name a const (e.g. frameClockDiscontinuityGap).
 			if gap := now.Sub(lastFrameAt); gap > 3*time.Second {
 				playbackEngine.LatchClockDiscontinuity(gap)
 			}
 			lastFrameAt = now
 			gtx := app.NewContext(&ops, e)
+			// TODO(micro): 1s frame invalidate cadence is magic; name a const (and consider aligning with main_page refresh).
 			gtx.Execute(op.InvalidateCmd{At: time.Now().Add(time.Second)})
 			if warmer, ok := mediaManager.(interface{ Prewarm([]playback.Instance) }); ok {
+				// TODO(micro): PreloadCandidates(3) limit is magic; name a prewarmCandidateLimit const.
 				warmer.Prewarm(playbackEngine.PreloadCandidates(3))
 			}
 			if audioWarningSettings.Clicked(gtx) {
@@ -564,6 +589,7 @@ func (a *App) run(window *app.Window) error {
 			}
 			a.handleCueListShortcuts(gtx)
 			documentMu.RLock()
+			// TODO(micro): Re-clones the full show just for dirty check; reuse showState from above (or lastSavedDigest compare against showDigest(showState)).
 			dirty := showDigest(manager.ShowSnapshot()) != lastSavedDigest
 			documentMu.RUnlock()
 			if !documentGuard.Visible() {
@@ -599,6 +625,7 @@ func (a *App) run(window *app.Window) error {
 							if a.UI.ShowSettings {
 								return settingsPage.Layout(th, gtx)
 							}
+							// TODO(micro): 850 compact-layout breakpoint is magic; name a const. ui.Main callback block is fully duplicated with the wide layout below — extract one shared call.
 							if gtx.Constraints.Max.X < gtx.Dp(unit.Dp(850)) {
 								return ui.Main(
 									th, gtx, manager, playbackEngine, operatorEvents,

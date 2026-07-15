@@ -7,6 +7,10 @@ import (
 
 // Service owns optional external input listeners while exposing one stable
 // coordinator to the playback engine and hardware adapters.
+// TODO(macro): Service only starts the OSC UDP listener; LTC/MTC remain bare
+// Coordinator.Ingest* APIs with no listener lifecycle here. Either host all
+// selected Source adapters under Service.Configure (matching the comment) or
+// drop the Service layer and let callers own per-source adapters explicitly.
 type Service struct {
 	mu          sync.Mutex
 	coordinator *Coordinator
@@ -25,6 +29,7 @@ func NewService(config Config, listenAddress string) *Service {
 func (s *Service) Coordinator() *Coordinator { return s.coordinator }
 
 func (s *Service) Configure(config Config, listenAddress string) {
+	// TODO(micro): lock/unlock/wait/re-lock race window allows concurrent Configure to interleave cancel+start; hold one lock or use a generation token
 	s.mu.Lock()
 	if s.cancel != nil {
 		s.cancel()

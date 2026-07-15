@@ -13,6 +13,11 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
+// TODO(macro): archive_publish.go owns FFmpeg re-encode policy, asset validation,
+// and progress reporting while archive.go/archive_reader.go own zip I/O — but
+// validation rules and format allowlists are duplicated/split across them. Make
+// publish a dedicated pipeline (resolve sources → encode → zip) with a single
+// asset-policy module so load and save cannot diverge on allowed formats/limits.
 func validateAsset(asset Asset, name string, allowMissingContentHash bool) error {
 	if asset.ID == "" || strings.TrimSpace(asset.Name) == "" {
 		return fmt.Errorf("manifest contains an asset with no ID or name")
@@ -45,6 +50,7 @@ func validateAsset(asset Asset, name string, allowMissingContentHash bool) error
 		if len(value) != sha256.Size*2 {
 			return fmt.Errorf("asset %q has invalid %s SHA-256", name, label)
 		}
+		// TODO(micro): replace ContainsRune hex scan with a small isHexString helper (and share with crashreport safeName style)
 		for _, char := range value {
 			if !strings.ContainsRune("0123456789abcdefABCDEF", char) {
 				return fmt.Errorf("asset %q has invalid %s SHA-256", name, label)
@@ -126,6 +132,9 @@ func resolveLoadedPaths(loaded *show.Show, root string) {
 	}
 }
 
+// TODO(macro): Move transcode/encode policy out of archive packaging — prepare
+// and transcode own long-running ffmpeg, disk cache under CuSus/transcoded, and
+// codec choices, which is media-pipeline work nested inside project I/O.
 func transcode(ffmpegPath, source, kind, sourceHash string) (string, error) {
 	ext := map[string]string{"audio": ".opus", "video": ".webm", "image": ".webp"}[kind]
 	cacheRoot, err := os.UserCacheDir()
@@ -166,6 +175,7 @@ func transcode(ffmpegPath, source, kind, sourceHash string) (string, error) {
 		return "", fmt.Errorf("unknown media kind %q", kind)
 	}
 	var lastOutput []byte
+	// TODO(micro): name ffmpeg conversion timeout (6h) as a constant
 	for _, args := range attempts {
 		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Hour)
 		lastOutput, err = processgroup.CombinedOutput(processgroup.CommandContext(ctx, ffmpegPath, append(common, args...)...))
@@ -187,6 +197,7 @@ func transcode(ffmpegPath, source, kind, sourceHash string) (string, error) {
 	return "", fmt.Errorf("ffmpeg conversion failed: %v: %s", err, strings.TrimSpace(string(lastOutput)))
 }
 
+// TODO(micro): replace hand-rolled insertion sort with sort.Strings
 func sortStrings(values []string) {
 	for i := 1; i < len(values); i++ {
 		for j := i; j > 0 && values[j] < values[j-1]; j-- {

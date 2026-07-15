@@ -11,6 +11,10 @@ import (
 	"time"
 )
 
+// TODO(macro): OSC string/padding helpers and address parsing here duplicate
+// remote/osc.go encode primitives under a second, incompatible API. Share one
+// internal OSC framing package (encode + decode) and keep only /timecode
+// semantics in this file.
 func ListenOSC(ctx context.Context, address string, coordinator *Coordinator) error {
 	packet, err := net.ListenPacket("udp", address)
 	if err != nil {
@@ -20,6 +24,7 @@ func ListenOSC(ctx context.Context, address string, coordinator *Coordinator) er
 	defer packet.Close()
 	stopClose := context.AfterFunc(ctx, func() { _ = packet.Close() })
 	defer stopClose()
+	// TODO(micro): name OSC UDP read buffer size (2048) as a constant
 	buffer := make([]byte, 2048)
 	for {
 		n, _, err := packet.ReadFrom(buffer)
@@ -31,6 +36,7 @@ func ListenOSC(ctx context.Context, address string, coordinator *Coordinator) er
 		}
 		position, err := ParseOSC(buffer[:n], coordinator.FrameRate())
 		if err == nil {
+			// TODO(micro): surface coordinator.Update error instead of discarding with _
 			_ = coordinator.Update(SourceOSC, position, true)
 		}
 	}

@@ -8,6 +8,7 @@ import (
 )
 
 func (ctx *TBContext) handleButtonClicks(gtx layout.Context, manager *show.ShowManager) {
+	// TODO(micro): long chain of independent if-Clicked blocks; a table of {clickable, action} would shrink noise and avoid missed handlers
 	if ctx.btnDeleteCue.Clicked(gtx) {
 		ctx.RequestDeleteCue(manager)
 	}

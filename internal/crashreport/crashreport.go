@@ -11,6 +11,10 @@ import (
 	"time"
 )
 
+// TODO(macro): Package-level mutable state makes crash reporting a hidden
+// process singleton (directory, fatal file) that every caller must configure
+// globally. Prefer an explicit Reporter value constructed at process start and
+// passed/injected so tests and secondary binaries do not race on shared state.
 var state struct {
 	sync.RWMutex
 	directory string
@@ -108,6 +112,7 @@ func Write(component string, value any, stack []byte) error {
 	if closeErr := file.Close(); err == nil {
 		err = closeErr
 	}
+	// TODO(micro): name the retained crash-log count (10) as a package constant
 	prune(directory, 10)
 	return err
 }

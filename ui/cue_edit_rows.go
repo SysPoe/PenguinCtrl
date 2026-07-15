@@ -59,6 +59,7 @@ func (ctx *CueEditUI) fileRow(th *material.Theme, label, kind string, field *inp
 							gtx = gtx.Disabled()
 						}
 						return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+							// TODO(micro): 140 browse-button width is a magic Dp; name formBrowseButtonWidth const.
 							width := gtx.Dp(unit.Dp(140))
 							gtx.Constraints.Min.X = width
 							gtx.Constraints.Max.X = width
@@ -105,6 +106,7 @@ func selectedFileName(source string) string {
 	return name
 }
 
+// TODO(macro): Form row helpers mutate the domain cue during Layout via apply() every frame. Separate view (paint widgets) from commit (read widgets into cue on change/save) so rendering is not the model-binding path and dual-bound fields (Media vs Timecode) stop fighting through side effects.
 func multilineRow(th *material.Theme, label string, field *input.Multiline, apply func(value string)) cueEditFormRow {
 	return cueEditFormRow{label: label, layout: func(gtx layout.Context) layout.Dimensions {
 		dims := field.Layout(th, gtx)
@@ -158,6 +160,7 @@ func dropdownRow(th *material.Theme, label string, field *input.Dropdown, apply 
 
 func staticRow(th *material.Theme, label, text string) cueEditFormRow {
 	return cueEditFormRow{label: label, layout: func(gtx layout.Context) layout.Dimensions {
+		// TODO(micro): local "label" shadows the label parameter; rename (e.g. body).
 		label := stableBody1(th, text)
 		return layoutStableText(gtx, label.Layout)
 	}}

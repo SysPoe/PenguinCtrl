@@ -30,6 +30,7 @@ func NewFloat(label string, value float64) *Float {
 	}
 	f.editor.SingleLine = true
 	f.editor.InputHint = key.HintNumeric
+	// TODO(micro): filter allows multiple dots/signs; reject invalid intermediate input or validate on blur only with clearer UX
 	f.editor.Filter = "-0123456789."
 	f.editor.SetText(f.text)
 	return f

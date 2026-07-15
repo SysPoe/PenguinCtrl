@@ -15,6 +15,12 @@ import (
 	_ "golang.org/x/image/webp"
 )
 
+// TODO(macro): Player owns session lifecycle, shared/private backends, wall/audio
+// clocks, Gio invalidation, visual fades, volume fades, duration discovery, and
+// image loading — a second god object under Manager. Narrow it to presentation
+// state + control fan-out; keep decode/session and offline probe work behind the
+// backend (or helper packages) so pause/seek/visibility do not also mean process
+// ownership.
 type Player struct {
 	instance playback.Instance
 	settings *config.Store
@@ -47,6 +53,10 @@ type Player struct {
 	visualFadeFor time.Duration
 }
 
+// TODO(macro): NewPlayer minting a private FFmpegBackend bypasses Manager's
+// shared admission, prewarm cache, and EmergencyReset surface. Production uses
+// NewPlayerWithBackend(shared); delete or fence the private-backend constructor
+// so there is one ownership model for decoder resources.
 func NewPlayer(instance playback.Instance, settings *config.Store, audio *AudioSystem, window *app.Window, report func(string), duration func(int64), failure func(error)) *Player {
 	return NewPlayerWithBackend(instance, settings, NewFFmpegBackend(settings, audio), window, report, duration, failure)
 }
@@ -59,6 +69,7 @@ func NewPlayerWithBackend(instance playback.Instance, settings *config.Store, ba
 	}
 }
 
+// TODO(micro): goOwned pattern is duplicated with playback.Engine / taskgroup; share one owned-worker helper
 func (p *Player) goOwned(work func(context.Context)) bool {
 	p.workerMu.Lock()
 	if p.closing {
@@ -80,6 +91,7 @@ func (p *Player) MediaType() string { return p.instance.MediaType }
 // continues, and revealing the layer restarts at the current presentation time.
 func (p *Player) SetDecodeVisible(visible bool) {
 	p.mu.Lock()
+	// TODO(micro): media type string "video" (and audio/image elsewhere) should be package constants shared with backend preload checks.
 	if p.instance.MediaType != "video" || p.closed || p.decodeVisible == visible {
 		p.mu.Unlock()
 		return
@@ -97,6 +109,7 @@ func (p *Player) SetDecodeVisible(visible bool) {
 	position, paused := p.position, p.paused
 	p.mu.Unlock()
 	if !paused {
+		// TODO(micro): restart error is discarded on reveal; surface via p.failure like start() does.
 		p.goOwned(func(context.Context) { _ = p.restart(position) })
 	}
 }
@@ -107,6 +120,10 @@ func (p *Player) StartedAt() time.Time {
 	return p.started
 }
 
+// TODO(macro): Image cues bypass PlaybackBackend entirely (loadImage + local
+// clock) while audio/video go through Open/Preload/Start — dual media pipelines
+// with different failure, metrics, and visibility semantics. Represent stills as
+// a session implementation (or a trivial backend) so Player has one start path.
 func (p *Player) Start() error {
 	p.mu.Lock()
 	startMs := max(int64(0), p.instance.ClipStartMs)
@@ -169,6 +186,7 @@ func (p *Player) discoverDuration(ctx context.Context) {
 	instance := p.instance
 	closed := p.closed
 	p.mu.RUnlock()
+	// TODO(micro): duration discovery silently returns on probe error; at least log or report failure when DurationMs stays 0 for operator diagnostics.
 	if closed || instance.DurationMs > 0 || (instance.MediaType != "audio" && instance.MediaType != "video") {
 		return
 	}

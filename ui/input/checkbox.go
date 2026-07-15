@@ -38,6 +38,7 @@ func (c *Checkbox) notifyEventListeners() {
 }
 
 func (c *Checkbox) Layout(th *material.Theme, gtx layout.Context) layout.Dimensions {
+	// TODO(micro): external Checked writes clobber in-progress user toggle when they diverge mid-frame; document ownership or only sync when unfocused
 	if c.checkbox.Value != c.Checked {
 		c.checkbox.Value = c.Checked
 	}
@@ -45,6 +46,7 @@ func (c *Checkbox) Layout(th *material.Theme, gtx layout.Context) layout.Dimensi
 	previous := c.checkbox.Value
 	checkBox := material.CheckBox(th, &c.checkbox, c.Label)
 	checkBox.Color = palette.TextSoft
+	// TODO(micro): IconColor uses selected surface while Color uses TextSoft — intentional contrast? If not, share one input accent color
 	checkBox.IconColor = selectedInputSurface(th)
 	dims := inputField(th, gtx, checkBox.Layout)
 

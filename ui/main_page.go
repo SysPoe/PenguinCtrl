@@ -16,6 +16,10 @@ import (
 // and tooltip state in a CueListState owned by UIState. Package globals leak
 // state across window instances and tests, and their lifetime is unrelated to
 // the show document whose cue/group IDs they retain.
+// TODO(macro): Cue-list interaction state lives as package globals (list, clicks, collapse
+// maps, tip widgets, selection cache). Own it on a CueList component so multiple
+// frames/tests don't share mutable UI state and so Main is not a free function over
+// hidden process state.
 var mainList = &widget.List{
 	List: layout.List{
 		Axis: layout.Vertical,
@@ -57,6 +61,7 @@ var collapsedCueGroups = map[show.GroupID]bool{}
 var groupHeaderClicks = map[show.GroupID]*widget.Clickable{}
 var groupBeforeClicks = map[show.GroupID]*widget.Clickable{}
 var groupAfterClicks = map[show.GroupID]*widget.Clickable{}
+// TODO(micro): icon construction error is ignored; handle/log failure instead of silent blank icon.
 var warningIcon, _ = widget.NewIcon(icons.AlertWarning)
 var warningTips []warningTipState
 var lastListSelection = -2

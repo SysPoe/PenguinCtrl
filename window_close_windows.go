@@ -50,6 +50,7 @@ func (g *windowCloseInterceptor) HandleEvent(event any, request func()) error {
 		return result
 	})
 	original, _, callErr := procSetWindowLongPtr.Call(g.hwnd, gwlpWndProc, g.callback)
+	// TODO(micro): original==0 is also a legitimate prior WndProc on some windows; use GetLastError after SetLastError(0) rather than treating 0 as always-failure.
 	if original == 0 {
 		g.hwnd = 0
 		return errors.New("could not install the Windows close interceptor: " + callErr.Error())

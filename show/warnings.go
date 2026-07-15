@@ -33,6 +33,12 @@ func (s ProblemSeverity) Label() string {
 // CueProblem is a stable, user-facing validation result. Code is suitable for
 // acknowledgement fingerprints; Field and Fix allow every presentation to
 // take the operator back to the relevant editor or settings surface.
+// TODO(macro): Warning/problem system is split across warnings.go, warning_legacy
+// (string messages re-parsed by problemForMessage), warning_runtime, warning_links,
+// playback.CueProblems, and package-main preflight aggregation — dual string vs
+// structured representations and severity remapping at every boundary. Own
+// validation as one analysis/preflight module that emits CueProblem end-to-end
+// and delete the string intermediate.
 type CueProblem struct {
 	Code        string
 	Severity    ProblemSeverity
@@ -42,6 +48,10 @@ type CueProblem struct {
 	Field       string
 }
 
+// TODO(macro): Split static document validation from runtime/preflight gates —
+// WarningContext mixes settings, media probe state, and live instance matches
+// into the show package, so cue domain validation depends on playback/config
+// snapshots rather than a pure show model.
 type WarningContext struct {
 	Settings           config.Settings
 	KnownDurationMs    int64
@@ -117,6 +127,7 @@ func CueWarnings(cue Cue, cues []Cue) []string {
 	problems := CueProblems(cue, cues)
 	warnings := make([]string, 0, len(problems))
 	for _, problem := range problems {
+		// TODO(micro): CueProblems never emits ProblemState (only WithContext does); filter is dead for this path — call WithContext or drop the check.
 		if problem.Severity != ProblemState {
 			warnings = append(warnings, problem.Message)
 		}
@@ -198,6 +209,7 @@ func problemForMessage(message string) CueProblem {
 	}
 	lower := strings.ToLower(message)
 	switch {
+	// TODO(micro): Dead branch — cueWarningMessages never emits "duplicate timecode"/"same time"; remove or emit that warning.
 	case strings.Contains(lower, "duplicate timecode") || strings.Contains(lower, "same time"):
 		problem.Severity = ProblemCaution
 	case strings.Contains(lower, "target cue group"):
@@ -212,6 +224,7 @@ func problemForMessage(message string) CueProblem {
 
 func warningCode(message string) string {
 	value := strings.ToLower(message)
+	// TODO(micro): MustCompile on every call; hoist `[^a-z0-9]+` to a package-level var like unresolvedVariablePattern.
 	value = regexp.MustCompile(`[^a-z0-9]+`).ReplaceAllString(value, ".")
 	return strings.Trim(value, ".")
 }

@@ -21,7 +21,9 @@ import (
 )
 
 // TODO(micro): Remove these unused pass-through constructors and the input import they keep alive.
+// TODO(micro): unused wrappers — delete or call input.NewInteger/NewCheckbox directly at use sites
 func inputInteger(label string, value int) *input.Integer    { return input.NewInteger(label, value) }
+// TODO(micro): unused wrapper — delete or call input.NewCheckbox directly at use sites
 func inputCheckbox(label string, value bool) *input.Checkbox { return input.NewCheckbox(label, value) }
 
 func (ctx *CueEditUI) copyTimelineSelection(gtx layout.Context, markers []show.TimecodeMarker) {
@@ -34,6 +36,7 @@ func (ctx *CueEditUI) copyTimelineSelection(gtx layout.Context, markers []show.T
 	for i, index := range indexes {
 		t.clipboard[i] = markers[index]
 	}
+	// TODO(micro): ignored json.Marshal error; check err before writing clipboard.
 	payload, _ := json.Marshal(timecodeClipboard{Format: "cusus-timecode-markers", Markers: t.clipboard})
 	gtx.Execute(clipboard.WriteCmd{Type: "application/text", Data: io.NopCloser(strings.NewReader(string(payload)))})
 }
@@ -53,6 +56,7 @@ func (ctx *CueEditUI) pasteTimelineMarkers(markers *[]show.TimecodeMarker, paste
 		maximumOffset = max(maximumOffset, marker.TimeMs-minimum)
 	}
 	base := min(max(int64(0), t.hoverMs), max(int64(0), ctx.timecodeCueDuration()-maximumOffset))
+	// TODO(micro): selection map cleared here and again after append; drop this first clear.
 	t.selected = map[int]bool{}
 	for _, marker := range pasted {
 		marker.TimeMs = base + marker.TimeMs - minimum
@@ -205,6 +209,7 @@ func (ctx *CueEditUI) handleTimelinePointer(gtx layout.Context, size image.Point
 				anchor := hoverTrackMs
 				oldDur := t.viewDuration()
 				frac := float64(anchor-t.viewStartMs) / float64(oldDur)
+				// TODO(micro): zoom max 64, factor 1.12, scroll divisor 50 are magic; name timeline zoom consts.
 				t.zoom = math.Max(1, math.Min(64, t.zoom*math.Pow(1.12, float64(-e.Scroll.Y)/50)))
 				t.viewStartMs = anchor - int64(frac*float64(t.viewDuration()))
 				t.clampView()

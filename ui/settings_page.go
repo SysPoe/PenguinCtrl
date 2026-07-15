@@ -64,6 +64,11 @@ type videoOutputFields struct {
 // validation boundary used by config.Store. This flat widget mirror plus the
 // manual load/save mapping lets persistence, validation, and UI fields drift as
 // the settings schema grows.
+// TODO(macro): SettingsPage is a flat god-struct: every section's fields, device providers,
+// action clickables, and host callbacks sit on one type with monolithic load/save. Split
+// into section models (Defaults, Audio, VideoOutputs, Timecode, Redundancy, Targets,
+// Variables) that each load/save their config slice, and keep SettingsPage as a section
+// host + status chrome.
 type SettingsPage struct {
 	store                     *config.Store
 	initialized               bool
@@ -145,6 +150,7 @@ func (p *SettingsPage) SetVideoDisplayProvider(provider func() ([]VideoDisplay, 
 // ShowAudioDevices refreshes and scrolls directly to the audio routing controls.
 func (p *SettingsPage) ShowAudioDevices() {
 	p.refreshAudioDeviceList()
+	// TODO(micro): magic section index 2 for audio; name a const matching Layout section order.
 	p.list.Position.First = 2
 	p.list.Position.Offset = 0
 }

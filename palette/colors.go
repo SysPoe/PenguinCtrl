@@ -33,6 +33,7 @@ func Opaque(c color.NRGBA) color.NRGBA {
 }
 
 func ContrastText(c color.NRGBA) color.NRGBA {
+	// TODO(micro): extract luminance weights (0.299/0.587/0.114) and threshold 150 as named constants
 	brightness := 0.299*float64(c.R) + 0.587*float64(c.G) + 0.114*float64(c.B)
 	if brightness > 150 {
 		return Black

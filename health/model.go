@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+// TODO(macro): This package is only DTOs + NewSnapshot aggregation, while all
+// component collectors (engine, audio, remote, redundancy, disk, …) live in the
+// main package (health_service.go). Move collectors behind health interfaces or
+// promote healthService into this package so "system health" has a real boundary
+// instead of anemic types with logic stranded in main.
 type State int
 
 const (
@@ -62,6 +67,7 @@ func NewSnapshot(components []Component) Snapshot {
 		copyOf[index].Name = strings.TrimSpace(copyOf[index].Name)
 		copyOf[index].Summary = strings.TrimSpace(copyOf[index].Summary)
 		copyOf[index].Action = strings.TrimSpace(copyOf[index].Action)
+		// TODO(micro): State iota order is used as severity rank via `>`; document that or use an explicit max-severity helper/clamp
 		if copyOf[index].State > overall {
 			overall = copyOf[index].State
 		}

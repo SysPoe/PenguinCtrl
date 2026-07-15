@@ -75,6 +75,7 @@ func normalizeShowSchema(current *show.Show, version int) {
 	for index := range current.Cues {
 		cue := &current.Cues[index]
 		if cue.ID == (show.CueID{}) {
+			// TODO(micro): SHA1 name-space ID for missing cue IDs is deterministic but non-V7; document stability contract or use NewCueID when inventing IDs is acceptable
 			seed := fmt.Sprintf("cusus-v%d-cue-%d-%s-%s", version, index, cue.CueNumber, cue.Description)
 			cue.ID = show.CueID(uuid.NewSHA1(uuid.NameSpaceOID, []byte(seed)))
 		}
@@ -84,6 +85,10 @@ func normalizeShowSchema(current *show.Show, version int) {
 	}
 }
 
+// TODO(macro): Align archive schema validation with show domain invariants —
+// validateManifestSchema only checks IDs/types/timing bounds while cue payload
+// integrity, group denormalization, and link targets are left to optional
+// warnings/repair, so invalid shows can still be "valid" archives.
 func validateManifestSchema(manifest Manifest) error {
 	if manifest.Format != Format || manifest.Version != Version {
 		return fmt.Errorf("manifest schema is %q version %d; expected %q version %d", manifest.Format, manifest.Version, Format, Version)

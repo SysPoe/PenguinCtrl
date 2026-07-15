@@ -79,6 +79,7 @@ func (p *SettingsPage) handleClicks(gtx layout.Context) {
 	if p.addVideoOutput.Clicked(gtx) {
 		index := len(p.videoOutputs) + 1
 		p.videoOutputs = append(p.videoOutputs, newVideoOutputFields(config.VideoOutput{
+			// TODO(micro): default video stage geometry/resolution are magic; pull from config defaults or named consts.
 			Stage: fmt.Sprintf("stage-%d", index), Width: 960, Height: 540,
 			ResolutionWidth: 1920, ResolutionHeight: 1080,
 			Scaling: "contain", IdleBehavior: "black", Layers: 1,
@@ -110,6 +111,7 @@ func (p *SettingsPage) handleClicks(gtx layout.Context) {
 	}
 }
 
+// TODO(macro): saveSettings is a single cross-section serializer/validator that knows every field and hard-codes section order for ShowAudioDevices via list.Position.First. Per-section Collect()/Validate() would keep scroll targets, validation, and config mapping inside section boundaries.
 func (p *SettingsPage) saveSettings() {
 	settings := p.store.Snapshot()
 	settings.FFmpegPath = strings.TrimSpace(p.ffmpegPath.Value)
@@ -131,6 +133,7 @@ func (p *SettingsPage) saveSettings() {
 			p.status, p.statusError = "Redundancy requires node ID, heartbeat addresses, and a shared interlock path", true
 			return
 		}
+		// TODO(micro): 16-char key min is a magic policy number; share with config validation const.
 		if len(settings.RedundancySharedKey) < 16 {
 			p.status, p.statusError = "Redundancy shared key must contain at least 16 characters", true
 			return

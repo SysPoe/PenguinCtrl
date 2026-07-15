@@ -18,6 +18,7 @@ import (
 
 const playbackSidebarWidth = unit.Dp(280)
 
+// TODO(macro): PlaybackSidebar drives engine.ControlMedia from Layout and uses raw widget.Float instead of the ui/input slider kit, while re-deriving duration/position math already present on the cue list. Treat transport as a small controller (commands out, instance snapshot in) and share runtime formatting/normalization with the list presentation layer.
 type PlaybackSidebar struct {
 	goButton       widget.Clickable
 	stopAllButton  widget.Clickable
@@ -214,6 +215,7 @@ func (s *PlaybackSidebar) layoutVolume(th *material.Theme, gtx layout.Context, e
 				}
 				dims := material.Slider(th, &s.volumeSlider).Layout(gtx)
 				if enabled && s.volumeSlider.Value != before {
+					// TODO(micro): -80..+12 dB range (92 span) is magic; name volumeMinDB/volumeRangeDB consts and share with normalizedVolume.
 					level := -80 + float64(s.volumeSlider.Value)*92
 					_ = engine.ControlMedia(show.MediaTarget{Kind: show.MediaTargetInstance, InstanceID: instance.ID}, show.MediaControlSetVolume, &level, nil, 0)
 				}
@@ -266,6 +268,7 @@ func normalizedPosition(instance playback.Instance) float32 {
 }
 
 func normalizedVolume(levelDB float64) float32 {
+	// TODO(micro): +80/92 volume mapping duplicates layoutVolume seek math; share volumeMinDB/volumeRangeDB consts.
 	return min(float32(1), max(float32(0), float32((levelDB+80)/92)))
 }
 

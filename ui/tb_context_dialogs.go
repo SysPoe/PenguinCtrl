@@ -16,15 +16,18 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
+// TODO(macro): Group/delete dialogs reimplement the same modal shell (dimmer, hit absorption, centered panel) as DocumentGuard, E-STOP confirm, and CueEditUI. Extract a shared Modal/Dialog primitive so confirmation UX and input blocking live in one place.
 func (ctx *TBContext) layoutGroupDialog(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.Dimensions {
 	if ctx.groupDialog == "" || ctx.groupName == nil {
 		return layout.Dimensions{}
 	}
+	// TODO(micro): visible-state check duplicated before/after HandleGroupDialogKeys; keep a single guard after key handling.
 	ctx.HandleGroupDialogKeys(gtx, manager)
 	if ctx.groupDialog == "" || ctx.groupName == nil {
 		return layout.Dimensions{}
 	}
 	size := gtx.Constraints.Max
+	// TODO(micro): 0xB0 dimmer alpha differs from DocumentGuard/E-STOP 0xB8; unify modalDimmerAlpha const.
 	paint.FillShape(gtx.Ops, palette.WithAlpha(palette.Black, 0xB0), clip.Rect{Max: size}.Op())
 	hitArea := clip.Rect{Max: size}.Push(gtx.Ops)
 	event.Op(gtx.Ops, &ctx.modalTag)
@@ -34,6 +37,7 @@ func (ctx *TBContext) layoutGroupDialog(th *material.Theme, gtx layout.Context, 
 		title = "Rename Cue Group"
 	}
 	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		// TODO(micro): 440 panel width is magic (also in delete dialog); name dialogPanelWidth const.
 		panelWidth := min(gtx.Constraints.Max.X, gtx.Dp(unit.Dp(440)))
 		gtx.Constraints.Min = image.Pt(panelWidth, gtx.Dp(unit.Dp(190)))
 		gtx.Constraints.Max = gtx.Constraints.Min
@@ -89,6 +93,7 @@ func (ctx *TBContext) layoutDeleteConfirmation(th *material.Theme, gtx layout.Co
 	}
 
 	size := gtx.Constraints.Max
+	// TODO(micro): 0xB0 dimmer alpha differs from DocumentGuard/E-STOP 0xB8; unify modalDimmerAlpha const.
 	paint.FillShape(gtx.Ops, palette.WithAlpha(palette.Black, 0xB0), clip.Rect{Max: size}.Op())
 	hitArea := clip.Rect{Max: size}.Push(gtx.Ops)
 	event.Op(gtx.Ops, &ctx.modalTag)

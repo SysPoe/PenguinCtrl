@@ -29,6 +29,10 @@ import (
 	"github.com/syspoe/cusus/ui"
 )
 
+// TODO(macro): App is a process-wide service locator (domain services + recovery flags + UIState).
+// Split into a composition-root factory that returns typed collaborators (document session,
+// playback stack, operator UI shell) so window_loop and settings callbacks stop reaching through
+// one god object for unrelated concerns.
 type App struct {
 	Show          *show.Manager
 	Playback      *playback.Engine
@@ -93,6 +97,7 @@ func runMain() (exitCode int) {
 			log.Print(err)
 			return 1
 		}
+	// TODO(micro): 2s shutdown wait is a magic deadline; name a const (e.g. operatorWindowShutdownWait).
 	case <-time.After(2 * time.Second):
 		log.Print("operator window stopped without a shutdown result")
 		return 1
@@ -101,6 +106,10 @@ func runMain() (exitCode int) {
 	return 0
 }
 
+// TODO(macro): newApp is the composition root mixed with runtime policy (authority handoff
+// stop-all, settings fan-out reconfigure, support-bundle paths, UI provider adapters). Keep
+// construction/wiring here; move handoff and "STOP before takeover" rules into redundancy or a
+// dedicated app/settings policy type so SettingsPage only receives domain ports.
 func newApp() (*App, error) {
 	settings, err := config.Open("")
 	if err != nil {
@@ -165,6 +174,7 @@ func newApp() (*App, error) {
 	}
 	settingsPage.SetAudioDeviceProvider(func() ([]ui.AudioDevice, error) {
 		devices, err := application.Media.AudioDevices()
+		// TODO(micro): On err, still builds result from (likely nil) devices and returns both; prefer early `return nil, err` (same as videoRouting).
 		result := make([]ui.AudioDevice, len(devices))
 		for i, device := range devices {
 			result[i] = ui.AudioDevice{ID: device.ID, Name: device.Name, IsDefault: device.IsDefault}
@@ -232,11 +242,13 @@ func newApp() (*App, error) {
 	return application, nil
 }
 
+// TODO(micro): No-value wrapper around buildinfo.Identity(); call buildinfo.Identity() at the single call site and delete this.
 func applicationBuildID() string { return buildinfo.Identity() }
 
 func timecodeConfig(settings config.Settings) timecode.Config {
 	return timecode.Config{
 		Source: timecode.Source(settings.TimecodeSource), Policy: timecode.Policy(settings.TimecodePolicy),
+		// TODO(micro): 500ms jump tolerance is a magic duration; name a const (e.g. defaultTimecodeJumpTolerance).
 		FrameRate: settings.TimecodeFrameRate, JumpTolerance: 500 * time.Millisecond,
 	}
 }
@@ -246,6 +258,7 @@ func redundancyConfig(settings config.Settings) redundancy.Config {
 		Role: redundancy.Role(settings.RedundancyRole), NodeID: settings.RedundancyNodeID,
 		ListenAddress: settings.RedundancyListenAddress, PeerAddress: settings.RedundancyPeerAddress,
 		SharedKey: settings.RedundancySharedKey, InterlockPath: settings.RedundancyInterlockPath,
+		// TODO(micro): 500ms heartbeat / 2500ms peer timeout are magic durations; name shared redundancy timing consts.
 		HeartbeatInterval: 500 * time.Millisecond, PeerTimeout: 2500 * time.Millisecond,
 	}
 }

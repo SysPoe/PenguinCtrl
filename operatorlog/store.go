@@ -58,6 +58,10 @@ type Event struct {
 	AcknowledgedAt time.Time      `json:"acknowledgedAt,omitempty"`
 }
 
+// TODO(macro): PreflightCheck is not an operator-log concern—Store never
+// persists or acknowledges it—yet preflight, health, document, and UI packages
+// all import operatorlog just for this DTO. Move it to a preflight (or shared
+// readiness) package so operatorlog stays event/store scoped.
 type PreflightCheck struct {
 	Severity     Severity
 	Code         string
@@ -75,6 +79,11 @@ type PreflightCheck struct {
 
 func (e Event) Acknowledged() bool { return !e.AcknowledgedAt.IsZero() }
 
+// TODO(macro): Store fuses three sinks—UI ring buffer, diagnostic-only JSONL
+// (appendDiagnostic never enters events), and rotated durable logs—behind one
+// type with dual locks. Split operator-facing Event history from a diagnostic
+// log writer so acknowledgement/snapshot APIs stop sharing lifecycle with
+// console capture and disk rotation policy.
 type Store struct {
 	mu        sync.RWMutex
 	logMu     sync.Mutex
@@ -113,6 +122,7 @@ func (s *Store) Add(severity Severity, source, message string, cueID show.CueID,
 
 func (s *Store) AddDetails(severity Severity, source, message string, cueID show.CueID, cueNumber string, details map[string]any) Event {
 	s.mu.Lock()
+	// TODO(micro): share Event construction with appendDiagnostic (sequence/showID/session fields duplicated)
 	s.sequence++
 	showID := ""
 	if s.showID != nil {
@@ -124,6 +134,7 @@ func (s *Store) AddDetails(severity Severity, source, message string, cueID show
 		CueID: cueID, CueNumber: strings.TrimSpace(cueNumber), Details: details,
 	}
 	s.events = append(s.events, event)
+	// TODO(micro): name the in-memory ring capacity (1000) as a constant
 	if len(s.events) > 1000 {
 		s.events = append([]Event(nil), s.events[len(s.events)-1000:]...)
 	}
@@ -174,6 +185,7 @@ func (s *Store) appendDiagnostic(source, message string, details map[string]any)
 	if s.showID != nil {
 		showID = s.showID()
 	}
+	// TODO(micro): TrimSpace source/message here like AddDetails does for consistency
 	event := Event{ID: uuid.NewString(), Sequence: s.sequence, Timestamp: time.Now(), SessionID: s.sessionID, BuildID: s.buildID, ShowID: showID, Severity: Info, Source: source, Message: message, Details: details}
 	logPath := s.logPath
 	s.mu.Unlock()
@@ -189,6 +201,7 @@ func appendEventLog(path string, event Event) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
+	// TODO(micro): name rotation threshold (5MiB) and generation count (4) as constants; support.go hard-codes the same 4
 	if info, err := os.Stat(path); err == nil && info.Size() >= 5*1024*1024 {
 		if err := rotateEventLogs(path, 4); err != nil {
 			return err
@@ -209,6 +222,7 @@ func appendEventLog(path string, event Event) error {
 
 func rotateEventLogs(path string, generations int) error {
 	// TODO(micro): Use strconv.Itoa for generation suffixes instead of fmt.Sprint in this rotation loop.
+	// TODO(micro): use strconv.Itoa instead of fmt.Sprint for generation suffixes
 	_ = os.Remove(path + "." + fmt.Sprint(generations))
 	for generation := generations - 1; generation >= 1; generation-- {
 		from, to := path+"."+fmt.Sprint(generation), path+"."+fmt.Sprint(generation+1)

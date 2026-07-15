@@ -55,6 +55,7 @@ func (s *Slider) valueFromNormalized(value float32) float64 {
 
 func (s *Slider) Layout(th *material.Theme, gtx layout.Context) layout.Dimensions {
 	normalized := s.normalizedValue()
+	// TODO(micro): 0.0001 is a magic epsilon; name a const (e.g. sliderSyncEpsilon).
 	if math.Abs(float64(s.slider.Value-normalized)) > 0.0001 && !s.slider.Dragging() {
 		s.slider.Value = normalized
 	}
@@ -67,6 +68,7 @@ func (s *Slider) Layout(th *material.Theme, gtx layout.Context) layout.Dimension
 			Left:   unit.Dp(4),
 			Right:  unit.Dp(4),
 		}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			// TODO(micro): 160 duplicates inputMinWidth; use inputMinWidth instead of a bare Dp literal.
 			gtx.Constraints.Min.X = max(gtx.Constraints.Min.X, gtx.Dp(unit.Dp(160)))
 			slider := material.Slider(th, &s.slider)
 			slider.Color = selectedInputSurface(th)

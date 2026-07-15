@@ -23,6 +23,10 @@ type settingsProvider interface {
 	Snapshot() config.Settings
 }
 
+// TODO(macro): packetSender only covers unacked UDP; ACK TCP (sendAcknowledged)
+// and health TCP dials bypass it with hard-coded net.Dialer usage. One transport
+// port (or dialer injection) should own all remote I/O so timeouts, tests, and
+// future TLS/relay paths do not fork per call site.
 type packetSender interface {
 	Send(context.Context, string, int, []byte) error
 }
@@ -31,6 +35,7 @@ type udpSender struct{}
 
 func (udpSender) Send(ctx context.Context, host string, port int, payload []byte) error {
 	address := net.JoinHostPort(host, strconv.Itoa(port))
+	// TODO(micro): (&net.Dialer{}) is equivalent to net.Dialer{} zero value; use a shared dialer field
 	conn, err := (&net.Dialer{}).DialContext(ctx, "udp", address)
 	if err != nil {
 		return err
@@ -48,6 +53,11 @@ func (udpSender) Send(ctx context.Context, host string, port int, payload []byte
 // and target-health monitoring behind small interfaces. Dispatcher currently
 // owns all three concerns and their goroutines, so adding a protocol or health
 // strategy expands the same lifecycle-sensitive type.
+// TODO(macro): Split Dispatcher into command transport vs continuous target health.
+// Dispatch/ACK and the 2s probe loop share config and a health map, but they are
+// different lifecycles and consumers (playback engine vs preflight/health UI). A
+// TargetMonitor (or health feed) owned outside the command path would keep remote
+// control send/retry independent of probe policy and TargetHealth projection.
 type Dispatcher struct {
 	settings         settingsProvider
 	sender           packetSender
@@ -190,6 +200,7 @@ func (d *Dispatcher) dispatchTarget(parent context.Context, target config.Remote
 		return protocol, false, fmt.Errorf("%s: %w", targetLabel(target), err)
 	}
 	started := time.Now()
+	// TODO(micro): name dispatch timeout (750ms) and ACK retry count (3) as constants
 	ctx, cancel := context.WithTimeout(parent, 750*time.Millisecond)
 	defer cancel()
 	acknowledged := false
@@ -241,6 +252,7 @@ func sendAcknowledged(ctx context.Context, host string, port int, id string, pay
 	}
 	return nil
 }
+// TODO(micro): merge recordHealth/recordProbeHealth - only Acknowledged differs
 
 func (d *Dispatcher) recordHealth(target config.RemoteTarget, err error, acknowledged bool, roundTrip time.Duration) {
 	key := targetLabel(target)
@@ -259,6 +271,7 @@ func (d *Dispatcher) recordHealth(target config.RemoteTarget, err error, acknowl
 
 func (d *Dispatcher) monitor() {
 	defer close(d.done)
+	// TODO(micro): name probe interval (2s) and dial timeout (500ms) as constants
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -343,6 +356,10 @@ func selectTransport(protocol show.RemoteProtocol, target config.RemoteTarget) (
 	return protocol, 0, errors.New("the selected protocol has no configured port")
 }
 
+// TODO(macro): Extract ERC/OSC payload builders into protocol codecs (and share
+// OSC framing with timecode). buildERCCommand/buildOSCMessage/encodeOSC are pure
+// show→wire transforms mixed into the network dispatcher; a remote/protocol or
+// internal/osc package would isolate wire formats from fan-out, ACK, and health.
 func buildPayload(protocol show.RemoteProtocol, play show.RemotePlay) ([]byte, error) {
 	if protocol == show.RemoteProtocolERC {
 		command, err := buildERCCommand(play)
