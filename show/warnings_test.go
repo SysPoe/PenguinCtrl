@@ -127,7 +127,7 @@ func TestMediaWarningsUseMediaFieldAndMissingRelativeCueDoesNotResolve(t *testin
 	}
 	absolute := cue
 	absolute.Link = CueLink{Mode: CueLinkStartPlay, Target: CueTarget{Kind: CueTargetNext}}
-	if linked, ok := linkedCue(absolute, []Cue{cue}); ok {
+	if linked, _, ok := newCueLinkGraph([]Cue{cue}).resolve(absolute); ok {
 		t.Fatalf("absent relative cue resolved to %#v", linked)
 	}
 }
