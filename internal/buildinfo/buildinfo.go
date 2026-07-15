@@ -1,4 +1,4 @@
-// TODO(micro): Add a package comment and Go-style docs for the exported schema constant and Identity function.
+// Package buildinfo exposes release identity injected by the build pipeline.
 package buildinfo
 
 import "strings"
@@ -6,20 +6,18 @@ import "strings"
 // These values are overridden by the release build's -ldflags. Defaults keep
 // local developer builds identifiable without pretending they are releases.
 var (
-	Version   = "dev"
-	Commit    = "unknown"
+	// Version is the human-readable application version.
+	Version = "dev"
+	// Commit is the source revision used for this build.
+	Commit = "unknown"
+	// BuildTime is the release build timestamp.
 	BuildTime = "unknown"
 )
 
-// TODO(macro): Config/Show schema versions are serialization contracts for the
-// config and show packages, not build identity. They are unused here; own them
-// next to the formats that enforce them (or a versioning package) so release
-// ldflags/Identity stay decoupled from document schema bumps.
-const (
-	ConfigSchemaVersion = 1
-	ShowSchemaVersion   = 2
-)
+const shortCommitWidth = 12
 
+// Identity returns the display version, including a shortened commit when the
+// build pipeline supplied one.
 func Identity() string {
 	version := strings.TrimSpace(Version)
 	if version == "" {
@@ -27,9 +25,8 @@ func Identity() string {
 	}
 	commit := strings.TrimSpace(Commit)
 	if commit != "" && commit != "unknown" {
-		// TODO(micro): name the short-hash width (12) as a constant
-		if len(commit) > 12 {
-			commit = commit[:12]
+		if len(commit) > shortCommitWidth {
+			commit = commit[:shortCommitWidth]
 		}
 		return version + "+" + commit
 	}

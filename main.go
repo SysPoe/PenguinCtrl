@@ -130,7 +130,7 @@ func newApp() (*App, error) {
 	}
 	operatorEvents := operatorlog.NewStore()
 	operatorEvents.SetLogPath(filepath.Join(filepath.Dir(settings.Path()), "operator-events.jsonl"))
-	operatorEvents.SetContext(applicationBuildID(), func() string {
+	operatorEvents.SetContext(buildinfo.Identity(), func() string {
 		digest, err := showManager.ShowSnapshot().Digest()
 		if err != nil {
 			return "invalid-show"
@@ -243,9 +243,6 @@ func newApp() (*App, error) {
 	}
 	return application, nil
 }
-
-// TODO(micro): No-value wrapper around buildinfo.Identity(); call buildinfo.Identity() at the single call site and delete this.
-func applicationBuildID() string { return buildinfo.Identity() }
 
 func timecodeConfig(settings config.Settings) timecode.Config {
 	return timecode.Config{
