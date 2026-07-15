@@ -61,6 +61,8 @@ type Engine struct {
 	mu                  sync.RWMutex
 	instances           *instanceRegistry
 	lifecycle           *lifecycleController
+	cueExecutors        *cueExecutorSet
+	links               *linkNavigator
 	executions          map[string]*CueExecution
 	outputVisuals       map[string]Event
 	outputWindows       map[string]Event
@@ -92,6 +94,8 @@ func NewEngine(manager *show.ShowManager, settings *config.Store) *Engine {
 		dispatch: newDispatchSequencer(), audit: newCommandAudit(),
 	}
 	engine.lifecycle = newLifecycleController(engine, &engine.mu, engine.instances, engine.outputs)
+	engine.cueExecutors = newCueExecutorSet(engine)
+	engine.links = newLinkNavigator(engine, showManagerCueSelection{manager: manager})
 	return engine
 }
 

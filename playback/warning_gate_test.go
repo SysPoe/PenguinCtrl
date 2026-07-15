@@ -143,3 +143,10 @@ func TestRemoteResultMessageNamesAttemptedProtocol(t *testing.T) {
 		t.Fatalf("message = %q", message)
 	}
 }
+
+func TestRemoteResultMessageRetainsUnknownProtocol(t *testing.T) {
+	result := remote.DispatchResult{Protocols: []show.RemoteProtocol{show.RemoteProtocol(99)}}
+	if got := remoteDispatchMessage(result, false); !strings.Contains(got, "protocol 99") {
+		t.Fatalf("unknown protocol message = %q", got)
+	}
+}
