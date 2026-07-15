@@ -110,6 +110,10 @@ func (ctx *CueEditUI) drawBottomBar(th *material.Theme, gtx layout.Context, mana
 			gtx.Execute(key.FocusCmd{})
 		} else if ctx.btnSave.Clicked(gtx) || saveShortcut {
 			ctx.stopTimecodePreview()
+			if ctx.timeline.model.initialized {
+				ctx.timeline.model.normalize()
+				ctx.syncTimelineMarkers()
+			}
 			show.RepairCueData(&ctx.cue)
 			if markers := cueTimecodeMarkers(&ctx.cue); markers != nil {
 				sortTimecodeMarkers(markers)

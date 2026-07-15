@@ -2,10 +2,10 @@ package ui
 
 import (
 	"math"
-	"sort"
 	"strings"
 
 	"gioui.org/io/pointer"
+	"gioui.org/unit"
 	"gioui.org/widget"
 	"github.com/syspoe/cusus/show"
 	"github.com/syspoe/cusus/ui/input"
@@ -14,6 +14,8 @@ import (
 type timelineDragMode uint8
 
 const (
+	timelineHeightDp = unit.Dp(190)
+
 	timelineDragNone timelineDragMode = iota
 	timelineDragPlayhead
 	timelineDragMarkers
@@ -26,24 +28,19 @@ const (
 	timelineDragActionDuration
 )
 
-// TODO(macro): Separate the timeline document/history model from Gio gesture,
-// viewport, and asynchronous waveform state. A pure command model would make
-// undo/redo and marker/range edits testable without sharing lifecycle with
-// pointer capture and media-loading callbacks.
-// TODO(macro): Timecode timeline state + input + render + marker form editing are three
-// large files of CueEditUI methods fusing clip-edit model, viewport interaction, and
-// waveform loading. Promote to a TimecodeEditor component that owns markers/history/
-// waveform/view and exposes clip/fade/playhead changes via callbacks, so cue edit only
-// hosts it on the Timecode tab.
+// timecodeTimelineState owns the Gio-facing timeline viewport, waveform, widgets,
+// and in-progress gesture state. Its marker document and history live in model.
+// TODO(macro): Promote the remaining CueEditUI input/render/waveform methods to a
+// TimecodeEditor view component with an explicit cue/media adapter. The pure marker
+// document is now separate, but clip/fade callbacks still reach through CueEditUI.
 type timecodeTimelineState struct {
-	tag struct{}
+	tag   struct{}
+	model timecodeTimelineModel
 
 	add, preview widget.Clickable
 	undo, redo   widget.Clickable
 	previewing   bool
 
-	selected    map[int]bool
-	clipboard   []show.TimecodeMarker
 	playheadMs  int64
 	hoverMs     int64
 	durationMs  int64
@@ -72,8 +69,6 @@ type timecodeTimelineState struct {
 	dragIndex       int
 	dragMarkerTimes []int64
 	dragChanged     bool
-	history         [][]show.TimecodeMarker
-	future          [][]show.TimecodeMarker
 }
 
 type timecodeClipboard struct {
@@ -82,15 +77,31 @@ type timecodeClipboard struct {
 }
 
 func (t *timecodeTimelineState) reset() {
-	*t = timecodeTimelineState{selected: map[int]bool{}, zoom: 1}
+	*t = timecodeTimelineState{zoom: 1}
 }
 
 func (t *timecodeTimelineState) ensure() {
-	if t.selected == nil {
-		t.selected = map[int]bool{}
+	if t.model.selected == nil {
+		t.model.selected = map[int]bool{}
 	}
 	if t.zoom < 1 {
 		t.zoom = 1
+	}
+}
+
+func (ctx *CueEditUI) timelineMarkers() *[]show.TimecodeMarker {
+	markers := cueTimecodeMarkers(&ctx.cue)
+	if markers == nil {
+		return nil
+	}
+	ctx.timeline.model.ensure(*markers)
+	return &ctx.timeline.model.markers
+}
+
+func (ctx *CueEditUI) syncTimelineMarkers() {
+	markers := cueTimecodeMarkers(&ctx.cue)
+	if markers != nil && ctx.timeline.model.initialized {
+		*markers = ctx.timeline.model.snapshot()
 	}
 }
 
@@ -240,17 +251,6 @@ func (ctx *CueEditUI) setTimecodeFades(fadeInMs, fadeOutMs int64) {
 	}
 }
 
-func markerActionDuration(marker *show.TimecodeMarker) *int64 {
-	if marker == nil || marker.Type != show.CueTypeMediaControl || marker.Action.MediaControl == nil {
-		return nil
-	}
-	switch marker.Action.MediaControl.Action {
-	case show.MediaControlFadeTo, show.MediaControlFadeOut, show.MediaControlStop, show.MediaControlSetVolume:
-		return &marker.Action.MediaControl.FadeMs
-	}
-	return nil
-}
-
 func (ctx *CueEditUI) ensureTimelineWaveform() {
 	t := &ctx.timeline
 	t.ensure()
@@ -300,14 +300,13 @@ func (ctx *CueEditUI) updateTimelineDuration() {
 		duration = ctx.cue.Play.Image.DurationMs
 	}
 	if duration <= 0 {
-		if markers := cueTimecodeMarkers(&ctx.cue); markers != nil {
+		if markers := ctx.timelineMarkers(); markers != nil {
 			for _, marker := range *markers {
-				// TODO(micro): +1000 padding and max(1000,...) floor are magic ms; name timelineMinDurationMs const.
-				duration = max(duration, clipStart+marker.TimeMs+1000)
+				duration = max(duration, clipStart+marker.TimeMs+timelineMinDurationMs)
 			}
 		}
 	}
-	t.durationMs = max(int64(1000), duration)
+	t.durationMs = max(int64(timelineMinDurationMs), duration)
 	t.playheadMs = min(max(int64(0), t.playheadMs), ctx.timecodeCueDuration())
 	t.clampView()
 }
@@ -362,147 +361,22 @@ func (t *timecodeTimelineState) msToX(ms int64, width int) int {
 	return int(float64(ms-t.viewStartMs) / float64(t.viewDuration()) * float64(width))
 }
 
-func selectedTimelineIndexes(t *timecodeTimelineState, count int) []int {
-	result := make([]int, 0, len(t.selected))
-	for i := range t.selected {
-		if i >= 0 && i < count {
-			result = append(result, i)
-		}
-	}
-	sort.Ints(result)
-	return result
-}
-
-func sortTimecodeMarkers(markers *[]show.TimecodeMarker) bool {
-	if markers == nil {
-		return false
-	}
-	changed := false
-	for i := range *markers {
-		marker := &(*markers)[i]
-		if marker.Type == show.CueTypeMediaControl && marker.Action.MediaControl != nil && marker.Action.MediaControl.Target.Kind != show.MediaTargetCurrentTrack {
-			marker.Action.MediaControl.Target = show.MediaTarget{Kind: show.MediaTargetCurrentTrack}
-			changed = true
-		}
-	}
-	if len(*markers) >= 2 && !sort.SliceIsSorted(*markers, func(i, j int) bool { return (*markers)[i].TimeMs < (*markers)[j].TimeMs }) {
-		sort.SliceStable(*markers, func(i, j int) bool { return (*markers)[i].TimeMs < (*markers)[j].TimeMs })
-		changed = true
-	}
-	return changed
-}
-
-func timecodeActionIndex(cueType show.CueType) int {
-	switch cueType {
-	case show.CueTypeOutputControl:
-		return 1
-	case show.CueTypeRemote:
-		return 2
-	default:
-		return 0
+func (ctx *CueEditUI) undoTimeline() {
+	if ctx.timeline.model.undo() {
+		ctx.resetTimecodeInputs()
+		ctx.syncTimelineMarkers()
 	}
 }
 
-func defaultTimecodeMediaControl() *show.MediaControlPlay {
-	level := 0.0
-	return &show.MediaControlPlay{
-		Action:  show.MediaControlFadeTo,
-		Target:  show.MediaTarget{Kind: show.MediaTargetCurrentTrack},
-		LevelDB: &level,
-		FadeMs:  1000,
-		Curve:   show.FadeCurveLinear,
+func (ctx *CueEditUI) redoTimeline() {
+	if ctx.timeline.model.redo() {
+		ctx.resetTimecodeInputs()
+		ctx.syncTimelineMarkers()
 	}
-}
-
-func newTimecodeMarker(at int64) show.TimecodeMarker {
-	return show.TimecodeMarker{
-		TimeMs: max(int64(0), at),
-		Type:   show.CueTypeMediaControl,
-		Action: show.CuePlay{MediaControl: defaultTimecodeMediaControl()},
-	}
-}
-
-func setTimecodeActionType(marker *show.TimecodeMarker, selected int) {
-	switch selected {
-	case 1:
-		marker.Type = show.CueTypeOutputControl
-		marker.Action = show.NewOutputControlCue().Play
-	case 2:
-		marker.Type = show.CueTypeRemote
-		marker.Action = show.NewRemoteCue().Play
-	default:
-		marker.Type = show.CueTypeMediaControl
-		marker.Action = show.CuePlay{MediaControl: defaultTimecodeMediaControl()}
-	}
-}
-
-func cloneTimecodeMarkers(markers []show.TimecodeMarker) []show.TimecodeMarker {
-	cloned := append([]show.TimecodeMarker(nil), markers...)
-	for i := range cloned {
-		if value := markers[i].Action.MediaControl; value != nil {
-			copy := *value
-			if value.LevelDB != nil {
-				level := *value.LevelDB
-				copy.LevelDB = &level
-			}
-			if value.SeekToMs != nil {
-				seek := *value.SeekToMs
-				copy.SeekToMs = &seek
-			}
-			cloned[i].Action.MediaControl = &copy
-		}
-		if value := markers[i].Action.OutputControl; value != nil {
-			copy := *value
-			cloned[i].Action.OutputControl = &copy
-		}
-		if value := markers[i].Action.Remote; value != nil {
-			copy := *value
-			copy.Values = append([]show.RemoteValue(nil), value.Values...)
-			cloned[i].Action.Remote = &copy
-		}
-	}
-	return cloned
-}
-
-func (t *timecodeTimelineState) checkpoint(markers []show.TimecodeMarker) {
-	t.history = append(t.history, cloneTimecodeMarkers(markers))
-	// TODO(micro): history cap 100 is magic; name timelineHistoryLimit const.
-	if len(t.history) > 100 {
-		t.history = t.history[len(t.history)-100:]
-	}
-	t.future = nil
-}
-
-// TODO(micro): Remove the bool result while all callers ignore it, or use it to drive disabled/feedback state.
-func (ctx *CueEditUI) undoTimeline(markers *[]show.TimecodeMarker) bool {
-	t := &ctx.timeline
-	if len(t.history) == 0 {
-		return false
-	}
-	t.future = append(t.future, cloneTimecodeMarkers(*markers))
-	*markers = t.history[len(t.history)-1]
-	t.history = t.history[:len(t.history)-1]
-	t.selected = map[int]bool{}
-	ctx.resetTimecodeInputs()
-	return true
-}
-
-// TODO(micro): Remove the bool result while all callers ignore it, or use it to drive disabled/feedback state.
-func (ctx *CueEditUI) redoTimeline(markers *[]show.TimecodeMarker) bool {
-	t := &ctx.timeline
-	if len(t.future) == 0 {
-		return false
-	}
-	t.history = append(t.history, cloneTimecodeMarkers(*markers))
-	*markers = t.future[len(t.future)-1]
-	t.future = t.future[:len(t.future)-1]
-	t.selected = map[int]bool{}
-	ctx.resetTimecodeInputs()
-	return true
 }
 
 func (ctx *CueEditUI) resetTimecodeInputs() {
-	markers := cueTimecodeMarkers(&ctx.cue)
+	markers := ctx.timelineMarkers()
 	if markers == nil {
 		ctx.page.markers = nil
 		return
@@ -512,6 +386,3 @@ func (ctx *CueEditUI) resetTimecodeInputs() {
 		ctx.page.markers[index] = newTimecodeMarkerInputs(marker)
 	}
 }
-
-// TODO(micro): obsolete comment — constructors live in timecode_timeline_input.go and are unused wrappers.
-// Tiny constructors keep timecode_timeline.go independent from input widget internals.

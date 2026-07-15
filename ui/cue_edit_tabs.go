@@ -48,29 +48,30 @@ func (ctx *CueEditUI) renderLinkTab(th *material.Theme, manager *show.ShowManage
 	return ctx.renderForm(th, rows)
 }
 
-func (ctx *CueEditUI) renderTimecodeTab(th *material.Theme, manager *show.ShowManager) layout.FlexChild {
-	markers := cueTimecodeMarkers(&ctx.cue)
+func (ctx *CueEditUI) renderTimecodeTab(th *material.Theme, _ *show.ShowManager) layout.FlexChild {
+	markers := ctx.timelineMarkers()
 	if markers == nil {
 		return ctx.renderForm(th, []cueEditFormRow{staticRow(th, "Timecode", "This cue type does not support timecode markers.")})
 	}
 
-	if sortTimecodeMarkers(markers) {
-		ctx.timeline.selected = map[int]bool{}
+	if ctx.timeline.model.normalize() {
 		ctx.resetTimecodeInputs()
 	}
 
-	rows := ctx.timecodeEditorRows(th, markers)
+	rows := ctx.timecodeEditorRows(th)
 	return layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-		return layout.UniformInset(unit.Dp(16)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		dimensions := layout.UniformInset(unit.Dp(16)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return ctx.renderNativeTimecodeEditor(th, gtx, manager, markers)
+					return ctx.renderNativeTimecodeEditor(th, gtx)
 				}),
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					return ctx.layoutFormRows(th, gtx, rows)
 				}),
 			)
 		})
+		ctx.syncTimelineMarkers()
+		return dimensions
 	})
 }
 

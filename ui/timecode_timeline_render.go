@@ -16,16 +16,15 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
-// TODO(micro): unused manager param; drop from signature and call site in renderNativeTimecodeEditor.
-func (ctx *CueEditUI) drawTimeline(th *material.Theme, gtx layout.Context, markers *[]show.TimecodeMarker, _ *show.ShowManager) layout.Dimensions {
+func (ctx *CueEditUI) drawTimeline(th *material.Theme, gtx layout.Context) layout.Dimensions {
 	t := &ctx.timeline
-	// TODO(micro): 190 timeline height is a magic Dp; name timelineHeightDp const.
-	size := image.Pt(gtx.Constraints.Max.X, gtx.Dp(unit.Dp(190)))
+	markers := &t.model.markers
+	size := image.Pt(gtx.Constraints.Max.X, gtx.Dp(timelineHeightDp))
 	if size.X < 1 {
 		size.X = 1
 	}
-	ctx.handleTimelineKeys(gtx, markers)
-	ctx.handleTimelinePointer(gtx, size, markers)
+	ctx.handleTimelineKeys(gtx)
+	ctx.handleTimelinePointer(gtx, size)
 	paint.FillShape(gtx.Ops, palette.SurfaceSunken, clip.Rect{Max: size}.Op())
 	// Time grid.
 	gridStep := int64(1000)
@@ -54,7 +53,7 @@ func (ctx *CueEditUI) drawTimeline(th *material.Theme, gtx layout.Context, marke
 			continue
 		}
 		c := palette.Warning
-		if t.selected[i] {
+		if t.model.selected[i] {
 			c = palette.Primary
 		}
 		if m.Disabled {
@@ -73,11 +72,12 @@ func (ctx *CueEditUI) drawTimeline(th *material.Theme, gtx layout.Context, marke
 	return layout.Dimensions{Size: size}
 }
 
-func (ctx *CueEditUI) timecodeEditorRows(th *material.Theme, markers *[]show.TimecodeMarker) []cueEditFormRow {
+func (ctx *CueEditUI) timecodeEditorRows(th *material.Theme) []cueEditFormRow {
+	markers := &ctx.timeline.model.markers
 	rows := []cueEditFormRow{timecodeSectionRow(th, "Clip and fades")}
 	rows = append(rows, ctx.mediaRangeRows(th, timecodeRangeLabels, true)...)
 
-	selected := selectedTimelineIndexes(&ctx.timeline, len(*markers))
+	selected := ctx.timeline.model.selectedIndexes()
 	rows = append(rows, timecodeSectionRow(th, "Selected action"))
 	if len(selected) != 1 {
 		rows = append(rows, staticRow(th, "Action", "Select one timeline action to edit it"))
@@ -90,13 +90,12 @@ func (ctx *CueEditUI) timecodeEditorRows(th *material.Theme, markers *[]show.Tim
 	}
 	fields := &ctx.page.markers[index]
 	rows = append(rows,
-		integerRow(th, "At", fields.time, func(v int) { marker.TimeMs = int64(max(0, v)) }),
+		integerRow(th, "At", fields.time, func(v int) { ctx.timeline.model.setMarkerTime(index, int64(v)) }),
 		checkboxRow(th, "", fields.disabled, func(v bool) { marker.Disabled = v }),
 		dropdownRow(th, "Action", fields.actionType, func(selected int) {
-			if selected != timecodeActionIndex(marker.Type) {
-				ctx.timeline.checkpoint(*markers)
-				setTimecodeActionType(marker, selected)
+			if ctx.timeline.model.setActionType(index, selected) {
 				ctx.resetTimecodeInputs()
+				ctx.syncTimelineMarkers()
 			}
 		}),
 	)
@@ -134,10 +133,9 @@ func (ctx *CueEditUI) timecodeEditorRows(th *material.Theme, markers *[]show.Tim
 	}
 	rows = append(rows, cueEditFormRow{layout: func(gtx layout.Context) layout.Dimensions {
 		if fields.delete.Clicked(gtx) {
-			ctx.timeline.checkpoint(*markers)
-			*markers = append((*markers)[:index], (*markers)[index+1:]...)
-			ctx.timeline.selected = map[int]bool{}
+			ctx.timeline.model.deleteAt(index)
 			ctx.resetTimecodeInputs()
+			ctx.syncTimelineMarkers()
 		}
 		return layoutCenteredButton(th, gtx, fields.delete, "Delete action", palette.Danger)
 	}})
@@ -277,10 +275,10 @@ func (ctx *CueEditUI) drawMarkerLabel(th *material.Theme, gtx layout.Context, m 
 	text.Layout(gtx)
 }
 
-func (ctx *CueEditUI) renderNativeTimecodeEditor(th *material.Theme, gtx layout.Context, manager *show.ShowManager, markers *[]show.TimecodeMarker) layout.Dimensions {
+func (ctx *CueEditUI) renderNativeTimecodeEditor(th *material.Theme, gtx layout.Context) layout.Dimensions {
 	ctx.ensureTimelineWaveform()
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return ctx.timelineToolbar(th, gtx, markers) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return ctx.timelineToolbar(th, gtx) }),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			_, clipStart, clipEnd, _ := ctx.timecodeMediaDetails()
 			if clipEnd <= clipStart {
@@ -293,7 +291,7 @@ func (ctx *CueEditUI) renderNativeTimecodeEditor(th *material.Theme, gtx layout.
 			return layout.Inset{Top: unit.Dp(4)}.Layout(gtx, label.Layout)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions { return ctx.drawTimeline(th, gtx, markers, manager) })
+			return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions { return ctx.drawTimeline(th, gtx) })
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			status := "Drag the top start/end handles, actions or fade bars; bottom handles adjust fades; wheel pans; Ctrl+wheel zooms."
