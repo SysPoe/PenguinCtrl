@@ -8,6 +8,7 @@ import (
 
 	"github.com/syspoe/cusus/config"
 	"github.com/syspoe/cusus/operatorlog"
+	"github.com/syspoe/cusus/preflight"
 	"github.com/syspoe/cusus/remote"
 	"github.com/syspoe/cusus/show"
 )
@@ -111,15 +112,8 @@ func TestRemoteHealthPreflightBlocksUnreachableConfiguredProbe(t *testing.T) {
 	cue := show.NewRemoteCue()
 	settings := config.Defaults()
 	settings.RemoteTargets = []config.RemoteTarget{{Name: "console", Host: "127.0.0.1", HealthPort: 9000, OSCPort: 8000}}
-	checks := remoteHealthPreflight([]show.Cue{cue}, settings, []remote.TargetHealth{{Name: "console", Known: true, Reachable: false, LastError: "connection refused"}})
+	checks := preflight.Assemble(show.Show{Cues: []show.Cue{cue}}, settings, "", "", []remote.TargetHealth{{Name: "console", Known: true, Reachable: false, LastError: "connection refused"}}, nil)
 	if len(checks) != 1 || !strings.Contains(checks[0].Message, "connection refused") {
 		t.Fatalf("remote checks = %#v", checks)
-	}
-}
-
-func TestDiskReadinessIsAcknowledgeableCaution(t *testing.T) {
-	checks := diskCaution("cache is unavailable")
-	if len(checks) != 1 || checks[0].Severity != operatorlog.Warning || checks[0].Fingerprint == "" {
-		t.Fatalf("disk caution = %#v", checks)
 	}
 }

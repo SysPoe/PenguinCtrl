@@ -21,7 +21,7 @@ func TestBuildPreflightFindsRuntimePrerequisites(t *testing.T) {
 	settings.FFmpegPath = "definitely-not-a-cusus-ffmpeg-binary"
 	settings.RemoteTargets = nil
 
-	checks := buildPreflight([]show.Cue{cue, video}, settings, "audio device offline", "display disconnected")
+	checks := preflight.Assemble(show.Show{Cues: []show.Cue{cue, video}}, settings, "audio device offline", "display disconnected", nil, nil)
 	wants := []string{"Missing media file", "definitely-not-a-cusus-ffmpeg-binary", "audio device offline", "display disconnected"}
 	for _, want := range wants {
 		found := false
@@ -49,7 +49,7 @@ func TestBuildPreflightScopesRouteFailuresToAffectedCueTypesAndStages(t *testing
 	settings := config.Defaults()
 	settings.VideoOutputs = append(settings.VideoOutputs, config.VideoOutput{Stage: "foh"})
 
-	checks := buildPreflight([]show.Cue{sound, mainVideo, fohImage}, settings, "The selected playback audio device is disconnected.", `Stage "main" is assigned to a disconnected display.`)
+	checks := preflight.Assemble(show.Show{Cues: []show.Cue{sound, mainVideo, fohImage}}, settings, "The selected playback audio device is disconnected.", `Stage "main" is assigned to a disconnected display.`, nil, nil)
 	var audio, video preflight.Check
 	for _, check := range checks {
 		switch check.Source {
