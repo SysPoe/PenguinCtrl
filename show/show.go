@@ -27,15 +27,15 @@ func (s Show) Digest() ([sha256.Size]byte, error) {
 }
 
 func (s *Show) InsertCue(index int, cue Cue) {
-	// TODO(micro): Same append/copy insert as insertMovedCue / Duplicate / Paste — extract one shared insert-at helper.
-	if index < 0 {
-		index = 0
-	}
-	if index > len(s.Cues) {
-		index = len(s.Cues)
-	}
+	cue = CloneCue(cue)
+	RepairCueData(&cue)
+	s.Cues, _ = insertCueAt(s.Cues, index, cue)
+}
 
-	s.Cues = append(s.Cues, Cue{})
-	copy(s.Cues[index+1:], s.Cues[index:])
-	s.Cues[index] = cue
+func insertCueAt(cues []Cue, index int, cue Cue) ([]Cue, int) {
+	index = max(0, min(index, len(cues)))
+	cues = append(cues, Cue{})
+	copy(cues[index+1:], cues[index:])
+	cues[index] = cue
+	return cues, index
 }

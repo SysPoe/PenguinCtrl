@@ -25,6 +25,8 @@ func NewShowManager() *ShowManager {
 }
 
 func (sm *ShowManager) AddCue(cue Cue) {
+	cue = CloneCue(cue)
+	RepairCueData(&cue)
 	sm.mu.Lock()
 	sm.show.Cues = append(sm.show.Cues, cue)
 	sm.mu.Unlock()
@@ -33,6 +35,8 @@ func (sm *ShowManager) AddCue(cue Cue) {
 
 // AddCueAndSelect appends a cue and selects it as one atomic user action.
 func (sm *ShowManager) AddCueAndSelect(cue Cue) int {
+	cue = CloneCue(cue)
+	RepairCueData(&cue)
 	sm.mu.Lock()
 	sm.show.Cues = append(sm.show.Cues, cue)
 	sm.SelectedCueIndex = len(sm.show.Cues) - 1
@@ -43,23 +47,21 @@ func (sm *ShowManager) AddCueAndSelect(cue Cue) int {
 }
 
 func (sm *ShowManager) InsertCue(index int, cue Cue) {
+	cue = CloneCue(cue)
+	RepairCueData(&cue)
 	sm.mu.Lock()
-	// TODO(micro): Bounds clamp is duplicated in Show.InsertCue; clamp once (or use insertMovedCue) so selection math and insert share one path.
-	if index < 0 {
-		index = 0
-	}
-	if index > len(sm.show.Cues) {
-		index = len(sm.show.Cues)
-	}
-	if sm.SelectedCueIndex >= index {
+	var insertedAt int
+	sm.show.Cues, insertedAt = insertCueAt(sm.show.Cues, index, cue)
+	if sm.SelectedCueIndex >= insertedAt {
 		sm.SelectedCueIndex++
 	}
-	sm.show.InsertCue(index, cue)
 	sm.mu.Unlock()
 	sm.changed()
 }
 
 func (sm *ShowManager) ReplaceCue(cue Cue) {
+	cue = CloneCue(cue)
+	RepairCueData(&cue)
 	sm.mu.Lock()
 	replaced := false
 	for i := range sm.show.Cues {
@@ -128,11 +130,7 @@ func (sm *ShowManager) MoveSelectedCueBefore(targetIndex int) bool {
 		targetIndex--
 	}
 	cue.GroupID, cue.GroupTitle = targetGroupID, targetGroupTitle
-	// TODO(micro): Reuse insertMovedCue(targetIndex, cue) instead of hand-rolled append/copy/select.
-	sm.show.Cues = append(sm.show.Cues, Cue{})
-	copy(sm.show.Cues[targetIndex+1:], sm.show.Cues[targetIndex:])
-	sm.show.Cues[targetIndex] = cue
-	sm.SelectedCueIndex = targetIndex
+	sm.insertMovedCue(targetIndex, cue)
 	sm.mu.Unlock()
 	sm.changed()
 	return true
@@ -178,11 +176,7 @@ func (sm *ShowManager) DuplicateSelectedCue() bool {
 	duplicate := CloneCue(sm.show.Cues[index])
 	duplicate.ID = NewCueID()
 	insertAt := index + 1
-	// TODO(micro): Reuse insertMovedCue(insertAt, duplicate) instead of reimplementing append/copy/select.
-	sm.show.Cues = append(sm.show.Cues, Cue{})
-	copy(sm.show.Cues[insertAt+1:], sm.show.Cues[insertAt:])
-	sm.show.Cues[insertAt] = duplicate
-	sm.SelectedCueIndex = insertAt
+	sm.insertMovedCue(insertAt, duplicate)
 	sm.mu.Unlock()
 	sm.changed()
 	return true
@@ -200,11 +194,7 @@ func (sm *ShowManager) PasteCueBeforeSelected(cue Cue) bool {
 	pasted.ID = NewCueID()
 	pasted.GroupID = sm.show.Cues[index].GroupID
 	pasted.GroupTitle = sm.show.Cues[index].GroupTitle
-	// TODO(micro): Reuse insertMovedCue(index, pasted) instead of a third hand-rolled insert.
-	sm.show.Cues = append(sm.show.Cues, Cue{})
-	copy(sm.show.Cues[index+1:], sm.show.Cues[index:])
-	sm.show.Cues[index] = pasted
-	sm.SelectedCueIndex = index
+	sm.insertMovedCue(index, pasted)
 	sm.mu.Unlock()
 	sm.changed()
 	return true
@@ -341,8 +331,10 @@ func (sm *ShowManager) ShowSnapshot() Show {
 
 // ReplaceShow atomically replaces the current show after loading a project.
 func (sm *ShowManager) ReplaceShow(loaded Show) {
+	loaded = CloneShow(loaded)
+	RepairShowData(&loaded)
 	sm.mu.Lock()
-	sm.show = Show{Title: loaded.Title, Cues: cloneCues(loaded.Cues), AcknowledgedProblems: cloneAcknowledgements(loaded.AcknowledgedProblems), Extensions: cloneExtensions(loaded.Extensions)}
+	sm.show = loaded
 	if len(sm.show.Cues) == 0 {
 		sm.SelectedCueIndex = -1
 	} else {

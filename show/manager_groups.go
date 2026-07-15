@@ -198,11 +198,7 @@ func groupBounds(cues []Cue, groupID GroupID) (first, last int, title string) {
 
 // insertMovedCue is called with the manager lock held.
 func (sm *ShowManager) insertMovedCue(index int, cue Cue) {
-	index = max(0, min(index, len(sm.show.Cues)))
-	sm.show.Cues = append(sm.show.Cues, Cue{})
-	copy(sm.show.Cues[index+1:], sm.show.Cues[index:])
-	sm.show.Cues[index] = cue
-	sm.SelectedCueIndex = index
+	sm.show.Cues, sm.SelectedCueIndex = insertCueAt(sm.show.Cues, index, cue)
 }
 
 // TODO(macro): Move change notification next to the manager core — SetOnChange/
