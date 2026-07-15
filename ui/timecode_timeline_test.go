@@ -57,15 +57,44 @@ func TestClipEndEditCannotExceedKnownTrackDuration(t *testing.T) {
 	cue.Play.Video.ClipStartMs = 500
 	cue.Play.Video.ClipEndMs = 3000
 	ctx := CueEditUI{cue: cue, page: newCueEditPageState(cue)}
-	ctx.timeline.waveDurationMs = 3000
+	editor := ctx.timecodeEditor()
+	editor.waveDurationMs = 3000
 
-	ctx.setTimecodeClipEnd(9000)
+	editor.setClipEnd(9000)
 	if ctx.cue.Play.Video.ClipEndMs != 3000 {
 		t.Fatalf("clip end = %d, want 3000", ctx.cue.Play.Video.ClipEndMs)
 	}
-	ctx.setTimecodeClipStart(4000)
+	editor.setClipStart(4000)
 	if ctx.cue.Play.Video.ClipStartMs != 2999 {
 		t.Fatalf("clip start = %d, want 2999", ctx.cue.Play.Video.ClipStartMs)
+	}
+}
+
+func TestTimecodeEditorAdapterSynchronizesCueMediaFields(t *testing.T) {
+	cue := show.NewVideoCue()
+	cue.Play.Video.ClipStartMs = 100
+	cue.Play.Video.ClipEndMs = 2000
+	page := newCueEditPageState(cue)
+	editor := timecodeEditor{
+		adapter: timecodeEditorAdapter{
+			cue:          &cue,
+			mediaInputs:  func() *mediaPlayInputs { return page.media },
+			markerInputs: &page.markers,
+		},
+		waveDurationMs: 3000,
+	}
+
+	editor.setClipStart(250)
+	editor.setFades(400, 500)
+
+	if cue.Play.Video.ClipStartMs != 250 || page.media.clipStartMs.Value != 250 {
+		t.Fatalf("clip start = cue %d, field %d; want 250", cue.Play.Video.ClipStartMs, page.media.clipStartMs.Value)
+	}
+	if cue.Play.Video.FadeInMs != 400 || cue.Play.Video.FadeOutMs != 500 {
+		t.Fatalf("cue fades = %d/%d, want 400/500", cue.Play.Video.FadeInMs, cue.Play.Video.FadeOutMs)
+	}
+	if page.media.fadeInMs.Value != 400 || page.media.fadeOutMs.Value != 500 {
+		t.Fatalf("field fades = %d/%d, want 400/500", page.media.fadeInMs.Value, page.media.fadeOutMs.Value)
 	}
 }
 
@@ -75,11 +104,12 @@ func TestTimelineMapsCueTimesOntoAbsoluteClipRange(t *testing.T) {
 	cue.Play.Sound.ClipEndMs = 2500
 	ctx := CueEditUI{cue: cue}
 	ctx.timeline.durationMs, ctx.timeline.zoom = 3000, 1
+	editor := ctx.timecodeEditor()
 
-	if got := ctx.timelineCueToTrackMs(750); got != 1250 {
+	if got := editor.cueToTrackMs(750); got != 1250 {
 		t.Fatalf("track time = %d, want 1250", got)
 	}
-	if got := ctx.timelineTrackToCueMs(2750); got != 2000 {
+	if got := editor.trackToCueMs(2750); got != 2000 {
 		t.Fatalf("cue time past clip end = %d, want clamped 2000", got)
 	}
 	if startX, endX := ctx.timeline.msToX(500, 300), ctx.timeline.msToX(2500, 300); startX != 50 || endX != 250 {

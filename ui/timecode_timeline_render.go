@@ -21,15 +21,15 @@ const (
 	waveformAmplitude = 0.40
 )
 
-func (ctx *CueEditUI) drawTimeline(th *material.Theme, gtx layout.Context) layout.Dimensions {
-	t := &ctx.timeline
+func (editor *timecodeEditor) draw(th *material.Theme, gtx layout.Context) layout.Dimensions {
+	t := editor
 	markers := &t.model.markers
 	size := image.Pt(gtx.Constraints.Max.X, gtx.Dp(timelineHeightDp))
 	if size.X < 1 {
 		size.X = 1
 	}
-	ctx.handleTimelineKeys(gtx)
-	ctx.handleTimelinePointer(gtx, size)
+	editor.handleKeys(gtx)
+	editor.handlePointer(gtx, size)
 	paint.FillShape(gtx.Ops, palette.SurfaceSunken, clip.Rect{Max: size}.Op())
 	// Time grid.
 	gridStep := int64(1000)
@@ -41,19 +41,19 @@ func (ctx *CueEditUI) drawTimeline(th *material.Theme, gtx layout.Context) layou
 		x := t.msToX(ms, size.X)
 		paint.FillShape(gtx.Ops, palette.WithAlpha(palette.Divider, 0x70), clip.Rect{Min: image.Pt(x, 0), Max: image.Pt(x+1, size.Y)}.Op())
 	}
-	ctx.drawWaveformBars(gtx, size)
-	ctx.drawFadeZones(gtx, size)
-	ctx.drawClipHandles(gtx, size)
-	ctx.drawActionDurationBars(gtx, size, *markers)
+	editor.drawWaveformBars(gtx, size)
+	editor.drawFadeZones(gtx, size)
+	editor.drawClipHandles(gtx, size)
+	editor.drawActionDurationBars(gtx, size, *markers)
 	// Range selection overlay.
 	if t.dragMode == timelineDragRange {
-		x1 := t.msToX(ctx.timelineCueToTrackMs(min(t.dragStartMs, t.dragCurrentMs)), size.X)
-		x2 := t.msToX(ctx.timelineCueToTrackMs(max(t.dragStartMs, t.dragCurrentMs)), size.X)
+		x1 := t.msToX(editor.cueToTrackMs(min(t.dragStartMs, t.dragCurrentMs)), size.X)
+		x2 := t.msToX(editor.cueToTrackMs(max(t.dragStartMs, t.dragCurrentMs)), size.X)
 		paint.FillShape(gtx.Ops, palette.WithAlpha(palette.Primary, 0x35), clip.Rect{Min: image.Pt(x1, 0), Max: image.Pt(x2, size.Y)}.Op())
 	}
 	// Markers and labels.
 	for i, m := range *markers {
-		x := t.msToX(ctx.timelineCueToTrackMs(m.TimeMs), size.X)
+		x := t.msToX(editor.cueToTrackMs(m.TimeMs), size.X)
 		if x < 0 || x > size.X {
 			continue
 		}
@@ -65,10 +65,10 @@ func (ctx *CueEditUI) drawTimeline(th *material.Theme, gtx layout.Context) layou
 			c = palette.Disabled
 		}
 		paint.FillShape(gtx.Ops, c, clip.Rect{Min: image.Pt(x-2, 0), Max: image.Pt(x+3, size.Y)}.Op())
-		ctx.drawMarkerLabel(th, gtx, m, i, x, size)
+		editor.drawMarkerLabel(th, gtx, m, i, x, size)
 	}
 	// Playhead.
-	px := t.msToX(ctx.timelineCueToTrackMs(t.playheadMs), size.X)
+	px := t.msToX(editor.cueToTrackMs(t.playheadMs), size.X)
 	paint.FillShape(gtx.Ops, palette.Danger, clip.Rect{Min: image.Pt(px-1, 0), Max: image.Pt(px+2, size.Y)}.Op())
 	area := clip.Rect{Max: size}.Push(gtx.Ops)
 	event.Op(gtx.Ops, &t.tag)
@@ -77,12 +77,14 @@ func (ctx *CueEditUI) drawTimeline(th *material.Theme, gtx layout.Context) layou
 	return layout.Dimensions{Size: size}
 }
 
-func (ctx *CueEditUI) timecodeEditorRows(th *material.Theme) []cueEditFormRow {
-	markers := &ctx.timeline.model.markers
+func (editor *timecodeEditor) rows(th *material.Theme) []cueEditFormRow {
+	markers := &editor.model.markers
 	rows := []cueEditFormRow{timecodeSectionRow(th, "Clip and fades")}
-	rows = append(rows, ctx.mediaRangeRows(th, timecodeRangeLabels, true)...)
+	if editor.adapter.mediaRangeRows != nil {
+		rows = append(rows, editor.adapter.mediaRangeRows(th, timecodeRangeLabels, true)...)
+	}
 
-	selected := ctx.timeline.model.selectedIndexes()
+	selected := editor.model.selectedIndexes()
 	rows = append(rows, timecodeSectionRow(th, "Selected action"))
 	if len(selected) != 1 {
 		rows = append(rows, staticRow(th, "Action", "Select one timeline action to edit it"))
@@ -90,17 +92,21 @@ func (ctx *CueEditUI) timecodeEditorRows(th *material.Theme) []cueEditFormRow {
 	}
 	index := selected[0]
 	marker := &(*markers)[index]
-	if len(ctx.page.markers) != len(*markers) {
-		ctx.resetTimecodeInputs()
+	inputs := editor.adapter.markerInputs
+	if inputs == nil {
+		return rows
 	}
-	fields := &ctx.page.markers[index]
+	if len(*inputs) != len(*markers) {
+		editor.resetInputs()
+	}
+	fields := &(*inputs)[index]
 	rows = append(rows,
-		integerRow(th, "At", fields.time, func(v int) { ctx.timeline.model.setMarkerTime(index, int64(v)) }),
+		integerRow(th, "At", fields.time, func(v int) { editor.model.setMarkerTime(index, int64(v)) }),
 		checkboxRow(th, "", fields.disabled, func(v bool) { marker.Disabled = v }),
 		dropdownRow(th, "Action", fields.actionType, func(selected int) {
-			if ctx.timeline.model.setActionType(index, selected) {
-				ctx.resetTimecodeInputs()
-				ctx.syncTimelineMarkers()
+			if editor.model.setActionType(index, selected) {
+				editor.resetInputs()
+				editor.syncMarkers()
 			}
 		}),
 	)
@@ -138,9 +144,9 @@ func (ctx *CueEditUI) timecodeEditorRows(th *material.Theme) []cueEditFormRow {
 	}
 	rows = append(rows, cueEditFormRow{layout: func(gtx layout.Context) layout.Dimensions {
 		if fields.delete.Clicked(gtx) {
-			ctx.timeline.model.deleteAt(index)
-			ctx.resetTimecodeInputs()
-			ctx.syncTimelineMarkers()
+			editor.model.deleteAt(index)
+			editor.resetInputs()
+			editor.syncMarkers()
 		}
 		return layoutCenteredButton(th, gtx, fields.delete, "Delete action", palette.Danger)
 	}})
@@ -157,14 +163,14 @@ func timecodeSectionRow(th *material.Theme, title string) cueEditFormRow {
 	}}
 }
 
-func (ctx *CueEditUI) drawWaveformBars(gtx layout.Context, size image.Point) {
-	t := &ctx.timeline
+func (editor *timecodeEditor) drawWaveformBars(gtx layout.Context, size image.Point) {
+	t := editor
 	if len(t.waveSamples) == 0 || t.waveSampleRate <= 0 {
 		return
 	}
-	_, clipStart, clipEnd, _ := ctx.timecodeMediaDetails()
+	_, clipStart, clipEnd, _ := editor.mediaDetails()
 	clipDuration := max(int64(0), clipEnd-clipStart)
-	fadeIn, fadeOut := ctx.timecodeFades()
+	fadeIn, fadeOut := editor.fades()
 	center := size.Y / 2
 	amp := float64(size.Y) * waveformAmplitude
 	for x := 0; x < size.X; x++ {
@@ -194,12 +200,12 @@ func (ctx *CueEditUI) drawWaveformBars(gtx layout.Context, size image.Point) {
 	}
 }
 
-func (ctx *CueEditUI) drawFadeZones(gtx layout.Context, size image.Point) {
-	t := &ctx.timeline
-	fadeIn, fadeOut := ctx.timecodeFades()
-	clipStart, clipEnd, ok := ctx.timecodeClipRange()
+func (editor *timecodeEditor) drawFadeZones(gtx layout.Context, size image.Point) {
+	t := editor
+	fadeIn, fadeOut := editor.fades()
+	clipStart, clipEnd, ok := editor.clipRange()
 	if !ok {
-		clipStart, clipEnd = 0, ctx.timecodeCueDuration()
+		clipStart, clipEnd = 0, editor.cueDuration()
 	}
 	clipDuration := max(int64(0), clipEnd-clipStart)
 	zone := palette.WithAlpha(palette.Accent, 0x24)
@@ -219,12 +225,12 @@ func (ctx *CueEditUI) drawFadeZones(gtx layout.Context, size image.Point) {
 	paint.FillShape(gtx.Ops, handle, clip.Rect{Min: image.Pt(outX-2, bottom), Max: image.Pt(outX+3, size.Y)}.Op())
 }
 
-func (ctx *CueEditUI) drawClipHandles(gtx layout.Context, size image.Point) {
-	startMs, endMs, ok := ctx.timecodeClipRange()
+func (editor *timecodeEditor) drawClipHandles(gtx layout.Context, size image.Point) {
+	startMs, endMs, ok := editor.clipRange()
 	if !ok || endMs <= startMs {
 		return
 	}
-	t := &ctx.timeline
+	t := editor
 	startX := t.msToX(startMs, size.X)
 	endX := t.msToX(endMs, size.X)
 	height := min(34, size.Y)
@@ -232,15 +238,15 @@ func (ctx *CueEditUI) drawClipHandles(gtx layout.Context, size image.Point) {
 	paint.FillShape(gtx.Ops, palette.Warning, clip.Rect{Min: image.Pt(endX-3, 0), Max: image.Pt(endX+4, height)}.Op())
 }
 
-func (ctx *CueEditUI) drawActionDurationBars(gtx layout.Context, size image.Point, markers []show.TimecodeMarker) {
-	t := &ctx.timeline
+func (editor *timecodeEditor) drawActionDurationBars(gtx layout.Context, size image.Point, markers []show.TimecodeMarker) {
+	t := editor
 	for i := range markers {
 		duration := markerActionDuration(&markers[i])
 		if duration == nil || *duration <= 0 {
 			continue
 		}
-		x1 := t.msToX(ctx.timelineCueToTrackMs(markers[i].TimeMs), size.X)
-		x2 := t.msToX(ctx.timelineCueToTrackMs(markers[i].TimeMs+*duration), size.X)
+		x1 := t.msToX(editor.cueToTrackMs(markers[i].TimeMs), size.X)
+		x2 := t.msToX(editor.cueToTrackMs(markers[i].TimeMs+*duration), size.X)
 		y := 38 + (i%4)*20
 		paint.FillShape(gtx.Ops, palette.WithAlpha(palette.Primary, 0xC0), clip.Rect{Min: image.Pt(x1, y-3), Max: image.Pt(x2, y+4)}.Op())
 		paint.FillShape(gtx.Ops, palette.Primary, clip.Rect{Min: image.Pt(x2-2, y-8), Max: image.Pt(x2+3, y+9)}.Op())
@@ -269,7 +275,7 @@ func timecodeActionLabel(m show.TimecodeMarker) string {
 	}
 }
 
-func (ctx *CueEditUI) drawMarkerLabel(th *material.Theme, gtx layout.Context, m show.TimecodeMarker, index, x int, size image.Point) {
+func (editor *timecodeEditor) drawMarkerLabel(th *material.Theme, gtx layout.Context, m show.TimecodeMarker, index, x int, size image.Point) {
 	label := timecodeActionLabel(m)
 	stack := op.Offset(image.Pt(min(size.X-150, max(2, x+5)), 4+(index%4)*20)).Push(gtx.Ops)
 	defer stack.Pop()
@@ -279,33 +285,41 @@ func (ctx *CueEditUI) drawMarkerLabel(th *material.Theme, gtx layout.Context, m 
 	text.Layout(gtx)
 }
 
-func (ctx *CueEditUI) renderNativeTimecodeEditor(th *material.Theme, gtx layout.Context) layout.Dimensions {
-	ctx.ensureTimelineWaveform()
+func (editor *timecodeEditor) render(th *material.Theme, gtx layout.Context) layout.Dimensions {
+	editor.ensureWaveform()
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return ctx.timelineToolbar(th, gtx) }),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return editor.toolbar(th, gtx) }),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			_, clipStart, clipEnd, _ := ctx.timecodeMediaDetails()
+			_, clipStart, clipEnd, _ := editor.mediaDetails()
 			if clipEnd <= clipStart {
-				clipEnd = clipStart + ctx.timeline.durationMs
+				clipEnd = clipStart + editor.durationMs
 			}
-			fadeIn, fadeOut := ctx.timecodeFades()
+			fadeIn, fadeOut := editor.fades()
 			text := fmt.Sprintf("Clip %s → %s   •   Fade in %s   •   Fade out %s", formatTimelineMs(clipStart), formatTimelineMs(clipEnd), formatTimelineMs(fadeIn), formatTimelineMs(fadeOut))
 			label := material.Caption(th, text)
 			label.Color = palette.TextSoft
 			return layout.Inset{Top: unit.Dp(4)}.Layout(gtx, label.Layout)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions { return ctx.drawTimeline(th, gtx) })
+			return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions { return editor.draw(th, gtx) })
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			status := "Drag the top start/end handles, actions or fade bars; bottom handles adjust fades; wheel pans; Ctrl+wheel zooms."
-			if ctx.timeline.loading {
+			if editor.loading {
 				status = "Loading waveform…"
-			} else if ctx.timeline.waveError != "" {
-				status = "Timeline ready; waveform unavailable: " + ctx.timeline.waveError
+			} else if editor.waveError != "" {
+				status = "Timeline ready; waveform unavailable: " + editor.waveError
 			}
 			label := material.Body2(th, status)
 			return label.Layout(gtx)
 		}),
 	)
+}
+
+func (ctx *CueEditUI) timecodeEditorRows(th *material.Theme) []cueEditFormRow {
+	return ctx.timecodeEditor().rows(th)
+}
+
+func (ctx *CueEditUI) renderNativeTimecodeEditor(th *material.Theme, gtx layout.Context) layout.Dimensions {
+	return ctx.timecodeEditor().render(th, gtx)
 }

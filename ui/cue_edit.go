@@ -17,10 +17,6 @@ import (
 	"github.com/syspoe/cusus/utils"
 )
 
-// TODO(macro): CueEditUI is a multi-file god object (shell, typed page state, and
-// the full timecode timeline). Carve the timeline into its own component
-// with an explicit cue/media adapter, keep tab forms as pure field binders, and stop
-// hanging waveform/preview/history methods on the editor shell.
 type CueEditUI struct {
 	cue   show.Cue
 	show  bool
@@ -40,7 +36,23 @@ type CueEditUI struct {
 	modal    modalLayer
 	page     cueEditPageState
 	tabs     cueEditTabState
-	timeline timecodeTimelineState
+	timeline timecodeEditor
+}
+
+func (ctx *CueEditUI) timecodeEditor() *timecodeEditor {
+	ctx.timeline.adapter = timecodeEditorAdapter{
+		cue:          &ctx.cue,
+		mediaInputs:  func() *mediaPlayInputs { return ctx.page.media },
+		markerInputs: &ctx.page.markers,
+		mediaRangeRows: func(th *material.Theme, labels mediaRangeLabels, nonNegative bool) []cueEditFormRow {
+			return ctx.mediaRangeRows(th, labels, nonNegative)
+		},
+		loadWaveform:  ctx.loadWaveform,
+		togglePreview: ctx.togglePreview,
+		stopPreview:   ctx.stopPreview,
+		previewError:  &ctx.previewError,
+	}
+	return &ctx.timeline
 }
 
 type ProjectFile struct {
@@ -190,25 +202,11 @@ func (ctx *CueEditUI) drawProblemBar(th *material.Theme, gtx layout.Context, man
 }
 
 func (ctx *CueEditUI) toggleTimecodePreview() {
-	if ctx.togglePreview == nil || ctx.cue.Play.Sound == nil {
-		return
-	}
-	playing, err := ctx.togglePreview(ctx.cue)
-	if err != nil {
-		ctx.timeline.previewing = false
-		ctx.previewError = err.Error()
-		return
-	}
-	ctx.previewError = ""
-	ctx.timeline.previewing = playing
+	ctx.timecodeEditor().togglePreview()
 }
 
 func (ctx *CueEditUI) stopTimecodePreview() {
-	if ctx.stopPreview != nil {
-		ctx.stopPreview()
-	}
-	ctx.timeline.previewing = false
-	ctx.previewError = ""
+	ctx.timecodeEditor().stopPreview()
 }
 
 func cueEditorShortcut(name key.Name) (save, cancel, preview bool, tabOffset int) {

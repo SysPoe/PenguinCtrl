@@ -141,19 +141,20 @@ func TestCueEditTimelineModelSynchronizesWithoutAliasing(t *testing.T) {
 	cue := show.NewSoundCue()
 	cue.Play.Sound.Timecode = []show.TimecodeMarker{newTimecodeMarker(100)}
 	ctx := CueEditUI{cue: cue}
-	markers := ctx.timelineMarkers()
-	ctx.timeline.model.setMarkerTime(0, 250)
-	ctx.syncTimelineMarkers()
+	editor := ctx.timecodeEditor()
+	markers := editor.markers()
+	editor.model.setMarkerTime(0, 250)
+	editor.syncMarkers()
 
 	if got := ctx.cue.Play.Sound.Timecode[0].TimeMs; got != 250 {
 		t.Fatalf("synchronized cue marker = %d", got)
 	}
 	markersAtSync := ctx.cue.Play.Sound.Timecode
-	ctx.timeline.model.setMarkerTime(0, 400)
+	editor.model.setMarkerTime(0, 400)
 	if got := markersAtSync[0].TimeMs; got != 250 {
 		t.Fatalf("cue marker aliased model after sync: %d", got)
 	}
-	if markers != &ctx.timeline.model.markers {
-		t.Fatal("timeline facade did not expose the owned model document")
+	if markers != &editor.model.markers {
+		t.Fatal("timecode editor did not expose its owned model document")
 	}
 }

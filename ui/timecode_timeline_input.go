@@ -26,8 +26,8 @@ const (
 	timelineScrollDivisor = 50.0
 )
 
-func (ctx *CueEditUI) copyTimelineSelection(gtx layout.Context) {
-	copied := ctx.timeline.model.copySelection()
+func (editor *timecodeEditor) copySelection(gtx layout.Context) {
+	copied := editor.model.copySelection()
 	if len(copied) == 0 {
 		return
 	}
@@ -38,18 +38,18 @@ func (ctx *CueEditUI) copyTimelineSelection(gtx layout.Context) {
 	gtx.Execute(clipboard.WriteCmd{Type: "application/text", Data: io.NopCloser(strings.NewReader(string(payload)))})
 }
 
-func (ctx *CueEditUI) pasteTimelineMarkers(pasted []show.TimecodeMarker) {
+func (editor *timecodeEditor) pasteMarkers(pasted []show.TimecodeMarker) {
 	if len(pasted) == 0 {
 		return
 	}
-	ctx.timeline.model.paste(pasted, ctx.timeline.hoverMs, ctx.timecodeCueDuration())
-	ctx.resetTimecodeInputs()
-	ctx.syncTimelineMarkers()
-	ctx.updateTimelineDuration()
+	editor.model.paste(pasted, editor.hoverMs, editor.cueDuration())
+	editor.resetInputs()
+	editor.syncMarkers()
+	editor.updateDuration()
 }
 
-func (ctx *CueEditUI) handleTimelineKeys(gtx layout.Context) {
-	t := &ctx.timeline
+func (editor *timecodeEditor) handleKeys(gtx layout.Context) {
+	t := editor
 	for {
 		ev, ok := gtx.Event(
 			key.Filter{Focus: &t.tag, Name: "A", Required: key.ModShortcut},
@@ -73,19 +73,19 @@ func (ctx *CueEditUI) handleTimelineKeys(gtx layout.Context) {
 			case "A":
 				t.model.selectAll()
 			case "C":
-				ctx.copyTimelineSelection(gtx)
+				editor.copySelection(gtx)
 			case "V":
 				gtx.Execute(clipboard.ReadCmd{Tag: &t.tag})
 			case "Z":
 				if e.Modifiers.Contain(key.ModShift) {
-					ctx.redoTimeline()
+					editor.redoEdit()
 				} else {
-					ctx.undoTimeline()
+					editor.undoEdit()
 				}
 			case "Y":
-				ctx.redoTimeline()
+				editor.redoEdit()
 			case key.NameDeleteBackward, key.NameDeleteForward:
-				ctx.deleteSelectedTimelineMarkers()
+				editor.deleteSelectedMarkers()
 			}
 		case transfer.DataEvent:
 			reader := e.Open()
@@ -96,35 +96,35 @@ func (ctx *CueEditUI) handleTimelineKeys(gtx layout.Context) {
 			}
 			var payload timecodeClipboard
 			if json.Unmarshal(raw, &payload) == nil && payload.Format == "cusus-timecode-markers" {
-				ctx.pasteTimelineMarkers(payload.Markers)
+				editor.pasteMarkers(payload.Markers)
 			}
 		}
 	}
 }
 
-func (ctx *CueEditUI) deleteSelectedTimelineMarkers() {
-	if ctx.timeline.model.deleteSelected() {
-		ctx.resetTimecodeInputs()
-		ctx.syncTimelineMarkers()
+func (editor *timecodeEditor) deleteSelectedMarkers() {
+	if editor.model.deleteSelected() {
+		editor.resetInputs()
+		editor.syncMarkers()
 	}
 }
 
-func (ctx *CueEditUI) timelineToolbar(th *material.Theme, gtx layout.Context) layout.Dimensions {
-	t := &ctx.timeline
+func (editor *timecodeEditor) toolbar(th *material.Theme, gtx layout.Context) layout.Dimensions {
+	t := editor
 	if t.add.Clicked(gtx) {
 		t.model.add(t.playheadMs)
-		ctx.resetTimecodeInputs()
-		ctx.syncTimelineMarkers()
-		ctx.updateTimelineDuration()
+		editor.resetInputs()
+		editor.syncMarkers()
+		editor.updateDuration()
 	}
 	if t.preview.Clicked(gtx) {
-		ctx.toggleTimecodePreview()
+		editor.togglePreview()
 	}
 	if t.undo.Clicked(gtx) {
-		ctx.undoTimeline()
+		editor.undoEdit()
 	}
 	if t.redo.Clicked(gtx) {
-		ctx.redoTimeline()
+		editor.redoEdit()
 	}
 	button := func(click *widget.Clickable, label string) layout.FlexChild {
 		return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -137,7 +137,7 @@ func (ctx *CueEditUI) timelineToolbar(th *material.Theme, gtx layout.Context) la
 		previewLabel = "Pause preview"
 	}
 	children := []layout.FlexChild{button(&t.add, "+ Action")}
-	if ctx.cue.Play.Sound != nil {
+	if cue := editor.cue(); cue != nil && cue.Play.Sound != nil {
 		children = append(children, button(&t.preview, previewLabel))
 	}
 	children = append(children, button(&t.undo, "Undo"), button(&t.redo, "Redo"), layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
@@ -154,8 +154,8 @@ func formatTimelineMs(ms int64) string {
 	return fmt.Sprintf("%02d:%02d.%03d", minutes, seconds, millis)
 }
 
-func (ctx *CueEditUI) handleTimelinePointer(gtx layout.Context, size image.Point) {
-	t := &ctx.timeline
+func (editor *timecodeEditor) handlePointer(gtx layout.Context, size image.Point) {
+	t := editor
 	markers := &t.model.markers
 	for {
 		ev, ok := gtx.Event(pointer.Filter{Target: &t.tag, Kinds: pointer.Press | pointer.Drag | pointer.Move | pointer.Release | pointer.Cancel | pointer.Scroll, ScrollX: pointer.ScrollRange{Min: -10000, Max: 10000}, ScrollY: pointer.ScrollRange{Min: -10000, Max: 10000}})
@@ -164,7 +164,7 @@ func (ctx *CueEditUI) handleTimelinePointer(gtx layout.Context, size image.Point
 		}
 		e := ev.(pointer.Event)
 		hoverTrackMs := t.xToMs(e.Position.X, size.X)
-		t.hoverMs = ctx.timelineTrackToCueMs(hoverTrackMs)
+		t.hoverMs = editor.trackToCueMs(hoverTrackMs)
 		switch e.Kind {
 		case pointer.Scroll:
 			if e.Modifiers.Contain(key.ModShortcut) {
@@ -182,25 +182,25 @@ func (ctx *CueEditUI) handleTimelinePointer(gtx layout.Context, size image.Point
 			gtx.Execute(key.FocusCmd{Tag: &t.tag})
 			gtx.Execute(pointer.GrabCmd{Tag: &t.tag, ID: e.PointerID})
 			t.dragPointer, t.dragStartX, t.dragLastX = e.PointerID, e.Position.X, e.Position.X
-			index := ctx.timelineMarkerAt(e.Position.X, size.X, *markers)
+			index := editor.markerAt(e.Position.X, size.X, *markers)
 			if e.Buttons.Contain(pointer.ButtonTertiary) {
 				t.dragMode = timelineDragPan
 				break
 			}
-			clipStart, clipEnd, hasClip := ctx.timecodeClipRange()
+			clipStart, clipEnd, hasClip := editor.clipRange()
 			clipDuration := max(int64(0), clipEnd-clipStart)
-			fadeIn, fadeOut := ctx.timecodeFades()
+			fadeIn, fadeOut := editor.fades()
 			if hasClip && clipDuration > 0 && e.Position.Y <= 34 && math.Abs(float64(float32(t.msToX(clipStart, size.X))-e.Position.X)) <= 10 {
 				t.dragClipStartMs, t.dragClipEndMs, t.dragViewMs = clipStart, clipEnd, t.viewDuration()
 				t.dragMode = timelineDragClipStart
 			} else if hasClip && clipDuration > 0 && e.Position.Y <= 34 && math.Abs(float64(float32(t.msToX(clipEnd, size.X))-e.Position.X)) <= 10 {
 				t.dragClipStartMs, t.dragClipEndMs, t.dragViewMs = clipStart, clipEnd, t.viewDuration()
 				t.dragMode = timelineDragClipEnd
-			} else if e.Position.Y >= float32(size.Y-34) && math.Abs(float64(float32(t.msToX(ctx.timelineCueToTrackMs(fadeIn), size.X))-e.Position.X)) <= 9 {
+			} else if e.Position.Y >= float32(size.Y-34) && math.Abs(float64(float32(t.msToX(editor.cueToTrackMs(fadeIn), size.X))-e.Position.X)) <= 9 {
 				t.dragMode = timelineDragFadeIn
-			} else if e.Position.Y >= float32(size.Y-34) && math.Abs(float64(float32(t.msToX(ctx.timelineCueToTrackMs(max(int64(0), ctx.timecodeCueDuration()-fadeOut)), size.X))-e.Position.X)) <= 9 {
+			} else if e.Position.Y >= float32(size.Y-34) && math.Abs(float64(float32(t.msToX(editor.cueToTrackMs(max(int64(0), editor.cueDuration()-fadeOut)), size.X))-e.Position.X)) <= 9 {
 				t.dragMode = timelineDragFadeOut
-			} else if durationIndex := ctx.timelineActionDurationAt(e.Position.X, e.Position.Y, size, *markers); durationIndex >= 0 {
+			} else if durationIndex := editor.actionDurationAt(e.Position.X, e.Position.Y, size, *markers); durationIndex >= 0 {
 				t.model.checkpoint()
 				t.dragIndex = durationIndex
 				t.dragMode = timelineDragActionDuration
@@ -250,10 +250,10 @@ func (ctx *CueEditUI) handleTimelinePointer(gtx layout.Context, size image.Point
 				t.dragLastX = e.Position.X
 			case timelineDragClipStart:
 				delta := int64(float64(e.Position.X-t.dragStartX) / float64(max(1, size.X)) * float64(t.dragViewMs))
-				ctx.setTimecodeClipStart(t.dragClipStartMs + delta)
+				editor.setClipStart(t.dragClipStartMs + delta)
 			case timelineDragClipEnd:
 				delta := int64(float64(e.Position.X-t.dragStartX) / float64(max(1, size.X)) * float64(t.dragViewMs))
-				ctx.setTimecodeClipEnd(t.dragClipEndMs + delta)
+				editor.setClipEnd(t.dragClipEndMs + delta)
 			case timelineDragMarkers:
 				if !t.dragChanged {
 					t.model.checkpoint()
@@ -265,16 +265,16 @@ func (ctx *CueEditUI) handleTimelinePointer(gtx layout.Context, size image.Point
 					minTime = min(minTime, tm)
 					maxTime = max(maxTime, tm)
 				}
-				delta = max(-minTime, min(delta, ctx.timecodeCueDuration()-maxTime))
+				delta = max(-minTime, min(delta, editor.cueDuration()-maxTime))
 				for i, index := range t.dragIndexes {
 					t.model.setMarkerTime(index, t.dragMarkerTimes[i]+delta)
 				}
 			case timelineDragFadeIn:
-				_, fadeOut := ctx.timecodeFades()
-				ctx.setTimecodeFades(min(ctx.timecodeCueDuration(), t.hoverMs), fadeOut)
+				_, fadeOut := editor.fades()
+				editor.setFades(min(editor.cueDuration(), t.hoverMs), fadeOut)
 			case timelineDragFadeOut:
-				fadeIn, _ := ctx.timecodeFades()
-				ctx.setTimecodeFades(fadeIn, min(ctx.timecodeCueDuration(), max(int64(0), ctx.timecodeCueDuration()-t.hoverMs)))
+				fadeIn, _ := editor.fades()
+				editor.setFades(fadeIn, min(editor.cueDuration(), max(int64(0), editor.cueDuration()-t.hoverMs)))
 			case timelineDragActionDuration:
 				if t.dragIndex >= 0 && t.dragIndex < len(t.model.markers) {
 					t.model.setActionDuration(t.dragIndex, t.hoverMs-t.model.markers[t.dragIndex].TimeMs)
@@ -286,22 +286,22 @@ func (ctx *CueEditUI) handleTimelinePointer(gtx layout.Context, size image.Point
 				t.model.clearSelection()
 			}
 			if (t.dragMode == timelineDragMarkers && t.dragChanged) || t.dragMode == timelineDragActionDuration {
-				ctx.resetTimecodeInputs()
+				editor.resetInputs()
 			}
 			t.dragMode = timelineDragNone
-			ctx.syncTimelineMarkers()
+			editor.syncMarkers()
 		}
 	}
 }
 
-func (ctx *CueEditUI) timelineActionDurationAt(px, py float32, size image.Point, markers []show.TimecodeMarker) int {
-	t := &ctx.timeline
+func (editor *timecodeEditor) actionDurationAt(px, py float32, size image.Point, markers []show.TimecodeMarker) int {
+	t := editor
 	for i := range markers {
 		duration := markerActionDuration(&markers[i])
 		if duration == nil || *duration <= 0 {
 			continue
 		}
-		x := float32(t.msToX(ctx.timelineCueToTrackMs(markers[i].TimeMs+*duration), size.X))
+		x := float32(t.msToX(editor.cueToTrackMs(markers[i].TimeMs+*duration), size.X))
 		y := float32(38 + (i%4)*20)
 		if math.Abs(float64(x-px)) <= 9 && math.Abs(float64(y-py)) <= 10 {
 			return i
@@ -310,11 +310,11 @@ func (ctx *CueEditUI) timelineActionDurationAt(px, py float32, size image.Point,
 	return -1
 }
 
-func (ctx *CueEditUI) timelineMarkerAt(x float32, width int, markers []show.TimecodeMarker) int {
-	t := &ctx.timeline
+func (editor *timecodeEditor) markerAt(x float32, width int, markers []show.TimecodeMarker) int {
+	t := editor
 	best, distance := -1, float32(9)
 	for i, m := range markers {
-		mx := float32(t.msToX(ctx.timelineCueToTrackMs(m.TimeMs), width))
+		mx := float32(t.msToX(editor.cueToTrackMs(m.TimeMs), width))
 		d := float32(math.Abs(float64(mx - x)))
 		if d <= distance {
 			best, distance = i, d
