@@ -19,7 +19,7 @@ import (
 // cue type does not grow this central switch and remote/media concerns stop sharing
 // one procedural path.
 func (e *Engine) execute(next command) {
-	if next.ctx == nil || next.ctx.Err() != nil {
+	if next.run.ctx == nil || next.run.ctx.Err() != nil {
 		return
 	}
 	keepRun, dispatchAdvanced := false, false
@@ -30,16 +30,19 @@ func (e *Engine) execute(next command) {
 		}
 		e.audit.completed(next.sequence, time.Now())
 		if next.runOwner == commandOwnsRun && !keepRun {
-			cancel := next.ctx.Err() != nil || next.cue.Link.Mode == show.CueLinkManual
-			e.finishCueRun(next.cue.ID, next.runID, cancel)
+			finalization := runCompleted
+			if next.run.ctx.Err() != nil || next.cue.Link.Mode == show.CueLinkManual {
+				finalization = runAborted
+			}
+			e.finishCueRun(next.run, finalization)
 		}
 	}()
 	executionID := e.startExecution(next, "pre-wait", max(int64(0), next.cue.Timing.PreWaitMs))
 	defer e.finishExecution(executionID)
-	if !waitContext(next.ctx, time.Duration(max(0, next.cue.Timing.PreWaitMs))*time.Millisecond) {
+	if !waitContext(next.run.ctx, time.Duration(max(0, next.cue.Timing.PreWaitMs))*time.Millisecond) {
 		return
 	}
-	if !e.cueRunCurrent(next.cue.ID, next.runID) {
+	if !e.cueRunCurrent(next.run) {
 		return
 	}
 	if !next.preview {
@@ -47,7 +50,7 @@ func (e *Engine) execute(next command) {
 			return
 		}
 	}
-	if !e.dispatch.await(next.ctx, next.sequence) {
+	if !e.dispatch.await(next.run.ctx, next.sequence) {
 		return
 	}
 	dispatchedAt := time.Now()
@@ -56,7 +59,7 @@ func (e *Engine) execute(next command) {
 	// A Start link is tied to GO reaching the cue, not to completion of the
 	// cue's action. Scheduling it here also keeps links working when the cue's
 	// own action reports an error.
-	e.scheduleLink(next.cue, next.index, next.cue.Timing.PostWaitMs, linkStart, next.ctx)
+	e.scheduleLink(next.cue, next.index, next.cue.Timing.PostWaitMs, linkStart, next.run.ctx)
 	var err error
 	if next.cue.Type == show.CueTypeWait {
 		e.dispatch.advance(next.sequence)
@@ -94,11 +97,11 @@ func (e *Engine) execute(next command) {
 			}
 		}
 	case show.CueTypeWait:
-		err = e.executeWait(next.cue, next.ctx)
+		err = e.executeWait(next.cue, next.run.ctx)
 	case show.CueTypeMediaControl:
-		err = e.executeMediaControl(next.cue, next.ctx)
+		err = e.executeMediaControl(next.cue, next.run.ctx)
 	case show.CueTypeOutputControl:
-		err = e.executeOutputControl(next.cue, next.ctx)
+		err = e.executeOutputControl(next.cue, next.run.ctx)
 	default:
 		err = fmt.Errorf("unsupported cue type %d", next.cue.Type)
 	}
@@ -107,7 +110,7 @@ func (e *Engine) execute(next command) {
 		dispatchAdvanced = true
 	}
 	if err != nil {
-		if errors.Is(err, context.Canceled) && next.ctx.Err() != nil {
+		if errors.Is(err, context.Canceled) && next.run.ctx.Err() != nil {
 			return
 		}
 		source := cueFailureSource(next.cue)
@@ -119,7 +122,7 @@ func (e *Engine) execute(next command) {
 	}
 	// TODO(micro): use isMediaCueType(next.cue.Type) instead of re-listing the three media types
 	if next.cue.Type != show.CueTypeSound && next.cue.Type != show.CueTypeVideo && next.cue.Type != show.CueTypeImage {
-		e.scheduleLink(next.cue, next.index, next.cue.Timing.PostWaitMs, linkEnd, next.ctx)
+		e.scheduleLink(next.cue, next.index, next.cue.Timing.PostWaitMs, linkEnd, next.run.ctx)
 	}
 }
 

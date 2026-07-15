@@ -62,7 +62,7 @@ func (e *Engine) replaceSingleLayerVisual(presented Instance) {
 			Action: "control", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID},
 			Control: "fade-out", FadeMs: fadeMs,
 		})
-		e.scheduleLink(instance.Cue, instance.CueIndex, instance.PostWaitMs, linkFadeOut, instance.RunContext)
+		e.scheduleLink(instance.Cue, instance.CueIndex, instance.PostWaitMs, linkFadeOut, instance.run.ctx)
 		if fadeMs == 0 {
 			e.HandleOutputReport(instance.ID, "ended")
 			continue

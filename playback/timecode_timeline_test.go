@@ -29,17 +29,17 @@ func TestMediaMarkerDispatchPreservesParentCueRunAndIsAudited(t *testing.T) {
 			}},
 		}}}},
 	}
-	parentCtx, parentRunID, _ := engine.beginCueRun(cue.ID)
+	parentRun, _ := engine.beginCueRun(cue.ID)
 	instanceID := "parent-timecode"
 	engine.mu.Lock()
 	engine.instances[instanceID] = &Instance{
-		ID: instanceID, CueID: cue.ID, RunID: parentRunID, RunContext: parentCtx,
+		ID: instanceID, CueID: cue.ID, run: parentRun,
 		MediaType: "image", OutputID: "main",
 	}
 	engine.mu.Unlock()
 	events := engine.hub.subscribe("main")
 
-	engine.scheduleTimecode(instanceID, cue, 0, parentCtx)
+	engine.scheduleTimecode(instanceID, cue, 0)
 
 	select {
 	case event := <-events:
@@ -51,11 +51,10 @@ func TestMediaMarkerDispatchPreservesParentCueRunAndIsAudited(t *testing.T) {
 	}
 
 	engine.mu.RLock()
-	parentRun, active := engine.cueRuns[cue.ID]
 	instanceActive := engine.instances[instanceID] != nil
 	engine.mu.RUnlock()
-	if !active || parentRun.id != parentRunID || parentCtx.Err() != nil || !instanceActive {
-		t.Fatalf("marker replaced parent run: active=%v run=%d want=%d context=%v instance=%v", active, parentRun.id, parentRunID, parentCtx.Err(), instanceActive)
+	if !engine.cueRunCurrent(parentRun) || parentRun.ctx.Err() != nil || !instanceActive {
+		t.Fatalf("marker replaced parent run: current=%v context=%v instance=%v", engine.cueRunCurrent(parentRun), parentRun.ctx.Err(), instanceActive)
 	}
 
 	eventually(t, time.Second, func() bool {
@@ -84,17 +83,17 @@ func TestMediaMarkerUsesPreflightAdmissionWithoutStoppingParent(t *testing.T) {
 			}},
 		}}}},
 	}
-	parentCtx, parentRunID, _ := engine.beginCueRun(cue.ID)
+	parentRun, _ := engine.beginCueRun(cue.ID)
 	instanceID := "blocked-parent-timecode"
 	engine.mu.Lock()
 	engine.instances[instanceID] = &Instance{
-		ID: instanceID, CueID: cue.ID, RunID: parentRunID, RunContext: parentCtx,
+		ID: instanceID, CueID: cue.ID, run: parentRun,
 		MediaType: "image", OutputID: "main",
 	}
 	engine.mu.Unlock()
 	events := engine.hub.subscribe("main")
 
-	engine.scheduleTimecode(instanceID, cue, 0, parentCtx)
+	engine.scheduleTimecode(instanceID, cue, 0)
 
 	eventually(t, time.Second, func() bool { return strings.Contains(engine.LastError(), "marker preflight blocked") })
 	for {
@@ -109,11 +108,10 @@ func TestMediaMarkerUsesPreflightAdmissionWithoutStoppingParent(t *testing.T) {
 	}
 drained:
 	engine.mu.RLock()
-	parentRun, active := engine.cueRuns[cue.ID]
 	instanceActive := engine.instances[instanceID] != nil
 	engine.mu.RUnlock()
-	if !active || parentRun.id != parentRunID || parentCtx.Err() != nil || !instanceActive {
-		t.Fatalf("blocked marker disturbed parent run: active=%v run=%d want=%d context=%v instance=%v", active, parentRun.id, parentRunID, parentCtx.Err(), instanceActive)
+	if !engine.cueRunCurrent(parentRun) || parentRun.ctx.Err() != nil || !instanceActive {
+		t.Fatalf("blocked marker disturbed parent run: current=%v context=%v instance=%v", engine.cueRunCurrent(parentRun), parentRun.ctx.Err(), instanceActive)
 	}
 }
 
@@ -132,12 +130,12 @@ func TestMediaMarkersUseConfiguredExternalTimeline(t *testing.T) {
 	engine.SetTimeline(timeline)
 	instanceID := "external-timecode"
 	engine.mu.Lock()
-	engine.instances[instanceID] = &Instance{ID: instanceID, RunContext: engine.runCtx}
+	engine.instances[instanceID] = &Instance{ID: instanceID, run: cueRunToken{ctx: engine.runCtx}}
 	engine.mu.Unlock()
 	cue := show.Cue{ID: show.NewCueID(), Type: show.CueTypeImage, Play: show.CuePlay{Image: &show.ImagePlay{Timecode: []show.TimecodeMarker{{
 		TimeMs: 250, Type: show.CueTypeOutputControl, Action: show.CuePlay{OutputControl: &show.OutputControlPlay{Action: show.OutputControlBlackout}},
 	}}}}}
-	engine.scheduleTimecode(instanceID, cue, 0, engine.runCtx)
+	engine.scheduleTimecode(instanceID, cue, 0)
 	select {
 	case target := <-timeline.targets:
 		if target != 10250*time.Millisecond {

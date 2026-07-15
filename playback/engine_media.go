@@ -26,9 +26,9 @@ func (e *Engine) startMedia(next command) error {
 	instance := &Instance{
 		ID: uuid.NewString(), CueID: cue.ID, GroupID: cue.GroupID, CueNumber: cue.CueNumber, CueIndex: cueIndex, Link: cue.Link, PostWaitMs: cue.Timing.PostWaitMs,
 		LayerOrder: next.sequence,
-		Preview:    next.preview, RunID: next.runID,
+		Preview:    next.preview, run: next.run,
 		// TODO(micro): "loading" magic string; share media.LoadLoading (or a playback const) instead of free text
-		StartedAt: now, RequestedAt: now, PositionAt: now, RunContext: next.ctx, LoadState: "loading", Cue: show.CloneCue(cue),
+		StartedAt: now, RequestedAt: now, PositionAt: now, LoadState: "loading", Cue: show.CloneCue(cue),
 	}
 	// TODO(micro): Sound/Video arms nearly identical (resolve file/output/clip/fade/level); extract shared media-play applier
 	switch cue.Type {
@@ -70,9 +70,8 @@ func (e *Engine) startMedia(next command) error {
 	// TODO(micro): use shared durationCacheKey helper; duplicates fmt in RefreshDurations/CueProblems
 	durationKey := fmt.Sprintf("%d|%s|%d|%d|%d", cue.Type, durationSource, durationStartMs, durationEndMs, configuredDurationMs)
 	e.mu.Lock()
-	if next.runID != 0 {
-		current, ok := e.cueRuns[cue.ID]
-		if !ok || current.id != next.runID || next.ctx.Err() != nil {
+	if next.run.id != 0 {
+		if !e.runs.current(next.run) || next.run.ctx.Err() != nil {
 			e.mu.Unlock()
 			return context.Canceled
 		}
@@ -95,17 +94,20 @@ func (e *Engine) startMedia(next command) error {
 	return nil
 }
 
-func (e *Engine) scheduleTimecode(instanceID string, cue show.Cue, cueIndex int, runCtx context.Context) {
+func (e *Engine) scheduleTimecode(instanceID string, cue show.Cue, cueIndex int) {
 	markers := mediaTimecode(cue)
 	sort.SliceStable(markers, func(i, j int) bool { return markers[i].TimeMs < markers[j].TimeMs })
 	e.mu.RLock()
 	timeline := e.timeline
 	parent := e.instances[instanceID]
-	parentRunID := uint64(0)
+	parentRun := cueRunToken{}
 	if parent != nil {
-		parentRunID = parent.RunID
+		parentRun = parent.run
 	}
 	e.mu.RUnlock()
+	if parentRun.ctx == nil {
+		return
+	}
 	external := timeline != nil && timeline.Enabled()
 	base := time.Duration(0)
 	if external {
@@ -121,9 +123,9 @@ func (e *Engine) scheduleTimecode(instanceID string, cue show.Cue, cueIndex int,
 		e.goOwned(func() {
 			var reached bool
 			if external {
-				reached = timeline.WaitUntil(runCtx, base+time.Duration(marker.TimeMs)*time.Millisecond)
+				reached = timeline.WaitUntil(parentRun.ctx, base+time.Duration(marker.TimeMs)*time.Millisecond)
 			} else {
-				reached = waitContext(runCtx, time.Duration(marker.TimeMs)*time.Millisecond)
+				reached = waitContext(parentRun.ctx, time.Duration(marker.TimeMs)*time.Millisecond)
 			}
 			if !reached || !e.hasInstance(instanceID) {
 				return
@@ -138,7 +140,7 @@ func (e *Engine) scheduleTimecode(instanceID string, cue show.Cue, cueIndex int,
 				ID: cue.ID, CueNumber: cue.CueNumber, Description: cue.Description,
 				Type: marker.Type, Play: action, Link: show.CueLink{Mode: show.CueLinkManual},
 			}
-			if err := e.enqueueEmbeddedCommand(embedded, cueIndex, "Timecode at "+formatPlaybackTime(marker.TimeMs), runCtx, parentRunID); err != nil {
+			if err := e.enqueueEmbeddedCommand(embedded, cueIndex, "Timecode at "+formatPlaybackTime(marker.TimeMs), parentRun); err != nil {
 				return
 			}
 		})
@@ -202,7 +204,7 @@ func (e *Engine) scheduleInstanceLifecycle(instanceID string) {
 	if fadeMs > 0 {
 		instance, wait := snapshot, time.Duration(fadeOutAt)*time.Millisecond
 		e.goOwned(func() {
-			if !waitContext(instance.RunContext, wait) || !e.lifecycleCurrent(instance.ID, generation) {
+			if !waitContext(instance.run.ctx, wait) || !e.lifecycleCurrent(instance.ID, generation) {
 				return
 			}
 			e.hub.publish(Event{Action: "control", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID}, Control: "fade-out", FadeMs: fadeMs})
@@ -218,7 +220,7 @@ func (e *Engine) scheduleInstanceLifecycle(instanceID string) {
 	}
 	id, wait := snapshot.ID, time.Duration(remainingMs)*time.Millisecond
 	e.goOwned(func() {
-		if waitContext(snapshot.RunContext, wait) && e.lifecycleCurrent(id, generation) {
+		if waitContext(snapshot.run.ctx, wait) && e.lifecycleCurrent(id, generation) {
 			e.HandleOutputReport(id, "ended")
 		}
 	})
@@ -317,7 +319,7 @@ func (e *Engine) executeMediaControl(cue show.Cue, runCtx context.Context) error
 	}
 	if play.Action == show.MediaControlFadeOut {
 		for _, instance := range instances {
-			e.scheduleLink(instance.Cue, instance.CueIndex, instance.PostWaitMs, linkFadeOut, instance.RunContext)
+			e.scheduleLink(instance.Cue, instance.CueIndex, instance.PostWaitMs, linkFadeOut, instance.run.ctx)
 		}
 	}
 	if play.Action == show.MediaControlStop || play.Action == show.MediaControlFadeOut {

@@ -17,18 +17,12 @@ import (
 type command struct {
 	cue        show.Cue
 	index      int
-	ctx        context.Context
-	runID      uint64
+	run        cueRunToken
 	preview    bool
 	origin     string
 	sequence   uint64
 	acceptedAt time.Time
 	runOwner   commandRunOwnership
-}
-
-type cueRun struct {
-	id     uint64
-	cancel context.CancelFunc
 }
 
 type Timeline interface {
@@ -92,8 +86,7 @@ type Engine struct {
 	onChange            func()
 	previewCueID        show.CueID
 	previewPaused       bool
-	cueRuns             map[show.CueID]cueRun
-	nextRunID           uint64
+	runs                *cueRunTable
 	safetyLatched       atomic.Bool
 	safetyReason        atomic.Value
 	resetActive         bool
@@ -114,7 +107,7 @@ func NewEngine(manager *show.ShowManager, settings *config.Store) *Engine {
 	return &Engine{
 		manager: manager, settings: settings, remote: remote.NewDispatcher(settings),
 		commands: make(chan command, 64), ctx: ctx, cancel: cancel, runCtx: runCtx, runCancel: runCancel, done: make(chan struct{}),
-		hub: newEventHub(), instances: map[string]*Instance{}, executions: map[string]*CueExecution{}, outputVisuals: map[string]Event{}, outputWindows: map[string]Event{}, durations: map[show.CueID]int64{}, cueRuns: map[show.CueID]cueRun{},
+		hub: newEventHub(), instances: map[string]*Instance{}, executions: map[string]*CueExecution{}, outputVisuals: map[string]Event{}, outputWindows: map[string]Event{}, durations: map[show.CueID]int64{}, runs: newCueRunTable(),
 		durationKeys: map[show.CueID]string{}, durationPending: map[show.CueID]string{}, durationErrors: map[show.CueID]string{},
 		mediaValidated: map[show.CueID]string{}, mediaPending: map[show.CueID]string{}, mediaErrors: map[show.CueID]string{}, stateEvent: make(chan struct{}, 1),
 		mediaProbeSlots: make(chan struct{}, 1),

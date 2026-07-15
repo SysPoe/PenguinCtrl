@@ -21,7 +21,7 @@ func (e *Engine) StopAll() {
 	e.mu.Lock()
 	e.runCancel()
 	e.runCtx, e.runCancel = context.WithCancel(e.ctx)
-	e.cueRuns = map[show.CueID]cueRun{}
+	e.runs.reset()
 	e.mu.Unlock()
 	instances := e.ActiveInstances()
 	// STOP ALL is an output-wide emergency command, not a request derived from

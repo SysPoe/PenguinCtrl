@@ -11,11 +11,10 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
-// TODO(macro): engine_scheduler.go conflates the command worker, GO admission
-// (gates/validation/override), preview session state, safety latch / E-STOP policy,
-// and per-cue run cancellation. Those are separate policy layers—extract Admission
-// (enqueueCommand), SafetyLatch, and CueRunTable so "scheduler" is only the queue
-// worker and sequence assignment, not show-stopping safety and preview UX.
+// TODO(macro): engine_scheduler.go still conflates the command worker, GO admission
+// (gates/validation/override), preview session state, and safety latch / E-STOP
+// policy. Extract Admission and SafetyLatch so "scheduler" is only the queue worker
+// and sequence assignment, not show-stopping safety and preview UX.
 func (e *Engine) run() {
 	defer close(e.done)
 	for {
@@ -129,7 +128,7 @@ func (e *Engine) enqueueCommand(cue show.Cue, index int, preview bool, origin st
 	if err := e.admitCommand(cue, preview, origin, override); err != nil {
 		return err
 	}
-	runCtx, runID, stopped := e.beginCueRun(cue.ID)
+	run, stopped := e.beginCueRun(cue.ID)
 	for _, instance := range stopped {
 		e.hub.publish(Event{Action: "control", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID}, Control: "stop"})
 		e.hub.publish(Event{Action: "remove", OutputID: instance.OutputID, InstanceIDs: []string{instance.ID}})
@@ -138,11 +137,11 @@ func (e *Engine) enqueueCommand(cue show.Cue, index int, preview bool, origin st
 		e.signalState()
 	}
 	err := e.enqueueAcceptedCommand(command{
-		cue: cue, index: index, ctx: runCtx, runID: runID, preview: preview,
+		cue: cue, index: index, run: run, preview: preview,
 		origin: origin, runOwner: commandOwnsRun,
 	})
 	if err != nil {
-		e.finishCueRun(cue.ID, runID, true)
+		e.finishCueRun(run, runAborted)
 		if !preview {
 			e.recordCueError(cue, origin, err)
 		}
@@ -151,17 +150,17 @@ func (e *Engine) enqueueCommand(cue show.Cue, index int, preview bool, origin st
 }
 
 // enqueueEmbeddedCommand admits a timecode action as a child of its live media
-// cue. It deliberately reuses the parent's context and run ID instead of calling
+// cue. It deliberately reuses the parent's run token instead of calling
 // beginCueRun, which would cancel the media instance that owns the marker.
-func (e *Engine) enqueueEmbeddedCommand(cue show.Cue, index int, origin string, runCtx context.Context, runID uint64) error {
-	if runCtx == nil || runCtx.Err() != nil || !e.cueRunCurrent(cue.ID, runID) {
+func (e *Engine) enqueueEmbeddedCommand(cue show.Cue, index int, origin string, run cueRunToken) error {
+	if run.ctx == nil || run.ctx.Err() != nil || !e.cueRunCurrent(run) {
 		return context.Canceled
 	}
 	if err := e.admitCommand(cue, false, origin, false); err != nil {
 		return err
 	}
 	err := e.enqueueAcceptedCommand(command{
-		cue: cue, index: index, ctx: runCtx, runID: runID,
+		cue: cue, index: index, run: run,
 		origin: origin, runOwner: commandSharesRun,
 	})
 	if err != nil {
@@ -318,59 +317,4 @@ func (e *Engine) AcknowledgeSafetyLatch() {
 	e.safetyLatched.Store(false)
 	e.safetyReason.Store("")
 	e.changed()
-}
-
-// beginCueRun atomically reserves this cue for the new command. Any existing
-// run of the same cue is cancelled and its live media is removed without
-// firing the old run's end links.
-func (e *Engine) beginCueRun(cueID show.CueID) (context.Context, uint64, []Instance) {
-	e.mu.Lock()
-	if current, ok := e.cueRuns[cueID]; ok {
-		current.cancel()
-	}
-	e.nextRunID++
-	runID := e.nextRunID
-	runCtx, cancel := context.WithCancel(e.runCtx)
-	e.cueRuns[cueID] = cueRun{id: runID, cancel: cancel}
-	stopped := make([]Instance, 0)
-	for id, instance := range e.instances {
-		if instance.CueID != cueID {
-			continue
-		}
-		stopped = append(stopped, *instance)
-		delete(e.instances, id)
-	}
-	e.mu.Unlock()
-	return runCtx, runID, stopped
-}
-
-func (e *Engine) finishCueRun(cueID show.CueID, runID uint64, cancel bool) {
-	e.mu.Lock()
-	if current, ok := e.cueRuns[cueID]; ok && current.id == runID {
-		if cancel {
-			current.cancel()
-		}
-		delete(e.cueRuns, cueID)
-	}
-	e.mu.Unlock()
-	e.changed()
-}
-
-func (e *Engine) cueRunCurrent(cueID show.CueID, runID uint64) bool {
-	if runID == 0 {
-		return true
-	}
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	current, ok := e.cueRuns[cueID]
-	return ok && current.id == runID
-}
-
-// CueActive reports whether a cue is in pre-wait, executing a wait/control
-// action, loading media, playing, or paused.
-func (e *Engine) CueActive(cueID show.CueID) bool {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	_, ok := e.cueRuns[cueID]
-	return ok
 }

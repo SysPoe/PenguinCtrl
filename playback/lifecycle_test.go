@@ -25,7 +25,7 @@ func addLifecycleTestInstance(engine *Engine, id string, duration time.Duration)
 	engine.instances[id] = &Instance{
 		ID: id, CueID: show.NewCueID(), MediaType: "audio", OutputID: "main",
 		DurationMs: duration.Milliseconds(), BackendStarted: true,
-		PositionAt: time.Now(), RunContext: engine.runCtx,
+		PositionAt: time.Now(), run: cueRunToken{ctx: engine.runCtx},
 	}
 	engine.mu.Unlock()
 	engine.scheduleInstanceLifecycle(id)
@@ -80,7 +80,7 @@ func TestLateDurationDiscoveryStartsFadeForRemainingPlayback(t *testing.T) {
 	engine.instances["late-duration"] = &Instance{
 		ID: "late-duration", CueID: show.NewCueID(), MediaType: "audio", OutputID: "main",
 		DurationMs: 1000, FadeOutMs: 500, BackendStarted: true,
-		PositionAt: time.Now().Add(-700 * time.Millisecond), RunContext: engine.runCtx,
+		PositionAt: time.Now().Add(-700 * time.Millisecond), run: cueRunToken{ctx: engine.runCtx},
 	}
 	engine.mu.Unlock()
 	engine.scheduleInstanceLifecycle("late-duration")
@@ -112,7 +112,7 @@ func TestStartMediaUsesKnownDurationForCueFadeOut(t *testing.T) {
 	engine.durations[cue.ID] = 12000
 	engine.mu.Unlock()
 
-	if err := engine.startMedia(command{cue: cue, ctx: context.Background()}); err != nil {
+	if err := engine.startMedia(command{cue: cue, run: cueRunToken{ctx: context.Background()}}); err != nil {
 		t.Fatal(err)
 	}
 	instances := engine.ActiveInstances()

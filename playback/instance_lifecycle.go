@@ -71,20 +71,24 @@ func (e *Engine) HandleOutputReport(instanceID, reportText string) {
 	switch report {
 	case outputReportStarted:
 		if snapshot.FadeInMs == 0 {
-			e.scheduleLink(snapshot.Cue, snapshot.CueIndex, snapshot.PostWaitMs, linkFadeIn, snapshot.RunContext)
+			e.scheduleLink(snapshot.Cue, snapshot.CueIndex, snapshot.PostWaitMs, linkFadeIn, snapshot.run.ctx)
 		}
 		e.scheduleInstanceLifecycle(snapshot.ID)
-		e.scheduleTimecode(snapshot.ID, snapshot.Cue, snapshot.CueIndex, snapshot.RunContext)
+		e.scheduleTimecode(snapshot.ID, snapshot.Cue, snapshot.CueIndex)
 	case outputReportPresented:
 		e.replaceSingleLayerVisual(snapshot)
 	case outputReportFadeInComplete:
-		e.scheduleLink(snapshot.Cue, snapshot.CueIndex, snapshot.PostWaitMs, linkFadeIn, snapshot.RunContext)
+		e.scheduleLink(snapshot.Cue, snapshot.CueIndex, snapshot.PostWaitMs, linkFadeIn, snapshot.run.ctx)
 	case outputReportFadeOutStart:
-		e.scheduleLink(snapshot.Cue, snapshot.CueIndex, snapshot.PostWaitMs, linkFadeOut, snapshot.RunContext)
+		e.scheduleLink(snapshot.Cue, snapshot.CueIndex, snapshot.PostWaitMs, linkFadeOut, snapshot.run.ctx)
 	case outputReportEnded, outputReportStopped:
 		e.hub.publish(Event{Action: "remove", OutputID: snapshot.OutputID, InstanceIDs: []string{snapshot.ID}})
-		e.scheduleLink(snapshot.Cue, snapshot.CueIndex, snapshot.PostWaitMs, linkEnd, snapshot.RunContext)
-		e.finishCueRun(snapshot.CueID, snapshot.RunID, snapshot.Link.Mode == show.CueLinkManual)
+		e.scheduleLink(snapshot.Cue, snapshot.CueIndex, snapshot.PostWaitMs, linkEnd, snapshot.run.ctx)
+		finalization := runCompleted
+		if snapshot.Link.Mode == show.CueLinkManual {
+			finalization = runAborted
+		}
+		e.finishCueRun(snapshot.run, finalization)
 	}
 	e.signalState()
 }

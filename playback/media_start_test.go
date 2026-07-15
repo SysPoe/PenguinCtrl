@@ -20,7 +20,7 @@ func TestMediaTimelineStartsOnBackendReport(t *testing.T) {
 	cue.Play.Sound.File = "test.wav"
 	cue.Play.Sound.ClipEndMs = 1000
 	cue.Link.Mode = show.CueLinkManual
-	if err := engine.startMedia(command{cue: cue, ctx: context.Background()}); err != nil {
+	if err := engine.startMedia(command{cue: cue, run: cueRunToken{ctx: context.Background()}}); err != nil {
 		t.Fatal(err)
 	}
 	instances := engine.ActiveInstances()
@@ -48,7 +48,7 @@ func addPresentedVisual(engine *Engine, id string, layer uint64, fadeOutMs int64
 		ID: id, CueID: show.NewCueID(), MediaType: "video", OutputID: "main",
 		LayerOrder: layer, FadeOutMs: fadeOutMs, BackendStarted: true,
 		Presented: true, StartedAt: time.Now(), PositionAt: time.Now(),
-		RunContext: context.Background(), LoadState: "playing",
+		run: cueRunToken{ctx: context.Background()}, LoadState: "playing",
 	}
 	engine.mu.Unlock()
 }
