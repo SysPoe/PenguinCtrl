@@ -1,10 +1,10 @@
 //go:build windows
 
-package project
+package cache
 
 import "golang.org/x/sys/windows"
 
-func cacheAvailableBytes(path string) (uint64, error) {
+func AvailableBytes(path string) (uint64, error) {
 	root, err := windows.UTF16PtrFromString(path)
 	if err != nil {
 		return 0, err

@@ -1,19 +1,13 @@
 package project
 
-import (
-	"os"
-	"path/filepath"
-)
+import projectcache "github.com/syspoe/cusus/project/internal/cache"
 
 const (
-	cacheApplicationDirectory = "CuSus"
-	cacheShowsDirectory       = "shows"
-	cacheTranscodedDirectory  = "transcoded"
+	cacheApplicationDirectory = projectcache.ApplicationDirectory
+	cacheShowsDirectory       = projectcache.ShowsDirectory
+	cacheTranscodedDirectory  = projectcache.TranscodedDirectory
 )
 
-// cacheLayout is the single owner of the on-disk project cache namespaces.
-// Producers and maintenance must derive their paths through this layout so a
-// namespace cannot be published outside the tree that maintenance reclaims.
 type cacheLayout struct {
 	Root       string
 	Shows      string
@@ -21,24 +15,20 @@ type cacheLayout struct {
 }
 
 func currentCacheLayout() (cacheLayout, error) {
-	userRoot, err := os.UserCacheDir()
-	if err != nil {
-		return cacheLayout{}, err
-	}
-	return cacheLayoutAt(userRoot), nil
+	layout, err := projectcache.CurrentLayout()
+	return cacheLayoutFromInternal(layout), err
 }
 
 func cacheLayoutAt(userRoot string) cacheLayout {
-	return cacheLayoutFromRoot(filepath.Join(userRoot, cacheApplicationDirectory))
+	return cacheLayoutFromInternal(projectcache.LayoutAt(userRoot))
 }
 
 func cacheLayoutFromRoot(root string) cacheLayout {
-	root = filepath.Clean(root)
-	return cacheLayout{
-		Root:       root,
-		Shows:      filepath.Join(root, cacheShowsDirectory),
-		Transcoded: filepath.Join(root, cacheTranscodedDirectory),
-	}
+	return cacheLayoutFromInternal(projectcache.LayoutFromRoot(root))
+}
+
+func cacheLayoutFromInternal(layout projectcache.Layout) cacheLayout {
+	return cacheLayout{Root: layout.Root, Shows: layout.Shows, Transcoded: layout.Transcoded}
 }
 
 func (layout cacheLayout) objectRoots() []string {

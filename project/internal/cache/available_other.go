@@ -1,10 +1,10 @@
 //go:build !windows
 
-package project
+package cache
 
 import "syscall"
 
-func cacheAvailableBytes(path string) (uint64, error) {
+func AvailableBytes(path string) (uint64, error) {
 	var stat syscall.Statfs_t
 	if err := syscall.Statfs(path, &stat); err != nil {
 		return 0, err

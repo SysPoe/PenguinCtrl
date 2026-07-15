@@ -8,9 +8,31 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/syspoe/cusus/show"
 )
+
+const journalVersion = 2
+
+type storedRecoveryRecord struct {
+	Version      int                `json:"version"`
+	Kind         RecoveryRecordKind `json:"kind"`
+	State        RecoveryState      `json:"state"`
+	WrittenAt    time.Time          `json:"writtenAt"`
+	DocumentPath string             `json:"documentPath,omitempty"`
+	Digest       string             `json:"digest"`
+	Snapshot     RecoverySnapshot   `json:"snapshot"`
+}
+
+type legacyRecoveryRecord struct {
+	Version      int       `json:"version"`
+	WrittenAt    time.Time `json:"writtenAt"`
+	DocumentPath string    `json:"documentPath,omitempty"`
+	Digest       string    `json:"digest"`
+	Dirty        bool      `json:"dirty"`
+	Show         show.Show `json:"show"`
+}
 
 func TestEditJournalRecoversLatestDirtyGeneration(t *testing.T) {
 	journal, err := OpenEditJournal(filepath.Join(t.TempDir(), "recovery.jsonl"))

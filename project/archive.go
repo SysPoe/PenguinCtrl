@@ -15,11 +15,6 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
-// TODO(macro): Split package project by responsibility — archive I/O, schema
-// migration, content-addressed library, disk cache GC, and recovery journal all
-// share one package name, so "project" is a grab-bag rather than a coherent
-// domain boundary. Split archive, library, cache, and journal so FFmpeg publish
-// policy, in-memory pick list, and recovery journal do not share one import surface.
 const (
 	Format                 = "cusus-show"
 	Version                = 3
