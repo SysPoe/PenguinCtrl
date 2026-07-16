@@ -9,7 +9,12 @@ import (
 	"github.com/syspoe/cusus/config"
 )
 
-const swpNoActivate = 0x0010
+const (
+	swpNoSize     = 0x0001
+	swpNoMove     = 0x0002
+	swpNoActivate = 0x0010
+	swpShowWindow = 0x0040
+)
 
 var (
 	procSetWindowPos  = user32.NewProc("SetWindowPos")
@@ -24,22 +29,55 @@ func platformViewHandle(event any) uintptr {
 }
 
 func platformPlaceWindow(hwnd uintptr, route config.VideoOutput, displays []VideoDisplay) bool {
-	// This function has been removed to fix issues where windows do not appear.
-	return true // TODO proper fix
-	// if hwnd == 0 || len(displays) == 0 {
-	// 	return false
-	// }
-	// display, found := resolveDisplayForGeometry(route.DisplayID, displays)
-	// x, y, width, height := display.X+route.X, display.Y+route.Y, route.Width, route.Height
-	// if route.Fullscreen {
-	// 	x, y, width, height = display.X, display.Y, display.Width, display.Height
-	// }
-	// insertAfter := ^uintptr(1) // HWND_NOTOPMOST (-2).
-	// if route.AlwaysOnTop {
-	// 	insertAfter = ^uintptr(0) // HWND_TOPMOST (-1).
-	// }
-	// ok, _, _ := procSetWindowPos.Call(hwnd, insertAfter, uintptr(x), uintptr(y), uintptr(width), uintptr(height), swpNoActivate)
-	// return found && ok != 0
+	if hwnd == 0 {
+		return false
+	}
+	placement, found := mediaWindowPlacement(route, displays)
+	ok, _, _ := procSetWindowPos.Call(
+		hwnd,
+		placement.insertAfter,
+		uintptr(placement.x),
+		uintptr(placement.y),
+		uintptr(placement.width),
+		uintptr(placement.height),
+		placement.flags,
+	)
+	return found && ok != 0
+}
+
+type nativeWindowPlacement struct {
+	x, y, width, height int
+	insertAfter         uintptr
+	flags               uintptr
+}
+
+func mediaWindowPlacement(route config.VideoOutput, displays []VideoDisplay) (nativeWindowPlacement, bool) {
+	placement := nativeWindowPlacement{
+		insertAfter: ^uintptr(1), // HWND_NOTOPMOST (-2).
+		flags:       swpNoActivate | swpShowWindow,
+	}
+	if route.AlwaysOnTop {
+		placement.insertAfter = ^uintptr(0) // HWND_TOPMOST (-1).
+	}
+	if len(displays) == 0 {
+		// Display enumeration can briefly lag window creation. Make the window
+		// visible at Gio's current geometry and let the topology refresh reroute it.
+		placement.flags |= swpNoMove | swpNoSize
+		return placement, false
+	}
+
+	display, found := resolveDisplayForGeometry(route.DisplayID, displays)
+	if route.Fullscreen {
+		placement.x, placement.y = display.X, display.Y
+		placement.width, placement.height = display.Width, display.Height
+		return placement, found
+	}
+
+	placement.width = min(route.Width, display.Width)
+	placement.height = min(route.Height, display.Height)
+	placement.x = min(max(display.X+route.X, display.X), display.X+display.Width-placement.width)
+	placement.y = min(max(display.Y+route.Y, display.Y), display.Y+display.Height-placement.height)
+	return placement, found
 }
 
 func platformWindowGeometry(hwnd uintptr, display VideoDisplay) (int, int, int, int, bool) {
