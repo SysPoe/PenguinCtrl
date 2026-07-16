@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"image"
+	"math/rand/v2"
 	"time"
 
 	"gioui.org/io/pointer"
@@ -34,6 +35,30 @@ var cueTypeLabels = map[show.CueType]string{
 	show.CueTypeOutputControl: "OutputCtrl",
 }
 
+var remarks = []string {
+	"This appears to be empty ya dummy",
+	"Nothing to see here, so get to work",
+	"Well well well look who came crawling back for more",
+	"418 You opened the wrong program",
+	"What are you doing staring at this? You have work to do",
+	"What is a parcel packer's favourite food? Parsley",
+	"Why did the scarecrow win an award? Because he was outstanding in his field",
+	"Sus",
+	"ඞා",
+	"I see you are trying to run a show with no cues. That is not going to work",
+	"404 cues not found",
+	"HTTP 204 No Content",
+	"410 Gone. Just like your dad",
+	"425 Too Early. Come back later when there are some cues",
+    "Click the 'add cue' button to add a cue. It's the one that says add cue",
+	"Cueless",
+	"let true = false; let false = true; true == false??",
+	"Why did the programmer quit his job? Because he didn't get arrays",
+	"Mayday mayday mayday we're going down! Out of cues! noooooooooo",
+}
+
+var wittyRemark = remarks[rand.N(len(remarks))]
+
 func Main(
 	th *material.Theme,
 	gtx layout.Context,
@@ -54,7 +79,7 @@ func Main(
 	selectedIndex := snapshot.selectedIndex
 	if len(cues) == 0 {
 		return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			label := stableBody1(th, "No cues yet - use Add Cue to create one")
+			label := stableBody1(th, wittyRemark)
 			return layoutStableText(gtx, label.Layout)
 		})
 	}
