@@ -276,7 +276,7 @@ func redundancyConfig(settings config.Settings) redundancy.Config {
 
 func newTheme() *material.Theme {
 	th := material.NewTheme()
-	th.Face = font.Typeface("Nirmala UI")
+	th.Face = font.Typeface("Arial, Nirmala UI, Ubuntu, Times New Roman")
 
 	th.Palette.Bg = palette.Background
 	th.Palette.ContrastBg = palette.SurfaceRaised
