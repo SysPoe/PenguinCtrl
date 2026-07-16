@@ -66,6 +66,33 @@ func TestAudioCallbackNeverWaitsForDecoder(t *testing.T) {
 	}
 }
 
+func TestAudioPlayerReportsDrainedOnlyAfterBufferedTailIsMixed(t *testing.T) {
+	player := &devicePlayer{ring: newPCMRing(16), drained: make(chan struct{})}
+	player.volume.Store(math.Float64bits(1))
+	player.ring.write(make([]byte, 8))
+	player.eof.Store(true)
+	player.signalDrainedIfComplete()
+	select {
+	case <-player.Drained():
+		t.Fatal("audio reported drained while decoded samples were still buffered")
+	default:
+	}
+
+	player.mixInto(make([]byte, 4))
+	select {
+	case <-player.Drained():
+		t.Fatal("audio reported drained before the complete buffered tail was mixed")
+	default:
+	}
+
+	player.mixInto(make([]byte, 4))
+	select {
+	case <-player.Drained():
+	case <-time.After(50 * time.Millisecond):
+		t.Fatal("audio did not report drained after the buffered tail was mixed")
+	}
+}
+
 func TestEndpointMixerCombinesSourcesWithoutAllocation(t *testing.T) {
 	first := &devicePlayer{ring: newPCMRing(16)}
 	second := &devicePlayer{ring: newPCMRing(16)}

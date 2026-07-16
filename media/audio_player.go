@@ -28,6 +28,8 @@ type devicePlayer struct {
 	readyOnce      sync.Once
 	stopped        chan struct{}
 	stoppedOnce    sync.Once
+	drained        chan struct{}
+	drainedOnce    sync.Once
 	intentional    atomic.Bool
 	eof            atomic.Bool
 	underruns      atomic.Uint64
@@ -40,7 +42,7 @@ type devicePlayer struct {
 func newDevicePlayer(reader io.Reader, mixer *endpointMixer, registry *audioMixerRegistry) *devicePlayer {
 	player := &devicePlayer{
 		reader: reader, mixer: mixer, registry: registry, ring: newPCMRing(audioRingBytes),
-		done: make(chan struct{}), ready: make(chan struct{}), stopped: make(chan struct{}),
+		done: make(chan struct{}), ready: make(chan struct{}), stopped: make(chan struct{}), drained: make(chan struct{}),
 	}
 	player.volume.Store(1)
 	return player
@@ -86,6 +88,7 @@ func (p *devicePlayer) mixInto(output []byte) {
 	if n < len(output) && !p.eof.Load() {
 		p.underruns.Add(1)
 	}
+	p.signalDrainedIfComplete()
 }
 
 func (p *devicePlayer) RenderedPosition() time.Duration {
@@ -121,6 +124,7 @@ func (p *devicePlayer) fillRing() {
 		if err != nil {
 			p.eof.Store(true)
 			p.readyOnce.Do(func() { close(p.ready) })
+			p.signalDrainedIfComplete()
 			return
 		}
 		select {
@@ -132,8 +136,15 @@ func (p *devicePlayer) fillRing() {
 }
 
 func (p *devicePlayer) Stopped() <-chan struct{} { return p.stopped }
+func (p *devicePlayer) Drained() <-chan struct{} { return p.drained }
 func (p *devicePlayer) UnexpectedStop() bool     { return !p.intentional.Load() }
 func (p *devicePlayer) Underruns() uint64        { return p.underruns.Load() }
+
+func (p *devicePlayer) signalDrainedIfComplete() {
+	if p.drained != nil && p.eof.Load() && p.ring.available() == 0 {
+		p.drainedOnce.Do(func() { close(p.drained) })
+	}
+}
 
 func (p *devicePlayer) SetVolume(volume float64) {
 	p.volume.Store(math.Float64bits(max(0, min(maxGainLinear, volume))))

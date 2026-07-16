@@ -233,8 +233,19 @@ func (s *ffmpegSession) waitAudioCommand(cmd *exec.Cmd, stderr *bytes.Buffer, ge
 	err := cmd.Wait()
 	s.mu.RLock()
 	current, closed := s.audio.generation == generation, s.closed
+	player := s.audio.player
 	s.mu.RUnlock()
 	if err != nil && current && !closed {
 		s.setRuntimeError(ffmpegCommandError("audio decoder", err, stderr.String()))
+	}
+	if err == nil && current && !closed && player != nil {
+		// FFmpeg can finish while as much as two seconds of decoded PCM is
+		// still buffered. Keep the session alive until the mixer has rendered
+		// that tail; otherwise automatic fade-outs are cut off at EOF.
+		select {
+		case <-player.Drained():
+		case <-player.done:
+		case <-s.done:
+		}
 	}
 }
