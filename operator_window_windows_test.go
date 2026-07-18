@@ -42,3 +42,38 @@ func TestFitOperatorPlacement(t *testing.T) {
 		})
 	}
 }
+
+func TestScaleOperatorPlacementPreservesLogicalSizeAcrossDPIs(t *testing.T) {
+	tests := []struct {
+		name      string
+		placement config.WindowPlacement
+		targetDPI int
+		want      config.WindowPlacement
+	}{
+		{
+			name:      "baseline to one hundred fifty percent",
+			placement: config.WindowPlacement{X: 20, Y: 30, Width: 1300, Height: 720, DPI: 96},
+			targetDPI: 144,
+			want:      config.WindowPlacement{X: 20, Y: 30, Width: 1950, Height: 1080, DPI: 144},
+		},
+		{
+			name:      "one hundred fifty percent to baseline",
+			placement: config.WindowPlacement{X: 20, Y: 30, Width: 1950, Height: 1080, DPI: 144},
+			targetDPI: 96,
+			want:      config.WindowPlacement{X: 20, Y: 30, Width: 1300, Height: 720, DPI: 96},
+		},
+		{
+			name:      "legacy placement uses baseline",
+			placement: config.WindowPlacement{Width: 1300, Height: 720},
+			targetDPI: 192,
+			want:      config.WindowPlacement{Width: 2600, Height: 1440, DPI: 192},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := scaleOperatorPlacement(test.placement, test.targetDPI); got != test.want {
+				t.Fatalf("scaleOperatorPlacement() = %+v, want %+v", got, test.want)
+			}
+		})
+	}
+}

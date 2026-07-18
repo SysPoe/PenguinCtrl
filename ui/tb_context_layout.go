@@ -52,12 +52,6 @@ func (ctx *TBContext) handleButtonClicks(gtx layout.Context, manager *show.ShowM
 }
 
 func (ctx *TBContext) Layout(th *material.Theme, gtx layout.Context, manager *show.ShowManager) layout.Dimensions {
-	ctx.cueEditUI.pickFile = ctx.PickFile
-	ctx.cueEditUI.projectFiles = ctx.ProjectFiles
-	ctx.cueEditUI.loadWaveform = ctx.LoadWaveform
-	ctx.cueEditUI.togglePreview = ctx.TogglePreview
-	ctx.cueEditUI.stopPreview = ctx.StopPreview
-	ctx.cueEditUI.problemsForCue = ctx.ProblemsForCue
 	ctx.handleButtonClicks(gtx, manager)
 
 	addCueOpen, addCuePosition := ctx.TopBar.AddCueMenuState()

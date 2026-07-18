@@ -141,19 +141,18 @@ func (s *windowSession) run() error {
 			postUI(ctx, func() { completed(wave.Samples, wave.SampleRate, wave.DurationMs, err) })
 		})
 	}
+	documents := newDocumentController(documentControllerConfig{
+		explorer: expl, tasks: tasks, postUI: postUI, manager: manager,
+		playback: playbackEngine, library: projectLibrary, session: document,
+		journal: a.Document.Journal, settings: settingsStore,
+		events: operatorEvents, panel: operatorPanel,
+	})
 	playbackEngine.SetOnChange(func() {
 		window.Invalidate()
 		mediaManager.SyncOutputs(playbackEngine.OutputIDs())
 	})
 	operatorEvents.SetOnChange(window.Invalidate)
-	manager.SetOnChange(func() {
-		snapshot := manager.ShowSnapshot()
-		path, dirty, suppressed := document.status(snapshot)
-		if !suppressed && dirty && a.Document.Journal != nil {
-			if err := a.Document.Journal.RecordDirty(snapshot, path); err != nil {
-				operatorEvents.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
-			}
-		}
+	documents.bindShowChanges(func() {
 		window.Invalidate()
 		playbackEngine.RefreshDurations()
 		mediaManager.SyncOutputs(playbackEngine.OutputIDs())
@@ -201,12 +200,6 @@ func (s *windowSession) run() error {
 		})
 	}
 
-	documents := newDocumentController(documentControllerConfig{
-		explorer: expl, tasks: tasks, postUI: postUI, manager: manager,
-		playback: playbackEngine, library: projectLibrary, session: document,
-		journal: a.Document.Journal, settings: settingsStore,
-		events: operatorEvents, panel: operatorPanel,
-	})
 	loadShow, saveShow, saveAsShow, performNew := documents.Load, documents.Save, documents.SaveAs, documents.New
 	performDocumentAction := func(action ui.DocumentAction) {
 		switch action {
@@ -272,13 +265,7 @@ func (s *windowSession) run() error {
 
 		switch e := e.(type) {
 		case app.DestroyEvent:
-			snapshot := manager.ShowSnapshot()
-			path, dirty, _ := document.status(snapshot)
-			if dirty && a.Document.Journal != nil {
-				if err := a.Document.Journal.RecordDirty(snapshot, path); err != nil {
-					operatorEvents.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
-				}
-			}
+			documents.checkpointDirty()
 			if placement, ok := operatorWindowPlacement(operatorHandle); ok {
 				settings := settingsStore.Snapshot()
 				settings.OperatorWindow = placement

@@ -82,15 +82,6 @@ func (ctx *CueEditUI) fileRow(th *material.Theme, label, kind string, field *inp
 	}}
 }
 
-func sameFilePath(a, b string) bool {
-	a = strings.TrimSpace(a)
-	b = strings.TrimSpace(b)
-	if a == "" || b == "" {
-		return a == b
-	}
-	return strings.EqualFold(filepath.Clean(a), filepath.Clean(b))
-}
-
 func selectedFileName(source string) string {
 	source = strings.TrimSpace(source)
 	if source == "" {

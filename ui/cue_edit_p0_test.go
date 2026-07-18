@@ -50,8 +50,59 @@ func TestTimecodePreviewErrorIsVisibleState(t *testing.T) {
 	}
 
 	ctx.togglePreview = func(show.Cue) (bool, error) { return true, nil }
+	ctx.bindTimecodeEditor()
 	ctx.toggleTimecodePreview()
 	if ctx.previewError != "" || !ctx.timeline.previewing {
 		t.Fatalf("successful preview = error %q, playing %t", ctx.previewError, ctx.timeline.previewing)
+	}
+}
+
+func TestTimecodeAdapterCallbacksAreStableWithinEditSession(t *testing.T) {
+	firstCalls, replacementCalls := 0, 0
+	ctx := CueEditUI{
+		cue: show.NewSoundCue(),
+		togglePreview: func(show.Cue) (bool, error) {
+			firstCalls++
+			return true, nil
+		},
+	}
+	ctx.bindTimecodeEditor()
+	ctx.togglePreview = func(show.Cue) (bool, error) {
+		replacementCalls++
+		return true, nil
+	}
+
+	ctx.toggleTimecodePreview()
+	if firstCalls != 1 || replacementCalls != 0 {
+		t.Fatalf("session callbacks = first %d, replacement %d; want 1, 0", firstCalls, replacementCalls)
+	}
+
+	ctx.bindTimecodeEditor()
+	ctx.toggleTimecodePreview()
+	if replacementCalls != 1 {
+		t.Fatalf("replacement callback calls after rebind = %d, want 1", replacementCalls)
+	}
+}
+
+func TestOpeningCueEditorStopsOldPreviewBeforeBindingNewSession(t *testing.T) {
+	oldStops, newStops := 0, 0
+	ctx := TBContext{
+		TopBar: &TopBar{},
+		cueEditorHost: cueEditorHost{
+			StopPreview: func() { newStops++ },
+		},
+	}
+	ctx.cueEditUI.stopPreview = func() { oldStops++ }
+	ctx.cueEditUI.bindTimecodeEditor()
+	ctx.cueEditUI.timeline.previewing = true
+
+	ctx.openCueEditor(show.NewSoundCue(), false)
+	if oldStops != 1 || newStops != 0 {
+		t.Fatalf("session transition stops = old %d, new %d; want 1, 0", oldStops, newStops)
+	}
+
+	ctx.cueEditUI.stopTimecodePreview()
+	if newStops != 1 {
+		t.Fatalf("new session stop calls = %d, want 1", newStops)
 	}
 }

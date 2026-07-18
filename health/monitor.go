@@ -27,7 +27,9 @@ func NewMonitor(provider Provider, interval time.Duration) *Monitor {
 		interval = time.Second
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	monitor := &Monitor{cancel: cancel, latest: NewSnapshot(nil)}
+	// Leave Generated zero until the provider publishes its first complete
+	// collection so readiness consumers can distinguish pending from empty.
+	monitor := &Monitor{cancel: cancel}
 	monitor.wg.Add(1)
 	go monitor.run(ctx, provider, interval)
 	return monitor

@@ -42,9 +42,9 @@ try {
     Invoke-EvidenceStep "build" @("build", "./...")
 
     if ($SoakSource) {
-        $env:PENGUINCTRL_MEDIA_SOAK_SOURCE = (Resolve-Path $SoakSource).Path
-        $env:PENGUINCTRL_MEDIA_SOAK_DURATION = $SoakDuration.ToString("c")
-        $env:PENGUINCTRL_MEDIA_SOAK_OVERLAPS = $SoakOverlaps.ToString()
+        $env:CUSUS_MEDIA_SOAK_SOURCE = (Resolve-Path $SoakSource).Path
+        $env:CUSUS_MEDIA_SOAK_DURATION = $SoakDuration.ToString("c")
+        $env:CUSUS_MEDIA_SOAK_OVERLAPS = $SoakOverlaps.ToString()
         $timeout = [Math]::Ceiling($SoakDuration.TotalHours + 1).ToString() + "h"
         Invoke-EvidenceStep "media-soak" @("test", "./media", "-run", "MultiHourSoak", "-count=1", "-timeout", $timeout)
     }

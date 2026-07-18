@@ -15,7 +15,25 @@ import (
 type timelineDragMode uint8
 
 const (
-	timelineHeightDp = unit.Dp(190)
+	timelineHeightDp          = unit.Dp(190)
+	timelineGridSpacing       = unit.Dp(70)
+	timelineHandleBand        = unit.Dp(34)
+	timelineDurationRowTop    = unit.Dp(38)
+	timelineDurationRowStep   = unit.Dp(20)
+	timelineMarkerHitRadius   = unit.Dp(9)
+	timelineClipHitRadius     = unit.Dp(10)
+	timelineLabelWidth        = unit.Dp(150)
+	timelineLabelInsetX       = unit.Dp(5)
+	timelineLabelInsetY       = unit.Dp(4)
+	timelineGridLineWidth     = unit.Dp(1)
+	timelineWaveLineWidth     = unit.Dp(1)
+	timelineMarkerLineWidth   = unit.Dp(5)
+	timelinePlayheadWidth     = unit.Dp(3)
+	timelineFadeHandleWidth   = unit.Dp(5)
+	timelineClipHandleWidth   = unit.Dp(7)
+	timelineDurationBarWidth  = unit.Dp(7)
+	timelineDurationEndWidth  = unit.Dp(5)
+	timelineDurationEndHeight = unit.Dp(17)
 
 	timelineDragNone timelineDragMode = iota
 	timelineDragPlayhead

@@ -14,48 +14,64 @@ import (
 
 	"github.com/syspoe/cusus/config"
 	"github.com/syspoe/cusus/operatorlog"
-	"github.com/syspoe/cusus/remote"
 	"github.com/syspoe/cusus/show"
 )
 
-// Builder assembles pure readiness checks for a service refresh.
-type Builder func(show.Show, config.Settings, string, string, []remote.TargetHealth, func(show.Cue) []show.CueProblem) []Check
+// Builder assembles show/settings checks for a service refresh. Runtime
+// observations are supplied independently through RuntimeReadiness.
+type Builder func(show.Show, config.Settings, func(show.Cue) []show.CueProblem) []Check
 
-type snapshot struct {
+type staticSnapshot struct {
 	key        [sha256.Size]byte
 	showDigest [sha256.Size]byte
-	signature  [sha256.Size]byte
 	generated  time.Time
 	checks     []Check
-	signError  string
+}
+
+type preparedRuntime struct {
+	checks    []Check
+	expiresAt time.Time
+}
+
+type snapshot struct {
+	key            [sha256.Size]byte
+	showDigest     [sha256.Size]byte
+	signature      [sha256.Size]byte
+	runtimeExpires time.Time
+	checks         []Check
+	signError      string
 }
 
 // Service asynchronously caches and signs readiness checks for the current
 // show and machine environment.
 type Service struct {
-	mu              sync.RWMutex
-	key             [sha256.Size]byte
-	latest          snapshot
-	running         bool
-	secret          [sha256.Size]byte
-	refreshInterval time.Duration
-	builder         Builder
-	ctx             context.Context
-	cancel          context.CancelFunc
-	wg              sync.WaitGroup
+	mu                    sync.RWMutex
+	key                   [sha256.Size]byte
+	staticKey             [sha256.Size]byte
+	runtime               preparedRuntime
+	static                staticSnapshot
+	latest                snapshot
+	running               bool
+	secret                [sha256.Size]byte
+	staticRefreshInterval time.Duration
+	builder               Builder
+	ctx                   context.Context
+	cancel                context.CancelFunc
+	wg                    sync.WaitGroup
 }
 
-// NewService constructs a signed preflight service using builder for domain
-// checks. refreshInterval controls how long an identical result remains fresh.
-func NewService(refreshInterval time.Duration, builder Builder) (*Service, error) {
-	if refreshInterval <= 0 {
-		refreshInterval = time.Second
+// NewService constructs a signed preflight service using builder for
+// show/settings analysis. staticRefreshInterval controls only that analysis;
+// runtime readiness has its own observation timestamp and freshness bound.
+func NewService(staticRefreshInterval time.Duration, builder Builder) (*Service, error) {
+	if staticRefreshInterval <= 0 {
+		staticRefreshInterval = time.Second
 	}
 	if builder == nil {
 		return nil, errors.New("preflight builder is required")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	service := &Service{ctx: ctx, cancel: cancel, refreshInterval: refreshInterval, builder: builder}
+	service := &Service{ctx: ctx, cancel: cancel, staticRefreshInterval: staticRefreshInterval, builder: builder}
 	if _, err := rand.Read(service.secret[:]); err != nil {
 		cancel()
 		return nil, fmt.Errorf("generate preflight signing secret: %w", err)
@@ -66,27 +82,42 @@ func NewService(refreshInterval time.Duration, builder Builder) (*Service, error
 // Close stops refresh work and waits for an in-flight builder.
 func (s *Service) Close() { s.cancel(); s.wg.Wait() }
 
-// Request returns the current checks or a fail-closed pending check while a
-// changed show/environment snapshot is rebuilt.
-func (s *Service) Request(showState show.Show, settings config.Settings, audioWarning, videoWarning string, health []remote.TargetHealth, problems func(show.Cue) []show.CueProblem) []Check {
+// Request returns one signed result containing cached show/settings analysis
+// and the supplied point-in-time runtime observations. A changed runtime
+// snapshot is signed immediately when the static analysis remains fresh.
+func (s *Service) Request(showState show.Show, settings config.Settings, runtime RuntimeReadiness, problems func(show.Cue) []show.CueProblem) []Check {
 	showDigest, err := showState.Digest()
 	if err != nil {
 		return encodingFailure("show", err)
 	}
-	environment, err := json.Marshal(struct {
-		Settings     config.Settings
-		Audio, Video string
-		Health       []remote.TargetHealth
-	}{settings, audioWarning, videoWarning, health})
+	settingsBytes, err := json.Marshal(settings)
 	if err != nil {
-		return encodingFailure("environment", err)
+		return encodingFailure("settings", err)
 	}
-	keyInput := append(append([]byte(nil), showDigest[:]...), environment...)
+	staticInput := make([]byte, 0, len(showDigest)+len(settingsBytes))
+	staticInput = append(staticInput, showDigest[:]...)
+	staticInput = append(staticInput, settingsBytes...)
+	staticKey := sha256.Sum256(staticInput)
+	prepared := preparedRuntime{checks: runtime.checksAt(time.Now()), expiresAt: runtime.expiresAt()}
+	runtimeBytes, err := json.Marshal(struct {
+		ObservedAt time.Time
+		FreshFor   time.Duration
+		Checks     []Check
+	}{runtime.ObservedAt, runtime.FreshFor, prepared.checks})
+	if err != nil {
+		return encodingFailure("runtime readiness", err)
+	}
+	keyInput := make([]byte, 0, len(staticKey)+len(runtimeBytes))
+	keyInput = append(keyInput, staticKey[:]...)
+	keyInput = append(keyInput, runtimeBytes...)
 	key := sha256.Sum256(keyInput)
 
 	s.mu.Lock()
 	s.key = key
-	if s.latest.key == key && time.Since(s.latest.generated) < s.refreshInterval {
+	s.staticKey = staticKey
+	s.runtime = prepared
+	if s.static.key == staticKey && time.Since(s.static.generated) < s.staticRefreshInterval {
+		s.composeLocked(key, s.static, prepared)
 		checks := append([]Check(nil), s.latest.checks...)
 		s.mu.Unlock()
 		return checks
@@ -94,7 +125,7 @@ func (s *Service) Request(showState show.Show, settings config.Settings, audioWa
 	if !s.running {
 		s.running = true
 		s.wg.Add(1)
-		go s.compute(key, showDigest, showState, settings, audioWarning, videoWarning, health, problems)
+		go s.compute(staticKey, showDigest, showState, settings, problems)
 	}
 	if s.latest.key == key {
 		checks := append([]Check(nil), s.latest.checks...)
@@ -105,21 +136,31 @@ func (s *Service) Request(showState show.Show, settings config.Settings, audioWa
 	return []Check{{Severity: operatorlog.ShowStopping, Code: "preflight.pending", Source: "Preflight", Message: "Preflight is computing a signed result for the current show"}}
 }
 
-func (s *Service) compute(key, showDigest [sha256.Size]byte, showState show.Show, settings config.Settings, audioWarning, videoWarning string, health []remote.TargetHealth, problems func(show.Cue) []show.CueProblem) {
+func (s *Service) compute(key, showDigest [sha256.Size]byte, showState show.Show, settings config.Settings, problems func(show.Cue) []show.CueProblem) {
 	defer s.wg.Done()
-	checks := s.builder(showState, settings, audioWarning, videoWarning, health, problems)
-	result := snapshot{key: key, showDigest: showDigest, generated: time.Now().UTC(), checks: checks}
+	result := staticSnapshot{key: key, showDigest: showDigest, generated: time.Now().UTC(), checks: s.builder(showState, settings, problems)}
+	s.mu.Lock()
+	if s.ctx.Err() == nil {
+		s.static = result
+		if s.staticKey == key {
+			s.composeLocked(s.key, result, s.runtime)
+		}
+	}
+	s.running = false
+	s.mu.Unlock()
+}
+
+func (s *Service) composeLocked(key [sha256.Size]byte, static staticSnapshot, runtime preparedRuntime) {
+	checks := make([]Check, 0, len(static.checks)+len(runtime.checks))
+	checks = append(checks, static.checks...)
+	checks = append(checks, runtime.checks...)
+	result := snapshot{key: key, showDigest: static.showDigest, runtimeExpires: runtime.expiresAt, checks: checks}
 	var err error
 	result.signature, err = s.sign(result)
 	if err != nil {
 		result.signError = err.Error()
 	}
-	s.mu.Lock()
-	if s.ctx.Err() == nil && s.key == key {
-		s.latest = result
-	}
-	s.running = false
-	s.mu.Unlock()
+	s.latest = result
 }
 
 // Gate verifies the signed snapshot and rejects show-stopping checks reachable
@@ -141,6 +182,9 @@ func (s *Service) Gate(current show.Show, selected show.Cue) error {
 	}
 	if currentSnapshot.key != expected || currentSnapshot.showDigest != digest || !hmac.Equal(currentSnapshot.signature[:], expectedSignature[:]) {
 		return errors.New("signed preflight is stale or still computing")
+	}
+	if !currentSnapshot.runtimeExpires.IsZero() && !time.Now().Before(currentSnapshot.runtimeExpires) {
+		return errors.New("preflight blocked: Runtime readiness: runtime health observations are stale")
 	}
 	reachable := show.ReachableCueIDs(current.Cues, selected.ID)
 	for _, check := range currentSnapshot.checks {
@@ -171,7 +215,10 @@ func (s *Service) sign(current snapshot) ([sha256.Size]byte, error) {
 	mac := hmac.New(sha256.New, s.secret[:])
 	_, _ = mac.Write(current.key[:])
 	_, _ = mac.Write(current.showDigest[:])
-	raw, err := json.Marshal(current.checks)
+	raw, err := json.Marshal(struct {
+		Checks         []Check
+		RuntimeExpires time.Time
+	}{current.checks, current.runtimeExpires})
 	if err != nil {
 		return [sha256.Size]byte{}, err
 	}

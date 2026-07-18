@@ -21,6 +21,8 @@ const (
 	maximumMutableGlobals       = 16
 )
 
+// formerLargeFiles deliberately keeps files under the tighter budget they
+// earned when refactored, preventing them from silently growing back.
 var formerLargeFiles = map[string]struct{}{
 	"document_controller.go":       {},
 	"health_service.go":            {},

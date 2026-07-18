@@ -51,3 +51,40 @@ func TestDocumentControllerOwnsNewAndLoadedDocumentTransitions(t *testing.T) {
 		t.Fatalf("loaded path = %q", path)
 	}
 }
+
+func TestDocumentControllerCoordinatesRecoveryJournalOnShowChanges(t *testing.T) {
+	manager := show.NewShowManager()
+	initial := show.Show{Title: "initial"}
+	manager.ReplaceShow(initial)
+	session := newDocumentSession("show.cusus", manager.ShowSnapshot(), false)
+	journal, err := project.OpenEditJournal(filepath.Join(t.TempDir(), "recovery.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	controller := newDocumentController(documentControllerConfig{
+		manager: manager, session: session, journal: journal, events: operatorlog.NewStore(),
+	})
+	changes := 0
+	controller.bindShowChanges(func() { changes++ })
+
+	// Replacing a document is an intentional transition, not an unsaved edit.
+	session.beginReplace()
+	loaded := show.Show{Title: "loaded"}
+	manager.ReplaceShow(loaded)
+	session.finishReplace("loaded.cusus", manager.ShowSnapshot())
+	if recovered, ok, err := journal.Recover(); err != nil || ok {
+		t.Fatalf("recovery after suppressed replacement = %#v, %t, %v; want none", recovered, ok, err)
+	}
+
+	manager.AddCue(show.NewSoundCue())
+	recovered, ok, err := journal.Recover()
+	if err != nil || !ok {
+		t.Fatalf("Recover() = %#v, %t, %v; want dirty snapshot", recovered, ok, err)
+	}
+	if recovered.DocumentPath != "loaded.cusus" || recovered.Show.Title != "loaded" || len(recovered.Show.Cues) != 1 {
+		t.Fatalf("recovered document = %#v", recovered)
+	}
+	if changes != 2 {
+		t.Fatalf("runtime change notifications = %d, want 2", changes)
+	}
+}

@@ -33,13 +33,15 @@ func (editor *timecodeEditor) draw(th *material.Theme, gtx layout.Context) layou
 	paint.FillShape(gtx.Ops, palette.SurfaceSunken, clip.Rect{Max: size}.Op())
 	// Time grid.
 	gridStep := int64(1000)
-	for float64(gridStep)*float64(size.X)/float64(t.viewDuration()) < 70 {
+	for float64(gridStep)*float64(size.X)/float64(t.viewDuration()) < float64(gtx.Dp(timelineGridSpacing)) {
 		gridStep *= 2
 	}
+	gridLine := gtx.Dp(timelineGridLineWidth)
 	first := (t.viewStartMs / gridStep) * gridStep
 	for ms := first; ms <= t.viewStartMs+t.viewDuration(); ms += gridStep {
 		x := t.msToX(ms, size.X)
-		paint.FillShape(gtx.Ops, palette.WithAlpha(palette.Divider, 0x70), clip.Rect{Min: image.Pt(x, 0), Max: image.Pt(x+1, size.Y)}.Op())
+		x1, x2 := centeredSpan(x, gridLine)
+		paint.FillShape(gtx.Ops, palette.WithAlpha(palette.Divider, 0x70), clip.Rect{Min: image.Pt(x1, 0), Max: image.Pt(x2, size.Y)}.Op())
 	}
 	editor.drawWaveformBars(gtx, size)
 	editor.drawFadeZones(gtx, size)
@@ -64,12 +66,14 @@ func (editor *timecodeEditor) draw(th *material.Theme, gtx layout.Context) layou
 		if m.Disabled {
 			c = palette.Disabled
 		}
-		paint.FillShape(gtx.Ops, c, clip.Rect{Min: image.Pt(x-2, 0), Max: image.Pt(x+3, size.Y)}.Op())
+		x1, x2 := centeredSpan(x, gtx.Dp(timelineMarkerLineWidth))
+		paint.FillShape(gtx.Ops, c, clip.Rect{Min: image.Pt(x1, 0), Max: image.Pt(x2, size.Y)}.Op())
 		editor.drawMarkerLabel(th, gtx, m, i, x, size)
 	}
 	// Playhead.
 	px := t.msToX(editor.cueToTrackMs(t.playheadMs), size.X)
-	paint.FillShape(gtx.Ops, palette.Danger, clip.Rect{Min: image.Pt(px-1, 0), Max: image.Pt(px+2, size.Y)}.Op())
+	playheadX1, playheadX2 := centeredSpan(px, gtx.Dp(timelinePlayheadWidth))
+	paint.FillShape(gtx.Ops, palette.Danger, clip.Rect{Min: image.Pt(playheadX1, 0), Max: image.Pt(playheadX2, size.Y)}.Op())
 	area := clip.Rect{Max: size}.Push(gtx.Ops)
 	event.Op(gtx.Ops, &t.tag)
 	pointer.CursorCrosshair.Add(gtx.Ops)
@@ -173,9 +177,10 @@ func (editor *timecodeEditor) drawWaveformBars(gtx layout.Context, size image.Po
 	fadeIn, fadeOut := editor.fades()
 	center := size.Y / 2
 	amp := float64(size.Y) * waveformAmplitude
-	for x := 0; x < size.X; x++ {
+	lineWidth := max(1, gtx.Dp(timelineWaveLineWidth))
+	for x := 0; x < size.X; x += lineWidth {
 		fromMs := t.viewStartMs + int64(float64(x)/float64(size.X)*float64(t.viewDuration()))
-		toMs := t.viewStartMs + int64(float64(x+1)/float64(size.X)*float64(t.viewDuration()))
+		toMs := t.viewStartMs + int64(float64(min(size.X, x+lineWidth))/float64(size.X)*float64(t.viewDuration()))
 		a := int(fromMs * int64(t.waveSampleRate) / 1000)
 		b := int(toMs * int64(t.waveSampleRate) / 1000)
 		a = max(0, min(a, len(t.waveSamples)))
@@ -196,7 +201,7 @@ func (editor *timecodeEditor) drawWaveformBars(gtx layout.Context, size image.Po
 			}
 		}
 		h := max(1, int(float64(peak)*amp*gain))
-		paint.FillShape(gtx.Ops, palette.WithAlpha(palette.Success, waveformAlpha), clip.Rect{Min: image.Pt(x, center-h), Max: image.Pt(x+1, center+h)}.Op())
+		paint.FillShape(gtx.Ops, palette.WithAlpha(palette.Success, waveformAlpha), clip.Rect{Min: image.Pt(x, center-h), Max: image.Pt(min(size.X, x+lineWidth), center+h)}.Op())
 	}
 }
 
@@ -217,12 +222,14 @@ func (editor *timecodeEditor) drawFadeZones(gtx layout.Context, size image.Point
 		x1, x2 := t.msToX(clipStart+max(int64(0), clipDuration-fadeOut), size.X), t.msToX(clipEnd, size.X)
 		paint.FillShape(gtx.Ops, zone, clip.Rect{Min: image.Pt(max(0, x1), 0), Max: image.Pt(min(size.X, x2), size.Y)}.Op())
 	}
-	bottom := size.Y - 34
+	bottom := size.Y - gtx.Dp(timelineHandleBand)
 	inX := t.msToX(clipStart+fadeIn, size.X)
 	outX := t.msToX(clipStart+max(int64(0), clipDuration-fadeOut), size.X)
 	handle := palette.Accent
-	paint.FillShape(gtx.Ops, handle, clip.Rect{Min: image.Pt(inX-2, bottom), Max: image.Pt(inX+3, size.Y)}.Op())
-	paint.FillShape(gtx.Ops, handle, clip.Rect{Min: image.Pt(outX-2, bottom), Max: image.Pt(outX+3, size.Y)}.Op())
+	inX1, inX2 := centeredSpan(inX, gtx.Dp(timelineFadeHandleWidth))
+	outX1, outX2 := centeredSpan(outX, gtx.Dp(timelineFadeHandleWidth))
+	paint.FillShape(gtx.Ops, handle, clip.Rect{Min: image.Pt(inX1, bottom), Max: image.Pt(inX2, size.Y)}.Op())
+	paint.FillShape(gtx.Ops, handle, clip.Rect{Min: image.Pt(outX1, bottom), Max: image.Pt(outX2, size.Y)}.Op())
 }
 
 func (editor *timecodeEditor) drawClipHandles(gtx layout.Context, size image.Point) {
@@ -233,9 +240,11 @@ func (editor *timecodeEditor) drawClipHandles(gtx layout.Context, size image.Poi
 	t := editor
 	startX := t.msToX(startMs, size.X)
 	endX := t.msToX(endMs, size.X)
-	height := min(34, size.Y)
-	paint.FillShape(gtx.Ops, palette.Success, clip.Rect{Min: image.Pt(startX-3, 0), Max: image.Pt(startX+4, height)}.Op())
-	paint.FillShape(gtx.Ops, palette.Warning, clip.Rect{Min: image.Pt(endX-3, 0), Max: image.Pt(endX+4, height)}.Op())
+	height := min(gtx.Dp(timelineHandleBand), size.Y)
+	startX1, startX2 := centeredSpan(startX, gtx.Dp(timelineClipHandleWidth))
+	endX1, endX2 := centeredSpan(endX, gtx.Dp(timelineClipHandleWidth))
+	paint.FillShape(gtx.Ops, palette.Success, clip.Rect{Min: image.Pt(startX1, 0), Max: image.Pt(startX2, height)}.Op())
+	paint.FillShape(gtx.Ops, palette.Warning, clip.Rect{Min: image.Pt(endX1, 0), Max: image.Pt(endX2, height)}.Op())
 }
 
 func (editor *timecodeEditor) drawActionDurationBars(gtx layout.Context, size image.Point, markers []show.TimecodeMarker) {
@@ -247,9 +256,12 @@ func (editor *timecodeEditor) drawActionDurationBars(gtx layout.Context, size im
 		}
 		x1 := t.msToX(editor.cueToTrackMs(markers[i].TimeMs), size.X)
 		x2 := t.msToX(editor.cueToTrackMs(markers[i].TimeMs+*duration), size.X)
-		y := 38 + (i%4)*20
-		paint.FillShape(gtx.Ops, palette.WithAlpha(palette.Primary, 0xC0), clip.Rect{Min: image.Pt(x1, y-3), Max: image.Pt(x2, y+4)}.Op())
-		paint.FillShape(gtx.Ops, palette.Primary, clip.Rect{Min: image.Pt(x2-2, y-8), Max: image.Pt(x2+3, y+9)}.Op())
+		y := gtx.Dp(timelineDurationRowTop + unit.Dp(i%4)*timelineDurationRowStep)
+		barTop, barBottom := centeredSpan(y, gtx.Dp(timelineDurationBarWidth))
+		endX1, endX2 := centeredSpan(x2, gtx.Dp(timelineDurationEndWidth))
+		endTop, endBottom := centeredSpan(y, gtx.Dp(timelineDurationEndHeight))
+		paint.FillShape(gtx.Ops, palette.WithAlpha(palette.Primary, 0xC0), clip.Rect{Min: image.Pt(x1, barTop), Max: image.Pt(x2, barBottom)}.Op())
+		paint.FillShape(gtx.Ops, palette.Primary, clip.Rect{Min: image.Pt(endX1, endTop), Max: image.Pt(endX2, endBottom)}.Op())
 	}
 }
 
@@ -277,12 +289,20 @@ func timecodeActionLabel(m show.TimecodeMarker) string {
 
 func (editor *timecodeEditor) drawMarkerLabel(th *material.Theme, gtx layout.Context, m show.TimecodeMarker, index, x int, size image.Point) {
 	label := timecodeActionLabel(m)
-	stack := op.Offset(image.Pt(min(size.X-150, max(2, x+5)), 4+(index%4)*20)).Push(gtx.Ops)
+	labelX := min(size.X-gtx.Dp(timelineLabelWidth), max(gtx.Dp(unit.Dp(2)), x+gtx.Dp(timelineLabelInsetX)))
+	labelY := gtx.Dp(timelineLabelInsetY + unit.Dp(index%4)*timelineDurationRowStep)
+	stack := op.Offset(image.Pt(max(0, labelX), labelY)).Push(gtx.Ops)
 	defer stack.Pop()
 	text := material.Caption(th, label)
 	text.Color = palette.WithAlpha(palette.Text, 0xEE)
 	text.MaxLines = 1
 	text.Layout(gtx)
+}
+
+func centeredSpan(center, width int) (int, int) {
+	width = max(1, width)
+	start := center - width/2
+	return start, start + width
 }
 
 func (editor *timecodeEditor) render(th *material.Theme, gtx layout.Context) layout.Dimensions {

@@ -3,6 +3,8 @@ package ui
 import (
 	"testing"
 
+	"gioui.org/layout"
+	"gioui.org/unit"
 	"github.com/syspoe/cusus/show"
 )
 
@@ -114,5 +116,32 @@ func TestTimelineMapsCueTimesOntoAbsoluteClipRange(t *testing.T) {
 	}
 	if startX, endX := ctx.timeline.msToX(500, 300), ctx.timeline.msToX(2500, 300); startX != 50 || endX != 250 {
 		t.Fatalf("clip handle positions = %d..%d, want 50..250", startX, endX)
+	}
+}
+
+func TestTimelineMarkerHitTargetScalesWithDPI(t *testing.T) {
+	editor := timecodeEditor{durationMs: 1000, zoom: 1}
+	markers := []show.TimecodeMarker{newTimecodeMarker(500)}
+	for _, pixelsPerDp := range []float32{1, 1.25, 1.5, 2} {
+		gtx := layout.Context{Metric: unit.Metric{PxPerDp: pixelsPerDp, PxPerSp: pixelsPerDp}}
+		radius := gtx.Dp(timelineMarkerHitRadius)
+		if got := editor.markerAt(gtx, float32(100+radius), 200, markers); got != 0 {
+			t.Fatalf("marker at %.2fx missed scaled edge: got %d", pixelsPerDp, got)
+		}
+		if got := editor.markerAt(gtx, float32(101+radius), 200, markers); got != -1 {
+			t.Fatalf("marker at %.2fx exceeded scaled target: got %d", pixelsPerDp, got)
+		}
+	}
+}
+
+func TestCenteredSpanUsesExactScaledStrokeWidth(t *testing.T) {
+	for _, width := range []int{1, 2, 3, 5, 6, 10} {
+		start, end := centeredSpan(100, width)
+		if end-start != width {
+			t.Fatalf("centered span width = %d, want %d", end-start, width)
+		}
+		if 100 < start || 100 >= end {
+			t.Fatalf("center %d outside span %d..%d", 100, start, end)
+		}
 	}
 }

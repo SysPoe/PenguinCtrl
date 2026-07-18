@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/syspoe/cusus/config"
+	"github.com/syspoe/cusus/health"
 	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/preflight"
-	"github.com/syspoe/cusus/remote"
 	"github.com/syspoe/cusus/show"
 )
 
@@ -20,7 +20,7 @@ func TestPreflightFailsClosedWhenShowCannotBeEncoded(t *testing.T) {
 	}
 	defer service.Close()
 	current := show.Show{Extensions: map[string]json.RawMessage{"invalid": json.RawMessage(`{`)}}
-	checks := service.Request(current, config.Defaults(), "", "", nil, func(show.Cue) []show.CueProblem { return nil })
+	checks := service.Request(current, config.Defaults(), preflight.RuntimeReadiness{}, func(show.Cue) []show.CueProblem { return nil })
 	if len(checks) != 1 || checks[0].Code != "preflight.encode.failed" || checks[0].Severity != operatorlog.ShowStopping {
 		t.Fatalf("encoding failure checks = %#v", checks)
 	}
@@ -37,7 +37,7 @@ func TestSignedPreflightGateRejectsStaleShow(t *testing.T) {
 	settings := config.Defaults()
 	deadline := time.Now().Add(3 * time.Second)
 	for {
-		checks := service.Request(current, settings, "", "", nil, func(cue show.Cue) []show.CueProblem {
+		checks := service.Request(current, settings, preflight.RuntimeReadiness{}, func(cue show.Cue) []show.CueProblem {
 			return preflight.CueProblemsWithContext(cue, current.Cues, preflight.WarningContext{Settings: settings})
 		})
 		if len(checks) == 0 || checks[0].Code != "preflight.pending" {
@@ -71,7 +71,7 @@ func TestSignedPreflightScopesCueBlockersToReachablePlayChain(t *testing.T) {
 	settings := config.Defaults()
 	deadline := time.Now().Add(3 * time.Second)
 	for {
-		checks := service.Request(current, settings, "", "", nil, func(cue show.Cue) []show.CueProblem {
+		checks := service.Request(current, settings, preflight.RuntimeReadiness{}, func(cue show.Cue) []show.CueProblem {
 			return preflight.CueProblemsWithContext(cue, current.Cues, preflight.WarningContext{Settings: settings})
 		})
 		if len(checks) == 0 || checks[0].Code != "preflight.pending" {
@@ -92,7 +92,7 @@ func TestSignedPreflightScopesCueBlockersToReachablePlayChain(t *testing.T) {
 	current.Cues[0] = wait
 	deadline = time.Now().Add(3 * time.Second)
 	for {
-		checks := service.Request(current, settings, "", "", nil, func(cue show.Cue) []show.CueProblem {
+		checks := service.Request(current, settings, preflight.RuntimeReadiness{}, func(cue show.Cue) []show.CueProblem {
 			return preflight.CueProblemsWithContext(cue, current.Cues, preflight.WarningContext{Settings: settings})
 		})
 		if len(checks) == 0 || checks[0].Code != "preflight.pending" {
@@ -108,16 +108,68 @@ func TestSignedPreflightScopesCueBlockersToReachablePlayChain(t *testing.T) {
 	}
 }
 
-func TestRemoteHealthPreflightBlocksUnreachableConfiguredProbe(t *testing.T) {
+func TestRuntimeHealthPreflightBlocksUnreachableConfiguredProbe(t *testing.T) {
 	cue := show.NewRemoteCue()
+	cue.Play.Remote.Playback = "console"
 	settings := config.Defaults()
 	settings.RemoteTargets = []config.RemoteTarget{{Name: "console", Host: "127.0.0.1", HealthPort: 9000, OSCPort: 8000}}
-	checks := preflight.Assemble(show.Show{Cues: []show.Cue{cue}}, settings, "", "", []remote.TargetHealth{{Name: "console", Known: true, Reachable: false, LastError: "connection refused"}}, nil)
+	checks := healthPreflightChecks(health.NewSnapshot([]health.Component{{
+		ID: "remote-console", Kind: "remote", Name: "console", State: health.Failed, Summary: "Target is unreachable: connection refused",
+	}}), show.Show{Cues: []show.Cue{cue}}, settings)
 	found := false
 	for _, check := range checks {
-		found = found || check.Source == "Remote health" && strings.Contains(check.Message, "connection refused")
+		found = found || check.Source == "Health · console" && strings.Contains(check.Message, "connection refused") && len(check.AffectedCues) == 1
 	}
 	if !found {
 		t.Fatalf("remote checks = %#v", checks)
+	}
+}
+
+func TestRuntimeHealthPreflightBlocksPendingConfiguredProbe(t *testing.T) {
+	cue := show.NewRemoteCue()
+	cue.Play.Remote.Playback = "console"
+	settings := config.Defaults()
+	settings.RemoteTargets = []config.RemoteTarget{{Name: "console", Host: "127.0.0.1", HealthPort: 9000, OSCPort: 8000}}
+	checks := healthPreflightChecks(health.NewSnapshot([]health.Component{{
+		ID: "remote-console", Kind: "remote", Name: "console", State: health.Recovering, Summary: "Waiting for first target health probe",
+	}}), show.Show{Cues: []show.Cue{cue}}, settings)
+	if len(checks) != 1 || checks[0].Severity != operatorlog.ShowStopping || len(checks[0].AffectedCues) != 1 {
+		t.Fatalf("pending remote checks = %#v", checks)
+	}
+}
+
+func TestSignedPreflightGateIncludesHealthOnlyShowStoppingCheck(t *testing.T) {
+	service, err := newPreflightService()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
+	wait := show.NewWaitCue()
+	current := show.Show{Title: "health-only blocker", Cues: []show.Cue{wait}}
+	settings := config.Defaults()
+	deadline := time.Now().Add(3 * time.Second)
+	runtime := preflight.RuntimeReadiness{
+		ObservedAt: time.Now(), FreshFor: time.Minute,
+		Checks: healthPreflightChecks(health.NewSnapshot([]health.Component{{
+			ID: "timecode", Kind: "timecode", Name: "Master timeline", State: health.Failed,
+			Summary: "Timecode service is unavailable",
+		}}), current, settings),
+	}
+	var checks []preflight.Check
+	for {
+		checks = service.Request(current, settings, runtime, func(show.Cue) []show.CueProblem { return nil })
+		if len(checks) == 0 || checks[0].Code != "preflight.pending" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("preflight did not complete")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if len(checks) == 0 || checks[len(checks)-1].Severity != operatorlog.ShowStopping {
+		t.Fatalf("panel checks = %#v", checks)
+	}
+	if err := service.Gate(current, wait); err == nil {
+		t.Fatal("health-only ShowStopping panel check was absent from the signed gate")
 	}
 }

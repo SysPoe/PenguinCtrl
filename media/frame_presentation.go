@@ -42,5 +42,20 @@ func layoutImageFrame(gtx layout.Context, frame image.Image, scaling string, opa
 	} else if scaling == scalingNative {
 		fit = widget.Unscaled
 	}
-	return widget.Image{Src: paint.NewImageOp(frame), Fit: fit, Position: layout.Center}.Layout(gtx)
+	return widget.Image{
+		Src:      paint.NewImageOp(frame),
+		Fit:      fit,
+		Position: layout.Center,
+		// Media dimensions describe source pixels, not dp. Without this
+		// conversion Gio's Unscaled fit enlarges each source pixel by the
+		// display scale (for example, 2x at 192 DPI), softening native output.
+		Scale: sourcePixelScale(gtx),
+	}.Layout(gtx)
+}
+
+func sourcePixelScale(gtx layout.Context) float32 {
+	if gtx.Metric.PxPerDp <= 0 {
+		return 1
+	}
+	return 1 / gtx.Metric.PxPerDp
 }

@@ -41,8 +41,40 @@ type documentControllerConfig struct {
 
 type documentController struct{ documentControllerConfig }
 
+const (
+	documentOperationOpen = "Open"
+	documentOperationSave = "Save"
+)
+
 func newDocumentController(config documentControllerConfig) *documentController {
 	return &documentController{documentControllerConfig: config}
+}
+
+// bindShowChanges makes the document boundary responsible for recovery
+// journaling while leaving unrelated runtime reactions with the composition
+// root. ShowManager owns a single change callback, so this is bound once when
+// the window session is assembled.
+func (c *documentController) bindShowChanges(after func()) {
+	c.manager.SetOnChange(func() {
+		c.checkpointDirty()
+		if after != nil {
+			after()
+		}
+	})
+}
+
+func (c *documentController) checkpointDirty() {
+	if c.journal == nil {
+		return
+	}
+	current := c.manager.ShowSnapshot()
+	path, dirty, suppressed := c.session.status(current)
+	if suppressed || !dirty {
+		return
+	}
+	if err := c.journal.RecordDirty(current, path); err != nil {
+		c.events.Add(operatorlog.Recoverable, "Edit recovery", err.Error(), show.CueID{}, "")
+	}
 }
 
 func (c *documentController) Load() {
@@ -50,7 +82,7 @@ func (c *documentController) Load() {
 		file, err := c.explorer.ChooseFile(".cusus")
 		if err != nil {
 			if !errors.Is(err, explorer.ErrUserDecline) {
-				c.reportFailure(ctx, "Open show", err)
+				c.reportFailure(ctx, documentOperationOpen, "Open show", err)
 			}
 			return
 		}
@@ -65,12 +97,12 @@ func (c *documentController) Load() {
 			defer func() { _ = os.Remove(tmp.Name()) }()
 		}
 		if err != nil {
-			c.reportFailure(ctx, "Open show", err)
+			c.reportFailure(ctx, documentOperationOpen, "Open show", err)
 			return
 		}
 		manifest, files, err := project.Load(tmp.Name())
 		if err != nil {
-			c.reportFailure(ctx, "Open show", err)
+			c.reportFailure(ctx, documentOperationOpen, "Open show", err)
 			return
 		}
 		c.postUI(ctx, func() { c.replaceLoaded(loadedPath, manifest.Show, files) })
@@ -93,7 +125,7 @@ func (c *documentController) SaveAs(done func(bool)) {
 		file, err := c.explorer.CreateFile("show.cusus")
 		if err != nil {
 			if !errors.Is(err, explorer.ErrUserDecline) {
-				c.reportFailure(ctx, "Save show", err)
+				c.reportFailure(ctx, documentOperationSave, "Save show", err)
 			}
 			c.complete(ctx, done, false)
 			return
@@ -142,7 +174,7 @@ func (c *documentController) saveAt(ctx context.Context, path string, updatePath
 		if updatePath {
 			source = "FFmpeg / save show"
 		}
-		c.reportFailure(ctx, source, err)
+		c.reportFailure(ctx, documentOperationSave, source, err)
 		c.complete(ctx, done, false)
 		return
 	}
@@ -177,12 +209,8 @@ func (c *documentController) markJournalSaved(current show.Show, path string) {
 	}
 }
 
-func (c *documentController) reportFailure(ctx context.Context, source string, err error) {
+func (c *documentController) reportFailure(ctx context.Context, operation string, source string, err error) {
 	c.events.Add(operatorlog.Recoverable, source, err.Error(), show.CueID{}, "")
-	operation := "Save"
-	if strings.HasPrefix(source, "Open") {
-		operation = "Open"
-	}
 	c.postUI(ctx, func() { c.panel.SetStatus(operation + " failed: " + err.Error()) })
 }
 

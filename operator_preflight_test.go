@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/syspoe/cusus/config"
+	"github.com/syspoe/cusus/health"
 	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/preflight"
 	"github.com/syspoe/cusus/show"
@@ -21,7 +22,12 @@ func TestBuildPreflightFindsRuntimePrerequisites(t *testing.T) {
 	settings.FFmpegPath = "definitely-not-a-cusus-ffmpeg-binary"
 	settings.RemoteTargets = nil
 
-	checks := preflight.Assemble(show.Show{Cues: []show.Cue{cue, video}}, settings, "audio device offline", "display disconnected", nil, nil)
+	current := show.Show{Cues: []show.Cue{cue, video}}
+	checks := preflight.Assemble(current, settings, nil)
+	checks = append(checks, healthPreflightChecks(health.NewSnapshot([]health.Component{
+		{ID: "audio-route", Kind: "audio", Name: "Audio routing", State: health.Failed, Summary: "audio device offline", Details: map[string]any{"previewOnly": false}},
+		{ID: "output-main", Kind: "output", Name: settings.DefaultMediaOutput, State: health.Failed, Summary: "display disconnected", Details: map[string]any{"stage": settings.DefaultMediaOutput}},
+	}), current, settings)...)
 	wants := []string{"Missing media file", "definitely-not-a-cusus-ffmpeg-binary", "audio device offline", "display disconnected"}
 	for _, want := range wants {
 		found := false
@@ -49,13 +55,17 @@ func TestBuildPreflightScopesRouteFailuresToAffectedCueTypesAndStages(t *testing
 	settings := config.Defaults()
 	settings.VideoOutputs = append(settings.VideoOutputs, config.VideoOutput{Stage: "foh"})
 
-	checks := preflight.Assemble(show.Show{Cues: []show.Cue{sound, mainVideo, fohImage}}, settings, "The selected playback audio device is disconnected.", `Stage "main" is assigned to a disconnected display.`, nil, nil)
+	current := show.Show{Cues: []show.Cue{sound, mainVideo, fohImage}}
+	checks := healthPreflightChecks(health.NewSnapshot([]health.Component{
+		{ID: "audio-route", Kind: "audio", Name: "Audio routing", State: health.Failed, Summary: "The selected playback audio device is disconnected.", Details: map[string]any{"previewOnly": false}},
+		{ID: "output-main", Kind: "output", Name: "main", State: health.Failed, Summary: `Stage "main" is assigned to a disconnected display.`, Details: map[string]any{"stage": "main"}},
+	}), current, settings)
 	var audio, video preflight.Check
 	for _, check := range checks {
 		switch check.Source {
-		case "Audio output":
+		case "Health · Audio routing":
 			audio = check
-		case "Video output":
+		case "Health · main":
 			video = check
 		}
 	}
@@ -74,4 +84,11 @@ func containsCueID(ids []show.CueID, want show.CueID) bool {
 		}
 	}
 	return false
+}
+
+func TestEmptyOutputStageDoesNotMatchDefaultRoutes(t *testing.T) {
+	video := show.NewVideoCue()
+	if affected := preflight.VideoOutputAffectedCues([]show.Cue{video}, config.Defaults(), "  "); len(affected) != 0 {
+		t.Fatalf("empty output stage affected cues = %#v", affected)
+	}
 }

@@ -39,7 +39,10 @@ type CueEditUI struct {
 	timeline timecodeEditor
 }
 
-func (ctx *CueEditUI) timecodeEditor() *timecodeEditor {
+// bindTimecodeEditor snapshots the host callbacks for one cue-edit session.
+// The cue and page fields remain at stable addresses while their values change,
+// so the adapter does not need rebuilding during Gio frame layout.
+func (ctx *CueEditUI) bindTimecodeEditor() {
 	ctx.timeline.adapter = timecodeEditorAdapter{
 		cue:          &ctx.cue,
 		mediaInputs:  func() *mediaPlayInputs { return ctx.page.media },
@@ -51,6 +54,14 @@ func (ctx *CueEditUI) timecodeEditor() *timecodeEditor {
 		togglePreview: ctx.togglePreview,
 		stopPreview:   ctx.stopPreview,
 		previewError:  &ctx.previewError,
+	}
+}
+
+func (ctx *CueEditUI) timecodeEditor() *timecodeEditor {
+	// Keep zero-value CueEditUI fixtures useful. Production sessions bind
+	// explicitly in openCueEditor after the host callbacks are installed.
+	if ctx.timeline.adapter.cue == nil {
+		ctx.bindTimecodeEditor()
 	}
 	return &ctx.timeline
 }
@@ -120,13 +131,17 @@ func (ctx *CueEditUI) drawBottomBar(th *material.Theme, gtx layout.Context, mana
 			gtx.Execute(key.FocusCmd{})
 		} else if ctx.btnSave.Clicked(gtx) || saveShortcut {
 			ctx.stopTimecodePreview()
-			if ctx.timeline.model.initialized {
+			timelineInitialized := ctx.timeline.model.initialized
+			if timelineInitialized {
 				ctx.timeline.model.normalize()
 				ctx.syncTimelineMarkers()
 			}
 			show.RepairCueData(&ctx.cue)
-			if markers := cueTimecodeMarkers(&ctx.cue); markers != nil {
-				sortTimecodeMarkers(markers)
+			if !timelineInitialized {
+				// Cues saved without opening the timeline still need canonical markers.
+				if markers := cueTimecodeMarkers(&ctx.cue); markers != nil {
+					normalizeTimecodeMarkers(markers)
+				}
 			}
 			if ctx.isNew {
 				manager.AddCueAndSelect(ctx.cue)

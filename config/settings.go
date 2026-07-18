@@ -50,6 +50,10 @@ type WindowPlacement struct {
 	Y      int `json:"y,omitempty"`
 	Width  int `json:"width"`
 	Height int `json:"height"`
+	// DPI records the scale at which Width and Height were measured. Positions
+	// remain native desktop coordinates so mixed-DPI monitor layouts keep their
+	// Windows coordinate semantics.
+	DPI int `json:"dpi,omitempty"`
 }
 
 type MediaSettings struct {
@@ -225,7 +229,7 @@ func Defaults() Settings {
 			RemoteSuccessPolicy: RemoteSuccessAll,
 		},
 		CacheSettings:      CacheSettings{CacheQuotaGB: 20, CacheReserveGB: 5},
-		OperatorUISettings: OperatorUISettings{OperatorWindow: WindowPlacement{X: 80, Y: 80, Width: 1300, Height: 720}},
+		OperatorUISettings: OperatorUISettings{OperatorWindow: WindowPlacement{X: 80, Y: 80, Width: 1300, Height: 720, DPI: 96}},
 		TimecodeSettings:   TimecodeSettings{TimecodeSource: TimecodeInternal, TimecodePolicy: TimecodeHold, TimecodeListenAddress: "127.0.0.1:9001", TimecodeFrameRate: 30},
 		RedundancySettings: RedundancySettings{
 			RedundancyRole:          RedundancyOff,
@@ -361,21 +365,43 @@ func (s *Store) saveLocked(settings Settings) error {
 }
 
 func normalize(in Settings) Settings {
+	in.MediaSettings = normalizeMedia(in.MediaSettings)
+	in.AudioSettings = normalizeAudio(in.AudioSettings)
+	in.OutputSettings = normalizeOutputs(in.OutputSettings, in.DefaultMediaOutput)
+	in.RemoteSettings = normalizeRemote(in.RemoteSettings)
+	in.CacheSettings = normalizeCache(in.CacheSettings)
+	in.OperatorUISettings = normalizeOperatorUI(in.OperatorUISettings)
+	in.TimecodeSettings = normalizeTimecode(in.TimecodeSettings)
+	in.RedundancySettings = normalizeRedundancy(in.RedundancySettings)
+	return in
+}
+
+func normalizeMedia(in MediaSettings) MediaSettings {
 	if strings.TrimSpace(in.FFmpegPath) == "" {
 		in.FFmpegPath = "ffmpeg"
-	}
-	if strings.TrimSpace(in.DefaultPlayback) == "" {
-		in.DefaultPlayback = "1"
 	}
 	if strings.TrimSpace(in.DefaultMediaOutput) == "" {
 		in.DefaultMediaOutput = "main"
 	}
+	if in.Variables == nil {
+		in.Variables = map[string]string{}
+	}
+	return in
+}
+
+func normalizeAudio(in AudioSettings) AudioSettings {
 	in.PlaybackAudioDevice = strings.TrimSpace(in.PlaybackAudioDevice)
 	in.PreviewAudioDevice = strings.TrimSpace(in.PreviewAudioDevice)
 	in.PlaybackBackupAudioDevice = strings.TrimSpace(in.PlaybackBackupAudioDevice)
 	in.PreviewBackupAudioDevice = strings.TrimSpace(in.PreviewBackupAudioDevice)
 	in.PlaybackAudioRecovery = normalizeAudioRecovery(in.PlaybackAudioRecovery)
 	in.PreviewAudioRecovery = normalizeAudioRecovery(in.PreviewAudioRecovery)
+	return in
+}
+
+// normalizeOutputs requires the normalized media default so it can guarantee
+// that the selected default stage exists in the output collection.
+func normalizeOutputs(in OutputSettings, defaultMediaOutput string) OutputSettings {
 	seenStages := make(map[string]struct{}, len(in.VideoOutputs))
 	outputs := make([]VideoOutput, 0, len(in.VideoOutputs)+1)
 	for _, output := range in.VideoOutputs {
@@ -417,12 +443,16 @@ func normalize(in Settings) Settings {
 		}
 		outputs = append(outputs, output)
 	}
-	if _, exists := seenStages[in.DefaultMediaOutput]; !exists {
-		outputs = append(outputs, VideoOutput{Stage: in.DefaultMediaOutput, Fullscreen: true, Width: defaultVideoWidth, Height: defaultVideoHeight, ResolutionWidth: defaultResolutionWidth, ResolutionHeight: defaultResolutionHeight, Scaling: "contain", IdleBehavior: "black", Layers: minimumOutputLayers})
+	if _, exists := seenStages[defaultMediaOutput]; !exists {
+		outputs = append(outputs, VideoOutput{Stage: defaultMediaOutput, Fullscreen: true, Width: defaultVideoWidth, Height: defaultVideoHeight, ResolutionWidth: defaultResolutionWidth, ResolutionHeight: defaultResolutionHeight, Scaling: "contain", IdleBehavior: "black", Layers: minimumOutputLayers})
 	}
 	in.VideoOutputs = outputs
-	if in.Variables == nil {
-		in.Variables = map[string]string{}
+	return in
+}
+
+func normalizeRemote(in RemoteSettings) RemoteSettings {
+	if strings.TrimSpace(in.DefaultPlayback) == "" {
+		in.DefaultPlayback = "1"
 	}
 	for i := range in.RemoteTargets {
 		target := &in.RemoteTargets[i]
@@ -447,13 +477,31 @@ func normalize(in Settings) Settings {
 	if in.RemoteSuccessPolicy != RemoteSuccessAny {
 		in.RemoteSuccessPolicy = RemoteSuccessAll
 	}
+	return in
+}
+
+func normalizeCache(in CacheSettings) CacheSettings {
 	in.CacheQuotaGB = min(maximumCacheQuotaGB, max(minimumCacheQuotaGB, in.CacheQuotaGB))
 	in.CacheReserveGB = min(maximumCacheReserveGB, max(minimumCacheReserveGB, in.CacheReserveGB))
+	return in
+}
+
+func normalizeOperatorUI(in OperatorUISettings) OperatorUISettings {
 	if in.OperatorWindow.Width <= 0 && in.OperatorWindow.Height <= 0 {
 		in.OperatorWindow = Defaults().OperatorWindow
 	}
 	in.OperatorWindow.Width = min(7680, max(480, in.OperatorWindow.Width))
 	in.OperatorWindow.Height = min(4320, max(320, in.OperatorWindow.Height))
+	if in.OperatorWindow.DPI <= 0 {
+		// Placements written before DPI was persisted used 96-DPI dimensions by
+		// convention. Treat them that way so upgrades remain deterministic.
+		in.OperatorWindow.DPI = 96
+	}
+	in.OperatorWindow.DPI = min(768, max(48, in.OperatorWindow.DPI))
+	return in
+}
+
+func normalizeTimecode(in TimecodeSettings) TimecodeSettings {
 	switch in.TimecodeSource {
 	case TimecodeLTC, TimecodeMTC, TimecodeOSC:
 	default:
@@ -470,6 +518,10 @@ func normalize(in Settings) Settings {
 	if in.TimecodeFrameRate != 24 && in.TimecodeFrameRate != 25 && in.TimecodeFrameRate != 29.97 && in.TimecodeFrameRate != 30 {
 		in.TimecodeFrameRate = 30
 	}
+	return in
+}
+
+func normalizeRedundancy(in RedundancySettings) RedundancySettings {
 	switch in.RedundancyRole {
 	case RedundancyPrimary, RedundancyStandby:
 	default:

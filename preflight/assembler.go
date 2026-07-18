@@ -12,7 +12,6 @@ import (
 	"github.com/syspoe/cusus/cuevars"
 	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/project"
-	"github.com/syspoe/cusus/remote"
 	"github.com/syspoe/cusus/show"
 )
 
@@ -21,9 +20,9 @@ const (
 	packagingSpaceReserve = uint64(2 << 30)
 )
 
-// Assemble builds the complete operator-readiness result for one show and
-// environment snapshot.
-func Assemble(current show.Show, settings config.Settings, audioWarning, videoWarning string, health []remote.TargetHealth, problemsForCue func(show.Cue) []show.CueProblem) []Check {
+// Assemble builds show/settings readiness checks. Live component observations
+// are projected separately into RuntimeReadiness before the result is signed.
+func Assemble(current show.Show, settings config.Settings, problemsForCue func(show.Cue) []show.CueProblem) []Check {
 	if problemsForCue == nil {
 		problemsForCue = func(cue show.Cue) []show.CueProblem {
 			return CueProblemsWithContext(cue, current.Cues, WarningContext{Settings: settings})
@@ -31,9 +30,8 @@ func Assemble(current show.Show, settings config.Settings, audioWarning, videoWa
 	}
 	checks := cueChecks(current.Cues, settings, problemsForCue)
 	checks = append(checks, executableChecks(current.Cues, settings)...)
-	checks = append(checks, routeChecks(current.Cues, settings, audioWarning, videoWarning)...)
+	checks = append(checks, routeConfigurationChecks(current.Cues, settings)...)
 	checks = append(checks, diskChecks(current.Cues, settings)...)
-	checks = append(checks, remoteHealthChecks(current.Cues, settings, health)...)
 	return checks
 }
 
@@ -80,19 +78,12 @@ func executableChecks(cues []show.Cue, settings config.Settings) []Check {
 	return checks
 }
 
-func routeChecks(cues []show.Cue, settings config.Settings, audioWarning, videoWarning string) []Check {
-	var checks []Check
+func routeConfigurationChecks(cues []show.Cue, settings config.Settings) []Check {
 	remoteCueIDs := cueIDs(cues, func(cue show.Cue) bool { return cue.Type == show.CueTypeRemote })
 	if len(remoteCueIDs) > 0 && len(settings.RemoteTargets) == 0 {
-		checks = append(checks, Check{Severity: operatorlog.ShowStopping, Source: "Network / remote control", Message: "Remote cues exist but no remote targets are configured", AffectedCues: remoteCueIDs})
+		return []Check{{Severity: operatorlog.ShowStopping, Source: "Network / remote control", Message: "Remote cues exist but no remote targets are configured", AffectedCues: remoteCueIDs}}
 	}
-	if affected := AudioWarningAffectedCues(cues, audioWarning); len(affected) > 0 {
-		checks = append(checks, Check{Severity: operatorlog.ShowStopping, Source: "Audio output", Message: audioWarning, AffectedCues: affected})
-	}
-	if affected := VideoWarningAffectedCues(cues, settings, videoWarning); len(affected) > 0 {
-		checks = append(checks, Check{Severity: operatorlog.ShowStopping, Source: "Video output", Message: videoWarning, AffectedCues: affected})
-	}
-	return checks
+	return nil
 }
 
 // AudioWarningAffectedCues scopes a playback-route warning to media cues.
@@ -102,6 +93,23 @@ func AudioWarningAffectedCues(cues []show.Cue, warning string) []show.CueID {
 		return nil
 	}
 	return cueIDs(cues, func(cue show.Cue) bool { return cue.Type == show.CueTypeSound || cue.Type == show.CueTypeVideo })
+}
+
+// IsPreviewOnlyAudioWarning reports whether a backend audio-device warning
+// describes a preview-only route failure that does not affect playback cues.
+func IsPreviewOnlyAudioWarning(warning string) bool {
+	lower := strings.ToLower(strings.TrimSpace(warning))
+	return strings.Contains(lower, "preview audio") && !strings.Contains(lower, "playback")
+}
+
+// RemoteTargetAffectedCues scopes a remote target failure to the cues that
+// explicitly target that remote by name.
+func RemoteTargetAffectedCues(cues []show.Cue, targetName string) []show.CueID {
+	targetName = strings.TrimSpace(targetName)
+	return cueIDs(cues, func(cue show.Cue) bool {
+		return cue.Type == show.CueTypeRemote && cue.Play.Remote != nil &&
+			strings.TrimSpace(cue.Play.Remote.Playback) == targetName
+	})
 }
 
 // VideoWarningAffectedCues scopes a stage warning to cues routed to that stage.
@@ -117,6 +125,21 @@ func VideoWarningAffectedCues(cues []show.Cue, settings config.Settings, warning
 			affectedStages[stage] = struct{}{}
 		}
 	}
+	return videoOutputAffectedCues(cues, settings, affectedStages)
+}
+
+// VideoOutputAffectedCues scopes one observed output-stage failure to cues
+// routed to that stage.
+func VideoOutputAffectedCues(cues []show.Cue, settings config.Settings, stage string) []show.CueID {
+	stage = strings.TrimSpace(stage)
+	if stage == "" {
+		return nil
+	}
+	affectedStages := map[string]struct{}{stage: {}}
+	return videoOutputAffectedCues(cues, settings, affectedStages)
+}
+
+func videoOutputAffectedCues(cues []show.Cue, settings config.Settings, affectedStages map[string]struct{}) []show.CueID {
 	return cueIDs(cues, func(cue show.Cue) bool {
 		var output string
 		switch cue.Type {
@@ -187,34 +210,6 @@ func diskChecks(cues []show.Cue, settings config.Settings) []Check {
 
 func diskCaution(message string) []Check {
 	return []Check{{Severity: operatorlog.Warning, Source: "Disk / cache", Message: message, Fingerprint: "disk:" + message}}
-}
-
-func remoteHealthChecks(cues []show.Cue, settings config.Settings, health []remote.TargetHealth) []Check {
-	affected := cueIDs(cues, func(cue show.Cue) bool { return cue.Type == show.CueTypeRemote })
-	if len(affected) == 0 {
-		return nil
-	}
-	byName := make(map[string]remote.TargetHealth, len(health))
-	for _, target := range health {
-		byName[target.Name] = target
-	}
-	var checks []Check
-	for _, target := range settings.RemoteTargets {
-		if target.HealthPort <= 0 {
-			continue
-		}
-		name := target.Name
-		if name == "" {
-			name = target.Host
-		}
-		state, ok := byName[name]
-		if !ok || !state.Known {
-			checks = append(checks, Check{Severity: operatorlog.ShowStopping, Source: "Remote health", Message: name + " has not completed a health probe", AffectedCues: affected})
-		} else if !state.Reachable {
-			checks = append(checks, Check{Severity: operatorlog.ShowStopping, Source: "Remote health", Message: name + " is unreachable: " + state.LastError, AffectedCues: affected})
-		}
-	}
-	return checks
 }
 
 func cueIDs(cues []show.Cue, include func(show.Cue) bool) []show.CueID {

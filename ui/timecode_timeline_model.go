@@ -257,10 +257,6 @@ func normalizeTimecodeMarkers(markers *[]show.TimecodeMarker) bool {
 	return changed
 }
 
-func sortTimecodeMarkers(markers *[]show.TimecodeMarker) bool {
-	return normalizeTimecodeMarkers(markers)
-}
-
 func markerActionDuration(marker *show.TimecodeMarker) *int64 {
 	if marker == nil {
 		return nil

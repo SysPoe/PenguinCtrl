@@ -14,27 +14,27 @@ import (
 
 // TestMediaBackendMultiHourSoak is an opt-in real decoder/device soak. Example:
 //
-//	$env:PENGUINCTRL_MEDIA_SOAK_SOURCE='C:\media\av.mp4'
-//	$env:PENGUINCTRL_MEDIA_SOAK_DURATION='3h'
+//	$env:CUSUS_MEDIA_SOAK_SOURCE='C:\media\av.mp4'
+//	$env:CUSUS_MEDIA_SOAK_DURATION='3h'
 //	go test ./media -run MultiHourSoak -count=1 -timeout 4h
 func TestMediaBackendMultiHourSoak(t *testing.T) {
-	source := os.Getenv("PENGUINCTRL_MEDIA_SOAK_SOURCE")
+	source := os.Getenv("CUSUS_MEDIA_SOAK_SOURCE")
 	if source == "" {
-		t.Skip("set PENGUINCTRL_MEDIA_SOAK_SOURCE to an A/V file")
+		t.Skip("set CUSUS_MEDIA_SOAK_SOURCE to an A/V file")
 	}
 	duration := 3 * time.Hour
-	if raw := os.Getenv("PENGUINCTRL_MEDIA_SOAK_DURATION"); raw != "" {
+	if raw := os.Getenv("CUSUS_MEDIA_SOAK_DURATION"); raw != "" {
 		parsed, err := time.ParseDuration(raw)
 		if err != nil {
-			t.Fatalf("invalid PENGUINCTRL_MEDIA_SOAK_DURATION: %v", err)
+			t.Fatalf("invalid CUSUS_MEDIA_SOAK_DURATION: %v", err)
 		}
 		duration = parsed
 	}
 	overlaps := 3
-	if raw := os.Getenv("PENGUINCTRL_MEDIA_SOAK_OVERLAPS"); raw != "" {
+	if raw := os.Getenv("CUSUS_MEDIA_SOAK_OVERLAPS"); raw != "" {
 		parsed, err := strconv.Atoi(raw)
 		if err != nil || parsed < 1 {
-			t.Fatalf("invalid PENGUINCTRL_MEDIA_SOAK_OVERLAPS %q", raw)
+			t.Fatalf("invalid CUSUS_MEDIA_SOAK_OVERLAPS %q", raw)
 		}
 		overlaps = parsed
 	}

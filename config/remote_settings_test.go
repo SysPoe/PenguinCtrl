@@ -6,7 +6,7 @@ func TestRemoteAssuranceSettingsNormalizeSafely(t *testing.T) {
 	settings := Defaults()
 	settings.RemoteSuccessPolicy = "unsafe"
 	settings.RemoteTargets = []RemoteTarget{{Host: " console ", HealthPort: 70000, AckPort: -1}}
-	normalized := normalize(settings)
+	normalized := normalizeRemote(settings.RemoteSettings)
 	if normalized.RemoteSuccessPolicy != RemoteSuccessAll {
 		t.Fatalf("success policy = %q", normalized.RemoteSuccessPolicy)
 	}

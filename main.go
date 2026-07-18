@@ -105,10 +105,11 @@ func runMain() (exitCode int) {
 	runResult := make(chan error, 1)
 	reporter.Go("operator-window", func() {
 		placement := application.Document.Settings.Snapshot().OperatorWindow
+		width, height := operatorWindowSize(placement)
 		window := new(app.Window)
 		window.Option(
 			app.Title("CuSus "+buildinfo.Identity()),
-			app.Size(unit.Dp(placement.Width), unit.Dp(placement.Height)),
+			app.Size(width, height),
 			app.MinSize(unit.Dp(480), unit.Dp(320)),
 		)
 		runResult <- application.run(window)

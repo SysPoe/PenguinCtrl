@@ -14,7 +14,9 @@ import (
 	"gioui.org/unit"
 )
 
-// StableText offsets glyphs onto the same subpixel boundary across controls.
+// StableText offsets glyphs onto the same physical-pixel phase across controls.
+// Keep this in device pixels: scaling the offset as dp would give identical
+// labels different rasterization phases (and colours) at different DPI scales.
 func StableText(gtx layout.Context, widget layout.Widget) layout.Dimensions {
 	stack := op.Affine(f32.Affine2D{}.Offset(f32.Pt(0.5, 0))).Push(gtx.Ops)
 	defer stack.Pop()

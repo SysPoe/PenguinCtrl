@@ -15,8 +15,11 @@ import (
 var operatorUser32 = windows.NewLazySystemDLL("user32.dll")
 var operatorSetWindowPos = operatorUser32.NewProc("SetWindowPos")
 var operatorGetWindowRect = operatorUser32.NewProc("GetWindowRect")
+var operatorGetDpiForWindow = operatorUser32.NewProc("GetDpiForWindow")
 var operatorMonitorFromRect = operatorUser32.NewProc("MonitorFromRect")
 var operatorGetMonitorInfo = operatorUser32.NewProc("GetMonitorInfoW")
+var operatorShcore = windows.NewLazySystemDLL("shcore.dll")
+var operatorGetDpiForMonitor = operatorShcore.NewProc("GetDpiForMonitor")
 
 type operatorRect struct{ Left, Top, Right, Bottom int32 }
 
@@ -56,6 +59,7 @@ func applyOperatorPlacement(handle uintptr, placement config.WindowPlacement) er
 	if ok, _, callErr := operatorGetMonitorInfo.Call(monitor, uintptr(unsafe.Pointer(&info))); ok == 0 {
 		return fmt.Errorf("restore operator window placement: get display work area: %w", callErr)
 	}
+	placement = scaleOperatorPlacement(placement, operatorMonitorDPI(monitor))
 	placement = fitOperatorPlacement(placement, info.Work)
 
 	const (
@@ -67,6 +71,29 @@ func applyOperatorPlacement(handle uintptr, placement config.WindowPlacement) er
 		return fmt.Errorf("restore operator window placement: %w", callErr)
 	}
 	return nil
+}
+
+func scaleOperatorPlacement(placement config.WindowPlacement, targetDPI int) config.WindowPlacement {
+	savedDPI := placement.DPI
+	if savedDPI <= 0 {
+		savedDPI = windowsBaselineDPI
+	}
+	if targetDPI <= 0 {
+		targetDPI = windowsBaselineDPI
+	}
+	placement.Width = max(1, (placement.Width*targetDPI+savedDPI/2)/savedDPI)
+	placement.Height = max(1, (placement.Height*targetDPI+savedDPI/2)/savedDPI)
+	placement.DPI = targetDPI
+	return placement
+}
+
+func operatorMonitorDPI(monitor uintptr) int {
+	const monitorEffectiveDPI = 0
+	dpiX, dpiY := uint32(windowsBaselineDPI), uint32(windowsBaselineDPI)
+	if result, _, _ := operatorGetDpiForMonitor.Call(monitor, monitorEffectiveDPI, uintptr(unsafe.Pointer(&dpiX)), uintptr(unsafe.Pointer(&dpiY))); result != 0 {
+		return windowsBaselineDPI
+	}
+	return int(dpiX)
 }
 
 func fitOperatorPlacement(placement config.WindowPlacement, work operatorRect) config.WindowPlacement {
@@ -85,5 +112,9 @@ func operatorWindowPlacement(handle uintptr) (config.WindowPlacement, bool) {
 	if ok == 0 {
 		return config.WindowPlacement{}, false
 	}
-	return config.WindowPlacement{X: int(rect.Left), Y: int(rect.Top), Width: int(rect.Right - rect.Left), Height: int(rect.Bottom - rect.Top)}, true
+	dpi, _, _ := operatorGetDpiForWindow.Call(handle)
+	if dpi == 0 {
+		dpi = windowsBaselineDPI
+	}
+	return config.WindowPlacement{X: int(rect.Left), Y: int(rect.Top), Width: int(rect.Right - rect.Left), Height: int(rect.Bottom - rect.Top), DPI: int(dpi)}, true
 }

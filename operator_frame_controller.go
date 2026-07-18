@@ -79,11 +79,15 @@ func (c *operatorFrameController) Update(gtx layout.Context, now time.Time) []pr
 	healthSnapshot := c.health.Snapshot()
 	c.panel.SetHealth(operatorHealthState(healthSnapshot).String())
 	showState, settingsState := c.show.ShowSnapshot(), c.settings.Snapshot()
-	checks := c.preflight.Request(showState, settingsState, audioWarning, videoWarning, c.playback.RemoteHealth(), c.playback.CueProblems)
+	runtime := preflight.RuntimeReadiness{
+		ObservedAt: healthSnapshot.Generated,
+		FreshFor:   2 * readinessRefreshInterval,
+		Checks:     healthPreflightChecks(healthSnapshot, showState, settingsState),
+	}
+	checks := c.preflight.Request(showState, settingsState, runtime, c.playback.CueProblems)
 	c.lastFingerprintError = updateRedundancyFingerprint(c.redundancy, showState, settingsState, c.library.Files(""), redundancyPreflightReady(checks), c.lastFingerprintError, func(message string) {
 		c.events.Add(operatorlog.ShowStopping, "Warm spare", "Could not calculate the production fingerprint: "+message, show.CueID{}, "")
 	})
-	checks = append(checks, healthPreflightChecks(healthSnapshot)...)
 	for index := range checks {
 		checks[index].Acknowledged = c.show.ProblemAcknowledged(checks[index].Fingerprint)
 	}

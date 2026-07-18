@@ -47,3 +47,18 @@ func TestMonitorCloseStopsRefreshes(t *testing.T) {
 		t.Fatal("provider refreshed after Close returned")
 	}
 }
+
+func TestMonitorSnapshotIsUninitializedUntilFirstCollectionCompletes(t *testing.T) {
+	release := make(chan struct{})
+	monitor := NewMonitor(func() []Component {
+		<-release
+		return nil
+	}, time.Hour)
+	if snapshot := monitor.Snapshot(); !snapshot.Generated.IsZero() {
+		close(release)
+		monitor.Close()
+		t.Fatalf("initial snapshot generated at %s", snapshot.Generated)
+	}
+	close(release)
+	monitor.Close()
+}

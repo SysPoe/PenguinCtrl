@@ -182,7 +182,7 @@ func (editor *timecodeEditor) handlePointer(gtx layout.Context, size image.Point
 			gtx.Execute(key.FocusCmd{Tag: &t.tag})
 			gtx.Execute(pointer.GrabCmd{Tag: &t.tag, ID: e.PointerID})
 			t.dragPointer, t.dragStartX, t.dragLastX = e.PointerID, e.Position.X, e.Position.X
-			index := editor.markerAt(e.Position.X, size.X, *markers)
+			index := editor.markerAt(gtx, e.Position.X, size.X, *markers)
 			if e.Buttons.Contain(pointer.ButtonTertiary) {
 				t.dragMode = timelineDragPan
 				break
@@ -190,17 +190,17 @@ func (editor *timecodeEditor) handlePointer(gtx layout.Context, size image.Point
 			clipStart, clipEnd, hasClip := editor.clipRange()
 			clipDuration := max(int64(0), clipEnd-clipStart)
 			fadeIn, fadeOut := editor.fades()
-			if hasClip && clipDuration > 0 && e.Position.Y <= 34 && math.Abs(float64(float32(t.msToX(clipStart, size.X))-e.Position.X)) <= 10 {
+			if hasClip && clipDuration > 0 && e.Position.Y <= float32(gtx.Dp(timelineHandleBand)) && math.Abs(float64(float32(t.msToX(clipStart, size.X))-e.Position.X)) <= float64(gtx.Dp(timelineClipHitRadius)) {
 				t.dragClipStartMs, t.dragClipEndMs, t.dragViewMs = clipStart, clipEnd, t.viewDuration()
 				t.dragMode = timelineDragClipStart
-			} else if hasClip && clipDuration > 0 && e.Position.Y <= 34 && math.Abs(float64(float32(t.msToX(clipEnd, size.X))-e.Position.X)) <= 10 {
+			} else if hasClip && clipDuration > 0 && e.Position.Y <= float32(gtx.Dp(timelineHandleBand)) && math.Abs(float64(float32(t.msToX(clipEnd, size.X))-e.Position.X)) <= float64(gtx.Dp(timelineClipHitRadius)) {
 				t.dragClipStartMs, t.dragClipEndMs, t.dragViewMs = clipStart, clipEnd, t.viewDuration()
 				t.dragMode = timelineDragClipEnd
-			} else if e.Position.Y >= float32(size.Y-34) && math.Abs(float64(float32(t.msToX(editor.cueToTrackMs(fadeIn), size.X))-e.Position.X)) <= 9 {
+			} else if e.Position.Y >= float32(size.Y-gtx.Dp(timelineHandleBand)) && math.Abs(float64(float32(t.msToX(editor.cueToTrackMs(fadeIn), size.X))-e.Position.X)) <= float64(gtx.Dp(timelineMarkerHitRadius)) {
 				t.dragMode = timelineDragFadeIn
-			} else if e.Position.Y >= float32(size.Y-34) && math.Abs(float64(float32(t.msToX(editor.cueToTrackMs(max(int64(0), editor.cueDuration()-fadeOut)), size.X))-e.Position.X)) <= 9 {
+			} else if e.Position.Y >= float32(size.Y-gtx.Dp(timelineHandleBand)) && math.Abs(float64(float32(t.msToX(editor.cueToTrackMs(max(int64(0), editor.cueDuration()-fadeOut)), size.X))-e.Position.X)) <= float64(gtx.Dp(timelineMarkerHitRadius)) {
 				t.dragMode = timelineDragFadeOut
-			} else if durationIndex := editor.actionDurationAt(e.Position.X, e.Position.Y, size, *markers); durationIndex >= 0 {
+			} else if durationIndex := editor.actionDurationAt(gtx, e.Position.X, e.Position.Y, size, *markers); durationIndex >= 0 {
 				t.model.checkpoint()
 				t.dragIndex = durationIndex
 				t.dragMode = timelineDragActionDuration
@@ -294,7 +294,7 @@ func (editor *timecodeEditor) handlePointer(gtx layout.Context, size image.Point
 	}
 }
 
-func (editor *timecodeEditor) actionDurationAt(px, py float32, size image.Point, markers []show.TimecodeMarker) int {
+func (editor *timecodeEditor) actionDurationAt(gtx layout.Context, px, py float32, size image.Point, markers []show.TimecodeMarker) int {
 	t := editor
 	for i := range markers {
 		duration := markerActionDuration(&markers[i])
@@ -302,17 +302,17 @@ func (editor *timecodeEditor) actionDurationAt(px, py float32, size image.Point,
 			continue
 		}
 		x := float32(t.msToX(editor.cueToTrackMs(markers[i].TimeMs+*duration), size.X))
-		y := float32(38 + (i%4)*20)
-		if math.Abs(float64(x-px)) <= 9 && math.Abs(float64(y-py)) <= 10 {
+		y := float32(gtx.Dp(timelineDurationRowTop + unit.Dp(i%4)*timelineDurationRowStep))
+		if math.Abs(float64(x-px)) <= float64(gtx.Dp(timelineMarkerHitRadius)) && math.Abs(float64(y-py)) <= float64(gtx.Dp(timelineClipHitRadius)) {
 			return i
 		}
 	}
 	return -1
 }
 
-func (editor *timecodeEditor) markerAt(x float32, width int, markers []show.TimecodeMarker) int {
+func (editor *timecodeEditor) markerAt(gtx layout.Context, x float32, width int, markers []show.TimecodeMarker) int {
 	t := editor
-	best, distance := -1, float32(9)
+	best, distance := -1, float32(gtx.Dp(timelineMarkerHitRadius))
 	for i, m := range markers {
 		mx := float32(t.msToX(editor.cueToTrackMs(m.TimeMs), width))
 		d := float32(math.Abs(float64(mx - x)))

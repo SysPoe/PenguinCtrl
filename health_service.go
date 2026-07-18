@@ -15,6 +15,7 @@ import (
 	"github.com/syspoe/cusus/preflight"
 	"github.com/syspoe/cusus/project"
 	"github.com/syspoe/cusus/redundancy"
+	"github.com/syspoe/cusus/show"
 	"github.com/syspoe/cusus/timecode"
 )
 
@@ -121,23 +122,27 @@ func archiveHealth(path string, dirty bool) health.Component {
 
 func audioHealth(engine *playback.Engine, backend media.Backend, settings config.Settings) []health.Component {
 	instances := engine.ActiveInstances()
-	affected := func(endpoint string) []string {
-		var result []string
+	affected := func(endpoint string) ([]string, []show.CueID) {
+		var numbers []string
+		var ids []show.CueID
 		for _, instance := range instances {
 			if instance.MediaType != "audio" && instance.MediaType != "video" {
 				continue
 			}
 			selected, _, _ := config.AudioRoute(settings, instance.Preview)
 			if selected == endpoint {
-				result = append(result, instance.CueNumber)
+				numbers = append(numbers, instance.CueNumber)
+				if !instance.Preview {
+					ids = append(ids, instance.CueID)
+				}
 			}
 		}
-		return result
+		return numbers, ids
 	}
 	metrics := backend.AudioMixerMetrics()
 	result := make([]health.Component, 0, len(metrics)+1)
 	if warning := backend.AudioDeviceWarning(); warning != "" {
-		result = append(result, health.Component{ID: "audio-route", Kind: "audio", Name: "Audio routing", State: health.Failed, Summary: warning, Action: "Open Settings > Audio devices and select an available primary/backup route"})
+		result = append(result, health.Component{ID: "audio-route", Kind: "audio", Name: "Audio routing", State: health.Failed, Summary: warning, Action: "Open Settings > Audio devices and select an available primary/backup route", Details: map[string]any{"previewOnly": preflight.IsPreviewOnlyAudioWarning(warning)}})
 	}
 	for _, metric := range metrics {
 		endpoint := metric.EndpointID
@@ -154,7 +159,8 @@ func audioHealth(engine *playback.Engine, backend media.Backend, settings config
 		case metric.TotalUnderruns > 0:
 			component.State, component.Summary = health.Degraded, fmt.Sprintf("Endpoint has %d audio underruns", metric.TotalUnderruns)
 		}
-		component.Details = map[string]any{"endpointId": endpoint, "affectedCues": affected(endpoint), "activeSources": metric.ActiveSources, "lastSuccessfulCallback": metric.LastCallback, "recoveryCount": metric.RecoveryCount, "underruns": metric.TotalUnderruns}
+		affectedNumbers, affectedIDs := affected(endpoint)
+		component.Details = map[string]any{"endpointId": endpoint, "affectedCues": affectedNumbers, "affectedCueIDs": affectedIDs, "activeSources": metric.ActiveSources, "lastSuccessfulCallback": metric.LastCallback, "recoveryCount": metric.RecoveryCount, "underruns": metric.TotalUnderruns}
 		result = append(result, component)
 	}
 	if len(result) == 0 {
@@ -171,7 +177,7 @@ func outputHealth(backend media.Backend, settings config.Settings) []health.Comp
 	}
 	result := make([]health.Component, 0, len(settings.VideoOutputs))
 	for _, output := range settings.VideoOutputs {
-		component := health.Component{ID: "output-" + output.Stage, Kind: "output", Name: output.Stage, State: health.Normal, Summary: "Display mapping is available and confirmed", Action: "Open Settings > Video outputs, identify the display, and confirm mapping", Details: map[string]any{"displayId": output.DisplayID, "fullscreen": output.Fullscreen, "confirmed": output.DisplayConfirmed}}
+		component := health.Component{ID: "output-" + output.Stage, Kind: "output", Name: output.Stage, State: health.Normal, Summary: "Display mapping is available and confirmed", Action: "Open Settings > Video outputs, identify the display, and confirm mapping", Details: map[string]any{"stage": output.Stage, "displayId": output.DisplayID, "fullscreen": output.Fullscreen, "confirmed": output.DisplayConfirmed}}
 		switch {
 		case err != nil:
 			component.State, component.Summary = health.Degraded, "Display topology could not be enumerated: "+err.Error()
@@ -192,7 +198,7 @@ func decoderHealth(engine *playback.Engine) []health.Component {
 		if instance.MediaType != "audio" && instance.MediaType != "video" {
 			continue
 		}
-		component := health.Component{ID: "decoder-" + instance.ID, Kind: "decoder", Name: "Cue " + instance.CueNumber, State: health.Normal, Summary: "Decoder is playing", Action: "STOP the cue, inspect Event Log, then retry or skip", Details: map[string]any{"instanceId": instance.ID, "loadState": instance.LoadState, "startLatencyMs": instance.StartLatencyMs}}
+		component := health.Component{ID: "decoder-" + instance.ID, Kind: "decoder", Name: "Cue " + instance.CueNumber, State: health.Normal, Summary: "Decoder is playing", Action: "STOP the cue, inspect Event Log, then retry or skip", Details: map[string]any{"instanceId": instance.ID, "loadState": instance.LoadState, "startLatencyMs": instance.StartLatencyMs, "affectedCues": []string{instance.CueNumber}, "affectedCueIDs": []show.CueID{instance.CueID}}}
 		switch instance.LoadState {
 		case string(media.LoadFailed):
 			component.State, component.Summary = health.Failed, "Decoder failed"
@@ -211,14 +217,14 @@ func remoteTargetHealth(engine *playback.Engine) []health.Component {
 	states := engine.RemoteHealth()
 	result := make([]health.Component, 0, len(states))
 	for _, state := range states {
-		component := health.Component{ID: "remote-" + state.Name, Kind: "remote", Name: state.Name, State: health.Normal, Summary: "Target is reachable", Action: "Check target power/network, address and acknowledgement relay", Details: map[string]any{"host": state.Host, "lastSuccess": state.LastSuccess, "roundTrip": state.RoundTrip, "acknowledged": state.Acknowledged}}
+		component := health.Component{ID: "remote-" + state.Name, Kind: "remote", Name: state.Name, State: health.Normal, Summary: "Remote target is reachable", Action: "Confirm target online. Try ping or nc", Details: map[string]any{"host": state.Host, "lastSuccess": state.LastSuccess, "roundTrip": state.RoundTrip, "acknowledged": state.Acknowledged}}
 		switch {
 		case !state.Known:
 			component.State, component.Summary = health.Recovering, "Waiting for first target health probe"
 		case !state.Reachable:
-			component.State, component.Summary = health.Failed, "Target is unreachable: "+state.LastError
+			component.State, component.Summary = health.Failed, "Remote target is unreachable: "+state.LastError
 		case !state.Acknowledged:
-			component.State, component.Summary = health.Degraded, "Target is reachable but delivery is unacknowledged"
+			component.State, component.Summary = health.Degraded, "Remote target may be reachable and delivery is unacknowledged"
 		}
 		result = append(result, component)
 	}
@@ -251,14 +257,14 @@ func diskHealth(settings config.Settings) health.Component {
 	return component
 }
 
-func healthPreflightChecks(snapshot health.Snapshot) []preflight.Check {
+func healthPreflightChecks(snapshot health.Snapshot, current show.Show, settings config.Settings) []preflight.Check {
 	var result []preflight.Check
 	for _, component := range snapshot.Components {
 		if component.State == health.Normal {
 			continue
 		}
-		severity := healthPreflightSeverity(component)
-		affectedCues, _ := component.Details["affectedCues"].([]string)
+		affectedIDs, affectedCues := healthAffectedCues(component, current, settings)
+		severity := healthPreflightSeverity(component, affectedIDs)
 		message := component.State.String() + ": " + component.Summary
 		if len(affectedCues) > 0 {
 			message += "; affected cues " + strings.Join(affectedCues, ", ")
@@ -270,15 +276,69 @@ func healthPreflightChecks(snapshot health.Snapshot) []preflight.Check {
 			Severity: severity, Code: "health." + component.Kind + "." + component.ID,
 			Source: "Health · " + component.Name, Message: message,
 			Consequence: "The component is not in its normal show-ready state", Fix: component.Action,
-			Fingerprint: "health:" + component.ID + ":" + component.State.String() + ":" + component.Summary,
+			AffectedCues: affectedIDs,
+			Fingerprint:  "health:" + component.ID + ":" + component.State.String() + ":" + component.Summary,
 		})
 	}
 	return result
 }
 
-func healthPreflightSeverity(component health.Component) operatorlog.Severity {
-	affectedCues, _ := component.Details["affectedCues"].([]string)
-	if component.State == health.Failed && (component.Kind == "engine" || component.Kind == "timecode" || len(affectedCues) > 0) {
+func healthAffectedCues(component health.Component, current show.Show, settings config.Settings) ([]show.CueID, []string) {
+	numbers, _ := component.Details["affectedCues"].([]string)
+	includeNumbers := make(map[string]struct{}, len(numbers))
+	for _, number := range numbers {
+		if number != "" {
+			includeNumbers[number] = struct{}{}
+		}
+	}
+	includeIDs := make(map[show.CueID]struct{})
+	typedAffectedIDs, hasTypedAffectedIDs := component.Details["affectedCueIDs"].([]show.CueID)
+	if hasTypedAffectedIDs {
+		for _, id := range typedAffectedIDs {
+			if id != (show.CueID{}) {
+				includeIDs[id] = struct{}{}
+			}
+		}
+	}
+	switch component.Kind {
+	case "audio":
+		if component.ID == "audio-route" {
+			previewOnly, _ := component.Details["previewOnly"].(bool)
+			if !previewOnly && strings.TrimSpace(component.Summary) != "" {
+				for _, id := range preflight.AudioWarningAffectedCues(current.Cues, component.Summary) {
+					includeIDs[id] = struct{}{}
+				}
+			}
+		}
+	case "output":
+		stage, _ := component.Details["stage"].(string)
+		for _, id := range preflight.VideoOutputAffectedCues(current.Cues, settings, stage) {
+			includeIDs[id] = struct{}{}
+		}
+	case "remote":
+		for _, id := range preflight.RemoteTargetAffectedCues(current.Cues, component.Name) {
+			includeIDs[id] = struct{}{}
+		}
+	}
+	ids := make([]show.CueID, 0, len(includeNumbers)+len(includeIDs))
+	orderedNumbers := make([]string, 0, len(includeNumbers)+len(includeIDs))
+	for _, cue := range current.Cues {
+		_, idIncluded := includeIDs[cue.ID]
+		_, numberIncluded := includeNumbers[cue.CueNumber]
+		numberIncluded = numberIncluded && !hasTypedAffectedIDs
+		if idIncluded || numberIncluded {
+			ids = append(ids, cue.ID)
+			orderedNumbers = append(orderedNumbers, cue.CueNumber)
+		}
+	}
+	return ids, orderedNumbers
+}
+
+func healthPreflightSeverity(component health.Component, affectedIDs []show.CueID) operatorlog.Severity {
+	globalFailure := component.State == health.Failed && (component.Kind == "engine" || component.Kind == "timecode")
+	scopedFailure := len(affectedIDs) > 0 && component.State == health.Failed
+	remoteProbePending := len(affectedIDs) > 0 && component.Kind == "remote" && component.State == health.Recovering
+	if globalFailure || scopedFailure || remoteProbePending {
 		return operatorlog.ShowStopping
 	}
 	if pending, _ := component.Details["operatorConfirmationPending"].(bool); pending {
@@ -287,13 +347,21 @@ func healthPreflightSeverity(component health.Component) operatorlog.Severity {
 	return operatorlog.Warning
 }
 
+// isOperatorInfoComponent reports whether a component's health condition is
+// purely informational and should not drive the operator banner into a degraded
+// state. These conditions remain visible in preflight but require no action.
+func isOperatorInfoComponent(component health.Component) bool {
+	pending, _ := component.Details["operatorConfirmationPending"].(bool)
+	return pending
+}
+
 // operatorHealthState excludes health observations that preflight classifies as
 // informational. They remain visible in preflight, but must not put the main
 // operator banner into a degraded state when no action is required.
 func operatorHealthState(snapshot health.Snapshot) health.State {
 	overall := health.Normal
 	for _, component := range snapshot.Components {
-		if component.State == health.Normal || healthPreflightSeverity(component) == operatorlog.Info {
+		if component.State == health.Normal || isOperatorInfoComponent(component) {
 			continue
 		}
 		if component.State > overall {

@@ -25,11 +25,13 @@ type healthBackendStub struct {
 }
 
 func TestFailedRouteHealthIsWarningUntilAnAffectedCueIsIdentified(t *testing.T) {
+	active := show.NewSoundCue()
+	active.CueNumber = "12"
 	snapshot := health.NewSnapshot([]health.Component{
 		{ID: "unused", Kind: "output", Name: "Unused stage", State: health.Failed, Summary: "display disconnected", Details: map[string]any{}},
-		{ID: "active", Kind: "audio", Name: "Playback route", State: health.Failed, Summary: "endpoint disconnected", Details: map[string]any{"affectedCues": []string{"12"}}},
+		{ID: "active", Kind: "audio", Name: "Playback route", State: health.Failed, Summary: "endpoint disconnected", Details: map[string]any{"affectedCues": []string{"12"}, "affectedCueIDs": []show.CueID{active.ID}}},
 	})
-	checks := healthPreflightChecks(snapshot)
+	checks := healthPreflightChecks(snapshot, show.Show{Cues: []show.Cue{active}}, config.Defaults())
 	severities := make(map[string]operatorlog.Severity, len(checks))
 	for _, check := range checks {
 		severities[check.Source] = check.Severity
@@ -93,7 +95,7 @@ func TestHealthComponentsExposeIdentityRecoveryAndAction(t *testing.T) {
 	if snapshot.Overall != health.Failed {
 		t.Fatalf("overall health = %s", snapshot.Overall)
 	}
-	checks := healthPreflightChecks(snapshot)
+	checks := healthPreflightChecks(snapshot, show.Show{}, settings)
 	foundAudio, foundOutput := false, false
 	for _, check := range checks {
 		if strings.Contains(check.Source, "usb-interface") {
@@ -119,7 +121,7 @@ func TestOutputHealthReportsEnumerationFailureAsDegraded(t *testing.T) {
 func TestUnconfirmedDisplayMappingIsInformational(t *testing.T) {
 	backend := &healthBackendStub{displays: []media.VideoDisplay{{ID: "main-display"}}}
 	components := outputHealth(backend, config.Settings{OutputSettings: config.OutputSettings{VideoOutputs: []config.VideoOutput{{Stage: "main", DisplayID: "main-display"}}}})
-	checks := healthPreflightChecks(health.NewSnapshot(components))
+	checks := healthPreflightChecks(health.NewSnapshot(components), show.Show{}, config.Defaults())
 	if len(checks) != 1 || checks[0].Severity != operatorlog.Info {
 		t.Fatalf("display confirmation checks = %+v", checks)
 	}
@@ -131,11 +133,51 @@ func TestUnconfirmedDisplayMappingIsInformational(t *testing.T) {
 func TestDisplayEnumerationFailureRemainsWarning(t *testing.T) {
 	backend := &healthBackendStub{displayErr: errors.New("display service offline")}
 	components := outputHealth(backend, config.Settings{OutputSettings: config.OutputSettings{VideoOutputs: []config.VideoOutput{{Stage: "main"}}}})
-	checks := healthPreflightChecks(health.NewSnapshot(components))
+	checks := healthPreflightChecks(health.NewSnapshot(components), show.Show{}, config.Defaults())
 	if len(checks) != 1 || checks[0].Severity != operatorlog.Warning {
 		t.Fatalf("display enumeration checks = %+v", checks)
 	}
 	if got := operatorHealthState(health.NewSnapshot(components)); got != health.Degraded {
 		t.Fatalf("operator health = %s, want DEGRADED", got)
+	}
+}
+
+func TestPreviewOnlyAudioRouteFailureDoesNotBlockPlaybackCues(t *testing.T) {
+	sound := show.NewSoundCue()
+	sound.CueNumber = "1"
+	components := []health.Component{{
+		ID: "audio-route", Kind: "audio", Name: "Audio routing", State: health.Failed,
+		Summary: "The selected preview audio device is disconnected.",
+		Details: map[string]any{"previewOnly": true},
+	}}
+	checks := healthPreflightChecks(health.NewSnapshot(components), show.Show{Cues: []show.Cue{sound}}, config.Defaults())
+	if len(checks) != 1 || checks[0].Severity != operatorlog.Warning || len(checks[0].AffectedCues) != 0 {
+		t.Fatalf("preview-only audio checks = %#v", checks)
+	}
+}
+
+func TestTypedAffectedCueIDsDoNotExpandAcrossDuplicateCueNumbers(t *testing.T) {
+	first, second := show.NewSoundCue(), show.NewSoundCue()
+	first.CueNumber, second.CueNumber = "1", "1"
+	components := []health.Component{{
+		ID: "audio-endpoint", Kind: "audio", Name: "Endpoint", State: health.Failed, Summary: "Endpoint recovery failed",
+		Details: map[string]any{"affectedCues": []string{"1"}, "affectedCueIDs": []show.CueID{first.ID}},
+	}}
+	checks := healthPreflightChecks(health.NewSnapshot(components), show.Show{Cues: []show.Cue{first, second}}, config.Defaults())
+	if len(checks) != 1 || len(checks[0].AffectedCues) != 1 || checks[0].AffectedCues[0] != first.ID {
+		t.Fatalf("typed affected cues = %#v", checks)
+	}
+}
+
+func TestPreviewMixerCueNumbersRemainDiagnosticOnly(t *testing.T) {
+	preview := show.NewSoundCue()
+	preview.CueNumber = "1"
+	components := []health.Component{{
+		ID: "audio-preview", Kind: "audio", Name: "Preview endpoint", State: health.Failed, Summary: "Endpoint recovery failed",
+		Details: map[string]any{"affectedCues": []string{"1"}, "affectedCueIDs": []show.CueID{}},
+	}}
+	checks := healthPreflightChecks(health.NewSnapshot(components), show.Show{Cues: []show.Cue{preview}}, config.Defaults())
+	if len(checks) != 1 || checks[0].Severity != operatorlog.Warning || len(checks[0].AffectedCues) != 0 {
+		t.Fatalf("preview mixer checks = %#v", checks)
 	}
 }

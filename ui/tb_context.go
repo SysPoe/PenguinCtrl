@@ -61,11 +61,21 @@ type TBContext struct {
 }
 
 func (ctx *TBContext) openCueEditor(cue show.Cue, isNew bool) {
+	// Tear down the previous session through the callbacks it was opened with.
 	ctx.cueEditUI.stopTimecodePreview()
 	ctx.cueEditUI.cue = cue
 	ctx.cueEditUI.tabs.reset(tabGeneral, true)
 	ctx.cueEditUI.page = cueEditPageState{}
 	ctx.cueEditUI.timeline.reset()
+	// Host callbacks are stable for the lifetime of an edit session. Capture
+	// them here so keyboard-open paths do not depend on a prior layout frame.
+	ctx.cueEditUI.pickFile = ctx.PickFile
+	ctx.cueEditUI.projectFiles = ctx.ProjectFiles
+	ctx.cueEditUI.loadWaveform = ctx.LoadWaveform
+	ctx.cueEditUI.togglePreview = ctx.TogglePreview
+	ctx.cueEditUI.stopPreview = ctx.StopPreview
+	ctx.cueEditUI.problemsForCue = ctx.ProblemsForCue
+	ctx.cueEditUI.bindTimecodeEditor()
 	ctx.cueEditUI.isNew = isNew
 	ctx.cueEditUI.show = true
 	ctx.TopBar.CloseMenus()
