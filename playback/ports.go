@@ -8,9 +8,6 @@ import (
 	"github.com/syspoe/cusus/show"
 )
 
-// ShowAccess is the playback-facing view of the cue document and operator
-// selection. Implementations retain ownership of both the document and its
-// selection state.
 type ShowAccess interface {
 	Snapshot() []show.Cue
 	SelectedCueCopy() (show.Cue, int, bool)
@@ -19,29 +16,23 @@ type ShowAccess interface {
 	DeselectCue()
 }
 
-// SettingsAccess supplies immutable settings snapshots to playback policy.
 type SettingsAccess interface {
 	Snapshot() config.Settings
 }
 
-// RemoteCommands is the write-side port used by remote cue execution.
 type RemoteCommands interface {
 	DispatchWithResult(context.Context, show.RemotePlay, show.Cue) (remote.DispatchResult, error)
 }
 
-// RemoteHealthSource is the read-side port used by health and preflight views.
 type RemoteHealthSource interface {
 	Health() []remote.TargetHealth
 }
 
-// RemotePort is the usual combined implementation supplied by a composition
-// root. Its lifecycle remains owned by the caller.
 type RemotePort interface {
 	RemoteCommands
 	RemoteHealthSource
 }
 
-// MediaOutput is the narrow callback/event surface needed by media backends.
 type MediaOutput interface {
 	Subscribe(string) (<-chan Event, func())
 	OutputSnapshot(string) ([]Event, uint64)
@@ -50,7 +41,6 @@ type MediaOutput interface {
 	HandleOutputError(string, error)
 }
 
-// RuntimeQuery exposes immutable playback state without operator mutations.
 type RuntimeQuery interface {
 	ActiveInstances() []Instance
 	ActiveExecutions() []CueExecution
@@ -62,7 +52,6 @@ type RuntimeQuery interface {
 	SafetyLatchReason() string
 }
 
-// OperatorControls is the command surface used by operator controls.
 type OperatorControls interface {
 	PlaySelected() error
 	PlaySelectedOverride() error
@@ -76,7 +65,6 @@ type OperatorControls interface {
 	EndInstance(string)
 }
 
-// RemoteHealthQuery lets health collectors depend on only remote status.
 type RemoteHealthQuery interface {
 	RemoteHealth() []remote.TargetHealth
 }

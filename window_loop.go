@@ -324,12 +324,10 @@ func (s *windowSession) run() error {
 			paint.Fill(gtx.Ops, th.Bg)
 
 			layout.Stack{}.Layout(gtx,
-				// Main application layout
 				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{
 						Axis: layout.Vertical,
 					}.Layout(gtx,
-						// Top Bar
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							return topBar.Layout(th, gtx, manager.HasSelectedCue(), a.UI.ShowSettings)
 						}),
@@ -359,7 +357,6 @@ func (s *windowSession) run() error {
 						}),
 					)
 				}),
-				// Top Bar Submenus
 				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 					if a.UI.ShowSettings {
 						return layout.Dimensions{}

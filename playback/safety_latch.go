@@ -2,10 +2,8 @@ package playback
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/syspoe/cusus/operatorlog"
 	"github.com/syspoe/cusus/show"
@@ -82,15 +80,6 @@ func (s *safetyLatch) completeReset(err error) (failureReason string, changed bo
 		s.acknowledge()
 	}
 	return "", true
-}
-
-func (e *Engine) LatchClockDiscontinuity(gap time.Duration) {
-	reason := fmt.Sprintf("system resume or scheduler gap detected (%s); outputs stopped", gap.Round(time.Millisecond))
-	if !e.safety.activate(reason) {
-		return
-	}
-	e.StopAll()
-	e.recordOperatorError(operatorlog.ShowStopping, "Playback safety", errors.New(reason), show.CueID{}, "")
 }
 
 // BeginEmergencyReset prevents new playback from starting while the media

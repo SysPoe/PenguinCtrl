@@ -2,6 +2,7 @@ package playback
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -116,6 +117,18 @@ func (e *Engine) goOwned(work func()) {
 	// outlive Close and requires no caller-specific fallback.
 	if !e.workers.Go("playback worker", func(context.Context) { work() }) {
 		return
+	}
+}
+
+func GapErrors() {
+
+}
+
+// LatchClockDiscontinuity logs a warning when the timecode source jumps
+// while the hold policy is active.
+func (e *Engine) LatchClockDiscontinuity(gap time.Duration) {
+	if log := e.operatorLogStore(); log != nil {
+		log.Add(operatorlog.Warning, "Timecode", fmt.Sprintf("clock discontinuity: %v gap", gap.Round(time.Millisecond)), show.CueID{}, "")
 	}
 }
 

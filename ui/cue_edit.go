@@ -82,7 +82,6 @@ func (ctx *CueEditUI) drawTopBar(th *material.Theme, gtx layout.Context) layout.
 		gtx.Constraints.Min.Y = barHeight
 		gtx.Constraints.Max.Y = barHeight
 
-		// Make bg
 		paint.FillShape(
 			gtx.Ops, colorBg,
 			clip.Rect{Max: image.Point{

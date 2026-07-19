@@ -147,7 +147,6 @@ func (tb *TopBar) Layout(th *material.Theme, gtx layout.Context, canEditCue, set
 	gtx.Constraints.Max.Y = barHeight
 	gtx.Constraints.Min.X = 0
 
-	// Make bg
 	paint.FillShape(
 		gtx.Ops,
 		palette.Surface,

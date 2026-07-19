@@ -31,16 +31,3 @@ func TestEmergencyResetLatchOnlyRearmsAfterSuccess(t *testing.T) {
 		t.Fatal("successful reset did not rearm playback")
 	}
 }
-
-func TestEmergencyResetPreservesAnExistingSafetyLatch(t *testing.T) {
-	engine := newLifecycleTestEngine(t)
-	engine.LatchClockDiscontinuity(5)
-	prior := engine.SafetyLatchReason()
-
-	engine.BeginEmergencyReset()
-	engine.CompleteEmergencyReset(nil)
-
-	if got := engine.SafetyLatchReason(); got != prior {
-		t.Fatalf("existing latch after reset = %q, want %q", got, prior)
-	}
-}

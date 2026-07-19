@@ -347,17 +347,11 @@ func healthPreflightSeverity(component health.Component, affectedIDs []show.CueI
 	return operatorlog.Warning
 }
 
-// isOperatorInfoComponent reports whether a component's health condition is
-// purely informational and should not drive the operator banner into a degraded
-// state. These conditions remain visible in preflight but require no action.
 func isOperatorInfoComponent(component health.Component) bool {
 	pending, _ := component.Details["operatorConfirmationPending"].(bool)
 	return pending
 }
 
-// operatorHealthState excludes health observations that preflight classifies as
-// informational. They remain visible in preflight, but must not put the main
-// operator banner into a degraded state when no action is required.
 func operatorHealthState(snapshot health.Snapshot) health.State {
 	overall := health.Normal
 	for _, component := range snapshot.Components {

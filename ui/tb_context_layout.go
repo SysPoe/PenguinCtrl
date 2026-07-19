@@ -61,7 +61,6 @@ func (ctx *TBContext) Layout(th *material.Theme, gtx layout.Context, manager *sh
 	actionOpen, actionPosition := ctx.TopBar.ActionMenuState()
 
 	return layout.Stack{}.Layout(gtx,
-		// action menu
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 			defer op.Offset(actionPosition).Push(gtx.Ops).Pop()
 			if actionOpen {
@@ -81,7 +80,6 @@ func (ctx *TBContext) Layout(th *material.Theme, gtx layout.Context, manager *sh
 			}
 			return layout.Dimensions{}
 		}),
-		// addCue
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 			defer op.Offset(addCuePosition).Push(gtx.Ops).Pop()
 			if addCueOpen {
@@ -100,7 +98,6 @@ func (ctx *TBContext) Layout(th *material.Theme, gtx layout.Context, manager *sh
 			}
 			return layout.Dimensions{}
 		}),
-		// cueEditUI
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 			return ctx.cueEditUI.Layout(th, gtx, manager)
 		}),
